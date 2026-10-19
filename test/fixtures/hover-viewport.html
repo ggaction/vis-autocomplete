@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Hover viewport diagnostics</title>
+<style>
+* { box-sizing:border-box; font-family:Arial,sans-serif }
+body { margin:10px; background:white; color:#252a31; font-size:12px }
+header { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-bottom:8px }
+button { border:1px solid #bbb; background:white; padding:5px; border-radius:3px }
+#stage { position:relative; width:100%; overflow:hidden; border:1px solid #ccc }
+iframe { position:absolute; top:0; left:0; transform-origin:top left; border:0 }
+pre { white-space:pre-wrap; font:11px monospace; line-height:1.5 }
+</style>
+<header><strong>Viewport</strong><button data-width="1440" data-height="900">1440 × 900</button><button data-width="1920" data-height="1080">1920 × 1080</button><button data-width="2560" data-height="1440">2560 × 1440</button><button id="clear">Clear recording</button></header>
+<div id="stage"><iframe title="Actual application at selected viewport" src="/"></iframe></div>
+<pre id="report">Loading actual application…</pre>
+<script type="module">
+const stage=document.querySelector('#stage'),frame=stage.querySelector('iframe'),report=document.querySelector('#report');
+let width=2560,height=1440,entries=[],events=[],observer,position=null;
+function size(){const scale=stage.clientWidth/width;frame.style.width=`${width}px`;frame.style.height=`${height}px`;frame.style.transform=`scale(${scale})`;stage.style.height=`${Math.ceil(height*scale)}px`;}
+function describe(event){return {type:event.type,x:event.clientX,y:event.clientY,screenX:event.screenX,screenY:event.screenY,dx:event.movementX,dy:event.movementY,target:event.target.closest?.('.card')?.dataset.method,choice:event.target.closest?.('.parameter-choice')?.dataset.value};}
+function draw(){const doc=frame.contentDocument;report.textContent=JSON.stringify({viewport:[doc?.documentElement.clientWidth,frame.contentWindow?.innerHeight],dpr:devicePixelRatio,transitions:entries.length,
+ frame:frame.getBoundingClientRect().toJSON(),
+ cards:[...doc.querySelectorAll(".card-row:first-child .card")].map(c=>({method:c.dataset.method,rect:c.getBoundingClientRect().toJSON()})),recent:entries.slice(-10),recentPointerEvents:events.slice(-8)},null,2);}
+for(const button of document.querySelectorAll('[data-width]'))button.onclick=()=>{width=Number(button.dataset.width);height=Number(button.dataset.height);size();draw();};
+document.querySelector('#clear').onclick=()=>{entries=[];events=[];draw();};
+frame.onload=()=>{const doc=frame.contentDocument;observer?.disconnect();for(const type of ['pointermove','pointerover','pointerout','mouseleave'])doc.addEventListener(type,event=>{position=describe(event);events.push(position);events=events.slice(-50);},true);
+let previous='';observer=new MutationObserver(()=>{const active=doc.querySelector('.card.expanded'),code=doc.querySelector('#code-content');const signature=JSON.stringify({expanded:active?.dataset.method,preview:doc.querySelector('#preview-name')?.textContent,call:code?.querySelector('[data-change="added"] .code-text')?.textContent,parameter:active?.querySelector('.previewing')?.dataset.value});if(signature!==previous){previous=signature;entries.push({time:Math.round(performance.now()),state:JSON.parse(signature),pointer:position});entries=entries.slice(-100);}draw();});observer.observe(doc.documentElement,{subtree:true,attributes:true,childList:true});draw();};
+new ResizeObserver(size).observe(stage);size();setInterval(draw,500);
+</script>

@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Chart display fit checks</title>
+<link rel="stylesheet" href="/web/style.css">
+<script type="importmap">{"imports":{"ggaction":"/node_modules/ggaction/src/index.js","ggaction/svg":"/node_modules/ggaction/src/renderers/svg.js","ggaction/inspection":"/node_modules/ggaction/src/inspection.js"}}</script>
+<style>
+body { max-width: 950px; padding: 20px; }
+header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sample { height: 168px; }
+.panel { padding: 10px; }
+pre { white-space: pre-wrap; margin-top: 16px; font: 12px/1.5 monospace; }
+</style>
+<header><h2>Chart display fit</h2><button id="run" disabled>Run fit checks</button><select id="case" aria-label="Chart example"></select></header>
+<div class="comparison">
+  <section class="panel"><h2>Before</h2><div id="before" class="chart-view sample"></div></section>
+  <section class="panel"><h2>Current / Preview fit</h2><div id="after" class="chart-view sample"></div></section>
+</div>
+<pre id="report" role="status">Loading Cars…</pre>
+<script type="module">
+import { chart } from 'ggaction';
+import { renderToSVG } from 'ggaction/svg';
+import { profileDataset } from '/src/index.js';
+import { selectionAxes } from '/web/selection-setup.js';
+import { defaultCanvasOptions, addDefaultGuides, prepareGuidedAction } from '/web/plot-setup.js';
+import { fitChartViewport } from '/web/chart-viewport.js';
+const $ = selector => document.querySelector(selector), report = $('#report');
+const rows = await (await fetch('/web/data/cars.json')).json();
+const base = chart().createCanvas(defaultCanvasOptions()).applyTheme({ theme: { base: 'light', tokens: { fontFamily: 'Arial' } } })
+  .createData({ id: 'dataset', values: rows });
+const plot = base.createScatterPlot({ id: 'plot', data: 'dataset', guides: false, missing: 'skip', x: 'Horsepower', y: 'Miles_per_Gallon' });
+const colored = plot.encodeColor({ target: 'plot', field: 'Origin', fieldType: 'nominal' });
+const guide = addDefaultGuides(colored);
+const cases = [
+  ['Selected axes', selectionAxes(base, profileDataset(base, 'dataset'), rows, { x: 'Horsepower', y: 'Miles_per_Gallon' }).program],
+  ['Scatter plot', addDefaultGuides(plot)], ['Color legend', guide],
+  ...['top', 'bottom', 'left', 'right'].map(position => [`${position} title`, prepareGuidedAction(colored,
+    { method: 'createTitle', args: { text: 'Miles per gallon by Horsepower', position, titleStyle: { fontSize: 24 } } }, guide).preview]),
+  ...['left', 'right', 'top', 'bottom', 'top-right', 'bottom-left'].map(position => [`${position} legend`, prepareGuidedAction(colored,
+    { method: 'editLegend', args: { target: 'plot', channel: 'color', position, labels: { fontSize: 18 } } }, guide).preview]),
+];
+for (const [index, [name]] of cases.entries()) { const option = document.createElement('option'); option.value = index; option.textContent = name; $('#case').append(option); }
+function show(index) {
+  const program = cases[index][1], source = renderToSVG(program, { resourceNamespace: `fit-${index}` });
+  $('#before').innerHTML = source; $('#after').innerHTML = source;
+  const svg = $('#after svg');
+  fitChartViewport(svg, program);
+  return { svg, program };
+}
+$('#case').onchange = event => show(Number(event.target.value));
+$('#run').disabled = false; report.textContent = 'Ready'; show(1); $('#case').value = 1;
+$('#run').onclick = () => {
+  const results = [];
+  try {
+    for (const [index, [name]] of cases.entries()) {
+      const program = cases[index][1], before = JSON.stringify(program);
+      const { svg } = show(index), view = svg.viewBox.baseVal;
+      const content = svg.querySelector('[data-chart-content]');
+      // The first display computes bounds; another mounted copy reuses them.
+      const baseline = $('#before svg').getScreenCTM(), fitted = svg.getScreenCTM();
+      if (Math.abs(fitted.a - fitted.d) > .0001) throw Error(`${name}: nonuniform scaling`);
+      if (fitted.a < baseline.a) throw Error(`${name}: chart became smaller`);
+      if (content) {
+        const box = content.getBBox();
+        if (view.x > box.x || view.y > box.y || view.x + view.width < box.x + box.width || view.y + view.height < box.y + box.height) throw Error(`${name}: clipped content`);
+      }
+      const copy = svg.cloneNode(true); $('#after').append(copy); fitChartViewport(copy, program);
+      if (copy.getAttribute('viewBox') !== svg.getAttribute('viewBox')) throw Error(`${name}: cached fit differs`);
+      copy.remove();
+      if (JSON.stringify(program) !== before) throw Error(`${name}: mutated ggaction state`);
+      results.push({ name, enlargement: `${((fitted.a / baseline.a - 1) * 100).toFixed(1)}%`, viewBox: svg.getAttribute('viewBox') });
+    }
+    report.dataset.result = 'passed';
+    report.textContent = `PASS ${results.length} native charts: larger display, full guides, equal X/Y scaling, immutable canvas and cached fit.\n${JSON.stringify(results, null, 2)}`;
+    show(2); $('#case').value = 2;
+  } catch (error) { report.dataset.result = 'failed'; report.textContent = `FAIL ${error.stack}`; }
+};
+</script>

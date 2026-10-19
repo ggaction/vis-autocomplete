@@ -1,0 +1,91 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Code disclosure motion checks</title>
+<link rel="stylesheet" href="/web/style.css">
+<style>
+body { padding: 24px; max-width: 850px; }
+header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.code-panel { height: 430px; }
+#report { white-space: pre-wrap; margin-top: 16px; font: 12px/1.6 monospace; }
+</style>
+<header><h2>Code disclosure motion checks</h2><button id="run">Run checks</button></header>
+<section class="panel code-panel"><div class="panel-heading"><h2>Code view</h2></div><pre id="code"></pre></section>
+<pre id="report" role="status">Ready</pre>
+<script type="module">
+import { programCode, renderCode, resetCodeView } from '/web/code-view.js';
+const host = document.querySelector('#code'), report = document.querySelector('#report');
+const baseCalls = [{ method: 'createCanvas', args: { width: 600, height: 450, margin: 60 } }];
+const added = { method: 'encodeColor', args: { target: 'plot', field: 'Origin', fieldType: 'nominal', scale: { palette: 'tableau10' } } };
+const current = programCode(baseCalls), next = programCode([...baseCalls, added]);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+const reference = () => host.querySelector('[data-method="encodeColor"]');
+const preview = () => { resetCodeView(host); renderCode(host, current, next); return reference(); };
+renderCode(host, current, next);
+document.querySelector('#run').onclick = async event => {
+  event.target.disabled = true;
+  const passed = [], samples = [];
+  try {
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let call = preview();
+    check(call.open, 'Preview should show every parameter');
+    const start = performance.now();
+    renderCode(host, next, null, { settleApplied: true });
+    if (!reduced) {
+      check(call.open && call.dataset.settling === 'holding', 'Apply should retain the expanded call');
+      await sleep(600);
+      check(call.open && call.dataset.settling === 'holding', 'Parameters should still be readable 600ms after Apply');
+      while (call.open && performance.now() - start < 2400) {
+        samples.push({ ms: Math.round(performance.now() - start), phase: call.dataset.settling, height: Math.round(call.querySelector('.code-arguments').getBoundingClientRect().height) });
+        await frame();
+      }
+      check(samples.some(s => s.phase === 'holding'), 'Missing held state');
+      const folding = samples.filter(s => s.phase === 'folding');
+      check(folding.length >= 2 && folding.at(-1).height < folding[0].height, 'Parameter height should shrink across animation frames');
+      check(performance.now() - start >= 900, 'The call closed before the 700ms hold and fold completed');
+    }
+    check(!call.open && !call.dataset.settling, 'Committed call should finish collapsed with no pending motion');
+    check(call.querySelector('summary').textContent.includes('encodeColor(...)'), 'Collapsed summary should show ellipsis');
+    passed.push('Apply: 700ms expanded hold → shrinking parameters → collapsed function');
+
+    call.querySelector('summary').click();
+    await sleep(450);
+    check(call.open, 'A manually reopened committed call should stay open');
+    passed.push('Applied functions can still be opened manually');
+
+    call = preview();
+    renderCode(host, next, null, { settleApplied: true });
+    if (call.open) call.querySelector('summary').click();
+    call.querySelector('summary').click();
+    await sleep(1450);
+    check(call.open && !call.dataset.settling, 'A manual toggle should cancel pending automatic collapse');
+    passed.push('Manual clicks override the automatic fold');
+
+    call = preview();
+    renderCode(host, next, null, { settleApplied: true });
+    renderCode(host, current, next);
+    await sleep(1450);
+    check(call.open && !call.dataset.settling, 'A refreshed preview must cancel an older committed fold');
+    passed.push('A new preview cancels stale collapse work');
+
+    call = preview();
+    renderCode(host, next, null, { settleApplied: true });
+    resetCodeView(host);
+    renderCode(host, current, next);
+    await sleep(1450);
+    check(reference().open && !reference().dataset.settling, 'Reset must cancel all old timers and animations');
+    passed.push('Reset/Undo cannot close a later preview');
+
+    call = preview();
+    renderCode(host, next);
+    check(!call.open && !call.dataset.settling, 'Leaving a preview without Apply should not start a settlement');
+    passed.push('Non-Apply transitions retain the immediate reset');
+
+    report.dataset.result = 'passed';
+    report.textContent = passed.map(text => `PASS ${text}`).join('\n') + '\n\nMeasured frames: ' + JSON.stringify(samples);
+  } catch (error) {
+    report.dataset.result = 'failed'; report.textContent = 'FAIL ' + error.message;
+  } finally { event.target.disabled = false; }
+};
+</script>

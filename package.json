@@ -1,0 +1,37 @@
+{
+  "name": "ggaction-autocomplete",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-action visualization recommendations for ggaction, ranked by corpus co-occurrence.",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": "./src/index.js",
+  "scripts": {
+    "dev": "npm run build:workers && node scripts/dev-server.js",
+    "build:workers": "node scripts/build-workers.js",
+    "benchmark:performance": "node scripts/benchmark-performance.js",
+    "benchmark:recommendations": "node scripts/benchmark-lazy-recommendations.js",
+    "demo": "node examples/demo.js",
+    "test": "node --test test/*.test.js",
+    "corpus:update": "node scripts/update-corpus.js",
+    "corpus:train": "node scripts/train-corpus.js",
+    "catalog:check": "node scripts/check-catalog.js",
+    "validate:corpus": "node scripts/validate-corpus.js",
+    "validate:recommendations": "node scripts/validate-recommendations.js",
+    "update": "node scripts/update.js",
+    "check:ggaction": "git -C vendor/ggaction fetch origin",
+    "test:ggaction": "npm --prefix vendor/ggaction run test:unit",
+    "demo:initial": "node examples/initial-demo.js",
+    "validate:initial": "node scripts/validate-initial.js",
+    "audit:actions": "node scripts/audit-action-availability.js"
+  },
+  "dependencies": {
+    "acorn": "8.19.0",
+    "ggaction": "file:vendor/ggaction"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

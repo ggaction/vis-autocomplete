@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Build a visualization one ggaction recommendation at a time.">
+  <title>Visualization Autocomplete 1.5</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/web/style.css">
+  <script type="importmap">
+    {"imports": {
+      "ggaction": "/node_modules/ggaction/src/index.js",
+      "ggaction/inspection": "/node_modules/ggaction/src/inspection.js",
+      "ggaction/svg": "/node_modules/ggaction/src/renderers/svg.js"
+      ,"ggaction/persistence": "/node_modules/ggaction/src/persistence.js"
+    }}
+  </script>
+  <script type="module" src="/web/app.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Visualization Autocomplete 1.5</h1>
+    <div class="dataset-controls">
+      <label class="sr-only" for="dataset">Dataset</label>
+      <select id="dataset"><option value="cars">Cars</option><option value="sales">Monthly sales</option></select>
+      <button id="upload" type="button">Upload dataset</button>
+      <input id="file" type="file" accept=".csv,.json,text/csv,application/json" hidden>
+    </div>
+    <div class="header-guidance" aria-label="Usage guidance">
+      <p id="step-description">Select X and Y in the data table to see chart options.</p>
+      <p id="code-guidance" hidden>Previewed actions show all parameters. Apply to collapse; click applied functions to expand.</p>
+      <div id="notice" class="notice" role="status" aria-live="polite">Loading the recommendation model…</div>
+    </div>
+  </header>
+  <main>
+    <div class="workspace"><div class="authoring-area">
+    <div class="visualizations">
+      <section class="panel" aria-labelledby="current-heading">
+        <div class="panel-heading current-panel-heading"><h2 id="current-heading">Current visualization</h2><div id="selection-controls" hidden></div><button id="restart" type="button" hidden>Change variables</button></div>
+        <div id="current" class="chart-view" aria-label="Current visualization"></div>
+        <p id="current-note" hidden></p>
+      </section>
+      <section class="panel" aria-labelledby="preview-heading">
+        <div class="panel-heading"><h2 id="preview-heading">Preview</h2><span id="preview-name" class="quiet"></span></div>
+        <div id="preview" class="chart-view" aria-label="Preview visualization"></div>
+        <p id="preview-note" hidden></p>
+      </section>
+    </div>
+    <section class="options-section" aria-labelledby="options-heading">
+      <div class="options-heading">
+        <div class="options-title-block">
+          <div class="options-title-row">
+            <h2 id="options-heading">Option cards</h2>
+            <div id="option-groups" class="option-groups" role="tablist" aria-label="Recommendation groups" hidden>
+              <button id="group-encoding" type="button" role="tab" data-group="encoding" aria-controls="cards" aria-selected="true">Encoding</button>
+              <button id="group-transform" type="button" role="tab" data-group="transform" aria-controls="cards" aria-selected="false" tabindex="-1">Transform</button>
+              <button id="group-style" type="button" role="tab" data-group="style" aria-controls="cards" aria-selected="false" tabindex="-1">Style</button>
+            </div>
+            <div id="action-search-control" class="action-search" hidden>
+              <label class="sr-only" for="action-search">Search actions</label>
+              <input id="action-search" type="search" placeholder="Search actions…" autocomplete="off" spellcheck="false" maxlength="120" aria-controls="cards">
+            </div>
+          </div>
+        </div>
+        <div class="options-tools"><span id="options-note" class="quiet"></span><nav class="cards-navigation" aria-label="Chart option pages"><button id="cards-prev" type="button" aria-label="Previous five charts" disabled>‹</button><span id="cards-page" class="quiet" aria-live="polite">1 / 1</span><button id="cards-next" type="button" aria-label="Next five charts" disabled>›</button></nav><div class="history-controls" role="group" aria-label="Visualization history"><button id="undo" type="button" aria-label="Undo" title="Undo last applied action" disabled>↶ Undo</button><button id="redo" type="button" aria-label="Redo" title="Redo applied action" disabled>↷ Redo</button></div></div>
+      </div>
+      <div id="cards" class="cards" tabindex="0" aria-label="Chart options" aria-live="polite"></div>
+    </section>
+    <section class="history-section" aria-labelledby="history-heading">
+      <div class="history-heading"><h2 id="history-heading">History</h2><span id="history-meta" class="quiet" aria-live="polite"></span></div>
+      <div id="history" class="history-list" aria-label="Applied action history"></div>
+    </section>
+    </div>
+    <aside class="panel code-panel" aria-labelledby="code-heading">
+      <div class="panel-heading"><h2 id="code-heading">Code view</h2><span id="code-mode" class="quiet">Current</span></div>
+      <pre id="code-content" aria-label="ggaction code" tabindex="0"></pre>
+    </aside>
+    </div>
+  </main>
+</body>
+</html>

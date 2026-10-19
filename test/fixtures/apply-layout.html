@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Apply layout stability checks</title>
+<style>
+body { margin: 0; font: 12px Arial; }
+iframe { display: block; border: 0; }
+aside { position: fixed; right: 12px; bottom: 12px; max-width: 470px; padding: 12px; border: 1px solid #aaa; background: white; }
+pre { white-space: pre-wrap; }
+</style>
+<iframe title="Autocomplete under test"></iframe>
+<aside><button id="run">Check Apply layout</button><pre id="report" role="status">Ready</pre></aside>
+<script type="module">
+const frame = document.querySelector('iframe'), report = document.querySelector('#report');
+const wait = async predicate => {
+  const start = performance.now();
+  while (!predicate()) {
+    if (performance.now() - start > 20000) throw new Error('Timed out waiting for UI');
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+};
+const results = [];
+document.querySelector('#run').onclick = async event => {
+  event.target.disabled = true; results.length = 0;
+  try {
+    for (const [width, height] of [[1280, 720], [512, 924]]) {
+      frame.style.width = `${width}px`; frame.style.height = `${height}px`;
+      await new Promise(resolve => { frame.onload = resolve; frame.src = `/?apply-layout=${width}`; });
+      const doc = frame.contentDocument, win = frame.contentWindow, $ = selector => doc.querySelector(selector);
+      await wait(() => $('.column-select') && !$('#notice').textContent);
+      $('.column-select[data-field="Horsepower"]').click();
+      $('.column-select[data-field="Miles_per_Gallon"]').click();
+      const ready = () => !$('#notice').textContent && $('#history').getAttribute('aria-busy') === 'false' && $('.card-row[aria-busy="false"]');
+      for (const [index, method] of ['createScatterPlot', 'encodeColor', 'encodeOpacity'].entries()) {
+        await wait(() => ready() && [...doc.querySelectorAll('.card .method-name')].some(e => e.textContent.includes(method)));
+        const card = [...doc.querySelectorAll('.card')].find(e => e.querySelector('.method-name')?.textContent.includes(method));
+        card.querySelector('.card-top').click();
+        await new Promise(resolve => setTimeout(resolve, 350));
+        const sample = () => ({ height: doc.documentElement.scrollHeight,
+          top: $('.workspace').getBoundingClientRect().top, panel: $('.visualizations').getBoundingClientRect().height,
+          notice: $('#notice').textContent, flying: Boolean($('.chart-transfer')) });
+        const samples = [sample()];
+        let running = true;
+        const measure = () => { if (!running) return; samples.push(sample()); win.requestAnimationFrame(measure); };
+        win.requestAnimationFrame(measure);
+        card.querySelector('.apply-button').click();
+        await wait(() => ready() && $('#current').dataset.steps === String(index + 1));
+        await new Promise(resolve => setTimeout(resolve, 500));
+        running = false; samples.push(sample());
+        const spread = key => Math.max(...samples.map(s => s[key])) - Math.min(...samples.map(s => s[key]));
+        results.push({ width, method, frames: samples.length, documentHeightChange: spread('height'),
+          workspaceMovement: spread('top'), panelHeightChange: spread('panel'),
+          noticeSamples: samples.filter(s => s.notice).slice(0, 3), animationFrames: samples.filter(s => s.flying).length });
+        report.textContent = JSON.stringify(results, null, 2);
+      }
+    }
+    const stable = results.every(result => result.documentHeightChange <= 1 && result.workspaceMovement <= 1 && result.panelHeightChange <= 1);
+    report.textContent = `${stable ? 'PASS' : 'FAIL'} ${results.length} Apply transitions\n${JSON.stringify(results, null, 2)}`;
+  } catch (error) { report.textContent = `FAIL\n${error.stack}\n${JSON.stringify(results, null, 2)}`; }
+  event.target.disabled = false;
+};
+</script>

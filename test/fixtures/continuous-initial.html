@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Continuous initial chart checks</title>
+<style>body{margin:0;font:12px Arial}iframe{width:100vw;height:100vh;border:0}aside{position:fixed;right:12px;bottom:12px;max-width:460px;background:white;border:1px solid #aaa;padding:10px}pre{white-space:pre-wrap}</style>
+<iframe src="/" title="Autocomplete under test"></iframe>
+<aside><button id="run">Check continuous charts</button><pre id="report" role="status">Ready</pre></aside>
+<script type="module">
+const frame = document.querySelector('iframe'), report = document.querySelector('#report');
+const check = (ok, message) => { if (!ok) throw new Error(message); };
+const wait = async predicate => { const start = performance.now(); while (!predicate()) {
+  if (performance.now() - start > 25000) throw new Error('Timed out waiting for UI');
+  await new Promise(resolve => setTimeout(resolve, 25));
+} };
+document.querySelector('#run').onclick = async event => {
+  event.target.disabled = true;
+  const doc = frame.contentDocument, $ = selector => doc.querySelector(selector), passed = [];
+  const cards = () => [...doc.querySelectorAll('.card')];
+  const cardFor = method => cards().find(c => c.querySelector('.method-name')?.textContent.includes(method));
+  const ready = () => !$('#notice').textContent && cards().length >= 5 && cards().every(c => !c.querySelector('.apply-button').disabled);
+  try {
+    await wait(() => $('.column-select[data-field="Horsepower"]') && !$('#notice').textContent);
+    for (const field of ['Horsepower', 'Miles_per_Gallon', 'Acceleration']) $('.column-select[data-field="'+field+'"]').click();
+    await wait(ready);
+    $('#cards-next').click();
+    await wait(() => ready() && cards().length === 7);
+    $('#cards-prev').click();
+    check(cards().length === 7, 'All seven chart types must be usable in the actual app');
+    passed.push('Three continuous variables: seven usable native chart cards');
+    for (const method of ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHeatmap']) {
+      const card = cardFor(method);
+      card.querySelector('.card-top').focus();
+      card.querySelector('.card-top').click();
+      await wait(() => $('#preview svg') && $('#code-content').textContent.includes('.'+method+'('));
+      const drawingOf = target => {
+        const svg = $(target+' svg'), group = svg.querySelector('[data-chart-content]');
+        const content = group ? group.innerHTML : [...svg.children].filter(node => !['defs','title','desc','style','metadata'].includes(node.localName) && !(node.localName === 'rect' && node.getAttribute('width') === svg.getAttribute('width') && node.getAttribute('height') === svg.getAttribute('height'))).map(node => node.outerHTML).join('');
+        return content.replace(/view-\d+-/g, '');
+      };
+      const drawing = drawingOf('#preview');
+      check(!$('#preview').textContent.includes('overlap'), method+' preview must render');
+      check(card.querySelectorAll('.control').length <= 3, method+' controls must remain compact');
+      card.querySelector('.apply-button').click();
+      await wait(() => !$('#undo').disabled && !$('#notice').textContent && $('.history-item') && $('#current svg'));
+      check(drawingOf('#current') === drawing, method+' Apply must match preview');
+      passed.push(method+': worker preview and Apply match');
+      $('#undo').click();
+      await wait(ready);
+      $('#cards-next').click();
+      await wait(() => ready() && cards().length === 7);
+      $('#cards-prev').click();
+      check($('.column-select[data-field="Acceleration"]').getAttribute('aria-pressed') === 'true', 'Undo must keep selected Color');
+    }
+    cardFor('createHeatmap').querySelector('.card-top').focus();
+    cardFor('createHeatmap').querySelector('.card-top').click();
+    await wait(() => $('#preview svg') && $('#code-content').textContent.includes('.createHeatmap('));
+    report.textContent = 'PASS\n'+passed.join('\n');
+  } catch(error) { report.textContent = 'FAIL: '+error.message+'\n'+passed.join('\n'); }
+};
+</script>

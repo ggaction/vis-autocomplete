@@ -1,0 +1,2740 @@
+{
+  "ggactionVersion": "0.0.21",
+  "ggactionSource": {
+    "repository": "https://github.com/ggaction/ggaction",
+    "directory": "vendor/ggaction",
+    "branch": "codex/edit-axes-autocomplete",
+    "commit": "83bebd189dc9dfcba543436c93777c52dfb14d84",
+    "modified": false
+  },
+  "policy": "one-existing-public-ggaction-method-per-recommendation",
+  "inventorySource": "public-TypeScript-declarations-runtime-and-inspection",
+  "corpusActions": [
+    {
+      "method": "createData",
+      "charts": 1213,
+      "role": "setup",
+      "reason": "Resource creation; an existing chart already owns these resources.",
+      "runtime": true
+    },
+    {
+      "method": "createCanvas",
+      "charts": 1213,
+      "role": "setup",
+      "reason": "Resource creation; an existing chart already owns these resources.",
+      "runtime": true
+    },
+    {
+      "method": "createYAxis",
+      "charts": 1162,
+      "role": "existing-guide",
+      "via": "editYAxis",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "createXAxis",
+      "charts": 1162,
+      "role": "existing-guide",
+      "via": "editXAxis",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "editYScale",
+      "charts": 1151,
+      "role": "recommendation",
+      "via": "editYScale",
+      "runtime": true
+    },
+    {
+      "method": "editXScale",
+      "charts": 1147,
+      "role": "recommendation",
+      "via": "editXScale",
+      "runtime": true
+    },
+    {
+      "method": "editXAxis",
+      "charts": 1053,
+      "role": "recommendation",
+      "via": "editXAxis",
+      "runtime": true
+    },
+    {
+      "method": "editYAxis",
+      "charts": 1045,
+      "role": "recommendation",
+      "via": "editYAxis",
+      "runtime": true
+    },
+    {
+      "method": "createAxes",
+      "charts": 1019,
+      "role": "existing-guide",
+      "via": "editAxes",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "createComputedData",
+      "charts": 843,
+      "role": "data-preparation",
+      "via": "editComputedData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "createGrid",
+      "charts": 803,
+      "role": "existing-guide",
+      "via": "editGrid",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "editYAxisTitle",
+      "charts": 795,
+      "role": "recommendation",
+      "via": "editYAxisTitle",
+      "runtime": true
+    },
+    {
+      "method": "editXAxisTitle",
+      "charts": 755,
+      "role": "recommendation",
+      "via": "editXAxisTitle",
+      "runtime": true
+    },
+    {
+      "method": "createTitle",
+      "charts": 745,
+      "role": "recommendation",
+      "via": "createTitle",
+      "runtime": true
+    },
+    {
+      "method": "editXAxisLabels",
+      "charts": 731,
+      "role": "recommendation",
+      "via": "editXAxisLabels",
+      "runtime": true
+    },
+    {
+      "method": "editTitle",
+      "charts": 725,
+      "role": "recommendation",
+      "via": "editTitle",
+      "runtime": true
+    },
+    {
+      "method": "editXAxisLine",
+      "charts": 722,
+      "role": "recommendation",
+      "via": "editXAxisLine",
+      "runtime": true
+    },
+    {
+      "method": "editYAxisLine",
+      "charts": 706,
+      "role": "recommendation",
+      "via": "editYAxisLine",
+      "runtime": true
+    },
+    {
+      "method": "editYAxisLabels",
+      "charts": 673,
+      "role": "recommendation",
+      "via": "editYAxisLabels",
+      "runtime": true
+    },
+    {
+      "method": "editXAxisTicks",
+      "charts": 618,
+      "role": "recommendation",
+      "via": "editXAxisTicks",
+      "runtime": true
+    },
+    {
+      "method": "editYAxisTicks",
+      "charts": 611,
+      "role": "recommendation",
+      "via": "editYAxisTicks",
+      "runtime": true
+    },
+    {
+      "method": "editHorizontalGrid",
+      "charts": 596,
+      "role": "recommendation",
+      "via": "editHorizontalGrid",
+      "runtime": true
+    },
+    {
+      "method": "createGuides",
+      "charts": 545,
+      "role": "existing-guide",
+      "via": "editAxes",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "encodeColor",
+      "charts": 494,
+      "role": "recommendation",
+      "via": "encodeColor",
+      "runtime": true
+    },
+    {
+      "method": "editColorScale",
+      "charts": 489,
+      "role": "recommendation",
+      "via": "editColorScale",
+      "runtime": true
+    },
+    {
+      "method": "editVerticalGrid",
+      "charts": 488,
+      "role": "recommendation",
+      "via": "editVerticalGrid",
+      "runtime": true
+    },
+    {
+      "method": "createLinePlot",
+      "charts": 482,
+      "role": "initial-chart",
+      "via": "createLinePlot",
+      "runtime": true
+    },
+    {
+      "method": "editLineMark",
+      "charts": 454,
+      "role": "recommendation",
+      "via": "editLineMark",
+      "runtime": true
+    },
+    {
+      "method": "createLegend",
+      "charts": 394,
+      "role": "existing-guide",
+      "via": "editLegend",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "createScatterPlot",
+      "charts": 382,
+      "role": "initial-chart",
+      "via": "createScatterPlot",
+      "runtime": true
+    },
+    {
+      "method": "encodeStroke",
+      "charts": 378,
+      "role": "recommendation",
+      "via": "encodeStroke",
+      "runtime": true
+    },
+    {
+      "method": "editPointMark",
+      "charts": 373,
+      "role": "recommendation",
+      "via": "editPointMark",
+      "runtime": true
+    },
+    {
+      "method": "encodeBarWidth",
+      "charts": 353,
+      "role": "recommendation",
+      "via": "encodeBarWidth",
+      "runtime": true
+    },
+    {
+      "method": "createBarPlot",
+      "charts": 352,
+      "role": "initial-chart",
+      "via": "createBarPlot",
+      "runtime": true
+    },
+    {
+      "method": "encodeStrokeWidth",
+      "charts": 337,
+      "role": "recommendation",
+      "via": "encodeStrokeWidth",
+      "runtime": true
+    },
+    {
+      "method": "encodePointRadius",
+      "charts": 335,
+      "role": "recommendation",
+      "via": "encodeSize",
+      "reason": "One point-size editor handles fixed area and variable mapping through encodeSize.",
+      "runtime": true
+    },
+    {
+      "method": "filterData",
+      "charts": 331,
+      "role": "data-preparation",
+      "via": "filterMarks",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "editXAxisTicksAndLabels",
+      "charts": 330,
+      "role": "recommendation",
+      "via": "editXAxisTicksAndLabels",
+      "runtime": true
+    },
+    {
+      "method": "editYAxisTicksAndLabels",
+      "charts": 323,
+      "role": "recommendation",
+      "via": "editYAxisTicksAndLabels",
+      "runtime": true
+    },
+    {
+      "method": "encodeOpacity",
+      "charts": 295,
+      "role": "recommendation",
+      "via": "encodeOpacity",
+      "runtime": true
+    },
+    {
+      "method": "applyTextMetrics",
+      "charts": 254,
+      "role": "setup",
+      "reason": "Font measurements and the initial theme belong to chart setup; corpus measurements cannot be copied to unrelated text.",
+      "runtime": true
+    },
+    {
+      "method": "editCanvas",
+      "charts": 244,
+      "role": "recommendation",
+      "via": "editCanvas",
+      "runtime": true
+    },
+    {
+      "method": "editBarMark",
+      "charts": 243,
+      "role": "recommendation",
+      "via": "editBarMark",
+      "runtime": true
+    },
+    {
+      "method": "editGrid",
+      "charts": 230,
+      "role": "recommendation",
+      "via": "editGrid",
+      "runtime": true
+    },
+    {
+      "method": "editLegendTitle",
+      "charts": 225,
+      "role": "recommendation",
+      "via": "editLegendTitle",
+      "runtime": true
+    },
+    {
+      "method": "editLegendLabels",
+      "charts": 164,
+      "role": "recommendation",
+      "via": "editLegendLabels",
+      "runtime": true
+    },
+    {
+      "method": "encodeX",
+      "charts": 140,
+      "role": "recommendation",
+      "via": "encodeX",
+      "runtime": true
+    },
+    {
+      "method": "createSummaryData",
+      "charts": 139,
+      "role": "data-preparation",
+      "via": "editSummaryData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "editLegend",
+      "charts": 136,
+      "role": "recommendation",
+      "via": "editLegend",
+      "runtime": true
+    },
+    {
+      "method": "editLegendSymbols",
+      "charts": 135,
+      "role": "recommendation",
+      "via": "editLegendSymbols",
+      "runtime": true
+    },
+    {
+      "method": "createSortedData",
+      "charts": 131,
+      "role": "data-preparation",
+      "via": "editSortedData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "encodeY",
+      "charts": 110,
+      "role": "recommendation",
+      "via": "encodeY",
+      "runtime": true
+    },
+    {
+      "method": "editLegendBlock",
+      "charts": 107,
+      "role": "recommendation",
+      "via": "editLegendBlock",
+      "runtime": true
+    },
+    {
+      "method": "createVerticalGrid",
+      "charts": 104,
+      "role": "existing-guide",
+      "via": "editVerticalGrid",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "encodeGroup",
+      "charts": 98,
+      "role": "recommendation",
+      "via": "encodeGroup",
+      "runtime": true
+    },
+    {
+      "method": "createHorizontalGrid",
+      "charts": 92,
+      "role": "existing-guide",
+      "via": "editHorizontalGrid",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    },
+    {
+      "method": "editTextMark",
+      "charts": 75,
+      "role": "recommendation",
+      "via": "editTextMark",
+      "runtime": true
+    },
+    {
+      "method": "createRuleMark",
+      "charts": 73,
+      "role": "mark",
+      "via": "editRuleMark",
+      "runtime": true
+    },
+    {
+      "method": "createWindowData",
+      "charts": 69,
+      "role": "data-preparation",
+      "via": "editWindowData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "createFoldData",
+      "charts": 68,
+      "role": "data-preparation",
+      "via": "editFoldData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "encodeText",
+      "charts": 58,
+      "role": "recommendation",
+      "via": "encodeText",
+      "runtime": true
+    },
+    {
+      "method": "createTextMark",
+      "charts": 57,
+      "role": "mark",
+      "via": "editTextMark",
+      "runtime": true
+    },
+    {
+      "method": "encodeSize",
+      "charts": 55,
+      "role": "recommendation",
+      "via": "encodeSize",
+      "runtime": true
+    },
+    {
+      "method": "createStackData",
+      "charts": 55,
+      "role": "data-preparation",
+      "via": "editStackData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "editSizeScale",
+      "charts": 53,
+      "role": "recommendation",
+      "via": "editSizeScale",
+      "runtime": true
+    },
+    {
+      "method": "editStrokeScale",
+      "charts": 51,
+      "role": "recommendation",
+      "via": "editStrokeScale",
+      "runtime": true
+    },
+    {
+      "method": "editRuleMark",
+      "charts": 46,
+      "role": "recommendation",
+      "via": "editRuleMark",
+      "runtime": true
+    },
+    {
+      "method": "createTimeUnitData",
+      "charts": 45,
+      "role": "data-preparation",
+      "via": "editTimeUnitData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "createHeatmap",
+      "charts": 42,
+      "role": "initial-chart",
+      "via": "createHeatmap",
+      "runtime": true
+    },
+    {
+      "method": "editAreaMark",
+      "charts": 39,
+      "role": "recommendation",
+      "via": "editAreaMark",
+      "runtime": true
+    },
+    {
+      "method": "createAreaPlot",
+      "charts": 39,
+      "role": "initial-chart",
+      "via": "createAreaPlot",
+      "runtime": true
+    },
+    {
+      "method": "editRectMark",
+      "charts": 37,
+      "role": "recommendation",
+      "via": "editRectMark",
+      "runtime": true
+    },
+    {
+      "method": "editRegressionData",
+      "charts": 31,
+      "role": "recommendation",
+      "via": "editRegressionData",
+      "runtime": true
+    },
+    {
+      "method": "createRegressionData",
+      "charts": 31,
+      "role": "data-preparation",
+      "via": "editRegressionData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "editArcMark",
+      "charts": 29,
+      "role": "recommendation",
+      "via": "editArcMark",
+      "runtime": true
+    },
+    {
+      "method": "createPiePlot",
+      "charts": 29,
+      "role": "initial-chart",
+      "via": "createPiePlot",
+      "runtime": true
+    },
+    {
+      "method": "encodeYRange",
+      "charts": 26,
+      "role": "recommendation",
+      "via": "encodeYRange",
+      "runtime": true
+    },
+    {
+      "method": "encodeXRange",
+      "charts": 25,
+      "role": "recommendation",
+      "via": "encodeXRange",
+      "runtime": true
+    },
+    {
+      "method": "editLegendLayout",
+      "charts": 21,
+      "role": "recommendation",
+      "via": "editLegendLayout",
+      "runtime": true
+    },
+    {
+      "method": "createPointMark",
+      "charts": 20,
+      "role": "mark",
+      "via": "editPointMark",
+      "runtime": true
+    },
+    {
+      "method": "createAnnotation",
+      "charts": 18,
+      "role": "recommendation",
+      "via": "createAnnotation",
+      "runtime": true
+    },
+    {
+      "method": "removeEncoding",
+      "charts": 18,
+      "role": "recommendation",
+      "via": "removeEncoding",
+      "runtime": true
+    },
+    {
+      "method": "editThetaScale",
+      "charts": 16,
+      "role": "recommendation",
+      "via": "editThetaScale",
+      "runtime": true
+    },
+    {
+      "method": "createLineMark",
+      "charts": 14,
+      "role": "mark",
+      "via": "editLineMark",
+      "runtime": true
+    },
+    {
+      "method": "createCompleteData",
+      "charts": 12,
+      "role": "data-preparation",
+      "via": "editCompleteData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "encodeShape",
+      "charts": 12,
+      "role": "recommendation",
+      "via": "encodeShape",
+      "runtime": true
+    },
+    {
+      "method": "editCompositionLayout",
+      "charts": 12,
+      "role": "recommendation",
+      "via": "editCompositionLayout",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
+      "method": "facet",
+      "charts": 12,
+      "role": "recommendation",
+      "via": "facet",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
+      "method": "createTickMark",
+      "charts": 12,
+      "role": "mark",
+      "via": "editTickMark",
+      "runtime": true
+    },
+    {
+      "method": "editCoordinate",
+      "charts": 11,
+      "role": "recommendation",
+      "via": "editCoordinate",
+      "runtime": true
+    },
+    {
+      "method": "editOpacityScale",
+      "charts": 11,
+      "role": "recommendation",
+      "via": "editOpacityScale",
+      "runtime": true
+    },
+    {
+      "method": "editBoxPlot",
+      "charts": 10,
+      "role": "recommendation",
+      "via": "editBoxPlot",
+      "runtime": true
+    },
+    {
+      "method": "createBoxPlot",
+      "charts": 10,
+      "role": "initial-chart",
+      "via": "createBoxPlot",
+      "runtime": true
+    },
+    {
+      "method": "editShapeScale",
+      "charts": 10,
+      "role": "recommendation",
+      "via": "editShapeScale",
+      "runtime": true
+    },
+    {
+      "method": "editFacetGuides",
+      "charts": 10,
+      "role": "recommendation",
+      "via": "editFacetGuides",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
+      "method": "editTickMark",
+      "charts": 10,
+      "role": "recommendation",
+      "via": "editTickMark",
+      "runtime": true
+    },
+    {
+      "method": "editFacetHeaders",
+      "charts": 9,
+      "role": "recommendation",
+      "via": "editFacetHeaders",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
+      "method": "layoutSeries",
+      "charts": 8,
+      "role": "recommendation",
+      "via": "layoutSeries",
+      "runtime": true
+    },
+    {
+      "method": "createHistogram",
+      "charts": 7,
+      "role": "initial-chart",
+      "via": "createHistogram",
+      "runtime": true
+    },
+    {
+      "method": "encodeChannels",
+      "charts": 7,
+      "role": "recommendation",
+      "via": "encodeChannels",
+      "runtime": true
+    },
+    {
+      "method": "encodeStrokeDash",
+      "charts": 6,
+      "role": "recommendation",
+      "via": "encodeStrokeDash",
+      "runtime": true
+    },
+    {
+      "method": "encodeAngle",
+      "charts": 6,
+      "role": "recommendation",
+      "via": "encodeAngle",
+      "runtime": true
+    },
+    {
+      "method": "createBarMark",
+      "charts": 5,
+      "role": "mark",
+      "via": "editBarMark",
+      "runtime": true
+    },
+    {
+      "method": "encodeX2",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "encodeX2",
+      "runtime": true
+    },
+    {
+      "method": "createMarkLabels",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "createMarkLabels",
+      "runtime": true
+    },
+    {
+      "method": "encodeRadius",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "encodeSize",
+      "reason": "One point-size editor handles fixed area and variable mapping through encodeSize.",
+      "runtime": true
+    },
+    {
+      "method": "bindMarkData",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "bindMarkData",
+      "runtime": true
+    },
+    {
+      "method": "editCompleteData",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "editCompleteData",
+      "runtime": true
+    },
+    {
+      "method": "editStrokeDashScale",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "editStrokeDashScale",
+      "runtime": true
+    },
+    {
+      "method": "highlightMarks",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "highlightMarks",
+      "runtime": true
+    },
+    {
+      "method": "selectMarks",
+      "charts": 5,
+      "role": "selection",
+      "via": "filterMarks",
+      "reason": "A named selection alone does not change a chart.",
+      "runtime": true
+    },
+    {
+      "method": "createRectMark",
+      "charts": 4,
+      "role": "mark",
+      "via": "editRectMark",
+      "runtime": true
+    },
+    {
+      "method": "editErrorBar",
+      "charts": 4,
+      "role": "recommendation",
+      "via": "editErrorBar",
+      "runtime": true
+    },
+    {
+      "method": "encodeR",
+      "charts": 4,
+      "role": "recommendation",
+      "via": "encodeR",
+      "runtime": true
+    },
+    {
+      "method": "editBinData",
+      "charts": 3,
+      "role": "recommendation",
+      "via": "editBinData",
+      "runtime": true
+    },
+    {
+      "method": "createBinData",
+      "charts": 3,
+      "role": "data-preparation",
+      "via": "editBinData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "editMarkLabelPlacement",
+      "charts": 3,
+      "role": "recommendation",
+      "via": "editMarkLabelPlacement",
+      "runtime": true
+    },
+    {
+      "method": "encodeXOffset",
+      "charts": 3,
+      "role": "recommendation",
+      "via": "encodeXOffset",
+      "runtime": true
+    },
+    {
+      "method": "editErrorBand",
+      "charts": 3,
+      "role": "recommendation",
+      "via": "editErrorBand",
+      "runtime": true
+    },
+    {
+      "method": "createErrorBand",
+      "charts": 3,
+      "role": "recommendation",
+      "via": "createErrorBand",
+      "runtime": true
+    },
+    {
+      "method": "createImputedData",
+      "charts": 3,
+      "role": "data-preparation",
+      "via": "editImputedData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "encodeY2",
+      "charts": 2,
+      "role": "recommendation",
+      "via": "encodeY2",
+      "runtime": true
+    },
+    {
+      "method": "createAreaMark",
+      "charts": 2,
+      "role": "mark",
+      "via": "editAreaMark",
+      "runtime": true
+    },
+    {
+      "method": "applyTheme",
+      "charts": 2,
+      "role": "setup",
+      "reason": "Font measurements and the initial theme belong to chart setup; corpus measurements cannot be copied to unrelated text.",
+      "runtime": true
+    },
+    {
+      "method": "createErrorBar",
+      "charts": 2,
+      "role": "recommendation",
+      "via": "createErrorBar",
+      "runtime": true
+    },
+    {
+      "method": "editLegendBorder",
+      "charts": 2,
+      "role": "recommendation",
+      "via": "editLegendBorder",
+      "runtime": true
+    },
+    {
+      "method": "createScale",
+      "charts": 2,
+      "role": "setup",
+      "reason": "Resource creation; an existing chart already owns these resources.",
+      "runtime": true
+    },
+    {
+      "method": "encodePathOrder",
+      "charts": 2,
+      "role": "recommendation",
+      "via": "encodePathOrder",
+      "runtime": true
+    },
+    {
+      "method": "createIntervalPlot",
+      "charts": 2,
+      "role": "initial-chart",
+      "via": "createIntervalPlot",
+      "runtime": true
+    },
+    {
+      "method": "createTextPlot",
+      "charts": 2,
+      "role": "initial-chart",
+      "via": "createTextPlot",
+      "runtime": true
+    },
+    {
+      "method": "editImputedData",
+      "charts": 2,
+      "role": "recommendation",
+      "via": "editImputedData",
+      "runtime": true
+    },
+    {
+      "method": "editWindowData",
+      "charts": 2,
+      "role": "recommendation",
+      "via": "editWindowData",
+      "runtime": true
+    },
+    {
+      "method": "editRScale",
+      "charts": 2,
+      "role": "recommendation",
+      "via": "editRScale",
+      "runtime": true
+    },
+    {
+      "method": "editMarkLabelSelection",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "editMarkLabelSelection",
+      "runtime": true
+    },
+    {
+      "method": "editBin2DData",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "editBin2DData",
+      "runtime": true
+    },
+    {
+      "method": "createBin2DData",
+      "charts": 1,
+      "role": "data-preparation",
+      "via": "editBin2DData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "encodeTheta",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "encodeTheta",
+      "runtime": true
+    },
+    {
+      "method": "editXOffsetScale",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "editXOffsetScale",
+      "runtime": true
+    },
+    {
+      "method": "editIntervalData",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "editIntervalData",
+      "runtime": true
+    },
+    {
+      "method": "createIntervalData",
+      "charts": 1,
+      "role": "data-preparation",
+      "via": "editIntervalData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "editErrorBandBoundary",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "editErrorBandBoundary",
+      "runtime": true
+    },
+    {
+      "method": "createRugPlot",
+      "charts": 1,
+      "role": "initial-chart",
+      "via": "createRugPlot",
+      "runtime": true
+    },
+    {
+      "method": "createYAxisLabels",
+      "charts": 1,
+      "role": "existing-guide",
+      "via": "editYAxisLabels",
+      "reason": "Default guides already exist; recommend their native editors.",
+      "runtime": true
+    }
+  ],
+  "customActionsRegistered": 0,
+  "methods": [
+    {
+      "method": "applyTextMetrics",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "applyTheme",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "bindMarkData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createAnnotation",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createArcMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createAreaMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createAreaPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createAxes",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createBarMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createBarPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createBeeswarmPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createBin2DData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createBinData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createBoxPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createCanvas",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createCompleteData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createComputedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createCoordinate",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createDensityData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createDensityPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createDotPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createDumbbellPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createECDFData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createECDFPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createErrorBand",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createErrorBar",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createFoldData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createGradientPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createGuides",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createHeatmap",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createHistogram",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createHorizonPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createHorizontalGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createImputedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createIntervalData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createIntervalPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createLegend",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createLineMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createLinePlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createLollipopPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createMarkLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createNormalizedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createParallelAxes",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createParallelAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createParallelCoordinates",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createPiePlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createPointMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createPolarLinePlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createPolarScatterPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadarPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadialAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadialAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadialAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadialAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadialAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadialBarPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRadialGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRaincloudPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRectMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createReferenceBand",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createReferenceLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRegression",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRegressionBand",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRegressionData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRegressionLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRegressionPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRegressionStatisticsData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRosePlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRugPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createRuleMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createScatterPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createSortedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createStackData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createStatisticalReference",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createStripPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createSummaryData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createTextMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createTextPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createThetaAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createThetaAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createThetaAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createThetaAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createThetaAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createThetaGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createTickMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createTimeUnitData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createVerticalGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createViolinPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createWindowData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createXAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createXAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createXAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createXAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createXAxisTicksAndLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createXAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createYAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createYAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createYAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createYAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createYAxisTicksAndLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createYAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editArcMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editAreaMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editAxes",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editBarMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editBin2DData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editBinData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editBoxPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editCanvas",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editColorScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editCompleteData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editCompositionLayout",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editComputedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editCoordinate",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editDensity",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editDensityData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editDerivedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editECDFData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editECDFPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editEndpointPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editErrorBand",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editErrorBandBoundary",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editErrorBar",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editFacetGuides",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editFacetHeaders",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editFacetScales",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editFacetSource",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editFilteredData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editFoldData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editGradientPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editHorizon",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editHorizontalGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editImputedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editIntervalData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLegend",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLegendBlock",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLegendBorder",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLegendLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLegendLayout",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLegendSymbols",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLegendTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editLineMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editMarkLabelPlacement",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editMarkLabelSelection",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editMarkSelection",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editNormalizedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editOpacityScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editParallelAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editParallelScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editPointMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRadialAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRadialAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRadialAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRadialAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRadialAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRadialGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRaincloudPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRectMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRegression",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRegressionBand",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRegressionData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRegressionLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRegressionStatisticsData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRuleMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editShapeScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editSizeScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editSortedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editStackData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editStrokeDashScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editStrokeScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editStrokeWidthScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editSummaryData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editTextMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editThetaAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editThetaAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editThetaAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editThetaAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editThetaAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editThetaGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editThetaScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editTickMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editTimeUnitData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editVerticalGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editViolinPlot",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editWindowData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXAxisTicksAndLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXOffsetScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editXScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYAxisLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYAxisLine",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYAxisTicks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYAxisTicksAndLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYAxisTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYOffsetScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editYScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeAngle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeBarWidth",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeChannels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeColor",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeDensity",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeGroup",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeHistogram",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeHorizon",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeOpacity",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeParallelCoordinates",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodePathOrder",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodePointRadius",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeR",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeRadius",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeShape",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeSize",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeStroke",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeStrokeDash",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeStrokeWidth",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeText",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeTheta",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeX",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeX2",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeXOffset",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeXRange",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeY",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeY2",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeYOffset",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeYRange",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "facet",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "facetGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "filterData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "filterMarks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "fitCanvas",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "highlightMarks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "insertCompositionChild",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "jitterPoints",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "layoutLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "layoutSeries",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "orderCategories",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "packPoints",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeCategoryOrder",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeCompositionChild",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeCoordinate",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeEncoding",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeGrid",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeJitter",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeLabelLayout",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeLegend",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeMark",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeMarkFilter",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeMarkHighlight",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeMarkLabels",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeMarkSelection",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeParallelAxes",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeParallelAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removePathOrder",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removePointPacking",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removePointRadius",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeRadialAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeTextMetrics",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeTheme",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeThetaAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeTitle",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeXAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "removeYAxis",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "reorderCompositionChildren",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "repeatCharts",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "replaceCompositionChild",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "reviseData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "selectMarks",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    }
+  ]
+}

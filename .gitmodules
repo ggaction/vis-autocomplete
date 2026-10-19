@@ -1,0 +1,4 @@
+[submodule "vendor/ggaction"]
+	path = vendor/ggaction
+	url = https://github.com/ggaction/ggaction.git
+	branch = codex/edit-axes-autocomplete

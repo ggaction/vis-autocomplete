@@ -1,0 +1,166 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>History workflow checks</title>
+<style>
+body { margin: 0; font: 12px Arial; }
+iframe { width: 100vw; height: 100vh; border: 0; }
+aside { position: fixed; right: 20px; bottom: 20px; max-width: 560px; padding: 12px; border: 1px solid #aaa; background: white; }
+pre { white-space: pre-wrap; }
+</style>
+<iframe src="/" title="Autocomplete under test"></iframe>
+<aside><button id="run">Run history workflow checks</button><pre id="report" role="status">Ready</pre></aside>
+<script type="module">
+const frame = document.querySelector('iframe'), report = document.querySelector('#report');
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+const wait = async predicate => {
+  const start = performance.now();
+  while (!predicate()) {
+    if (performance.now() - start > 15000) throw new Error('Timed out waiting for UI');
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
+};
+document.querySelector('#run').onclick = async event => {
+  event.target.disabled = true;
+  const passed = [];
+  const doc = frame.contentDocument, win = frame.contentWindow, $ = selector => doc.querySelector(selector);
+  const items = () => [...doc.querySelectorAll('.history-item')];
+  const ready = () => !$('#undo').disabled && !$('#history').matches('[aria-busy="true"]') && !$('#notice').textContent;
+  const choose = async method => {
+    await wait(() => $(`.card .method-name`) && [...doc.querySelectorAll('.card')].some(card => card.querySelector('.method-name')?.textContent.includes(method)));
+    const card = [...doc.querySelectorAll('.card')].find(card => card.querySelector('.method-name')?.textContent.includes(method));
+    card.querySelector('.card-top').click();
+    return card;
+  };
+  let pointer = 0;
+  const move = element => {
+    const rect = element.getBoundingClientRect();
+    element.dispatchEvent(new win.PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse',
+      clientX: rect.x + rect.width / 2, clientY: rect.y + rect.height / 2, screenX: ++pointer * 2, screenY: 1 }));
+  };
+  try {
+    await wait(() => $('.column-select[data-field="Horsepower"]') && !$('#notice').textContent);
+    $('.column-select[data-field="Horsepower"]').click();
+    $('.column-select[data-field="Miles_per_Gallon"]').click();
+    const scatter = await choose('createScatterPlot');
+    check(items().length === 0, 'Card selection must not enter history');
+    scatter.querySelector('.apply-button').click();
+    await wait(() => ready() && items().length === 1);
+    passed.push('Only Apply creates a history entry, with its native chart thumbnail');
+
+    const color = await choose('encodeColor');
+    check(items().length === 1, 'A proposed action must not enter history');
+    color.querySelector('.apply-button').click();
+    await wait(() => ready() && items().length === 2);
+    const originalThumb = items()[0].querySelector('svg');
+    const originalCards = [...doc.querySelectorAll('.card')];
+    const currentDrawing = $('#current').innerHTML;
+    move(items()[0]);
+    await wait(() => $('#code-mode').textContent === 'History #1');
+    check($('#preview-heading').textContent === 'History preview', 'History hover should identify the preview');
+    check(!$('#preview').textContent.includes('Origin'), 'First snapshot must have no color legend');
+    check($('#current').innerHTML === currentDrawing && $('#current').dataset.steps === '2', 'Hover must leave Current untouched');
+    check(items()[1].getAttribute('aria-current') === 'step', 'Hover must not move the history cursor');
+    check(!$('#code-content [data-method="encodeColor"]'), 'Historical code must match the hovered state');
+    check(originalCards.every(card => card.isConnected), 'Hover must not regenerate recommendation cards');
+    passed.push('Physical-pointer hover previews the exact historical chart/code without committing or recomputing cards');
+
+    move(items()[1]);
+    await wait(() => $('#code-mode').textContent === 'History #2');
+    check($('#preview').textContent.includes('Origin'), 'Second snapshot should restore its legend');
+    move($('#current'));
+    await wait(() => $('#preview-heading').textContent === 'Preview');
+    check($('#current').innerHTML === currentDrawing && items().length === 2, 'Leaving history should restore the normal preview only');
+    check(items()[0].querySelector('svg') === originalThumb, 'Hover must retain cached thumbnail DOM');
+    passed.push('Moving across history and leaving restores the live preview; thumbnails stay mounted');
+
+    const firstBounds = items()[0].getBoundingClientRect();
+    items()[0].dispatchEvent(new win.MouseEvent('click', { bubbles: true, detail: 1,
+      clientX: firstBounds.x + firstBounds.width * .3, clientY: firstBounds.y + firstBounds.height / 2 }));
+    await wait(() => ready() && $('#current').dataset.steps === '1');
+    check(!$('#current').textContent.includes('Origin'), 'Jump must restore the native chart');
+    check(items().length === 2 && items()[1].classList.contains('future') && !$('#redo').disabled, 'Jump should retain later history');
+    check([...doc.querySelectorAll('.card .method-name')].some(e => e.textContent.includes('encodeColor')), 'Recommendations must reflect the restored chart');
+    passed.push('Click restores chart, code and recommendations while retaining later snapshots');
+
+    const scrub = $('.history-scrub-bar'), pinnedX = parseFloat(scrub.style.left);
+    check(Math.abs(pinnedX - (items()[0].offsetLeft + items()[0].offsetWidth * .3)) < 1, 'Marker must stay at the exact clicked position');
+    move($('#current'));
+    await wait(() => $('#preview-heading').textContent === 'Preview');
+    check($('#history').dataset.pinnedIndex === '1' && win.getComputedStyle(scrub).opacity === '1', 'Marker should survive pointer leave and automatic gallery restoration');
+    move(items()[1]); await wait(() => $('#code-mode').textContent === 'History #2');
+    check(parseFloat(scrub.style.left) === pinnedX, 'Hovering another history entry must not move the pinned line');
+    move($('#current')); await wait(() => $('#preview-heading').textContent === 'Preview');
+    passed.push('Click pins the scrub line at the clicked position until a new option is chosen');
+
+    items()[1].click();
+    await wait(() => ready() && $('#current').dataset.steps === '2');
+    check($('#current').textContent.includes('Origin'), 'Future history entry should remain selectable');
+    $('#undo').click(); await wait(() => ready() && $('#current').dataset.steps === '1');
+    $('#redo').click(); await wait(() => ready() && $('#current').dataset.steps === '2');
+    check(items()[1].getAttribute('aria-current') === 'step', 'Undo/Redo should share the timeline cursor');
+    passed.push('Later thumbnails and Undo/Redo navigate the same immutable timeline');
+
+    items()[0].click(); await wait(() => ready() && $('#current').dataset.steps === '1');
+    const opacity = await choose('encodeOpacity');
+    check(!$('#history').hasAttribute('data-pinned-index') && win.getComputedStyle(scrub).opacity === '0', 'Selecting a new option must release the pinned history line');
+    opacity.querySelector('.apply-button').click();
+    await wait(() => ready() && $('#current').dataset.steps === '2');
+    check(items().length === 2 && items()[1].textContent.includes('opacity'), 'New Apply must replace the abandoned future');
+    check(!$('#current').textContent.includes('Origin') && $('#redo').disabled, 'Branch must use the restored program, not the abandoned one');
+    check(items()[0].querySelector('svg') === originalThumb, 'Branching must retain unaffected thumbnails');
+    passed.push('Applying from the past branches correctly and preserves unaffected thumbnail caches');
+
+    for (const [group, accent, step] of [['style', '#1f9d55', 3], ['transform', '#d6861a', 4]]) {
+      $(`#group-${group}`).click();
+      await wait(() => ready() && $('#cards').dataset.optionGroup === group && $('.card:not(.disabled)'));
+      const card = $('.card:not(.disabled)'); card.querySelector('.card-top').click();
+      card.querySelector('.apply-button').click();
+      await wait(() => ready() && $('#current').dataset.steps === String(step));
+      check(items().at(-1).style.getPropertyValue('--history-accent') === accent, 'History must preserve the applied action group color');
+    }
+    items()[2].click(); await wait(() => ready() && $('#current').dataset.steps === '3');
+    check($('#group-style').getAttribute('aria-selected') === 'true', 'Jump should restore the matching recommendation group');
+    items()[3].click(); await wait(() => ready() && $('#current').dataset.steps === '4');
+    passed.push('Style and Transform history use the original group colors and restore their recommendation groups');
+
+    const timeline = $('#history');
+    timeline.style.width = '220px'; timeline.scrollLeft = 0;
+    move(items()[0]); await wait(() => $('#code-mode').textContent === 'History #1');
+    const pointerX = items()[0].getBoundingClientRect().x + items()[0].getBoundingClientRect().width / 2;
+    timeline.scrollLeft = timeline.scrollWidth;
+    const nearest = items().reduce((a, b) => {
+      const distance = item => Math.abs(item.getBoundingClientRect().x + item.getBoundingClientRect().width / 2 - pointerX);
+      return distance(a) < distance(b) ? a : b;
+    });
+    await wait(() => $('#code-mode').textContent === `History #${nearest.dataset.historyIndex}`);
+    check($('#current').dataset.steps === '4' && items().length === 4, 'Horizontal scrubbing must not change the current state');
+    move($('#current')); timeline.style.removeProperty('width');
+    passed.push('Horizontal scrolling previews the snapshot under the stationary pointer without changing Current');
+
+    items()[0].focus();
+    check($('#code-mode').textContent === 'History #1', 'Keyboard focus should also preview');
+    items()[0].dispatchEvent(new win.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    check(doc.activeElement === items()[1] && $('#code-mode').textContent === 'History #2', 'Arrow keys should inspect adjacent snapshots');
+    items()[1].dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    check($('#preview-heading').textContent === 'Preview', 'Escape should dismiss historical preview');
+    passed.push('Keyboard focus, arrow keys and Escape support history inspection');
+
+    const topHeight = $('.visualizations').getBoundingClientRect().height;
+    const areaHeight = $('.authoring-area').getBoundingClientRect().height;
+    if (win.innerWidth > 1000) {
+      const oldHeight = Math.max(237.5, (areaHeight - 14) * .4275);
+      check(Math.abs(topHeight / oldHeight - .8) < .002, 'Current and Preview must be 80% of the previous height');
+      check($('.workspace').getBoundingClientRect().bottom <= win.innerHeight, 'History should fit the workspace');
+    }
+    check($('.thumbnail').getBoundingClientRect().height === 86, 'Option thumbnails should be compact');
+    passed.push('Current/Preview are 80% high and compact option cards leave space for History');
+
+    $('#restart').click();
+    await wait(() => $('.column-select') && items().length === 0 && !$('#notice').textContent);
+    check($('#undo').disabled && $('#redo').disabled, 'Changing variables should reset the timeline');
+    passed.push('Changing variables clears thumbnails and both history directions');
+    report.textContent = `PASS ${passed.length} checks\n${passed.join('\n')}\nTop panels: ${topHeight.toFixed(2)}px`;
+  } catch (error) { report.textContent = `FAIL after ${passed.length} checks\n${passed.join('\n')}\n${error.stack}`; }
+  event.target.disabled = false;
+};
+</script>

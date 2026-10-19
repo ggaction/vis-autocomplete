@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Native cursor check</title>
+<style>
+body { max-width: 660px; margin: 32px auto; padding: 0 20px; font: 14px/1.5 Arial, sans-serif; }
+button, a, th, td { cursor: pointer; }
+button, input, th, td { padding: 10px; }
+table { margin: 20px 0; border-collapse: collapse; }
+th, td { border: 1px solid #bbb; }
+input { cursor: text; }
+output { display: block; padding: 12px; border: 1px solid #ddd; white-space: pre-wrap; }
+</style>
+<h1>Native cursor check</h1>
+<p>This page loads no application scripts or styles. Buttons, links and table cells request the native hand cursor; the text input requests the text cursor.</p>
+<p><button type="button">Plain button</button> <a href="/">Back to Autocomplete</a></p>
+<table><thead><tr><th>Column A</th><th>Column B</th></tr></thead><tbody><tr><td>Cell A</td><td>Cell B</td></tr></tbody></table>
+<p><input aria-label="Text cursor check" placeholder="Text cursor check"></p>
+<output aria-live="polite">Move over a button, link, table cell or text input.</output>
+<script>
+const output = document.querySelector('output');
+document.addEventListener('pointerover', event => {
+  if (!event.target.matches('button, a, th, td, input')) return;
+  output.textContent = `Target: ${event.target.tagName}\nCSS cursor: ${getComputedStyle(event.target).cursor}\nThe actual cursor shape must be checked visually in the browser.`;
+});
+</script>

@@ -386,22 +386,27 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
     const setupCalls = card.setup?.(values) ?? [];
     const signature = JSON.stringify([action, setupCalls]);
     if (!card.prepared || card.preparedSignature !== signature) {
-      card.apply.disabled = true;
+      // Preview work never owns Apply availability. Apply validates the pinned
+      // values independently and can accept a click while this request waits,
+      // is superseded, or previews an unchanged/invalid hover value.
+      card.element.dataset.previewState = 'pending';
       const prepared = await calculations.prepare(card.base, card.view, card.guideCall,
         action, setupCalls, { interactive: interactive && state.active === card });
-      if (!prepared || request !== card.request || card.base !== state.program || card.view !== state.view) return;
+      if (request !== card.request || card.base !== state.program || card.view !== state.view) return;
+      if (!prepared) { card.element.dataset.previewState = 'idle'; return; }
       card.prepared = prepared;
       card.preparedSignature = signature;
     }
-    card.error = ''; card.unchanged = false; card.apply.disabled = false;
+    card.error = ''; card.unchanged = false; card.element.dataset.previewState = 'ready';
     card.errorElement.textContent = '';
     card.errorElement.classList.remove('unchanged');
     renderChart(card.thumbnail, card.prepared.preview, card.title);
   } catch (error) {
     if (request !== card.request || card.base !== state.program || card.view !== state.view) return;
     card.prepared = null; card.unchanged = error.reason === 'no-change';
-    card.error = card.unchanged ? 'This setting already matches the current chart.' : error.message;
-    card.errorElement.textContent = card.error; card.errorElement.classList.toggle('unchanged', card.unchanged); card.apply.disabled = true;
+    card.error = card.unchanged ? 'These settings are already applied.' : error.message;
+    card.errorElement.textContent = card.error; card.errorElement.classList.toggle('unchanged', card.unchanged);
+    card.element.dataset.previewState = card.unchanged ? 'unchanged' : 'invalid';
     if (card.unchanged) renderChart(card.thumbnail, card.view, card.title);
   }
   if (state.active === card) showPreview(card, {
@@ -640,6 +645,7 @@ async function createCard(spec, index) {
   const error = document.createElement('p'); error.className = 'card-error'; error.setAttribute('role', 'status'); card.errorElement = error;
   const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'apply-button';
   apply.textContent = 'Apply';
+  apply.title = 'Apply selected parameters';
   apply.setAttribute('aria-label', state.phase === 'initial' ? `Use this chart: ${card.title}` : `Apply action: ${card.title}`);
   card.apply = apply;
   apply.addEventListener('click', () => commit(card));
@@ -1089,7 +1095,13 @@ async function commit(card) {
     // lock Undo, groups, search, or already validated cards behind the slowest.
     release();
     await updateCards();
-  } catch (error) { notice(error.message, true); }
+  } catch (error) {
+    const unchanged = error.reason === 'no-change';
+    const message = unchanged ? 'These settings are already applied.' : error.message;
+    card.errorElement.textContent = message;
+    card.errorElement.classList.toggle('unchanged', unchanged);
+    notice(message, !unchanged);
+  }
   finally {
     release();
   }

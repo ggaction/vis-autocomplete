@@ -377,6 +377,7 @@ Facet header 간격은 ggaction이 보고한 실제 최소 간격으로 재검�
 전달량·복원·추천 시간과 최종 semantic/graphic/trace 동등성을 `output/progressive-latency/session-benchmark.json`에 기록한다.
 `/test/fixtures/thumbnail-render.html`, `code-retention.html`, `code-settlement.html`, `history-workflow.html`로 섬네일·프리뷰 DOM 해제·코드 접기·히스토리를 브라우저에서 확인할 수 있다.
 `/test/fixtures/recommendation-stream.html`은 조기 카드 전달·요청 취소·중단된 페이지 재개·스트리밍 카드 Apply를 실제 Worker로 검증한다.
+`/test/fixtures/apply-availability.html`은 프리뷰 대기·동일값·유효하지 않은 입력에서 Apply 클릭을 받고, 선택한 값만 확정하며 수정 후에도 계속 적용할 수 있는지 검증한다.
 이 수치는 브라우저 DOM/paint와 Worker 메시지 왕복을 제외하며 전체 화면 응답 시간을 의미하지 않는다.
 
 이전의 32개 수동 실행 목록은 제거했다. `catalog:check`가 실제 공개 TypeScript 선언에서

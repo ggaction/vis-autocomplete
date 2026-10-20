@@ -1,0 +1,102 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Apply availability regression</title>
+<style>
+body { margin: 0; font: 12px Arial; }
+iframe { width: 100vw; height: 100vh; border: 0; }
+aside { position: fixed; right: 16px; bottom: 16px; max-width: 560px; padding: 12px; background: white; border: 1px solid #aaa; }
+pre { white-space: pre-wrap; }
+</style>
+<iframe title="Autocomplete under test"></iframe>
+<aside><button id="run">Check Apply availability</button><pre id="report">Ready (use a fresh browser context)</pre></aside>
+<script type="module">
+const frame = document.querySelector('iframe'), report = document.querySelector('#report');
+const check = (value, message) => { if (!value) throw new Error(message); };
+const wait = async predicate => {
+  const start = performance.now();
+  while (!predicate()) {
+    if (performance.now() - start > 30000) throw new Error('Timed out waiting for the application');
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+};
+// Keep real worker calculation, validation and errors. Delaying message delivery
+// makes the interval between a parameter change and its preview deterministic.
+const bootstrap = () => {
+  window.prepareDelay = 0;
+  window.delayedPrepares = 0;
+  const NativeWorker = Worker;
+  window.Worker = class extends NativeWorker {
+    constructor(...args) { super(...args); this.types = new Map(); }
+    postMessage(message, ...args) { this.types.set(message.id, message.request?.type); super.postMessage(message, ...args); }
+    addEventListener(type, listener, ...args) {
+      if (type !== 'message') return super.addEventListener(type, listener, ...args);
+      return super.addEventListener(type, event => {
+        const delay = this.types.get(event.data.id) === 'prepare' ? window.prepareDelay : 0;
+        if (delay) { window.delayedPrepares++; setTimeout(() => listener(event), delay); }
+        else listener(event);
+      }, ...args);
+    }
+  };
+};
+const html = await (await fetch('/')).text();
+frame.srcdoc = html.replace('<head>', '<head><base href="/"><script>(' + bootstrap + ')();</' + 'script>');
+document.querySelector('#run').onclick = async event => {
+  event.target.disabled = true;
+  const passed = [];
+  try {
+    await wait(() => frame.contentDocument.querySelector('.column-select'));
+    const doc = frame.contentDocument, win = frame.contentWindow, $ = selector => doc.querySelector(selector);
+    const idle = () => $('#history').getAttribute('aria-busy') === 'false';
+    const choose = async (method, group = 'encoding') => {
+      if (doc.body.dataset.phase === 'recommendations') {
+        $(`#group-${group}`).click();
+        $('#action-search').value = method;
+        $('#action-search').dispatchEvent(new win.Event('input', { bubbles: true }));
+      }
+      await wait(() => $(`.card[data-method="${method}"]`));
+      const card = $(`.card[data-method="${method}"]`); card.querySelector('.card-top').click();
+      return card;
+    };
+    const pinNumber = (card, value) => {
+      const input = card.querySelector('input[type="range"]'); input.value = value;
+      input.dispatchEvent(new win.Event('input', { bubbles: true }));
+    };
+    for (const field of ['Horsepower', 'Miles_per_Gallon', 'Origin']) $(`.column-select[data-field="${field}"]`).click();
+    let card = await choose('createScatterPlot'); card.querySelector('.apply-button').click();
+    await wait(() => $('#current').dataset.steps === '1' && idle());
+    card = await choose('encodeOpacity'); win.prepareDelay = 700; pinNumber(card, .43);
+    await wait(() => card.dataset.previewState === 'pending' && win.delayedPrepares > 0);
+    check(!card.querySelector('.apply-button').disabled, 'A pending preview disabled Apply');
+    card.querySelector('.apply-button').click(); card.querySelector('.apply-button').click();
+    await wait(() => $('#current').dataset.steps === '2' && idle());
+    check($('#current svg circle[opacity="0.43"]'), 'Apply used an old parameter value');
+    passed.push('Apply accepts a click during pending calculation and commits pinned values exactly once');
+    win.prepareDelay = 0;
+    card = await choose('encodeOpacity'); pinNumber(card, .43);
+    await wait(() => card.dataset.previewState === 'unchanged');
+    check(!card.querySelector('.apply-button').disabled, 'An unchanged parameter disabled Apply');
+    card.querySelector('.apply-button').click();
+    await wait(() => card.querySelector('.card-error').textContent === 'These settings are already applied.' && idle());
+    check($('#current').dataset.steps === '2', 'Unchanged settings created a duplicate history entry');
+    passed.push('Unchanged settings remain actionable and report an accepted no-op without duplicate history');
+    pinNumber(card, .61); card.querySelector('.apply-button').click();
+    await wait(() => $('#current').dataset.steps === '3' && idle());
+    check($('#current svg circle[opacity="0.61"]'), 'A valid edit did not recover after unchanged settings');
+    passed.push('Changing an unchanged setting immediately restores the normal Apply flow');
+    card = await choose('createTitle', 'style');
+    const input = card.querySelector('input[type="text"]'); input.value = '';
+    input.dispatchEvent(new win.Event('input', { bubbles: true }));
+    await wait(() => card.dataset.previewState === 'invalid');
+    check(!card.querySelector('.apply-button').disabled, 'Invalid input left an unresponsive disabled button');
+    card.querySelector('.apply-button').click();
+    await wait(() => idle() && card.querySelector('.card-error').textContent.length > 0);
+    check($('#current').dataset.steps === '3', 'Invalid settings changed the chart');
+    input.value = 'Recovered title'; input.dispatchEvent(new win.Event('input', { bubbles: true }));
+    card.querySelector('.apply-button').click();
+    await wait(() => $('#current').dataset.steps === '4' && idle());
+    check($('#current').textContent.includes('Recovered title'), 'Corrected settings were not applied');
+    passed.push('Invalid settings report the native error without changing history, and corrected inputs apply');
+    report.textContent = 'PASS ' + passed.length + ' checks\n' + passed.join('\n');
+  } catch (error) { report.textContent = 'FAIL: ' + error.stack + '\n' + passed.join('\n'); }
+};
+</script>

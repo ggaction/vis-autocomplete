@@ -369,6 +369,12 @@ Current/Preview의 전체 SVG 템플릿은 최근 8개만 보관한다. 카드·
 Facet header 간격은 ggaction이 보고한 실제 최소 간격으로 재검증하고, 추가 guide 충돌에만 기존 탐색을 사용한다.
 ggaction은 완료된 액션에서 삭제된 리소스 목록을 WeakMap으로 재사용한다.
 따라서 테마를 유지하는 후속 편집이 오래된 facet 내부 trace를 매번 깊이 순회하지 않는다. 히스토리와 테마 적용 순서는 유지한다.
+카드 호버는 펼친 뒤의 배치를 한 번 계산하고, Web Animations의 transform으로 이동·확대한다.
+매 프레임 flex 너비·높이를 다시 계산하거나 복잡한 SVG 섬네일을 다시 그리지 않는다.
+내부 글자·컨트롤·차트는 역변환으로 크기와 비율을 유지하며, 빠른 호버 전환은 현재 보이는 위치에서 이어진다.
+프리뷰 차트·코드 갱신은 카드 애니메이션을 시작한 다음 프레임에 처리한다.
+`/test/fixtures/card-motion.html`은 중간 프레임의 배치·글자·차트 비율, 호버 중단과 종료를 확인한다.
+Playwright Python으로 `test/browser/card-motion.py`를 실행하면 두 화면 크기에서 실제 호버·슬라이더 고정·Apply·키보드·패널 접기를 검증한다.
 
 `npm run dev`는 같은 `vendor/ggaction` 소스로 Worker를 먼저 번들링한다. 소스 수정 후 실행 중인 서버를 유지한다면
 `npm run build:workers` 후 페이지를 새로고침한다. `npm run update`도 라이브러리 갱신 뒤 Worker를 다시 만든다.

@@ -126,7 +126,7 @@ main { padding: 14px 16px 16px; }
 .card-row[aria-busy="true"]:empty::before { content: "Preparing options…"; color: var(--muted); padding: 16px; font-size: 12px; }
 .card-row[aria-busy="false"] { animation: cards-appear 280ms ease-out both; }
 @keyframes cards-appear { from { opacity: 0; } to { opacity: 1; } }
-.card { position: relative; flex: 1 1 0; min-width: 0; height: 150px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; background: #fff; transition: flex-grow var(--card-motion-duration) var(--card-motion-easing), height var(--card-motion-duration) var(--card-motion-easing), border-color 140ms ease; }
+.card { position: relative; flex: 1 1 0; min-width: 0; height: 150px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; background: #fff; }
 .card-space { flex: 1 1 0; min-width: 0; border: 1px solid transparent; visibility: hidden; pointer-events: none; }
 .card.primary, .card.secondary, .card-space.primary, .card-space.secondary { flex-grow: 1.5; }
 .card.primary { border-color: #7d7d7d; background: linear-gradient(155deg, #e6e6e6 0%, #f4f4f4 46%, #fff 100%); }
@@ -141,7 +141,7 @@ main { padding: 14px 16px 16px; }
 .card.disabled { border-color: #e7e9ec; }
 .card-top { display: block; width: 100%; flex: none; text-align: left; padding: 8px 8px 0; border: 0; border-radius: 0; background: transparent; }
 .card-top:hover:not(:disabled) { border: 0; }
-.card-title { display: flex; align-items: center; gap: 5px; min-height: 17px; min-width: 0; padding-right: 0; transition: padding-right var(--card-motion-duration) var(--card-motion-easing); }
+.card-title { display: flex; align-items: center; gap: 5px; min-height: 17px; min-width: 0; padding-right: 0; }
 .card-title h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card.expanded .card-title { padding-right: 46px; }
 .rank { flex: none; font-size: 9px; font-weight: 400; color: #969da6; }
@@ -154,8 +154,8 @@ body[data-phase="initial"] .card[data-control-count="0"].expanded .thumbnail { h
 body[data-phase="initial"] .card[data-control-count="0"] .card-controls { display: none; }
 .card.disabled .card-title { color: #a8afb7; }
 .unavailable { min-height: 110px; padding: 10px 0; display: flex; align-items: center; font-size: 10px; color: #a1a8b0; line-height: 1.4; }
-.card-controls { min-height: 0; flex: 1; overflow: auto; padding: 0 8px 6px; border-top: 1px solid #f0f1f3; scrollbar-width: thin; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px); transition: opacity 160ms ease, transform var(--card-motion-duration) var(--card-motion-easing), visibility 0s var(--card-motion-duration); }
-.card.expanded .card-controls { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); transition-delay: 45ms, 0s, 0s; }
+.card-controls { min-height: 0; flex: 1; overflow: auto; padding: 0 8px 6px; border-top: 1px solid #f0f1f3; scrollbar-width: thin; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 160ms ease, visibility 0s var(--card-motion-duration); }
+.card.expanded .card-controls { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 45ms, 0s; }
 .control { display: block; margin-top: 6px; padding: 6px; border: 1px solid #bcbcbc; border-radius: 4px; background: #fff; transition: border-color 140ms ease; }
 .card[data-control-count="4"] .control { margin-top: 4px; padding: 4px; }
 .control:hover, .control:focus-within { border-color: #808080; }

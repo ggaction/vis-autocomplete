@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Card expansion motion regression</title>
+<link rel="stylesheet" href="/web/style.css">
+<style>
+body { padding: 16px; }
+#gallery { height: 400px; width: min(1200px, 95vw); }
+#report { white-space: pre-wrap; }
+</style>
+<button id="run">Check card expansion</button>
+<div id="gallery" class="cards"><div class="card-row"></div></div>
+<pre id="report">Ready</pre>
+<script type="module">
+import { createCardMotion } from '/web/card-motion.js';
+const row = document.querySelector('.card-row'), motion = createCardMotion();
+for (let i = 0; i < 5; i++) {
+  const card = document.createElement('article');
+  card.className = `card ${i === 0 ? 'primary' : i === 1 ? 'secondary' : ''}`;
+  card.innerHTML = `<button class="card-top"><div class="card-title"><h3>Option ${i + 1}</h3></div>
+    <p class="method-name">encodeSize(…)</p><div class="thumbnail"><svg viewBox="0 0 100 80">
+    <circle cx="50" cy="40" r="25" fill="#4c78a8"/></svg></div></button>
+    <button class="apply-button">Apply</button><div class="card-controls">
+    <div class="control"><span>Parameter</span><div class="parameter-options"><button>One</button><button>Two</button></div></div>
+    </div><p class="score-description">Co-occurrence score</p>`;
+  row.append(card);
+}
+const cards = [...row.children], wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const frame = () => new Promise(requestAnimationFrame);
+const check = (value, message) => { if (!value) throw new Error(message); };
+function select(index) {
+  motion.change([row], () => cards.forEach((card, i) => {
+    card.classList.toggle('expanded', i === index);
+    card.querySelector('.card-controls').inert = i !== index;
+  }));
+}
+document.querySelector('#run').onclick = async () => {
+  const passed = [];
+  try {
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const closed = cards.map(card => card.getBoundingClientRect());
+    const textHeight = cards[0].querySelector('h3').getBoundingClientRect().height;
+    select(0);
+    if (reduced) {
+      check(!row.getAnimations({ subtree: true }).length, 'Reduced motion started animations');
+      check(cards[0].getBoundingClientRect().height > closed[0].height, 'Reduced motion did not expand');
+      passed.push('Reduced motion expands immediately without animation');
+    } else {
+      const start = cards[0].getBoundingClientRect();
+      check(Math.abs(start.width - closed[0].width) < 1 && Math.abs(start.height - closed[0].height) < 1, 'Expansion jumped to its destination');
+      const dimensions = cards.map(card => [card.offsetWidth, card.offsetHeight]);
+      let samples = 0;
+      const deadline = performance.now() + 100;
+      while (performance.now() < deadline) {
+        await frame(); samples++;
+        cards.forEach((card, i) => check(card.offsetWidth === dimensions[i][0] && card.offsetHeight === dimensions[i][1], 'Animation relaid out a card'));
+        const height = cards[0].querySelector('h3').getBoundingClientRect().height;
+        check(Math.abs(height / textHeight - 1) < .015, 'Card animation stretched text');
+        const dot = cards[0].querySelector('circle').getBoundingClientRect();
+        check(Math.abs(dot.width / dot.height - 1) < .015, 'Card animation stretched its chart');
+      }
+      check(samples > 1, 'No intermediate animation frames were tested');
+      passed.push('Intermediate frames preserve layout dimensions, text size and chart aspect');
+      const interrupted = cards.map(card => card.getBoundingClientRect());
+      select(4);
+      cards.forEach((card, i) => {
+        const next = card.getBoundingClientRect(), old = interrupted[i];
+        check(Math.abs(next.x - old.x) < 1 && Math.abs(next.height - old.height) < 1, 'Rapid hover jumped instead of continuing from the visible rectangle');
+      });
+      await wait(360);
+      check(!row.getAnimations({ subtree: true }).length, 'Finished animation retained effects');
+      check(cards[4].classList.contains('expanded'), 'Interrupted hover settled on the wrong card');
+      passed.push('Rapid hover continues smoothly and releases completed animation effects');
+    }
+    select(-1); await wait(reduced ? 20 : 360);
+    check(cards.every(card => Math.abs(card.getBoundingClientRect().height - 150) < 1), 'Collapse did not restore card height');
+    check(cards.every(card => card.querySelector('.card-controls').inert), 'Collapsed controls are focusable');
+    passed.push('Collapse restores the original geometry and disables hidden controls');
+    select(2); motion.finish();
+    check(!row.getAnimations({ subtree: true }).some(animation => animation.effect.getKeyframes().some(key => key.transform)), 'Resize/disposal left a running transform');
+    check(cards[2].getBoundingClientRect().height > 150, 'Finishing motion lost the selected state');
+    passed.push('Resize/disposal finishes motion without changing selection');
+    document.querySelector('#report').textContent = `PASS\n${passed.join('\n')}`;
+  } catch (error) {
+    document.querySelector('#report').textContent = `FAIL\n${passed.join('\n')}\n${error.stack}`;
+  } finally { motion.finish(); }
+};
+</script>

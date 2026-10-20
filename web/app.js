@@ -12,6 +12,7 @@ import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { fitChartViewport } from './chart-viewport.js';
 import { createPreviewInteraction } from './preview-interaction.js';
 import { createPointerMotion } from './pointer-motion.js';
+import { createCardMotion } from './card-motion.js';
 import { defaultCanvasOptions } from './plot-setup.js';
 import { selectionAxes, selectionData } from './selection-setup.js';
 import { renderDataTable } from './data-table.js';
@@ -72,6 +73,8 @@ const historyView = createHistoryView($('history'), {
 });
 const parameterIntents = new WeakMap(), cardElements = new WeakMap();
 const rangeIntents = new WeakMap();
+const cardMotion = createCardMotion();
+let selectedPreviewFrame = null;
 let pointerChoice = null, pointerCard = null, pointerInGallery = false;
 const tick = () => new Promise(resolve => requestAnimationFrame(resolve));
 
@@ -347,6 +350,18 @@ function setCardExpanded(card, expanded) {
   card.button.setAttribute('aria-expanded', String(expanded));
 }
 
+function expandCards(updates) {
+  const changed = updates.filter(([card, expanded]) => card.element.classList.contains('expanded') !== expanded);
+  cardMotion.change(changed.map(([card]) => card.element.closest('.card-row')), () => {
+    for (const [card, expanded] of changed) setCardExpanded(card, expanded);
+  });
+}
+
+function cancelSelectedPreview() {
+  if (selectedPreviewFrame !== null) cancelAnimationFrame(selectedPreviewFrame);
+  selectedPreviewFrame = null;
+}
+
 function selectCard(card, showCodeChange = true, expand = true) {
   if (card.disabled || card.base !== state.program) return;
   // Restoring a gallery also selects its default card, without user input.
@@ -355,11 +370,20 @@ function selectCard(card, showCodeChange = true, expand = true) {
   state.active = card;
   for (const item of state.cards) {
     item.element.classList.toggle('selected', item === card);
-    setCardExpanded(item, item === card && expand);
   }
-  showPreview(card, { showCodeChange });
-  // A canceled hover may have left a newer pinned value waiting for execution.
-  card.preparePromise = prepareCard(card, card.values);
+  expandCards(state.cards.map(item => [item, item === card && expand]));
+  cancelSelectedPreview();
+  const preview = () => {
+    selectedPreviewFrame = null;
+    if (state.active !== card || card.base !== state.program || (expand && state.committing)) return;
+    showPreview(card, { showCodeChange });
+    // A canceled hover may have left a newer pinned value waiting for execution.
+    card.preparePromise = prepareCard(card, card.values);
+  };
+  // Start the card movement before mounting the chart and expanded code. Both
+  // have independent layouts; doing them in the same frame delays the motion.
+  if (expand) selectedPreviewFrame = requestAnimationFrame(preview);
+  else preview();
 }
 
 async function prepareCard(card, values = card.values, { interactive = true } = {}) {
@@ -684,7 +708,7 @@ async function createCard(spec, index) {
     });
     element.addEventListener('focusout', event => {
       if (!element.contains(event.relatedTarget) && !pointerInGallery) {
-        setCardExpanded(card, false);
+        expandCards([[card, false]]);
         const inspecting = inspectingCode(event.relatedTarget);
         if (state.phase === 'initial' && !inspecting) state.active = null;
         showPreview(state.active, { showCodeChange: inspecting });
@@ -744,6 +768,8 @@ elements.cards.addEventListener('keydown', event => {
 });
 
 function saveGallery() {
+  cancelSelectedPreview();
+  cardMotion.finish();
   if (!mountedGallery || mountedGallery.phase !== 'recommendations') return;
   const deck = mountedGallery;
   deck.scrollLeft = elements.cards.scrollLeft;
@@ -1304,13 +1330,16 @@ function routePointer(event) {
 }
 
 function leaveGallery() {
+  cancelSelectedPreview();
   pointerChoice = null; pointerCard = null; pointerInGallery = false;
+  const collapsed = [];
   for (const card of state.cards) {
     const focused = card.element.contains(document.activeElement) &&
       (document.activeElement.matches(':focus-visible') || document.activeElement.tagName === 'INPUT');
-    if (!focused) setCardExpanded(card, false);
+    if (!focused) collapsed.push([card, false]);
     card.interaction.leavePointer();
   }
+  expandCards(collapsed);
   if (state.phase === 'initial' && !inspectingCode()) state.active = null;
   showPreview(state.active, { showCodeChange: false });
 }
@@ -1362,6 +1391,7 @@ initializePanelLayout({
       label: 'ggaction Code' },
   },
   beforeChange() {
+    cardMotion.finish();
     layoutGalleryPage = currentGalleryPage();
     historyView.clear();
     pointerMotion.reset();
@@ -1375,6 +1405,7 @@ initializePanelLayout({
     updateHeaderGuidance();
   },
 });
+window.addEventListener('resize', () => cardMotion.finish(), { passive: true });
 
 $('upload').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', async event => {

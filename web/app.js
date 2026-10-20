@@ -853,6 +853,14 @@ async function updateCards() {
             if (state.phase === 'initial') await tick();
           }
           if (generation !== state.generation) return;
+          // Reserve all five positions, including their normal flex weights,
+          // so a short result list or final page keeps the same card widths.
+          for (let slot = fragment.childElementCount; slot < 5; slot++) {
+            const space = document.createElement('div'); space.className = 'card-space';
+            const index = page * 5 + slot;
+            if (index < 2) space.classList.add(index === 0 ? 'primary' : 'secondary');
+            space.setAttribute('aria-hidden', 'true'); fragment.append(space);
+          }
           rows[page].append(fragment);
           rows[page].setAttribute('aria-busy', 'false');
         }

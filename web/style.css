@@ -123,7 +123,8 @@ main { padding: 14px 16px 16px; }
 .card-row[aria-busy="false"] { animation: cards-appear 280ms ease-out both; }
 @keyframes cards-appear { from { opacity: 0; } to { opacity: 1; } }
 .card { position: relative; flex: 1 1 0; min-width: 0; height: 150px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 4px; background: #fff; transition: flex-grow var(--card-motion-duration) var(--card-motion-easing), height var(--card-motion-duration) var(--card-motion-easing), border-color 140ms ease; }
-.card.primary, .card.secondary { flex-grow: 1.5; }
+.card-space { flex: 1 1 0; min-width: 0; border: 1px solid transparent; visibility: hidden; pointer-events: none; }
+.card.primary, .card.secondary, .card-space.primary, .card-space.secondary { flex-grow: 1.5; }
 .card.primary { border-color: #7d7d7d; background: linear-gradient(155deg, #e6e6e6 0%, #f4f4f4 46%, #fff 100%); }
 .card.secondary { border-color: #a3a3a3; background: linear-gradient(155deg, #eeeeee 0%, #f8f8f8 46%, #fff 100%); }
 .card.selected { border-color: #91a6c1; }

@@ -79,3 +79,22 @@ test('opening every group/page preserves the full eager order and scores and eve
     }
   }
 });
+
+test('exhausted decks have only nonempty page ranges, including an overestimated last page', () => {
+  const raw = scatter().encodeOpacity({ target: 'plot', value: .43 });
+  const recommend = serviceFor(raw);
+  for (const group of ['encoding', 'transform', 'style']) {
+    const first = recommend({ group });
+    const exhausted = recommend({ group, page: first.pagination.pageCount + 1 });
+    assert.equal(exhausted.pagination.complete, true);
+    assert.equal(exhausted.pagination.pageCount, exhausted.pagination.pageRanges.length);
+    let end = 0;
+    for (const range of exhausted.pagination.pageRanges) {
+      assert.equal(range.start, end);
+      assert.ok(range.end > range.start && range.end - range.start <= 5);
+      end = range.end;
+    }
+    assert.equal(end, exhausted.result.recommendations.length);
+    assert.deepEqual(recommend({ group }).result.recommendations, first.result.recommendations);
+  }
+});

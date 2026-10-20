@@ -126,7 +126,7 @@ export function createCalculationService(model) {
           // page with used actions. Do not validate those until their page opens.
           if (deck.separateApplied && source.previouslyApplied && !deck.reachedApplied) {
             deck.reachedApplied = true;
-            if (deck.recommendations.length > deck.pageStart || !deck.pages.length) finishPage();
+            if (deck.recommendations.length > deck.pageStart) finishPage();
             if (deck.pages.length > page) break;
           }
           deck.cursor++;
@@ -152,7 +152,8 @@ export function createCalculationService(model) {
         }
         if (deck.cursor === ranked.recommendations.length && deck.recommendations.length > deck.pageStart) finishPage();
         const projected = deck.hierarchy?.project(deck.unavailable) ?? ranked.recommendations;
-        const remaining = projected.filter(rec => !deck.emitted.has(rec.id) && !deck.unavailable.has(rec.id));
+        const complete = deck.cursor === ranked.recommendations.length;
+        const remaining = complete ? [] : projected.filter(rec => !deck.emitted.has(rec.id) && !deck.unavailable.has(rec.id));
         const remainingApplied = deck.separateApplied ? remaining.filter(rec => rec.previouslyApplied).length : 0;
         const pageCount = deck.pages.length + Math.ceil((remaining.length - remainingApplied) / 5) + Math.ceil(remainingApplied / 5);
         const range = deck.pages[page] ?? { start: deck.recommendations.length, end: deck.recommendations.length };
@@ -161,8 +162,9 @@ export function createCalculationService(model) {
             rejected: [...diagnostics.rejected], scannedCandidates: deck.cursor } }, profile,
           defaults: deck.defaults.slice(range.start, range.end),
           pagination: { page, pageSize: 5, pageCount, pageRanges: deck.pages.slice(0, page + 1),
-            complete: remaining.length === 0, rankedCandidates: projected.length,
-            newActionsExhausted: deck.separateApplied && deck.reachedApplied && deck.pages[0]?.end === 0 } };
+            complete: complete || remaining.length === 0, rankedCandidates: projected.length,
+            newActionsExhausted: deck.separateApplied && deck.reachedApplied &&
+              deck.recommendations.every(rec => rec.previouslyApplied) } };
       }
       throw new Error(`Unknown calculation request: ${type}`);
     },

@@ -692,13 +692,29 @@ function currentGalleryPage() {
 
 function updateGalleryNavigation() {
   const page = currentGalleryPage(), count = state.galleryRows.length;
-  $('cards-page').textContent = `${page + 1} / ${Math.max(1, count)}`;
-  $('cards-prev').disabled = page === 0 || state.committing;
-  $('cards-next').disabled = page >= count - 1 || state.committing;
+  const pending = mountedGallery?.phase === 'recommendations' && !mountedGallery.pagination.complete;
+  $('cards-page').textContent = `${page + 1} / ${pending ? '…' : Math.max(1, count)}`;
+  $('cards-prev').disabled = page === 0 || state.committing || mountedGallery?.loading;
+  $('cards-next').disabled = page >= count - 1 || state.committing || mountedGallery?.loading;
   $('cards-prev').closest('nav').hidden = count <= 1;
 }
 
-function goToGalleryPage(index) {
+async function goToGalleryPage(index) {
+  const deck = mountedGallery, generation = state.generation;
+  if (deck?.loading || state.committing) return;
+  if (deck?.phase === 'recommendations' && !deck.pages.has(index)) {
+    deck.loading = true; updateGalleryNavigation(); notice('Preparing options…');
+    try { await deck.renderPage(index); }
+    catch (error) {
+      if (generation === state.generation) notice(error.message, true);
+      return;
+    } finally {
+      deck.loading = false;
+      if (mountedGallery === deck) updateGalleryNavigation();
+    }
+    if (generation !== state.generation || mountedGallery !== deck) return;
+    notice();
+  }
   const row = state.galleryRows[Math.max(0, Math.min(state.galleryRows.length - 1, index))];
   if (!row) return;
   elements.cards.scrollTo({ left: elements.cards.scrollLeft + row.getBoundingClientRect().left - elements.cards.getBoundingClientRect().left,
@@ -808,13 +824,18 @@ async function updateCards() {
       pageCount = response.pagination.pageCount;
       if (!specs.length) elements['step-description'].textContent = emptyActionsMessage();
     }
-    const count = pageCount ?? Math.ceil(specs.length / 5), pages = restored?.pages ?? new Set();
+    // The worker's pageCount is an upper bound until native validation finishes.
+    // Mount known pages and one loading destination, never a queue of empty pages.
+    const count = pagination ? (pagination.complete ? pagination.pageCount : pagination.pageRanges.length + 1)
+      : pageCount ?? Math.ceil(specs.length / 5), pages = restored?.pages ?? new Set();
     for (let page = 0; !restored && page < count; page++) {
       const row = document.createElement('div'); row.className = 'card-row';
       row.dataset.page = page + 1; row.setAttribute('aria-busy', 'true');
       state.galleryRows.push(row); elements.cards.append(row);
     }
-    const rows = [...state.galleryRows];
+    // Keep the cached deck and mounted gallery on the same row list. Copying a
+    // restored list loses pages appended later when the user switches groups.
+    const rows = state.galleryRows;
     const deck = restored ?? { view: state.view, program: state.program, guideCall: state.guideCall,
       context: structuredClone(state.context), phase: state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
       specs, pages, rows, cards: state.cards, pageCount: count, pagination };
@@ -825,7 +846,7 @@ async function updateCards() {
     const renderPage = requested => {
       // Keep page construction ordered even if a fast scroll observes several
       // pages together. Native-invalid plots move behind all usable choices.
-      rendering = rendering.then(async () => {
+      rendering = rendering.catch(() => {}).then(async () => {
         for (let page = 0; page <= requested; page++) {
           if (pages.has(page)) continue;
           if (generation !== state.generation) return;
@@ -834,13 +855,18 @@ async function updateCards() {
             if (generation !== state.generation) return;
             specs = deck.specs = recommendationSpecs(response);
             deck.pagination = response.pagination;
-            deck.pageCount = response.pagination.pageCount;
+            deck.pageCount = response.pagination.complete ? response.pagination.pageCount : response.pagination.pageRanges.length + 1;
             for (const removed of rows.splice(deck.pageCount)) removed.remove();
+            while (rows.length < deck.pageCount) {
+              const row = document.createElement('div'); row.className = 'card-row';
+              row.dataset.page = rows.length + 1; row.setAttribute('aria-busy', 'true');
+              rows.push(row); elements.cards.append(row);
+              state.galleryObserver?.observe(row);
+            }
             state.galleryRows = rows;
             updateGalleryNavigation();
           }
           if (!rows[page]) return;
-          pages.add(page);
           // Build a complete row before revealing it. Incremental flex children
           // otherwise make the first cards visibly shift as later cards arrive.
           const fragment = document.createDocumentFragment();
@@ -871,10 +897,12 @@ async function updateCards() {
           }
           rows[page].append(fragment);
           rows[page].setAttribute('aria-busy', 'false');
+          pages.add(page);
         }
       });
       return rendering;
     };
+    deck.renderPage = renderPage;
     await renderPage(0);
     if (generation !== state.generation) return;
     // Execute only pages the user opens, never adjacent/offscreen pages.

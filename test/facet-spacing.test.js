@@ -91,3 +91,35 @@ test('later facet header and guide edits fit explicitly and survive worker/persi
   assert.equal(JSON.stringify(start.authoringPreview.graphicSpec), before);
   assert.throws(() => prepareGuidedAction(base(), action({ field: 'missing' })), /missing/);
 });
+
+test('box facet preview and worker replay keep boxes and rules on the same shared scales', () => {
+  const values = ['A', 'B', 'C'].flatMap((Group, index) =>
+    [1, 2, 3, 4, 5, 6, 7, 40].map(Value => ({ Group, Value: Value + index * 20 })));
+  const source = chart().createCanvas(defaultCanvasOptions())
+    .createData({ id: 'data', values })
+    .createBoxPlot({ id: 'plot', x: { field: 'Value' }, y: { field: 'Group', fieldType: 'nominal' } })
+    .encodeBarWidth({ target: 'plot', pixels: 24 })
+    .encodeColor({ target: 'plot', field: 'Group', fieldType: 'nominal' })
+    .encodeStroke({ target: 'plot', value: '#000000' });
+  const requested = action({ gap: 32, guides: { axes: 'outer', legend: 'shared' } });
+  const prepared = prepareGuidedAction(source, requested);
+  const service = createCalculationService();
+  service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(source) });
+  const remote = service.execute({ type: 'materialize', stateId: 1, action: requested });
+  const restored = deserializeProgram(remote.snapshot);
+  assert.deepEqual(restored.graphicSpec, prepared.authoringPreview.graphicSpec);
+  for (const program of [prepared.preview, restored]) {
+    for (const child of Object.values(program.children)) {
+      const box = child.graphicSpec.objects.plot.items[0].properties;
+      const center = box.y + box.height / 2;
+      const whisker = child.graphicSpec.objects.plotWhisker.items[0].properties;
+      const median = child.graphicSpec.objects.plotMedian.items[0].properties;
+      assert.ok(Math.abs(whisker.y1 - center) < 1e-8);
+      assert.ok(Math.abs(whisker.y2 - center) < 1e-8);
+      assert.ok(Math.abs((median.y1 + median.y2) / 2 - center) < 1e-8);
+      assert.ok(median.x1 >= box.x && median.x1 <= box.x + box.width);
+      const layer = child.semanticSpec.layers.find(layer => layer.id === 'plot');
+      assert.deepEqual(child.resolvedScales[layer.encoding.y.scale].domain, ['A', 'B', 'C']);
+    }
+  }
+});

@@ -7,14 +7,13 @@ export function initializePanelLayout({ workspace, panels, beforeChange, afterCh
   try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch { /* Optional preference. */ }
   const collapsed = {};
   const paint = (name, value) => {
-    const { panel, button, contents, label, icons } = panels[name];
+    const { panel, button, contents, label } = panels[name];
     collapsed[name] = value;
     panel.dataset.collapsed = String(value);
     workspace.classList.toggle(`${name}-collapsed`, value);
     button.setAttribute('aria-expanded', String(!value));
     button.setAttribute('aria-label', `${value ? 'Expand' : 'Collapse'} ${label}`);
     button.title = button.getAttribute('aria-label');
-    button.firstElementChild.textContent = icons[value ? 1 : 0];
     for (const content of contents) content.hidden = value;
   };
   for (const [name, { button, contents }] of Object.entries(panels)) {

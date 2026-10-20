@@ -1225,10 +1225,10 @@ initializePanelLayout({
   workspace: document.querySelector('.workspace'),
   panels: {
     history: { panel: $('history').closest('.history-section'), button: $('toggle-history'),
-      contents: [$('history'), $('history-meta')], label: 'history', icons: ['⌄', '⌃'] },
+      contents: [$('history'), $('history-meta')], label: 'history' },
     code: { panel: $('code-content').closest('.code-panel'), button: $('toggle-code'),
       contents: [$('code-content'), $('code-mode'), document.querySelector('.code-tools')],
-      label: 'ggaction Code', icons: ['›', '‹'] },
+      label: 'ggaction Code' },
   },
   beforeChange() {
     layoutGalleryPage = currentGalleryPage();

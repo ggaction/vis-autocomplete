@@ -278,8 +278,12 @@ export function recommendationParameters(recommendation, profile) {
       select('color', 'Color', ['#e2e8f0', '#cbd5e1', '#9ca3af', '#6b7280'], args[direction]?.color ?? '#cbd5e1'),
       numeric('width', 'Line width', args[direction]?.lineWidth ?? 1.5, 0, 4, .25),
       select('dash', 'Line style', [{ value: [], label: 'Solid' }, { value: [6, 4], label: 'Dashed' }, { value: [2, 3], label: 'Dotted' }], args[direction]?.strokeDash ?? [])];
-    build = v => Object.fromEntries((v.direction === 'both' ? directions : [v.direction])
-      .map(key => [key, { ...clone()[key], color: v.color, lineWidth: v.width, strokeDash: v.dash }]));
+    // Direction chooses visible grids, not just which existing grid to restyle.
+    // Keep the opposite guide at zero width so automatic guides cannot recreate it.
+    build = v => Object.fromEntries(directions.map(key => [key,
+      v.direction === 'both' || v.direction === key
+        ? { ...clone()[key], color: v.color, lineWidth: v.width, strokeDash: v.dash }
+        : { lineWidth: 0 }]));
   } else if (method === 'createAxes') {
     const categoricalAxis = axis => ['nominal', 'ordinal'].includes(fields.get(recommendation.axisFields?.[axis])?.type);
     controls = ['x', 'y'].map(axis => categoricalAxis(axis)

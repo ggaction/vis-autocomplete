@@ -271,7 +271,7 @@ test('grid controls offer Vertical, Horizontal and Both with matching native pre
     for (const direction of ['vertical', 'horizontal', 'both']) {
       const args = editor.build({ ...valuesFor(editor.controls), direction, color: '#6b7280', width: 2 });
       const selected = direction === 'both' ? ['vertical', 'horizontal'] : [direction];
-      assert.deepEqual(Object.keys(args), selected);
+      assert.deepEqual(Object.keys(args), ['vertical', 'horizontal']);
       const prepared = prepareGuidedAction(start.authoringPreview, { method: 'editGrid', args }, start.preview);
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);
       const applied = applyRecommendation(prepared.actionBase, prepared.recommendation);
@@ -285,7 +285,11 @@ test('grid controls offer Vertical, Horizontal and Both with matching native pre
         assert.ok(prepared.prerequisiteCalls.some(call => call.method === 'createGrid' && call.args.vertical));
       }
       for (const key of ['vertical', 'horizontal'].filter(key => !selected.includes(key))) {
-        assert.deepEqual(committed.guideConfigs.grid[key], start.preview.guideConfigs.grid[key]);
+        assert.equal(args[key].lineWidth, 0);
+        assert.equal(committed.guideConfigs.grid[key].lineWidth, 0, 'the unselected direction must be hidden');
+        const graphic = committed.graphicSpec.objects[`${key}GridLines`];
+        assert.ok(graphic.items.length > 0);
+        assert.ok(graphic.items.every(item => item.properties.strokeWidth === 0), 'no visible opposite grid lines');
       }
       const replay = prepared.prerequisiteCalls.reduce((program, call) => program[call.method](call.args), start.authoringPreview)
         .editGrid(args).createGuides(prepared.guideCall.args);

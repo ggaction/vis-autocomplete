@@ -100,7 +100,7 @@ export async function trainCorpus({ corpusRoot = CORPUS_ROOT, outputRoot = join(
     repository: 'https://github.com/ggaction/chart-datasets', commit,
     ggactionVersion: ggactionPackage.version, ggactionSource: ggactionSource(), trainingUnit: 'one-chart-id',
     stagePolicy: 'union-of-every-accepted-stage-deduplicated-per-chart',
-    extraction: 'static-public-ggaction-source-semantics-v4',
+    extraction: 'static-public-ggaction-source-semantics-v5',
     chartCount: entries.length, programCount, dataFiles: entries.length, dataBytes,
   };
   const model = trainCooccurrenceModel(observations, provenance);

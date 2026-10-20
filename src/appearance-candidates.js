@@ -55,7 +55,10 @@ export function appearanceCandidates(program, { layer, profile }) {
         } else if (!constantIn(field.name, group)) continue;
         if (mark === 'line' && channel === 'color' && !['nominal', 'ordinal'].includes(field.type)) continue;
       }
-      if (mark === 'arc' && channel === 'color' && ![encoding.theta?.field, encoding.color?.field].includes(field.name)) continue;
+      if (mark === 'arc' && channel === 'color' && ['nominal', 'ordinal'].includes(encoding.theta?.fieldType) &&
+          !constantIn(field.name, [encoding.theta.field])) {
+        unavailableField(method, field, 'Each sector needs one color value. Choose a field constant within its category.'); continue;
+      }
       if (mark === 'bar' && ['stroke', 'opacity', 'strokeWidth', 'strokeDash'].includes(channel) && !cells.constant(field.name)) {
         unavailableField(method, field, 'Needs one value per displayed bar cell. Choose a field constant within the category/series, or Fixed mode.'); continue;
       }

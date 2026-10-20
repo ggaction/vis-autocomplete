@@ -41,6 +41,16 @@ export function recommendationParameters(recommendation, profile) {
     const recipe = recommendation.binRecipe;
     controls = [numeric('bins', 'X bins (maximum)', recipe.bins, 2, 24)];
     build = v => ({ ...clone(), expression: binnedPositionExpression(recipe.field, recipe.domain, v.bins) });
+  } else if (recommendation.radialContext?.measured) {
+    const fields = recommendation.radialContext.fields;
+    controls = [select('aggregate', 'Aggregate', [{ value: 'sum', label: 'Sum', disabled: !fields.length }, { value: 'count', label: 'Count' }], args.aggregate ?? 'sum'),
+      { ...select('field', 'Variable', fields, args.field ?? fields[0]), when: v => v.aggregate !== 'count' },
+      select('mapping', 'Measure by', [{ value: 'area', label: 'Area' }, { value: 'radius-length', label: 'Radius length' }], args.mapping)];
+    build = v => ({ target: args.target, aggregate: v.aggregate, mapping: v.mapping,
+      ...(v.aggregate === 'count' ? {} : { field: v.field, fieldType: 'quantitative' }) });
+  } else if (recommendation.positionFields) {
+    controls = [select('field', 'Variable', fieldOptions, args.field)];
+    build = v => forField(v.field);
   } else if (method === 'createStatisticalReference') {
     const axes = [...new Set(alternatives.map(option => option.args.axis))];
     const isInterval = value => ['middle50', 'middle95'].includes(value);
@@ -50,7 +60,9 @@ export function recommendationParameters(recommendation, profile) {
       { value: 'mean', label: 'Mean' }, { value: 'median', label: 'Median' },
       { value: 'min', label: 'Minimum' }, { value: 'max', label: 'Maximum' },
       { value: 'middle50', label: 'Middle 50%' }, { value: 'middle95', label: 'Middle 95%' },
-    ], initial), select('population', 'Population', [{ value: 'visibleItems', label: 'Visible marks' }, { value: 'boundData', label: 'All bound rows' }], args.population ?? 'visibleItems')];
+    ], initial), select('population', 'Population', [{ value: 'visibleItems', label: 'Visible marks',
+      disabled: recommendation.statisticalContext?.series, reason: recommendation.statisticalContext?.series ? 'A line or area represents a series. Use its bound rows.' : undefined },
+      { value: 'boundData', label: 'All bound rows' }], args.population ?? 'visibleItems')];
     build = v => {
       const common = { source: args.source, axis: v.axis,
         population: v.population, ...(args.field ? { field: args.field } : {}) };
@@ -110,10 +122,13 @@ export function recommendationParameters(recommendation, profile) {
   } else if (['encodeX', 'encodeY'].includes(method)) {
     controls = [select('field', 'Variable', fieldOptions, args.field),
       select('scale', 'Scale', ['auto', 'linear', 'log', 'sqrt', 'symlog'], 'auto')];
-    if (args.aggregate) controls.push(select('aggregate', 'Aggregation', ['mean', 'median', 'sum', 'min', 'max'], args.aggregate));
+    if (alternatives.some(a => a.args.aggregate)) controls.push({
+      ...select('aggregate', 'Aggregation', ['mean', 'median', 'sum', 'min', 'max'], args.aggregate ?? 'mean'),
+      when: v => Boolean(forField(v.field).aggregate),
+    });
     build = v => {
       const out = forField(v.field); out.field = v.field; out.fieldType = fields.get(v.field)?.type ?? args.fieldType;
-      if (v.aggregate) out.aggregate = v.aggregate;
+      if (v.aggregate && out.aggregate) out.aggregate = v.aggregate;
       if (v.scale !== 'auto') {
         let id = `${args.target ?? 'plot'}-${method === 'encodeX' ? 'x' : 'y'}-${v.scale}`;
         const ids = recommendation.scaleIds ?? [];
@@ -347,6 +362,12 @@ export function recommendationParameters(recommendation, profile) {
   const channelVariant = values => alternatives.find(a => a.args.channel === values[`p${channelIndex}`]);
   resolve = values => {
     let resolved = controls.map(c => ({ ...c, ...(c.controls ? { controls: c.controls.map(child => ({ ...child })) } : {}) }));
+    for (const [i, parameter] of generic.entries()) {
+      if (!parameter.distinctFrom) continue;
+      const other = generic.findIndex(p => p.path === parameter.distinctFrom);
+      resolved[i] = { ...resolved[i], choices: resolved[i].choices.map(c => ({ ...c,
+        disabled: c.value === values[`p${other}`], reason: c.value === values[`p${other}`] ? 'These roles must use different fields.' : undefined })) };
+    }
     if (method === 'filterMarks' && channelIndex >= 0 && thresholdIndex >= 0) {
       const parameter = channelVariant(values)?.parameters?.find(p => p.path === 'value');
       if (parameter) resolved[thresholdIndex] = { ...resolved[thresholdIndex], min: parameter.min, max: parameter.max, step: parameter.step };
@@ -384,6 +405,13 @@ export function recommendationParameters(recommendation, profile) {
   };
   normalize = (input, changedKey) => {
     const values = { ...input };
+    for (const [i, parameter] of generic.entries()) {
+      if (!parameter.distinctFrom) continue;
+      const other = generic.findIndex(p => p.path === parameter.distinctFrom);
+      if (values[`p${i}`] !== values[`p${other}`]) continue;
+      const replace = changedKey === `p${i}` ? other : i;
+      values[`p${replace}`] = generic[replace].choices.find(c => !c.disabled && c.value !== values[`p${i}`])?.value;
+    }
     if (method === 'filterMarks' && changedKey === `p${channelIndex}` && thresholdIndex >= 0) {
       const variant = channelVariant(values); if (variant) values[`p${thresholdIndex}`] = variant.args.value;
     }

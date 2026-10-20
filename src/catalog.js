@@ -1,3 +1,4 @@
+import { positionCandidates, ownedPositionCandidates } from './position-candidates.js';
 // Every entry yields ONE public ChartProgram method and ONE options object.
 // More fields produce alternatives inside the same recommendation, not more ranks.
 import { preferVisualFields } from './profile.js';
@@ -9,7 +10,7 @@ import { corpusCandidates } from './corpus-candidates.js';
 export const ACTION_METHODS = PUBLIC_ACTION_METHODS;
 
 export function generateCandidates(program, { layer, profile, actionEvidence }) {
-  const candidates = [...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile }), ...corpusCandidates(program, { layer, profile }, actionEvidence)];
+  const candidates = [...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile }), ...corpusCandidates(program, { layer, profile }, actionEvidence)];
   const add = (method, feature, category, label, args, inspectionTarget) => {
     candidates.push({ method, feature, category, label, args, inspectionTarget });
   };
@@ -118,36 +119,6 @@ export function generateCandidates(program, { layer, profile, actionEvidence }) 
   if (!supported || (layer.coordinate && program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type !== 'cartesian')) {
     addCommon();
     return candidates;
-  }
-
-  for (const channel of program.markConfigs[target]?.boxPlot ? [] : ['x', 'y']) {
-    let eligible = fields;
-    if (mark === 'point') { /* Point positions accept nominal, ordinal and temporal fields too. */ }
-    else if (channel === 'y') eligible = eligible.filter(f => f.type === 'quantitative');
-    else if (mark === 'bar') eligible = eligible.filter(f => ['nominal', 'ordinal'].includes(f.type));
-    else eligible = eligible.filter(f => ['temporal', 'quantitative'].includes(f.type));
-    const other = channel === 'x' ? 'y' : 'x';
-    eligible = eligible.filter(f => f.name !== encoding[other]?.field);
-    for (const field of eligible) {
-      if (field.name === encoding[channel]?.field) continue;
-      const args = { target, field: field.name, fieldType: field.type };
-      const current = encoding[channel];
-      const sameType = current?.fieldType === field.type;
-      const scaleType = field.type === 'temporal' ? 'time' : ['nominal', 'ordinal'].includes(field.type) ? 'band' : 'linear';
-      const scale = program.semanticSpec.scales.find(s => s.id === current?.scale);
-      if (!sameType || scale && scale.type !== scaleType && ['nominal', 'ordinal', 'temporal'].includes(field.type)) {
-        const stem = `${target}-${channel}-${field.type}`;
-        let id = stem;
-        for (let i = 2; program.semanticSpec.scales.some(s => s.id === id); i++) id = `${stem}-${i}`;
-        args.scale = { id, type: scaleType };
-      }
-      if (channel === 'y' && mark === 'bar' && ['nominal', 'ordinal'].includes(encoding.x?.fieldType)) args.aggregate = encoding.y?.aggregate ?? 'mean';
-      if (current?.bin && field.type === 'quantitative') args.bin = { ...current.bin };
-      if (mark === 'line' && channel === 'x' && field.type === 'quantitative' && encoding.y?.aggregate && !args.bin) args.bin = { maxBins: 10 };
-      if (current?.aggregate && !args.aggregate) args.aggregate = current.aggregate;
-      add(channel === 'x' ? 'encodeX' : 'encodeY', `encoding.${channel}`, 'encoding',
-        `${channel}축에 ${field.name}${args.aggregate ? ' 평균' : ''} 표현`, args, inspectionTarget);
-    }
   }
 
   // First establish the positional context; do not suggest statistics on a blank mark.

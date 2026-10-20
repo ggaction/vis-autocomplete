@@ -1,7 +1,7 @@
 // Shared taxonomy: both corpus source and live ChartPrograms use these tokens.
 // Keep field names and resource IDs out of the learned vocabulary.
 export const CHANNELS = ['x', 'y', 'x2', 'y2', 'color', 'size', 'shape', 'opacity',
-  'stroke', 'strokeWidth', 'strokeDash', 'theta', 'r', 'text', 'xOffset', 'yOffset', 'group'];
+  'stroke', 'strokeWidth', 'strokeDash', 'theta', 'r', 'text', 'xOffset', 'yOffset', 'group', 'angle', 'pathOrder', 'parallel'];
 
 export const MARK_ACTIONS = {
   createPointMark: 'point', createLineMark: 'line', createBarMark: 'bar',
@@ -12,12 +12,25 @@ export const MARK_ACTIONS = {
 export const PLOT_MARKS = {
   createScatterPlot: 'point', createLinePlot: 'line', createBarPlot: 'bar',
   createAreaPlot: 'area', createHistogram: 'bar', createHeatmap: 'rect',
-  createViolinPlot: 'area', createBoxPlot: 'boxplot',
+  createViolinPlot: 'area', createBoxPlot: 'bar', createDensityPlot: 'area',
+  createGradientPlot: 'rect', createRegressionPlot: 'point', createIntervalPlot: 'point',
+  createDotPlot: 'point', createLollipopPlot: 'point', createDumbbellPlot: 'point',
+  createECDFPlot: 'line', createStripPlot: 'point', createBeeswarmPlot: 'point',
+  createRaincloudPlot: 'area', createRugPlot: 'tick', createPiePlot: 'arc',
+  createRosePlot: 'arc', createRadialBarPlot: 'arc', createPolarScatterPlot: 'point',
+  createPolarLinePlot: 'line', createRadarPlot: 'line', createHorizonPlot: 'area',
+  createParallelCoordinates: 'line', createTextPlot: 'text',
 };
 
 export function datasetFeature(type) { return `data.${type}`; }
 
-export function encodingFeature(channel) { return `encoding.${channel}`; }
+// Public encodeR uses r, while semantic state stores radius. Glyph radius is
+// instead point size. One vocabulary must own training, state and used-action checks.
+export const canonicalChannel = channel => channel === 'radius' ? 'r' : channel;
+export const encodingChannel = method => ['encodeRadius', 'encodePointRadius'].includes(method) ? 'size'
+  : method === 'encodeParallelCoordinates' ? 'parallel'
+  : method.startsWith('encode') ? canonicalChannel(method.slice(6, 7).toLowerCase() + method.slice(7)) : undefined;
+export function encodingFeature(channel) { return `encoding.${canonicalChannel(channel)}`; }
 
 export function actionFeatures(action, options = {}) {
   if (MARK_ACTIONS[action]) return [`mark.${MARK_ACTIONS[action]}`,
@@ -25,8 +38,15 @@ export function actionFeatures(action, options = {}) {
   if (PLOT_MARKS[action]) {
     const features = [`mark.${PLOT_MARKS[action]}`];
     for (const channel of CHANNELS) {
-      if (options[channel] !== undefined) features.push(encodingFeature(channel));
+      if (options[channel] !== undefined && options[channel] !== false) features.push(encodingFeature(channel));
     }
+    if (options.radius !== undefined) features.push('encoding.r');
+    if (['createPiePlot', 'createRosePlot', 'createRadialBarPlot'].includes(action)) {
+      features.push('encoding.theta', 'transform.aggregate');
+      if (action !== 'createPiePlot') features.push('encoding.r');
+      if (options.color !== false) features.push('encoding.color');
+    }
+    if (action === 'createParallelCoordinates') features.push('encoding.parallel');
     if (action === 'createHistogram') features.push('transform.bin', 'encoding.x', 'encoding.y');
     if (action === 'createHeatmap') features.push('encoding.x', 'encoding.y', 'encoding.color');
     if (options.guides !== false) {
@@ -40,7 +60,8 @@ export function actionFeatures(action, options = {}) {
     return features;
   }
   if (action.startsWith('encode')) {
-    const channel = action.slice(6, 7).toLowerCase() + action.slice(7);
+    if (action === 'encodeChannels') return [...new Set(Object.entries(options).flatMap(([channel, args]) => CHANNELS.includes(canonicalChannel(channel)) ? actionFeatures(`encode${canonicalChannel(channel)[0].toUpperCase()}${canonicalChannel(channel).slice(1)}`, args ?? {}) : []))];
+    const channel = encodingChannel(action);
     if (CHANNELS.includes(channel)) {
       const features = [encodingFeature(channel)];
       if (options.aggregate) features.push('transform.aggregate');
@@ -49,7 +70,7 @@ export function actionFeatures(action, options = {}) {
     }
   }
   if (action === 'createRegression' || action === 'createRegressionData') return ['transform.regression'];
-  if (action === 'createAxes' || /^create[XY]Axis/.test(action)) return ['guide.axis'];
+  if (action === 'createAxes' || /^create(?:[XY]|Theta|Radial|Parallel)Axis/.test(action)) return ['guide.axis'];
   if (action === 'createLegend') return ['guide.legend'];
   if (action === 'createGrid') return ['guide.grid'];
   if (action === 'createGuides') {
@@ -62,7 +83,7 @@ export function actionFeatures(action, options = {}) {
   }
   if (action === 'createTitle') return ['guide.title'];
   if (action === 'editTitle') return ['guide.title', 'action.editTitle'];
-  const editedMark = { editPointMark: 'point', editBarMark: 'bar', editLineMark: 'line', editAreaMark: 'area' }[action];
+  const editedMark = action.match(/^edit(Point|Bar|Line|Area|Rect|Arc|Rule|Text|Tick)Mark$/)?.[1]?.toLowerCase();
   if (editedMark && options.opacity !== undefined) return [`style.${editedMark}.opacity`];
   if (action === 'orderCategories') return ['action.orderCategories'];
   if (['createBinData', 'encodeHistogram'].includes(action)) return ['transform.bin'];
@@ -89,7 +110,7 @@ export function extractFeatures(program, { target, data, datasetType = 'tabular'
     const node = entry.op === 'editFacetSource' && entry.args.action
       ? { op: entry.args.action.method, args: entry.args.action.options ?? {} } : entry;
     const otherMark = target && node.args.target && program.semanticSpec.layers.some(l => l.id === node.args.target) && node.args.target !== target;
-    const channel = node.op.startsWith('encode') ? node.op.slice(6, 7).toLowerCase() + node.op.slice(7) : undefined;
+    const channel = encodingChannel(node.op);
     const owner = node.args.target ?? target ?? '*';
     if (channel && CHANNELS.includes(channel)) {
       if (!otherMark) {
@@ -99,7 +120,7 @@ export function extractFeatures(program, { target, data, datasetType = 'tabular'
       }
       continue;
     }
-    if (node.op === 'removeEncoding' && !otherMark) fixedEncodings.delete(`${owner}:${node.args.channel}`);
+    if (node.op === 'removeEncoding' && !otherMark) fixedEncodings.delete(`${owner}:${canonicalChannel(node.args.channel)}`);
     if (/^(edit|encode|filterMarks|order|layout|jitter|pack|apply|remove|bind|revise|repeat)/.test(node.op) &&
       !(target && node.args.target && program.semanticSpec.layers.some(l => l.id === node.args.target) && node.args.target !== target)) {
         for (const feature of actionFeatures(node.op, node.args)) features.add(feature);
@@ -137,7 +158,7 @@ export function extractFeatures(program, { target, data, datasetType = 'tabular'
     if (config?.regression) features.add('transform.regression');
     if (Object.values(configs).some(child => child.statisticalReference?.source === layer.id)) features.add('action.createStatisticalReference');
     const opacity = config?.opacity ?? config?.barAppearance?.opacity;
-    if (['point', 'bar', 'line', 'area'].includes(layer.mark?.type) && opacity !== undefined) features.add(`style.${layer.mark.type}.opacity`);
+    if (layer.mark?.type && opacity !== undefined) features.add(`style.${layer.mark.type}.opacity`);
     if (program.semanticSpec.layers.some(child => child.source === layer.id && child.mark?.type === 'text' &&
       configs[child.id]?.labelAuthoring)) features.add('action.createMarkLabels');
   }

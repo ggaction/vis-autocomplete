@@ -92,6 +92,17 @@ function prepareUncached(program, action, view, setupCalls) {
   const sourceAction = action.method === 'editFacetSource' ? { method: action.args.action.method, args: action.args.action.options } : action;
   const sourceCall = (method, args) => action.method === 'editFacetSource'
     ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
+  if (['encodeX', 'encodeY'].includes(sourceAction.method)) {
+    const layer = actionBase.semanticSpec.layers.find(l => l.id === sourceAction.args.target);
+    const fit = actionBase.markConfigs[layer?.id]?.regression;
+    if (fit && layer.derivedBindings?.regression?.mode !== 'follow' && fit.source === layer.data &&
+        fit.x === layer.encoding.x?.field && fit.y === layer.encoding.y?.field) {
+      // A fit of this same scatterplot follows its revised variable through the
+      // native dependency contract. Keep the enabling call visible/replayable.
+      const call = sourceCall('editRegression', { target: layer.id, sourceBinding: 'follow' });
+      actionBase = actionBase[call.method](call.args); prerequisiteCalls.push(call);
+    }
+  }
   const family = /^editLegend/.test(sourceAction.method) ? 'legend' : /^edit(?:Grid|HorizontalGrid|VerticalGrid)$/.test(sourceAction.method) ? 'grid'
     : /^edit(?:Axes|[XY]Axis|ThetaAxis|RadialAxis|ParallelAxis)/.test(sourceAction.method) ? 'axis' : null;
   if (family) {
@@ -164,6 +175,22 @@ function prepareUncached(program, action, view, setupCalls) {
       prerequisiteCalls.push(fitted.call);
       return { ...fitted.prepared, actionBase: fitted.base, prerequisiteCalls };
     }
+    const polar = error.message.match(/^(Theta|Radial) axis labels require sufficient/i)?.[1];
+    if (polar && ['encodeTheta', 'encodeR', 'editThetaScale', 'editRScale'].includes(sourceAction.method)) {
+      const axis = polar === 'Radial' ? 'radius' : 'theta';
+      const semantic = actionBase.semanticSpec.guides.axis?.[axis], config = actionBase.guideConfigs.axis?.[axis];
+      if (!semantic || !config) throw error;
+      const remove = sourceCall(`remove${polar}Axis`, {});
+      actionBase = actionBase[remove.method](remove.args); prerequisiteCalls.push(remove);
+      const edited = prepareAction(actionBase, action);
+      let lastError = error;
+      for (const count of [4, 3, 2]) {
+        const call = sourceCall(`create${polar}Axis`, fittedPolarAxisOptions(edited.preview, sourceAction.args.target, axis, semantic, config, count));
+        try { prepared = finish(edited, [call]); break; } catch (failure) { lastError = failure; }
+      }
+      if (!prepared) throw lastError;
+      return { ...prepared, actionBase, prerequisiteCalls };
+    }
     const axis = error.message.match(/([xy])-axis labels overlap/i)?.[1]?.toLowerCase();
     if (!axis || !['encodeX', 'encodeY', 'editXScale', 'editYScale'].includes(sourceAction.method)) throw error;
     const resources = Object.entries(actionBase.semanticSpec.guides.axis ?? {}).filter(([id, value]) => (value.channel ?? id) === axis);
@@ -183,6 +210,24 @@ function prepareUncached(program, action, view, setupCalls) {
     if (!prepared) throw lastError;
   }
   return { ...prepared, actionBase, prerequisiteCalls };
+}
+
+function fittedPolarAxisOptions(program, target, axis, semantic, config, count) {
+  const pick = (object, names) => Object.fromEntries(names.filter(name => object?.[name] !== undefined).map(name => [name, structuredClone(object[name])]));
+  const layer = program.semanticSpec.layers.find(layer => layer.id === target);
+  const scale = layer?.encoding[axis]?.scale ?? semantic.scale;
+  const domain = program.resolvedScales[scale]?.domain ?? [];
+  const discrete = ['nominal', 'ordinal'].includes(layer?.encoding[axis]?.fieldType);
+  const title = pick(config.title, ['text', 'offset', 'position', 'color', 'fontSize', 'fontFamily', 'fontWeight']);
+  if (config.title?.inferredText) delete title.text;
+  else if (semantic.title !== undefined) title.text = semantic.title;
+  return { scale, coordinate: semantic.coordinate, ...(axis === 'radius' ? { angle: config.layout?.angle ?? 90 } : {}),
+    line: config.line ? pick(config.line, ['color', 'lineWidth']) : false,
+    ticksAndLabels: config.labels || config.ticks ? {
+      ...(discrete ? { values: domain.filter((_, index) => index % Math.ceil(domain.length / count) === 0) } : { count }),
+      ticks: config.ticks ? pick(config.ticks, ['length', 'color', 'lineWidth']) : false,
+      labels: config.labels ? pick(config.labels, ['offset', 'format', 'color', 'fontSize', 'fontFamily', 'fontWeight']) : false,
+    } : false, title: config.title ? title : false };
 }
 
 // Recreate an automatically fitted axis through public options only. Authored

@@ -107,7 +107,10 @@ export function extendedCandidates(program, { layer, profile }) {
         ...(mark === 'line' && encoding.color?.field ? [] : [color('stroke', 'Stroke color', typeof config.stroke === 'string' ? config.stroke : '#000000')]));
       if (mark === 'point') parameters.push(choices('shape', 'Shape', config.shape ?? 'circle', ['circle', 'square', 'diamond', 'cross']));
       else if (['bar', 'rect'].includes(mark)) parameters.push(number('cornerRadius', 'Corner radius', config.cornerRadius ?? 0, 0, 12));
-      else if (mark === 'arc') parameters.push(number('padAngle', 'Slice gap', config.padAngle ?? 0, 0, .1, .005));
+      else if (mark === 'arc') {
+        const measured = program.semanticSpec.scales.find(s => s.id === encoding.radius?.scale)?.radialMapping;
+        if (!measured) parameters.push(number('padAngle', 'Slice gap', config.padAngle ?? 0, 0, .1, .005));
+      }
       else if (mark === 'tick') parameters.push(number('length', 'Length', config.length ?? 12, 1, 30));
       else if (mark === 'line' && coordinateType !== 'cartesian') parameters.push(choices('lineJoin', 'Line join', config.lineJoin ?? 'miter', ['miter', 'round', 'bevel']));
       else if (['line', 'area'].includes(mark)) parameters.push(choices('curve', 'Curve', config.curve ?? 'linear', ['linear', 'step', 'step-before', 'step-after', 'monotone']));
@@ -120,16 +123,6 @@ export function extendedCandidates(program, { layer, profile }) {
   }
   if (mark === 'text' && !layer.source) for (const field of fields) add('encodeText', 'encoding', { target, field: field.name },
     [choices('field', 'Text', field.name, fields.map(f => f.name))], 'encoding.text');
-  if (coordinateType === 'polar') {
-    for (const [channel, method] of [['theta', 'encodeTheta'], ['radius', 'encodeR']]) {
-      const current = encoding[channel];
-      if (!current?.field || mark === 'arc') continue;
-      for (const field of quantitative.filter(f => f.complete && f.name !== current.field)) {
-        add(method, 'encoding', { target, field: field.name, fieldType: 'quantitative' },
-          [choices('field', 'Variable', field.name, quantitative.filter(f => f.complete).map(f => f.name))], `encoding.${channel === 'radius' ? 'r' : channel}`);
-      }
-    }
-  }
   if (coordinateType === 'parallel') {
     for (const dimension of encoding.parallel?.dimensions ?? []) style('editParallelScale', { target, dimension: dimension.field, reverse: true },
       [choices('reverse', 'Direction', true, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }])]);
@@ -188,8 +181,9 @@ export function extendedCandidates(program, { layer, profile }) {
   }
   for (const axis of ['x', 'y']) {
     if (encoding[axis]?.fieldType !== 'quantitative') continue;
-    add('createStatisticalReference', 'transform', { source: target, axis, population: 'visibleItems', statistic: { op: 'mean' },
+    add('createStatisticalReference', 'transform', { source: target, axis, population: ['line', 'area'].includes(mark) ? 'boundData' : 'visibleItems', statistic: { op: 'mean' },
       stroke: '#222222', strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
+    out.at(-1).statisticalContext = { series: ['line', 'area'].includes(mark) };
   }
   if (['line', 'area'].includes(mark) && group && rows.some(r => r[group] != null)) {
     const values = [...new Set(rows.map(r => r[group]).filter(v => v != null))];
@@ -253,7 +247,7 @@ export function extendedCandidates(program, { layer, profile }) {
   }
   // Focused scale editors are safer than changing a position scale's type in
   // place. They retain ownership and current field/aggregation policies.
-  for (const channel of ['x', 'y', 'theta', 'radius', 'color', 'stroke', 'size', 'opacity', 'shape', 'strokeWidth', 'strokeDash', 'xOffset']) {
+  for (const channel of ['x', 'y', 'theta', 'radius', 'color', 'stroke', 'size', 'opacity', 'shape', 'strokeWidth', 'strokeDash', 'xOffset', 'yOffset']) {
     const binding = encoding[channel];
     if (!binding?.scale) continue;
     const method = `edit${channel === 'radius' ? 'R' : channel[0].toUpperCase() + channel.slice(1)}Scale`;
@@ -263,7 +257,11 @@ export function extendedCandidates(program, { layer, profile }) {
       const palette = ['nominal', 'ordinal'].includes(binding.fieldType) ? 'category10' : 'blues';
       style(method, { target, palette }, [choices('palette', 'Palette', palette,
         paletteChoices(binding.fieldType))]);
-    } else if (['x', 'y', 'theta', 'radius', 'xOffset'].includes(channel) && !(channel === 'radius' && mark === 'arc')) {
+    } else if (channel === 'radius' && scale.radialMapping) {
+      const mapping = scale.radialMapping === 'area' ? 'radius-length' : 'area';
+      style(method, { target, radialMapping: mapping }, [choices('radialMapping', 'Measure by', mapping,
+        [{ value: 'area', label: 'Area' }, { value: 'radius-length', label: 'Radius length' }])]);
+    } else if (['x', 'y', 'theta', 'radius', 'xOffset', 'yOffset'].includes(channel)) {
       const direction = choices('reverse', 'Direction', !scale.reverse, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }]);
       if (['x', 'y'].includes(channel) && binding.fieldType === 'quantitative') {
         const values = rows.map(row => row[binding.field]).filter(Number.isFinite);
@@ -357,7 +355,8 @@ export function extendedCandidates(program, { layer, profile }) {
       } else if (transform.type === 'bin') {
         if (!transform.boundaries && !transform.step) add(method, 'transform', { ...args, maxBins: transform.maxBins === 12 ? 10 : 12 },
           [number('maxBins', 'Bins (maximum)', transform.maxBins === 12 ? 10 : 12, 2, 24)], 'transform.bin');
-      } else if (transform.type === 'bin2d') add(method, 'transform', { ...args, bins: 12 }, [number('bins', 'Bins', 12, 2, 24)], 'transform.bin');
+      } else if (transform.type === 'bin2d') add(method, 'transform', { ...args, x: transform.x, y: transform.y, bins: 12 },
+        [choices('x', 'X variable', transform.x, q), choices('y', 'Y variable', transform.y, q), number('bins', 'Bins', 12, 2, 24)], 'transform.bin');
       else if (transform.type === 'timeUnit') add(method, 'transform', { ...args, unit: transform.unit === 'month' ? 'year' : 'month' },
         [choices('unit', 'Time unit', transform.unit === 'month' ? 'year' : 'month', ['year', 'quarter', 'month', 'week', 'day'])]);
       else if (transform.type === 'regression') add(method, 'transform', { ...args, method: transform.method === 'linear' ? 'loess' : 'linear' },

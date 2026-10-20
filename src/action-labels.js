@@ -2,6 +2,9 @@
 export const ACTION_LABELS = {
   facet: 'Facet', facetGrid: 'Facet grid', editFacetScales: 'Facet scales',
   editFacetHeaders: 'Facet headers', editFacetGuides: 'Facet guides', editCompositionLayout: 'Arrange facets',
+  encodeR: 'Encode radius (R)', encodeTheta: 'Encode theta (angle)', encodeX2: 'Encode X end', encodeY2: 'Encode Y end',
+  editViolinPlot: 'Adjust violin variables', editGradientPlot: 'Adjust gradient variables',
+  editEndpointPlot: 'Adjust endpoint variables', editECDFPlot: 'Adjust ECDF variable', encodeParallelCoordinates: 'Parallel dimensions',
   encodeX: 'Set the x variable', encodeY: 'Set the y variable', encodeColor: 'Encode color',
   encodeSize: 'Encode point size', encodeShape: 'Encode point shape', createRegression: 'Add regression',
   createAxes: 'Add axes', createLegend: 'Add a legend', createTitle: 'Add a title', editPointMark: 'Adjust points',

@@ -6,20 +6,20 @@
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
     "branch": "codex/edit-axes-autocomplete",
-    "commit": "9c9c1c71b437c214f207feabdbdc7702313232af",
+    "commit": "3d7cca0e00dbc1520805586e845823dde35b1132",
     "modified": false
   },
   "trainingUnit": "one-chart-id",
   "stagePolicy": "union-of-every-accepted-stage-deduplicated-per-chart",
-  "extraction": "static-public-ggaction-source-semantics-v4",
+  "extraction": "static-public-ggaction-source-semantics-v5",
   "chartCount": 1213,
   "programCount": 8788,
   "dataFiles": 1213,
   "dataBytes": 467771237,
   "allChartsUsed": true,
   "skippedCharts": [],
-  "featureCount": 138,
-  "pairCount": 4897,
+  "featureCount": 134,
+  "pairCount": 4755,
   "dynamicOptionPrograms": 0,
   "unknownMethods": [],
   "actionFrequency": {
@@ -457,7 +457,7 @@
     {
       "id": "vl_0045",
       "programs": 4,
-      "features": 11,
+      "features": 13,
       "data": {
         "tables": 1,
         "rows": 2,
@@ -743,7 +743,7 @@
     {
       "id": "vl_0103",
       "programs": 4,
-      "features": 10,
+      "features": 12,
       "data": {
         "tables": 1,
         "rows": 7,
@@ -1341,7 +1341,7 @@
     {
       "id": "vl_0200",
       "programs": 3,
-      "features": 10,
+      "features": 12,
       "data": {
         "tables": 1,
         "rows": 709,
@@ -1822,7 +1822,7 @@
     {
       "id": "vl_0258",
       "programs": 8,
-      "features": 30,
+      "features": 29,
       "data": {
         "tables": 1,
         "rows": 803,
@@ -2836,7 +2836,7 @@
     {
       "id": "vl_0365",
       "programs": 5,
-      "features": 15,
+      "features": 17,
       "data": {
         "tables": 1,
         "rows": 89,
@@ -3252,7 +3252,7 @@
     {
       "id": "vl_0459",
       "programs": 8,
-      "features": 31,
+      "features": 30,
       "data": {
         "tables": 1,
         "rows": 602,
@@ -3265,7 +3265,7 @@
     {
       "id": "vl_0461",
       "programs": 8,
-      "features": 31,
+      "features": 30,
       "data": {
         "tables": 1,
         "rows": 602,
@@ -3785,7 +3785,7 @@
     {
       "id": "vl_0562",
       "programs": 3,
-      "features": 11,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 11,
@@ -3798,7 +3798,7 @@
     {
       "id": "vl_0563",
       "programs": 4,
-      "features": 11,
+      "features": 13,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -3811,7 +3811,7 @@
     {
       "id": "vl_0564",
       "programs": 4,
-      "features": 13,
+      "features": 15,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -4474,7 +4474,7 @@
     {
       "id": "vl_0641",
       "programs": 5,
-      "features": 14,
+      "features": 16,
       "data": {
         "tables": 1,
         "rows": 23,
@@ -4500,7 +4500,7 @@
     {
       "id": "vl_0643",
       "programs": 6,
-      "features": 13,
+      "features": 15,
       "data": {
         "tables": 1,
         "rows": 26,
@@ -4513,7 +4513,7 @@
     {
       "id": "vl_0644",
       "programs": 3,
-      "features": 11,
+      "features": 13,
       "data": {
         "tables": 1,
         "rows": 26,
@@ -4526,7 +4526,7 @@
     {
       "id": "vl_0645",
       "programs": 4,
-      "features": 14,
+      "features": 16,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -4539,7 +4539,7 @@
     {
       "id": "vl_0646",
       "programs": 4,
-      "features": 13,
+      "features": 15,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -4630,7 +4630,7 @@
     {
       "id": "vl_0655",
       "programs": 3,
-      "features": 11,
+      "features": 13,
       "data": {
         "tables": 1,
         "rows": 3,
@@ -4929,7 +4929,7 @@
     {
       "id": "vl_0695",
       "programs": 3,
-      "features": 12,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 2,
@@ -4942,7 +4942,7 @@
     {
       "id": "vl_0696",
       "programs": 4,
-      "features": 14,
+      "features": 16,
       "data": {
         "tables": 1,
         "rows": 3,
@@ -4955,7 +4955,7 @@
     {
       "id": "vl_0697",
       "programs": 2,
-      "features": 11,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 2,
@@ -4968,7 +4968,7 @@
     {
       "id": "vl_0698",
       "programs": 3,
-      "features": 12,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 2,
@@ -4981,7 +4981,7 @@
     {
       "id": "vl_0699",
       "programs": 3,
-      "features": 12,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 2,
@@ -5267,7 +5267,7 @@
     {
       "id": "vl_0736",
       "programs": 4,
-      "features": 10,
+      "features": 13,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -5280,7 +5280,7 @@
     {
       "id": "vl_0737",
       "programs": 6,
-      "features": 12,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -5293,7 +5293,7 @@
     {
       "id": "vl_0738",
       "programs": 4,
-      "features": 10,
+      "features": 12,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -5306,7 +5306,7 @@
     {
       "id": "vl_0739",
       "programs": 5,
-      "features": 12,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 4,
@@ -5475,7 +5475,7 @@
     {
       "id": "vl_0757",
       "programs": 8,
-      "features": 33,
+      "features": 32,
       "data": {
         "tables": 1,
         "rows": 101,
@@ -6346,7 +6346,7 @@
     {
       "id": "vl_0875",
       "programs": 5,
-      "features": 11,
+      "features": 13,
       "data": {
         "tables": 1,
         "rows": 5,
@@ -6385,7 +6385,7 @@
     {
       "id": "vl_0882",
       "programs": 5,
-      "features": 18,
+      "features": 19,
       "data": {
         "tables": 1,
         "rows": 225,
@@ -6905,7 +6905,7 @@
     {
       "id": "vl_0946",
       "programs": 4,
-      "features": 13,
+      "features": 14,
       "data": {
         "tables": 1,
         "rows": 3,
@@ -7971,7 +7971,7 @@
     {
       "id": "vl_1052",
       "programs": 3,
-      "features": 9,
+      "features": 11,
       "data": {
         "tables": 1,
         "rows": 6,
@@ -7984,7 +7984,7 @@
     {
       "id": "vl_1054",
       "programs": 3,
-      "features": 9,
+      "features": 11,
       "data": {
         "tables": 1,
         "rows": 6,
@@ -8179,7 +8179,7 @@
     {
       "id": "vl_1070",
       "programs": 8,
-      "features": 33,
+      "features": 32,
       "data": {
         "tables": 1,
         "rows": 179,
@@ -8504,7 +8504,7 @@
     {
       "id": "vl_1105",
       "programs": 8,
-      "features": 34,
+      "features": 33,
       "data": {
         "tables": 1,
         "rows": 16,
@@ -8517,7 +8517,7 @@
     {
       "id": "vl_1106",
       "programs": 8,
-      "features": 35,
+      "features": 34,
       "data": {
         "tables": 1,
         "rows": 16,
@@ -12365,7 +12365,7 @@
     {
       "id": "vl_1550",
       "programs": 8,
-      "features": 26,
+      "features": 25,
       "data": {
         "tables": 1,
         "rows": 732,
@@ -13093,7 +13093,7 @@
     {
       "id": "vl_1620",
       "programs": 8,
-      "features": 24,
+      "features": 27,
       "data": {
         "tables": 1,
         "rows": 120,
@@ -13106,7 +13106,7 @@
     {
       "id": "vl_1621",
       "programs": 8,
-      "features": 23,
+      "features": 25,
       "data": {
         "tables": 1,
         "rows": 120,
@@ -13197,7 +13197,7 @@
     {
       "id": "vl_1628",
       "programs": 7,
-      "features": 23,
+      "features": 27,
       "data": {
         "tables": 1,
         "rows": 3,
@@ -14237,7 +14237,7 @@
     {
       "id": "vl_1742",
       "programs": 8,
-      "features": 23,
+      "features": 24,
       "data": {
         "tables": 1,
         "rows": 406,
@@ -14341,7 +14341,7 @@
     {
       "id": "vl_1750",
       "programs": 5,
-      "features": 16,
+      "features": 17,
       "data": {
         "tables": 1,
         "rows": 406,
@@ -14393,7 +14393,7 @@
     {
       "id": "vl_1756",
       "programs": 8,
-      "features": 22,
+      "features": 25,
       "data": {
         "tables": 1,
         "rows": 3,
@@ -15069,7 +15069,7 @@
     {
       "id": "vl_1822",
       "programs": 6,
-      "features": 18,
+      "features": 20,
       "data": {
         "tables": 1,
         "rows": 976,
@@ -15082,7 +15082,7 @@
     {
       "id": "vl_1823",
       "programs": 5,
-      "features": 18,
+      "features": 20,
       "data": {
         "tables": 1,
         "rows": 976,
@@ -15667,7 +15667,7 @@
     {
       "id": "vl_1918",
       "programs": 8,
-      "features": 34,
+      "features": 33,
       "data": {
         "tables": 1,
         "rows": 775,

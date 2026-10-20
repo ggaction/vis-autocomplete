@@ -3,7 +3,7 @@ import { positionScaleContext } from './mark-grain.js';
 import { describeAction, comparePrograms, inspectProgram } from 'ggaction/inspection';
 import { renderToSVG } from 'ggaction/svg';
 import { ACTION_METHODS, generateCandidates } from './catalog.js';
-import { CHANNELS, extractFeatures } from './semantics.js';
+import { CHANNELS, extractFeatures, canonicalChannel, encodingChannel } from './semantics.js';
 import { profileDataset } from './profile.js';
 import { scoreCandidate } from './model.js';
 import { INITIAL_PLOT_METHODS } from './plot-catalog.js';
@@ -152,9 +152,6 @@ function resolveContext(program, options) {
   return { layer, profile, positionScaleContext: positionScaleContext(program, layer, profile), regressionContext: regressionContext(program, layer, profile) };
 }
 
-const encodingChannel = method => method === 'encodePointRadius' ? 'size'
-  : method.startsWith('encode') ? method.slice(6, 7).toLowerCase() + method.slice(7) : undefined;
-
 function establishedEncodingChannels(program, layer) {
   if (!layer) return [];
   const channels = new Set();
@@ -165,9 +162,9 @@ function establishedEncodingChannels(program, layer) {
     if (action?.options?.target !== layer.id) continue;
     const channel = encodingChannel(action.method);
     if (channel) channels.add(channel);
-    if (action.method === 'removeEncoding') channels.delete(action.options.channel);
+    if (action.method === 'removeEncoding') channels.delete(canonicalChannel(action.options.channel));
   }
-  for (const channel of Object.keys(layer.encoding ?? {})) channels.add(channel);
+  for (const channel of Object.keys(layer.encoding ?? {})) channels.add(canonicalChannel(channel));
   return [...channels].sort();
 }
 
@@ -211,7 +208,8 @@ export function createRecommendationEngine(model) {
         throw new TypeError(`Unknown category: ${category}`);
       }
       const context = { ...resolveContext(program, options), actionEvidence: model.actionEvidence };
-      const establishedChannels = excludeMappedChannels.filter(channel => context.layer?.encoding?.[channel]?.field);
+      const establishedChannels = excludeMappedChannels.filter(channel =>
+        context.layer?.encoding?.[channel === 'r' ? 'radius' : channel]?.field);
       const appliedChannels = excludeAppliedEncodings ? establishedEncodingChannels(program, context.layer) : [];
       const existingChannels = deprioritizeAppliedActions ? establishedEncodingChannels(program, context.layer) : [];
       const appliedMethods = deprioritizeAppliedActions ? appliedActionMethods(program, context.layer) : new Set();
@@ -316,6 +314,9 @@ export function createRecommendationEngine(model) {
           regressionContext: context.regressionContext,
           parameterMode: candidate.parameterMode,
           binRecipe: candidate.binRecipe ? structuredClone(candidate.binRecipe) : undefined,
+          radialContext: candidate.radialContext,
+          statisticalContext: candidate.statisticalContext,
+          positionFields: candidate.positionFields,
           sourceMethod: candidate.sourceMethod,
           facetFields: candidate.facetFields,
           guideContext: candidate.guideContext ? structuredClone(candidate.guideContext) : undefined,

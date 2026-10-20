@@ -56,7 +56,7 @@ export function recommendationParameters(recommendation, profile) {
     };
   } else if (method === 'facet') {
     controls = [select('field', 'Facet by', [...new Set(alternatives.map(a => a.args.field))], args.field),
-      numeric('columns', 'Columns', args.columns ?? 3, 1, 6), numeric('gap', 'Gap', args.gap ?? 12, 0, 40)];
+      numeric('columns', 'Columns', args.columns ?? 3, 1, 6), numeric('gap', 'Minimum gap', args.gap ?? 12, 0, Math.max(40, args.gap ?? 12))];
     build = v => {
       const variants = alternatives.filter(a => a.args.field === v.field);
       const selected = v.field !== args.field ? variants.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') ?? variants[0] : undefined;
@@ -72,7 +72,8 @@ export function recommendationParameters(recommendation, profile) {
   } else if (recommendation.parameters?.length) {
     const at = (object, path) => path.split('.').reduce((v, key) => v?.[key], object);
     controls = recommendation.parameters.map((parameter, i) => ({ ...structuredClone(parameter), key: `p${i}`,
-      value: at(args, parameter.path) ?? parameter.value }));
+      value: at(args, parameter.path) ?? parameter.value,
+      ...(parameter.path === 'gap' && parameter.type === 'number' ? { max: Math.max(parameter.max, at(args, 'gap') ?? 0) } : {}) }));
     build = values => {
       const changedPartition = method === 'facetGrid' && recommendation.parameters.some((parameter, i) => ['rows.field', 'columns.field'].includes(parameter.path) && values[`p${i}`] !== at(args, parameter.path));
       const fallback = changedPartition ? alternatives.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') : undefined;

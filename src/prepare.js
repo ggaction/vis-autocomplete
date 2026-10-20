@@ -1,6 +1,7 @@
 import { prepareAction } from './engine.js';
 import { createLRU, signature, freezeResult } from './cache.js';
 import { createProgramResultCache } from './program-cache.js';
+import { facetSpacingCollision, fitFacetGap } from './facet-spacing.js';
 
 const preparations = new WeakMap();
 const recentPreparations = createLRU(12, program => preparations.delete(program));
@@ -151,6 +152,18 @@ function prepareUncached(program, action, view, setupCalls) {
   };
   let prepared;
   try { prepared = prepareFittedPlot(actionBase, action, finish); } catch (error) {
+    if (facetSpacingCollision(error) && actionBase.compositionSpec?.spacing === 'plot') {
+      // A later header/axis edit can need more room than the existing gap.
+      // Keep that edit available, with an explicit native layout prerequisite
+      // so preview, code, Apply and saved projects reproduce the same geometry.
+      const fitted = fitFacetGap(gap => {
+        const call = { method: 'editCompositionLayout', args: { gap } };
+        const base = actionBase.editCompositionLayout(call.args);
+        return { base, call, prepared: prepareFittedPlot(base, action, finish) };
+      }, actionBase.compositionSpec.gap);
+      prerequisiteCalls.push(fitted.call);
+      return { ...fitted.prepared, actionBase: fitted.base, prerequisiteCalls };
+    }
     const axis = error.message.match(/([xy])-axis labels overlap/i)?.[1]?.toLowerCase();
     if (!axis || !['encodeX', 'encodeY', 'editXScale', 'editYScale'].includes(sourceAction.method)) throw error;
     const resources = Object.entries(actionBase.semanticSpec.guides.axis ?? {}).filter(([id, value]) => (value.channel ?? id) === axis);
@@ -199,6 +212,11 @@ function fittedAxisOptions(program, target, axis, { id, semantic, config }, coun
 // initial plot is retried, with explicit guide options recorded in its one call.
 // No render sweep, hidden guide mutation, label removal, or overlap allowance.
 function prepareFittedPlot(program, action, finish = value => value) {
+  if (['facet', 'facetGrid', 'repeatCharts', 'editCompositionLayout'].includes(action.method) &&
+      (action.args.spacing ?? program.compositionSpec?.spacing) === 'plot') {
+    return fitFacetGap(gap => finish(prepareAction(program, { ...action, args: { ...action.args, gap } })),
+      action.args.gap ?? program.compositionSpec?.gap ?? 16);
+  }
   if (['editAxes', 'editXAxis', 'editXAxisTicksAndLabels', 'editXAxisLabels'].includes(action.method)) {
     try { return finish(prepareAction(program, action)); } catch (error) {
       if (!/x-axis labels overlap/i.test(error.message)) throw error;

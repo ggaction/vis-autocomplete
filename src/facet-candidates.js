@@ -13,8 +13,8 @@ export function facetCandidates(program, { layer, profile }) {
     const spec = program.compositionSpec, out = [];
     const add = (method, category, args, parameters, label) => out.push({ method, category, args, parameters,
       feature: `action.${method}`, label, compositionAction: true });
-    add('editCompositionLayout', 'transform', { ...(facet.grid ? {} : { columns: spec.columns === 1 ? 2 : 1 }), gap: spec.gap === 12 ? 16 : 12 },
-      [...(facet.grid ? [] : [number('columns', 'Columns', spec.columns === 1 ? 2 : 1, 1, 6)]), number('gap', 'Gap', spec.gap === 12 ? 16 : 12, 0, 40)], 'Arrange facets');
+    add('editCompositionLayout', 'transform', { ...(facet.grid ? {} : { columns: spec.columns === 1 ? 2 : 1 }), spacing: 'plot', gap: spec.gap === 12 ? 16 : 12 },
+      [...(facet.grid ? [] : [number('columns', 'Columns', spec.columns === 1 ? 2 : 1, 1, 6)]), number('gap', 'Minimum gap', spec.gap === 12 ? 16 : 12, 0, 40)], 'Arrange facets');
     const channels = ['x', 'y', 'color'].filter(c => layer.encoding?.[c]?.scale);
     if (channels.length) {
       const resolutions = Object.fromEntries(channels.map(c => [c, facet.scales[c] === 'shared' ? 'independent' : 'shared']));
@@ -47,10 +47,10 @@ export function facetCandidates(program, { layer, profile }) {
   const guides = { axes: cartesian ? 'outer' : 'each', legend: hasLegend ? 'shared' : false };
   const guideVariants = hasLegend ? [guides, { ...guides, legend: false }] : [guides];
   const out = ordered.flatMap(field => guideVariants.map(guidePolicy => ({ method: 'facet', category: 'encoding', feature: 'action.facet', label: 'Facet',
-    args: { field: field.name, data: field.data, columns: Math.min(3, field.distinct), gap: 12, guides: guidePolicy,
+    args: { field: field.name, data: field.data, columns: Math.min(3, field.distinct), spacing: 'plot', gap: 12, guides: guidePolicy,
       ...(hasLegend && guidePolicy.legend === false && layer.encoding?.color?.scale ? { scales: { color: 'independent' } } : {}) },
     parameters: [select('field', 'Facet by', field.name, names), number('columns', 'Columns', Math.min(3, field.distinct), 1, 6),
-      number('gap', 'Gap', 12, 0, 40)],
+      number('gap', 'Minimum gap', 12, 0, 40)],
     // Changing the partition field may change its owning source dataset.
     facetFields: Object.fromEntries(ordered.map(f => [f.name, f.data])),
   })));
@@ -59,10 +59,10 @@ export function facetCandidates(program, { layer, profile }) {
     const eligible = ordered.filter(f => profileDataset(program, data.id).fields.some(other => other.name === f.name && other.usable));
     if (eligible.length < 2) continue;
     for (const guidePolicy of guideVariants) out.push({ method: 'facetGrid', category: 'encoding', feature: 'action.facetGrid', label: 'Facet grid',
-      args: { data: data.id, rows: { field: eligible[0].name }, columns: { field: eligible[1].name }, gap: 12, guides: guidePolicy,
+      args: { data: data.id, rows: { field: eligible[0].name }, columns: { field: eligible[1].name }, spacing: 'plot', gap: 12, guides: guidePolicy,
         ...(hasLegend && guidePolicy.legend === false && layer.encoding?.color?.scale ? { scales: { color: 'independent' } } : {}) },
       parameters: [select('rows.field', 'Rows', eligible[0].name, eligible.map(f => f.name)),
-        select('columns.field', 'Columns', eligible[1].name, eligible.map(f => f.name)), number('gap', 'Gap', 12, 0, 40)] });
+        select('columns.field', 'Columns', eligible[1].name, eligible.map(f => f.name)), number('gap', 'Minimum gap', 12, 0, 40)] });
     break;
   }
   return out.filter(candidate => describeAction(program, { action: candidate.method, options: candidate.args }).applicability === 'supported');

@@ -576,6 +576,12 @@ Stocks, Gapminder, Barley, Iowa electricity를 제공하며 원본 출처는
 `Project → Save project`의 `.visauto.json` 파일로 다른 세션에서도 이어서 작업한다.
 프로젝트를 읽을 때는 등록된 ggaction 공개 호출만 재생하며 JavaScript를 평가하지 않는다.
 
+Facet와 Facet grid, Arrange facets의 간격은 `spacing: "plot"`으로 데이터 영역
+사이를 잰다. 원본 캔버스의 축·범례 여백이 패널 사이에 반복되지 않는다.
+`Minimum gap`은 원하는 최소 간격이며, 제목·축 라벨이 실제로 겹칠 때만
+ggaction 검증을 통해 필요한 간격까지 늘린다. 최종 간격과 이후 가이드 편집에
+필요한 `editCompositionLayout` 호출은 코드와 프로젝트에 명시적으로 저장된다.
+
 Code view의 `.mjs`는 데이터, 전체 공개 호출, native SVG 저장 코드를 함께 내보낸다.
 파일 주석에 기록된 ggaction 소스를 설치한 Node 프로젝트에서 `node 파일명.mjs`로
 실행하면 `chart.svg`를 생성한다. Current/Preview의 `Expand`는 compact layout을

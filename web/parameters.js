@@ -1,4 +1,4 @@
-// At most three visible parameter groups, except aggregate color (four). Native ggaction options only.
+// At most four visible parameter groups. Native ggaction options only.
 import { binnedPositionExpression } from '../src/plot-aggregation.js';
 import { applyParameterDefaults } from '../src/control-defaults.js';
 const select = (key, label, choices, value) => ({ key, label, type: 'select',
@@ -14,6 +14,12 @@ export function recommendationParameters(recommendation, profile) {
       alternatives: recommendation.alternatives?.map(a => ({ ...a, method: a.args.action.method, args: a.args.action.options })) };
     const editor = recommendationParameters(source, profile);
     return { ...editor, build: values => ({ action: { method: source.method, options: editor.build(values) } }) };
+  }
+  // Corpus recipes choose defaults, not a less capable editor for the same function.
+  if (recommendation.parameterMode === 'presets') {
+    const schema = recommendation.alternatives?.find(option => option.parameters?.length);
+    if (schema) return recommendationParameters({ ...recommendation, parameterMode: undefined,
+      parameters: schema.parameters }, profile);
   }
   const alternatives = recommendation.alternatives ?? [{ args }];
   const options = [...new Set(alternatives.map(v => fieldOf(v.args)).filter(Boolean))];
@@ -79,11 +85,23 @@ export function recommendationParameters(recommendation, profile) {
       const fallback = changedPartition ? alternatives.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') : undefined;
       const out = fallback ? structuredClone(fallback.args) : clone();
       for (const [i, parameter] of recommendation.parameters.entries()) {
+        if (parameter.omitUnchanged && at(args, parameter.path) === undefined &&
+            JSON.stringify(values[`p${i}`]) === JSON.stringify(parameter.value)) continue;
         for (const name of [parameter.path, ...(values[`p${i}`] !== at(args, parameter.path) ? parameter.alsoSet ?? [] : [])]) {
           const path = name.split('.'), key = path.pop();
           let node = out;
           for (const part of path) node = node[part] ??= {};
           node[key] = values[`p${i}`];
+        }
+      }
+      for (const parameter of recommendation.parameters) {
+        if (at(out, parameter.path) === undefined) continue;
+        for (const [key, value] of Object.entries(parameter.requires ?? {})) {
+          if (out[key] === undefined) out[key] = structuredClone(value);
+        }
+        for (const key of parameter.includeWith ?? []) {
+          const i = recommendation.parameters.findIndex(p => p.path === key);
+          if (i >= 0 && out[key] === undefined) out[key] = values[`p${i}`];
         }
       }
       return out;
@@ -179,13 +197,14 @@ export function recommendationParameters(recommendation, profile) {
       .some(entry => ['x', 'y', 'parallel'].includes(channel) && quantitativeAxis(channel, entry)));
     controls = [numeric('fontSize', 'Label size', 11, 8, 18),
       numeric('offset', 'Label offset', 8, 0, 30),
+      numeric('lineWidth', 'Axis width', Object.values(contexts)[0]?.lineWidth ?? 1, 0, 5, .25),
       ...(hasTicks ? [numeric('ticks', 'Ticks', 5, 2, 12)] : [])];
     build = v => Object.fromEntries(channels.map(channel => {
       const edit = entry => {
         const out = structuredClone(entry); delete out.labels;
         const quantitative = quantitativeAxis(channel, entry);
         // Preserve categorical tick policies and specialized plot axis counts.
-        return { ...out, ticksAndLabels: {
+        return { ...out, line: { ...(out.line || {}), lineWidth: v.lineWidth }, ticksAndLabels: {
           ...(quantitative && v.ticks !== undefined ? { count: v.ticks } : {}),
           labels: { fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset },
         } };
@@ -197,13 +216,14 @@ export function recommendationParameters(recommendation, profile) {
     const cartesian = ['editXAxis', 'editYAxis'].includes(method);
     const quantitativeAxis = ['quantitative', 'temporal'].includes(context.fieldType);
     controls = [numeric('fontSize', 'Label size', args.labels?.fontSize ?? 11, 8, 18),
-      numeric('offset', 'Label offset', context.offset ?? 8, 0, 30)];
+      numeric('offset', 'Label offset', context.offset ?? 8, 0, 30),
+      numeric('lineWidth', 'Axis width', args.line?.lineWidth ?? context.lineWidth ?? 1, 0, 5, .25)];
     if (cartesian && quantitativeAxis) controls.push(numeric('ticks', 'Ticks', context.ticks ?? 5, 2, 12));
     else if (cartesian) controls.push(select('position', 'Position', method === 'editXAxis' ? ['bottom', 'top'] : ['left', 'right'],
       method === 'editXAxis' ? 'bottom' : 'left'));
     build = v => {
       const out = clone(); delete out.labels;
-      return { ...out, ...(v.position ? { position: v.position } : {}), ticksAndLabels: {
+      return { ...out, line: { ...(out.line || {}), lineWidth: v.lineWidth }, ...(v.position ? { position: v.position } : {}), ticksAndLabels: {
         ...(v.ticks !== undefined ? { count: v.ticks } : {}),
         labels: { fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset },
       } };
@@ -211,15 +231,19 @@ export function recommendationParameters(recommendation, profile) {
   } else if (method === 'editParallelAxis') {
     const dimensions = [...new Set(alternatives.map(option => option.args.field))];
     controls = [select('field', 'Dimension', dimensions, args.field),
-      numeric('fontSize', 'Label size', args.labels?.fontSize ?? 11, 8, 18)];
-    build = v => ({ ...clone(), field: v.field, labels: { fontFamily: 'Arial', fontSize: v.fontSize } });
+      numeric('fontSize', 'Label size', args.labels?.fontSize ?? 11, 8, 18),
+      numeric('offset', 'Label offset', args.labels?.offset ?? 8, 0, 30),
+      numeric('lineWidth', 'Axis width', args.line?.lineWidth ?? 1, 0, 5, .25)];
+    build = v => ({ ...clone(), field: v.field, line: { ...args.line, lineWidth: v.lineWidth },
+      labels: { ...args.labels, fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset } });
   } else if (method === 'editLegend') {
     const channels = [...new Set(alternatives.map(option => option.args.channel))];
     controls = [select('channel', 'Legend', channels, args.channel),
       select('position', 'Position', ['right', 'left', 'top', 'bottom', 'top-right', 'top-left', 'bottom-right', 'bottom-left'], args.position ?? 'right'),
-      numeric('fontSize', 'Label size', args.labels?.fontSize ?? 12, 8, 18)];
+      numeric('fontSize', 'Label size', args.labels?.fontSize ?? 12, 8, 18),
+      numeric('itemGap', 'Item gap', args.itemGap ?? 18, 4, 30)];
     build = v => ({ ...structuredClone(alternatives.find(option => option.args.channel === v.channel)?.args ?? args),
-      channel: v.channel, position: v.position, labels: { fontFamily: 'Arial', fontSize: v.fontSize } });
+      channel: v.channel, position: v.position, itemGap: v.itemGap, labels: { fontFamily: 'Arial', fontSize: v.fontSize } });
   } else if (method === 'editGrid') {
     const direction = recommendation.guideContext?.direction ?? Object.keys(args)[0];
     const cartesian = ['vertical', 'horizontal'].includes(direction);
@@ -229,9 +253,10 @@ export function recommendationParameters(recommendation, profile) {
     if (directions.length > 1) choices.push({ value: 'both', label: 'Both' });
     controls = [select('direction', 'Direction', choices, direction),
       select('color', 'Color', ['#e2e8f0', '#cbd5e1', '#9ca3af', '#6b7280'], args[direction]?.color ?? '#cbd5e1'),
-      numeric('width', 'Line width', args[direction]?.lineWidth ?? 1.5, 0.25, 3, 0.25)];
+      numeric('width', 'Line width', args[direction]?.lineWidth ?? 1.5, 0, 4, .25),
+      select('dash', 'Line style', [{ value: [], label: 'Solid' }, { value: [6, 4], label: 'Dashed' }, { value: [2, 3], label: 'Dotted' }], args[direction]?.strokeDash ?? [])];
     build = v => Object.fromEntries((v.direction === 'both' ? directions : [v.direction])
-      .map(key => [key, { color: v.color, lineWidth: v.width }]));
+      .map(key => [key, { ...clone()[key], color: v.color, lineWidth: v.width, strokeDash: v.dash }]));
   } else if (method === 'createAxes') {
     const categoricalAxis = axis => ['nominal', 'ordinal'].includes(fields.get(recommendation.axisFields?.[axis])?.type);
     controls = ['x', 'y'].map(axis => categoricalAxis(axis)
@@ -250,9 +275,10 @@ export function recommendationParameters(recommendation, profile) {
       ...(v.title ? { title: v.title } : {}) });
   } else if (['createTitle', 'editTitle'].includes(method)) {
     controls = [text('text', 'Title', args.text), select('position', 'Position', recommendation.compositionContext?.facet ? ['top'] : ['top', 'bottom', 'left', 'right'], args.position ?? 'top'),
-      numeric('size', 'Font size', args.titleStyle?.fontSize ?? 16, 10, 30)];
+      numeric('size', 'Font size', args.titleStyle?.fontSize ?? 16, 10, 30),
+      select('weight', 'Font weight', ['normal', 'bold'], args.titleStyle?.fontWeight ?? 'bold')];
     build = v => ({ ...clone(), text: v.text, position: v.position,
-      titleStyle: { fontFamily: 'Arial', fontSize: v.size } });
+      titleStyle: { ...args.titleStyle, fontFamily: 'Arial', fontSize: v.size, fontWeight: v.weight } });
   } else if (method === 'editPointMark') {
     controls = [numeric('opacity', 'Opacity', args.opacity ?? 0.7, 0.05, 1, 0.05),
       select('shape', 'Shape', ['circle', 'square', 'diamond', 'cross'], args.shape ?? 'circle'),
@@ -280,8 +306,9 @@ export function recommendationParameters(recommendation, profile) {
   } else if (method === 'createMarkLabels') {
     controls = [select('content', 'Label', ['value', 'category'], args.content ?? 'value'),
       numeric('fontSize', 'Font size', args.fontSize ?? 11, 8, 18),
-      select('anchor', 'Position', ['center', 'insideEnd', 'outsideEnd'], args.placement?.anchor ?? 'outsideEnd')];
-    build = v => ({ ...clone(), content: v.content, fontSize: v.fontSize, fontFamily: 'Arial', placement: { anchor: v.anchor } });
+      select('anchor', 'Position', ['center', 'insideEnd', 'outsideEnd'], args.placement?.anchor ?? 'outsideEnd'),
+      numeric('gap', 'Gap', args.placement?.gap ?? 4, 0, 16)];
+    build = v => ({ ...clone(), content: v.content, fontSize: v.fontSize, fontFamily: 'Arial', placement: { ...args.placement, anchor: v.anchor, gap: v.gap } });
   } else if (method === 'createComputedData') {
     controls = [select('field', 'Source variable', options, args.expression.operand.field), text('as', 'Output column', args.as)];
     build = v => ({ ...clone(), as: v.as, expression: { op: 'toNumber', operand: { field: v.field } } });
@@ -306,9 +333,7 @@ export function recommendationParameters(recommendation, profile) {
   const modes = controls.some(c => c.key === 'mode') ? ['fixed', 'variable'] : [undefined];
   for (const mode of modes) {
     const count = controls.filter(c => !c.when || c.when({ ...defaults, mode })).length;
-    // A quantitative aggregate-bar color needs the fourth, independent aggregation decision.
-    const limit = method === 'encodeColor' && controls.some(c => c.key === 'aggregate') ? 4 : 3;
-    if (count > limit) throw new Error('Too many visible parameter groups.');
+    if (count > 4) throw new Error('Too many visible parameter groups.');
   }
   // Dependent numeric bounds and model controls share one pure contract. Hover
   // normalizes values; callers rerender control structure only after a click.

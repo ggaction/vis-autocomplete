@@ -9,6 +9,13 @@ const number = (path, label, value, min, max, step = 1) => ({ path, label, type:
 const choices = (path, label, value, values) => ({ path, label, type: 'select', value,
   choices: values.map(v => typeof v === 'object' ? v : { value: v, label: String(v) }) });
 const text = (path, label, value) => ({ path, label, type: 'text', value });
+const color = (path, label, value = '#555555') => ({ path, label, type: 'color', value,
+  choices: ['#000000', '#555555', '#9ca3af', '#4c78a8', '#e45756', '#ffffff'].map(value => ({ value, label: value })) });
+const weight = (path, value = 'normal') => choices(path, 'Font weight', value, ['normal', 'bold']);
+const dash = (path, value = []) => choices(path, 'Line style', value, [
+  { value: [], label: 'Solid' }, { value: [6, 4], label: 'Dashed' }, { value: [2, 3], label: 'Dotted' }]);
+const degrees = rotation => typeof rotation === 'number' ? rotation * 180 / Math.PI
+  : rotation?.unit === 'degrees' ? rotation.value : (rotation?.value ?? 0) * 180 / Math.PI;
 const font = size => ({ fontFamily: 'Arial', fontSize: size });
 const aggregateOps = ['mean', 'median', 'sum', 'min', 'max'];
 
@@ -90,8 +97,25 @@ export function extendedCandidates(program, { layer, profile }) {
   const editor = `edit${mark?.[0]?.toUpperCase()}${mark?.slice(1)}Mark`;
   if (['point', 'bar', 'line', 'area', 'rect', 'arc', 'rule', 'text', 'tick'].includes(mark)) {
     const opacity = program.markConfigs[target]?.opacity === .8 ? .7 : .8;
-    style(editor, { target, opacity }, [number('opacity', 'Opacity', opacity, .05, 1, .05)],
-      `style.${mark}.opacity`);
+    const config = program.markConfigs[target] ?? {};
+    const parameters = [number('opacity', 'Opacity', opacity, .05, 1, .05)];
+    if (mark === 'text') parameters.push(number('fontSize', 'Font size', config.fontSize ?? 12, 8, 24),
+      color('fill', 'Text color', typeof config.fill === 'string' ? config.fill : '#555555'), weight('fontWeight', config.fontWeight ?? 'normal'));
+    else {
+      parameters.push(number('strokeWidth', 'Stroke width', config.strokeWidth ?? (['line', 'rule', 'tick'].includes(mark) ? 2 : 0), 0, 6, .25),
+        ...(mark === 'line' && encoding.color?.field ? [] : [color('stroke', 'Stroke color', typeof config.stroke === 'string' ? config.stroke : '#000000')]));
+      if (mark === 'point') parameters.push(choices('shape', 'Shape', config.shape ?? 'circle', ['circle', 'square', 'diamond', 'cross']));
+      else if (['bar', 'rect'].includes(mark)) parameters.push(number('cornerRadius', 'Corner radius', config.cornerRadius ?? 0, 0, 12));
+      else if (mark === 'arc') parameters.push(number('padAngle', 'Slice gap', config.padAngle ?? 0, 0, .1, .005));
+      else if (mark === 'tick') parameters.push(number('length', 'Length', config.length ?? 12, 1, 30));
+      else if (mark === 'line' && coordinateType !== 'cartesian') parameters.push(choices('lineJoin', 'Line join', config.lineJoin ?? 'miter', ['miter', 'round', 'bevel']));
+      else if (['line', 'area'].includes(mark)) parameters.push(choices('curve', 'Curve', config.curve ?? 'linear', ['linear', 'step', 'step-before', 'step-after', 'monotone']));
+      else parameters.push(dash('strokeDash', config.strokeDash ?? []));
+    }
+    style(editor, { target, opacity }, parameters.map(p => ({ ...p, omitUnchanged: p.path !== 'opacity',
+      ...(p.path === 'stroke' ? { includeWith: ['strokeWidth'] } : {}),
+      ...(p.path === 'strokeWidth' && !encoding.stroke && !config.stroke && !config.barAppearance?.stroke && mark !== 'line'
+        ? { requires: { stroke: '#000000' } } : {}) })), `style.${mark}.opacity`);
   }
   if (mark === 'text' && !layer.source) for (const field of fields) add('encodeText', 'encoding', { target, field: field.name },
     [choices('field', 'Text', field.name, fields.map(f => f.name))], 'encoding.text');
@@ -186,7 +210,7 @@ export function extendedCandidates(program, { layer, profile }) {
   if (coordinate?.type === 'cartesian') add('createAnnotation', 'style', { source: target, x: (program.resolvedScales[encoding.x?.scale]?.domain ?? [0])[0],
     y: (program.resolvedScales[encoding.y?.scale]?.domain ?? [0])[0],
     text: 'Note', fontFamily: 'Arial', fontSize: 13 },
-    [text('text', 'Text', 'Note'), number('fontSize', 'Size', 13, 8, 24)]);
+    [text('text', 'Text', 'Note'), number('fontSize', 'Size', 13, 8, 24), color('fill', 'Text color'), weight('fontWeight')]);
   if (coordinate?.type === 'cartesian') style('editCoordinate', { target: coordinate.id, aspect: { mode: 'frame', ratio: 1 } },
     [number('aspect.ratio', 'Width / height', 1, .5, 2, .1)]);
   style('editCanvas', { background: '#fafafa' }, [{ path: 'background', label: 'Background', type: 'color', value: '#fafafa',
@@ -198,20 +222,33 @@ export function extendedCandidates(program, { layer, profile }) {
     const prefix = `edit${channel.toUpperCase()}Axis`, current = program.guideConfigs.axis?.[id] ?? {};
     const discrete = ['nominal', 'ordinal'].includes(encoding[channel]?.fieldType);
     const size = current.labels?.fontSize === 11 ? 12 : 11;
-    style(prefix, { target: id, labels: font(size) }, [number('labels.fontSize', 'Label size', size, 8, 18)]);
-    style(`${prefix}Labels`, { target: id, ...font(size) }, [number('fontSize', 'Label size', size, 8, 18),
-      number('offset', 'Offset', 8, 0, 30)]);
-    style(`${prefix}Line`, { target: id, color: '#6b7280', lineWidth: 1.5 }, [number('lineWidth', 'Width', 1.5, .25, 3, .25)]);
-    style(`${prefix}Ticks`, { target: id, length: 7 }, [number('length', 'Tick length', 7, 0, 16)]);
+    const labelOffset = current.labels?.offset ?? 8;
+    const lineWidth = current.line?.lineWidth ?? 1;
+    const labelColor = current.labels?.color ?? '#555555';
+    style(prefix, { target: id, ticksAndLabels: { labels: font(size) } }, [number('ticksAndLabels.labels.fontSize', 'Label size', size, 8, 18),
+      number('ticksAndLabels.labels.offset', 'Label offset', labelOffset, 0, 30),
+      number('line.lineWidth', 'Axis width', lineWidth, 0, 5, .25),
+      ...(!discrete ? [number('ticksAndLabels.count', 'Ticks', current.ticks?.count ?? 5, 2, 12)]
+        : [choices('position', 'Position', axis.position ?? (channel === 'x' ? 'bottom' : 'left'), channel === 'x' ? ['bottom', 'top'] : ['left', 'right'])])]);
+    style(`${prefix}Labels`, { target: id, ...font(size), rotation: { value: degrees(current.labels?.rotation), unit: 'degrees' } },
+      [number('fontSize', 'Label size', size, 8, 18), number('offset', 'Offset', labelOffset, 0, 30),
+        number('rotation.value', 'Rotation', degrees(current.labels?.rotation), -90, 90, 5), color('color', 'Text color', labelColor)]);
+    style(`${prefix}Line`, { target: id, color: '#6b7280', lineWidth: 1.5 },
+      [number('lineWidth', 'Width', 1.5, 0, 5, .25), color('color', 'Line color', current.line?.color ?? '#6b7280')]);
+    style(`${prefix}Ticks`, { target: id, length: 7 }, [number('length', 'Tick length', 7, 0, 16),
+      number('lineWidth', 'Tick width', current.ticks?.lineWidth ?? 1, 0, 5, .25), color('color', 'Tick color', current.ticks?.color ?? '#6b7280'),
+      ...(!discrete ? [number('count', 'Ticks', current.ticks?.count ?? 5, 2, 12)] : [])]);
     style(`${prefix}TicksAndLabels`, { target: id, ...(!discrete ? { count: 6 } : {}), labels: font(size) },
-      [...(!discrete ? [number('count', 'Ticks', 6, 2, 12)] : []), number('labels.fontSize', 'Label size', size, 8, 18)]);
+      [...(!discrete ? [number('count', 'Ticks', 6, 2, 12)] : []), number('labels.fontSize', 'Label size', size, 8, 18),
+        number('labels.offset', 'Label offset', labelOffset, 0, 30), number('ticks.length', 'Tick length', current.ticks?.length ?? 6, 0, 16)]);
     if (current.title) style(`${prefix}Title`, { target: id, text: current.title?.text ?? encoding[channel]?.field ?? channel, ...font(14) },
-      [text('text', 'Title', current.title?.text ?? encoding[channel]?.field ?? channel), number('fontSize', 'Size', 14, 8, 24)]);
+      [text('text', 'Title', current.title?.text ?? encoding[channel]?.field ?? channel), number('fontSize', 'Size', 14, 8, 24),
+        number('offset', 'Offset', current.title?.offset ?? 35, 0, 60), color('color', 'Text color', current.title?.color ?? '#555555')]);
   }
   for (const direction of ['horizontal', 'vertical']) {
     if (!program.semanticSpec.guides.grid?.[direction]) continue;
     style(`edit${direction[0].toUpperCase()}${direction.slice(1)}Grid`, { color: '#cbd5e1', lineWidth: 1.5 },
-      [number('lineWidth', 'Width', 1.5, .25, 3, .25)]);
+      [number('lineWidth', 'Width', 1.5, 0, 4, .25), color('color', 'Line color', '#cbd5e1'), dash('strokeDash')]);
   }
   // Focused scale editors are safer than changing a position scale's type in
   // place. They retain ownership and current field/aggregation policies.
@@ -247,16 +284,19 @@ export function extendedCandidates(program, { layer, profile }) {
   for (const channel of ['color', 'stroke', 'size', 'shape', 'opacity', 'strokeWidth', 'strokeDash']) {
     if (!encoding[channel]?.scale || !covered.has(encoding[channel].scale)) continue;
     const owner = { target, channel };
-    style('editLegendLabels', { ...owner, ...font(13) }, [number('fontSize', 'Label size', 13, 8, 18)]);
+    style('editLegendLabels', { ...owner, ...font(13) }, [number('fontSize', 'Label size', 13, 8, 18), color('color', 'Text color'), number('offset', 'Label offset', 8, 0, 20), weight('fontWeight')]);
     style('editLegendTitle', { ...owner, title: encoding[channel]?.field ?? channel, ...font(14) },
-      [text('title', 'Title', encoding[channel]?.field ?? channel), number('fontSize', 'Size', 14, 8, 24)]);
+      [text('title', 'Title', encoding[channel]?.field ?? channel), number('fontSize', 'Size', 14, 8, 24), color('color', 'Text color'), weight('fontWeight', 'bold')]);
     style('editLegendLayout', { ...owner, position: 'top-right' }, [choices('position', 'Position', 'top-right',
-      ['right', 'left', 'top', 'bottom', 'top-right', 'top-left', 'bottom-right', 'bottom-left'])]);
+      ['right', 'left', 'top', 'bottom', 'top-right', 'top-left', 'bottom-right', 'bottom-left']),
+      number('itemGap', 'Item gap', 18, 4, 30),
+      ...(['nominal', 'ordinal'].includes(encoding[channel].fieldType) ? [number('columns', 'Columns', 1, 1, 4)] : [])]);
     style('editLegendBorder', { ...owner, border: { color: '#9ca3af', lineWidth: 1, padding: 8 } },
-      [number('border.padding', 'Padding', 8, 0, 20), number('border.lineWidth', 'Width', 1, .25, 3, .25)]);
-    style('editLegendBlock', { ...owner, gap: 12 }, [number('gap', 'Gap', 12, 1, 30)]);
+      [number('border.padding', 'Padding', 8, 0, 20), number('border.lineWidth', 'Width', 1, .25, 3, .25),
+        color('border.color', 'Border color', '#9ca3af'), color('border.background', 'Background', '#ffffff')]);
+    style('editLegendBlock', { ...owner, gap: 12 }, [number('gap', 'Gap', 12, 1, 30), number('text.fontSize', 'Label size', 12, 8, 18), color('text.color', 'Text color')]);
     if (!['nominal', 'ordinal'].includes(encoding[channel].fieldType) && ['color', 'stroke'].includes(channel)) style('editLegendSymbols', { ...owner, gradient: { length: 100, thickness: 14 } },
-      [number('gradient.length', 'Length', 100, 40, 180), number('gradient.thickness', 'Thickness', 14, 4, 25)]);
+      [number('gradient.length', 'Length', 100, 40, 180), number('gradient.thickness', 'Thickness', 14, 4, 25), number('gradient.opacity', 'Opacity', 1, .1, 1, .05)]);
   }
 
   // Derived charts are not restricted to their last three output columns.

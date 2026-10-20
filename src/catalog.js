@@ -74,7 +74,7 @@ export function generateCandidates(program, { layer, profile, actionEvidence }) 
       if (axes[channel]) axes[channel] = [...(Array.isArray(axes[channel]) ? axes[channel] : [axes[channel]]), entry];
       else axes[channel] = entry;
       axisContexts[channel] = { fieldType: encoding[channel]?.fieldType, field: encoding[channel]?.field,
-        ticks: config.ticks?.count ?? 5, offset: config.labels.offset ?? 8 };
+        ticks: config.ticks?.count ?? 5, offset: config.labels.offset ?? 8, lineWidth: config.line?.lineWidth ?? 1 };
     }
     if (coordinate?.type === 'parallel') {
       const dimensions = encoding.parallel?.dimensions ?? [];

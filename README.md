@@ -107,6 +107,7 @@ npm run dev
   현재 차트의 적용 이력에서 판단하므로 Undo/Redo와 히스토리 이동에도 맞게 반영된다. 뒤쪽 카드는 기존 페이지 이동으로 찾는다.
   추가 추천은 기존 논문 점수, 수정 추천은 교체할 요소를 뺀 같은 평균 공식을 사용하며,
   Fixed와 Variable을 별도 순위나 임의의 가산점으로 나누지 않는다. 엔진의 기본값은 여전히 additions-only다.
+- Style 카드는 최대 4개 파라미터를 제공한다. Adjust axes와 개별 X/Y 축에서 레이블 크기·간격·축 굵기를 조절하고, 연속 축은 눈금 수, 범주 축은 위치를 선택한다. 세부 축·범례·마크·제목 카드는 색상·회전·두께·간격 등 해당 함수가 지원하는 옵션을 제공한다. 추가 마크 스타일은 변경했을 때만 적용하여 기존 변수 매핑을 유지한다.
 - Adjust grid의 Cartesian 방향은 **Vertical / Horizontal / Both**다. Both는 한 `editGrid` 호출에서 양쪽 스타일을 수정한다.
   자동 가이드가 한 방향을 생략했다면 실제 `createGrid` 준비 호출을 코드에 표시한 뒤 편집한다.
 - Jitter points는 **X / Y / Both**와 Spread를 제공한다. Both는 한 `jitterPoints({ channel: 'both', maxOffset: { pixels: … } })` 호출로 양 축을 독립적으로 흔든다. 다시 적용할 때 이전 offset은 누적하지 않는다.

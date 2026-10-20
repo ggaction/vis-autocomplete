@@ -91,7 +91,7 @@ test('all 29 starting plots execute one existing public function, render, and us
   }
 });
 
-test('every starting plot leads to engine-ranked actions with one to three working controls', () => {
+test('every starting plot leads to engine-ranked actions with up to four working controls', () => {
   const p = base();
   let checked = 0;
   for (const definition of getPlotDefinitions(profileDataset(p, 'dataset'))) {
@@ -104,7 +104,7 @@ test('every starting plot leads to engine-ranked actions with one to three worki
     const profile = profileDataset(preview, result.state.data);
     for (const original of result.recommendations) {
       const editor = recommendationParameters(original, profile);
-      assert.ok(editor.controls.filter(c => !c.when || c.when(valuesFor(editor.controls))).length <= (original.method === 'encodeColor' ? 4 : 3), original.method);
+      assert.ok(editor.controls.filter(c => !c.when || c.when(valuesFor(editor.controls))).length <= 4, original.method);
       const { recommendation, preview: edited } = configureRecommendation(preview, original, editor.build(valuesFor(editor.controls)));
       const next = applyRecommendation(preview, recommendation);
       assert.equal(next.trace.children.length, preview.trace.children.length + 1);
@@ -266,7 +266,7 @@ test('grid controls offer Vertical, Horizontal and Both with matching native pre
     assert.ok(rec, method);
     const editor = recommendationParameters(rec, profileDataset(start.preview, 'dataset'));
     assert.deepEqual(editor.controls[0].choices.map(c => c.label), ['Vertical', 'Horizontal', 'Both']);
-    assert.equal(editor.controls.length, 3);
+    assert.equal(editor.controls.length, 4);
     const before = structuredClone(start.authoringPreview.graphicSpec);
     for (const direction of ['vertical', 'horizontal', 'both']) {
       const args = editor.build({ ...valuesFor(editor.controls), direction, color: '#6b7280', width: 2 });
@@ -305,7 +305,7 @@ test('aggregate axis editing uses full-corpus evidence and remains one function 
   const rec = result.recommendations.find(r => r.method === 'editAxes');
   assert.ok(rec);
   const editor = recommendationParameters(rec, profileDataset(start.preview, 'dataset'));
-  assert.equal(editor.controls.length, 3);
+  assert.equal(editor.controls.length, 4);
   const prepared = prepareGuidedAction(start.authoringPreview,
     { method: rec.method, args: editor.build(valuesFor(editor.controls)) }, start.preview);
   const q = applyRecommendation(prepared.actionBase, prepared.recommendation);

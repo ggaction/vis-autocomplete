@@ -178,7 +178,8 @@ test('summary recommendations reach original source variables and replay depende
 test('every issued default parameter editor remains usable when guides are materialized on Apply', () => {
   const raw = base().createScatterPlot({ id: 'plot', x: 'X', y: 'Y', color: 'Group' });
   const p = raw.createGuides();
-  const result = engine.recommend(p, { target: 'plot', includeRevisions: true, limit: 1000 });
+  // Match the UI's guided preparation path, including fitted facet spacing.
+  const result = engine.recommend(p, { target: 'plot', includeRevisions: true, limit: 1000, authoringProgram: raw });
   assert.equal(result.diagnostics.rejected.length, 0);
   for (const rec of result.recommendations) {
     const editor = recommendationParameters(rec, profileDataset(p, result.state.data));

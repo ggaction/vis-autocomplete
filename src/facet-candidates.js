@@ -21,7 +21,10 @@ export function facetCandidates(program, { layer, profile }) {
       add('editFacetScales', 'encoding', resolutions, channels.map(c => select(c, `${c.toUpperCase()} scales`, resolutions[c], ['shared', 'independent'])), 'Facet scales');
     }
     add('editFacetHeaders', 'style', { fontFamily: 'Arial', fontSize: 13, offset: 10 },
-      [number('fontSize', 'Header size', 13, 8, 22), number('offset', 'Header offset', 10, 0, 24)], 'Facet headers');
+      [number('fontSize', 'Header size', 13, 8, 22), number('offset', 'Header offset', 10, 0, 24),
+        select('fontWeight', 'Font weight', 'bold', ['normal', 'bold']),
+        { path: 'color', label: 'Text color', type: 'color', value: '#555555',
+          choices: ['#000000', '#555555', '#9ca3af', '#4c78a8'].map(value => ({ value, label: value })) }], 'Facet headers');
     if (cartesian) add('editFacetGuides', 'style', { axes: facet.guides.axes === 'outer' ? 'each' : 'outer' },
       [select('axes', 'Axes', facet.guides.axes === 'outer' ? 'each' : 'outer', ['each', 'outer'])], 'Facet guides');
     return out;

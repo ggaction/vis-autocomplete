@@ -22,6 +22,8 @@ test('incremental pages keep exact batch ranking, defaults and pagination throug
     let value, previous = [], slices = 0;
     do {
       value = incremental.execute({ ...request, page, batchSize: 1 }); slices++;
+      assert.ok(value.pagination.pageCount >= Math.ceil(value.result.recommendations.length / 5),
+        'the page count includes the cards already streamed into a partial page');
       assert.deepEqual(value.result.recommendations.slice(0, previous.length), previous);
       previous = value.result.recommendations;
       // A different tab can run between candidates; revisiting resumes this deck.
@@ -29,6 +31,7 @@ test('incremental pages keep exact batch ranking, defaults and pagination throug
       assert.ok(slices < 300);
     } while (value.pagination.pending);
     assert.deepEqual(value, expected);
+    for (const range of value.pagination.pageRanges.slice(0, -1)) assert.equal(range.end - range.start, 5);
     if (expected.pagination.complete && page + 1 >= expected.pagination.pageCount) break;
   }
 });

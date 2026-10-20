@@ -35,6 +35,7 @@ def tail(page, method):
         assert row.locator(".card").count() > 0, "An empty page must not be advertised"
         if page.locator("#cards-next").is_disabled():
             break
+        assert row.locator(".card").count() == 5, "Only the last page may have fewer than five cards"
         page.locator("#cards-next").click()
         expect(page.locator("#cards-page")).to_have_text(re.compile(rf"^{number + 1} /"), timeout=60000)
     else:

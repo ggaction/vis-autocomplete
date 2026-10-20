@@ -152,7 +152,6 @@ export function createCalculationService(model) {
             // it bypasses promotion and still uses the same cached raw ranking.
             hierarchy: options?.hierarchy && !query ? createHierarchyProjection(matches, program) : null,
             emitted: new Set(), unavailable: new Set(),
-            separateApplied: options?.deprioritizeAppliedActions && !query, reachedApplied: false,
             pages: [], pageStart: 0,
             recommendations: [], defaults: [], diagnostics: { validatedCalls: [], rejected: [] } });
         }
@@ -164,13 +163,8 @@ export function createCalculationService(model) {
         let processed = 0;
         while (deck.pages.length <= page && deck.cursor < ranked.recommendations.length && processed++ < batchSize) {
           const rank = deck.cursor, source = ranked.recommendations[rank];
-          // Demotion must survive pagination: never backfill a short new-action
-          // page with used actions. Do not validate those until their page opens.
-          if (deck.separateApplied && source.previouslyApplied && !deck.reachedApplied) {
-            deck.reachedApplied = true;
-            if (deck.recommendations.length > deck.pageStart) finishPage();
-            if (deck.pages.length > page) break;
-          }
+          // Applied actions already follow unused ones in the ranked queue.
+          // Pack that single queue into pages without breaking at the boundary.
           deck.cursor++;
           for (const candidate of deck.hierarchy?.choices(source) ?? [source]) {
             // A valid displayed ancestor covers later descendants too. An
@@ -196,8 +190,8 @@ export function createCalculationService(model) {
         const projected = deck.hierarchy?.project(deck.unavailable) ?? ranked.recommendations;
         const complete = deck.cursor === ranked.recommendations.length;
         const remaining = complete ? [] : projected.filter(rec => !deck.emitted.has(rec.id) && !deck.unavailable.has(rec.id));
-        const remainingApplied = deck.separateApplied ? remaining.filter(rec => rec.previouslyApplied).length : 0;
-        const pageCount = deck.pages.length + Math.ceil((remaining.length - remainingApplied) / 5) + Math.ceil(remainingApplied / 5);
+        const partialPageSize = deck.recommendations.length - deck.pageStart;
+        const pageCount = deck.pages.length + Math.ceil((partialPageSize + remaining.length) / 5);
         const pending = deck.pages.length <= page && !complete;
         const range = deck.pages[page] ?? { start: deck.pageStart, end: deck.recommendations.length };
         return { result: { ...ranked, recommendations: deck.recommendations.slice(0, range.end),
@@ -206,7 +200,7 @@ export function createCalculationService(model) {
           defaults: deck.defaults.slice(range.start, range.end),
           pagination: { page, pageSize: 5, pageCount, pageRanges: deck.pages.slice(0, page + 1), pending,
             complete: complete || remaining.length === 0, rankedCandidates: projected.length,
-            newActionsExhausted: deck.separateApplied && deck.reachedApplied &&
+            newActionsExhausted: Boolean(options?.deprioritizeAppliedActions && !query && deck.recommendations.length) &&
               deck.recommendations.every(rec => rec.previouslyApplied) } };
       }
       throw new Error(`Unknown calculation request: ${type}`);

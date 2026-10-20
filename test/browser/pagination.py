@@ -63,6 +63,7 @@ globalThis.postMessage = message => message.value?.pagination?.page > 0
                 assert before["ready"] and before["cards"] > 0, (group, before)
                 if page.locator("#cards-next").is_disabled():
                     break
+                assert before["cards"] == 5, (group, "A nonfinal page must contain five cards", before)
                 page.locator("#cards-next").click()
                 page.wait_for_timeout(350)
                 # Navigation is immediate; expensive previews cannot lock Back.

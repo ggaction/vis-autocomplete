@@ -88,6 +88,10 @@ test('exhausted decks have only nonempty page ranges, including an overestimated
     const exhausted = recommend({ group, page: first.pagination.pageCount + 1 });
     assert.equal(exhausted.pagination.complete, true);
     assert.equal(exhausted.pagination.pageCount, exhausted.pagination.pageRanges.length);
+    assert.equal(exhausted.pagination.pageCount, Math.ceil(exhausted.result.recommendations.length / 5));
+    for (const range of exhausted.pagination.pageRanges.slice(0, -1)) {
+      assert.equal(range.end - range.start, 5, `${group}: only the last page may have empty slots`);
+    }
     let end = 0;
     for (const range of exhausted.pagination.pageRanges) {
       assert.equal(range.start, end);

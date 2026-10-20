@@ -40,7 +40,48 @@ export function recommendationParameters(recommendation, profile) {
   let normalize = values => ({ ...values });
   let resolve = () => controls;
 
-  if (recommendation.binRecipe) {
+  if (method === 'editArcMark' && recommendation.arcContext) {
+    const context = recommendation.arcContext;
+    const geometry = args.innerRadius !== undefined || args.padAngle !== undefined;
+    if (geometry) {
+      const radius = args.innerRadius ?? context.innerRadius, pixels = radius?.unit === 'px';
+      const gapStep = context.maxGap >= .1 ? .1 : Number((context.maxGap / 10).toPrecision(1));
+      const gap = Math.min(context.maxGap, Number((args.padAngle ?? context.padAngle).toPrecision(3)));
+      controls = [
+        ...(context.innerEditable ? [numeric('innerRadius', pixels ? 'Inner radius (px)' : 'Hole size (%)',
+          pixels ? radius.value : radius * 100, 0, pixels ? context.maxInnerPixels
+            : Math.max(95, typeof context.innerRadius === 'number' ? context.innerRadius * 100 : 0), pixels ? 1 : 5)] : []),
+        numeric('padAngle', 'Slice gap (°)', gap, 0, context.maxGap, gapStep),
+      ];
+      build = v => ({ target: args.target, ...(context.innerEditable ? {
+        innerRadius: pixels ? { unit: 'px', value: v.innerRadius } : v.innerRadius / 100,
+      } : {}), padAngle: v.padAngle });
+    } else {
+      const stroke = args.stroke ?? context.stroke, bordered = v => v.border;
+      controls = [numeric('opacity', 'Opacity', args.opacity ?? context.opacity, .05, 1, .05),
+        ...(!context.strokeMapped ? [select('border', 'Outline', [{ value: true, label: 'On' }, { value: false, label: 'Off' }], stroke !== false && stroke !== 'none')] : []),
+        { ...numeric('strokeWidth', 'Stroke width', args.strokeWidth ?? context.strokeWidth, 0, 6, .25),
+          when: context.strokeMapped ? undefined : bordered },
+        ...(!context.strokeMapped ? [{ ...select('stroke', 'Stroke color', ['#000000', '#ffffff', '#555555', '#4c78a8', '#e45756'],
+          typeof stroke === 'string' && stroke !== 'none' ? stroke : '#000000'), type: 'color', when: bordered }] : []),
+      ];
+      const initial = valuesFor(controls);
+      build = v => {
+        const out = clone();
+        if (Object.hasOwn(args, 'opacity') || v.opacity !== initial.opacity) out.opacity = v.opacity;
+        if (context.strokeMapped) {
+          if (Object.hasOwn(args, 'strokeWidth') || v.strokeWidth !== initial.strokeWidth) out.strokeWidth = v.strokeWidth;
+        } else if (!v.border) {
+          if (Object.hasOwn(args, 'stroke') || v.border !== initial.border) out.stroke = false;
+          delete out.strokeWidth;
+        } else if (Object.hasOwn(args, 'stroke') || Object.hasOwn(args, 'strokeWidth') ||
+            ['border', 'stroke', 'strokeWidth'].some(key => v[key] !== initial[key])) {
+          out.stroke = v.stroke; out.strokeWidth = v.strokeWidth;
+        }
+        return out;
+      };
+    }
+  } else if (recommendation.binRecipe) {
     const recipe = recommendation.binRecipe;
     controls = [numeric('bins', 'X bins (maximum)', recipe.bins, 2, 24)];
     build = v => ({ ...clone(), expression: binnedPositionExpression(recipe.field, recipe.domain, v.bins) });

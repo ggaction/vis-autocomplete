@@ -1,5 +1,6 @@
 import { hasChartContext } from './chart-context.js';
 import { actionFeatures } from './semantics.js';
+import { arcMarkCandidates } from './arc-candidates.js';
 
 const styleKeys = new Set(['opacity', 'fill', 'stroke', 'strokeWidth', 'strokeDash', 'cornerRadius', 'radius', 'shape',
   'fontSize', 'fontFamily', 'fontWeight', 'align', 'baseline', 'dx', 'dy', 'curve', 'closed', 'padAngle',
@@ -26,6 +27,10 @@ export function corpusCandidates(program, { layer }, evidence) {
       .filter(l => l.source === layer.id && program.markConfigs[l.id]?.labelAuthoring).map(l => l.id);
     if (!targets.length) continue;
     for (const template of record.templates.slice(0, 4)) {
+      if (method === 'editArcMark') {
+        candidates.push(...arcMarkCandidates(program, layer, template.args));
+        continue;
+      }
       const patch = Object.fromEntries(Object.entries(template.args).filter(([key]) => styleKeys.has(key)));
       if (layer.encoding?.color || layer.encoding?.stroke) {
         if (mark === 'line') delete patch.stroke;

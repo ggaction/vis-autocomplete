@@ -4,6 +4,7 @@ import { hasChartContext } from './chart-context.js';
 import { profileDataset, preferVisualFields } from './profile.js';
 import { binnedPositionExpression } from './plot-aggregation.js';
 import { dataEditors } from './action-capabilities.js';
+import { arcMarkCandidates } from './arc-candidates.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^(edit|encode|create) /, '').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -93,7 +94,8 @@ export function extendedCandidates(program, { layer, profile }) {
   // The style family is based on the real mark type, including heatmap/arc/text/
   // rule/tick marks. A default opacity is not a reason to hide all mark editing.
   const editor = `edit${mark?.[0]?.toUpperCase()}${mark?.slice(1)}Mark`;
-  if (['point', 'bar', 'line', 'area', 'rect', 'arc', 'rule', 'text', 'tick'].includes(mark)) {
+  if (mark === 'arc') out.push(...arcMarkCandidates(program, layer));
+  if (['point', 'bar', 'line', 'area', 'rect', 'rule', 'text', 'tick'].includes(mark)) {
     const opacity = program.markConfigs[target]?.opacity === .8 ? .7 : .8;
     const config = program.markConfigs[target] ?? {};
     const parameters = [number('opacity', 'Opacity', opacity, .05, 1, .05)];
@@ -104,10 +106,6 @@ export function extendedCandidates(program, { layer, profile }) {
         ...(mark === 'line' && encoding.color?.field ? [] : [color('stroke', 'Stroke color', typeof config.stroke === 'string' ? config.stroke : '#000000')]));
       if (mark === 'point') parameters.push(choices('shape', 'Shape', config.shape ?? 'circle', ['circle', 'square', 'diamond', 'cross']));
       else if (['bar', 'rect'].includes(mark)) parameters.push(number('cornerRadius', 'Corner radius', config.cornerRadius ?? 0, 0, 12));
-      else if (mark === 'arc') {
-        const measured = program.semanticSpec.scales.find(s => s.id === encoding.radius?.scale)?.radialMapping;
-        if (!measured) parameters.push(number('padAngle', 'Slice gap', config.padAngle ?? 0, 0, .1, .005));
-      }
       else if (mark === 'tick') parameters.push(number('length', 'Length', config.length ?? 12, 1, 30));
       else if (mark === 'line' && coordinateType !== 'cartesian') parameters.push(choices('lineJoin', 'Line join', config.lineJoin ?? 'miter', ['miter', 'round', 'bevel']));
       else if (['line', 'area'].includes(mark)) parameters.push(choices('curve', 'Curve', config.curve ?? 'linear', ['linear', 'step', 'step-before', 'step-after', 'monotone']));

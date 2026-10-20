@@ -11,6 +11,7 @@ export function recommendationCategory(recommendation) {
   if (['facet', 'facetGrid', 'repeatCharts', 'orderCategories', 'encodePathOrder'].includes(method)) return 'encoding';
   if (method === 'createMarkLabels') return Object.hasOwn(args, 'value') ? 'style' : 'encoding';
   if (method === 'editCompositionLayout') return 'style';
+  if (method === 'editArcMark') return args.innerRadius !== undefined || args.padAngle !== undefined ? 'encoding' : 'style';
   // Whisker statistics are not a box stroke/width style, even when the corpus
   // happens to include those settings in the same native function call.
   if (method === 'editBoxPlot' && !args.x && !args.y &&

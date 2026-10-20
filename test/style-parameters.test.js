@@ -105,7 +105,7 @@ test('heatmap, pie, text and rug mark styles use their own native capabilities',
     base.createRugPlot({ id: 'plot', x: 'X', edge: 'bottom' })];
   for (const raw of programs) {
     const program = raw.createGuides(), { list, profile } = candidates(program);
-    const rec = list.find(c => /^edit(Rect|Arc|Text|Tick)Mark$/.test(c.method));
+    const rec = list.find(c => c.category === 'style' && /^edit(Rect|Arc|Text|Tick)Mark$/.test(c.method));
     assert.ok(rec);
     const editor = recommendationParameters(rec, profile), initial = valuesFor(editor.controls);
     assert.equal(editor.controls.length, 4, rec.method);

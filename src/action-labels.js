@@ -36,6 +36,8 @@ export const ACTION_LABELS = {
 export function actionTitle(recommendation) {
   const method = recommendation.sourceMethod ?? recommendation.method;
   const args = recommendation.args?.action?.options ?? recommendation.args ?? {};
+  if (method === 'editArcMark') return args.innerRadius !== undefined || args.padAngle !== undefined
+    ? 'Adjust arc geometry' : 'Adjust arc appearance';
   const marks = { editPointMark: 'Point', editBarMark: 'Bar', editRectMark: 'Cell', editLineMark: 'Line', editAreaMark: 'Area' };
   const properties = Object.keys(args).filter(key => !['target', 'id'].includes(key));
   const propertyNames = { opacity: 'opacity', radius: 'radius', fill: 'fill', stroke: 'border color', strokeWidth: 'border width', strokeDash: 'dash' };

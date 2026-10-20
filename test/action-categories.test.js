@@ -40,6 +40,9 @@ test('mixed-purpose functions follow the card intent, not the function prefix', 
     ['createMarkLabels', 'guide', { source: 'plot', value: 'Selected' }, 'style'],
     ['editMarkLabelPlacement', 'style', { target: 'labels' }, 'style'],
     ['editCompositionLayout', 'transform', { columns: 3, gap: 12 }, 'style'],
+    ['editArcMark', 'style', { innerRadius: { unit: 'px', value: 60 }, stroke: false }, 'encoding'],
+    ['editArcMark', 'style', { padAngle: 1 }, 'encoding'],
+    ['editArcMark', 'style', { opacity: .8, stroke: false }, 'style'],
     ['editBoxPlot', 'encoding', { x: { field: 'Group' }, y: { field: 'Y' } }, 'encoding'],
     ['editBoxPlot', 'style', { whisker: { type: 'tukey', factor: 1.5 } }, 'transform'],
     ['editBoxPlot', 'style', { whisker: { strokeWidth: 2 }, box: { fill: '#000000' } }, 'style'],
@@ -94,6 +97,8 @@ test('all generated chart-family recipes have an audited semantic category', () 
       } else if (['editBoxPlot', 'editErrorBar'].includes(rec.method)) {
         assert.equal(group, rec.args.x || rec.args.y ? 'encoding'
           : rec.args.whisker?.type || rec.args.whisker?.factor !== undefined ? 'transform' : 'style');
+      } else if (rec.method === 'editArcMark') {
+        assert.equal(group, rec.args.innerRadius !== undefined || rec.args.padAngle !== undefined ? 'encoding' : 'style');
       } else assert.equal(group, expected[rec.method], rec.method);
     }
   }

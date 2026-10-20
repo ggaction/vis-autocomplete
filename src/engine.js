@@ -315,6 +315,7 @@ export function createRecommendationEngine(model) {
           parameterMode: candidate.parameterMode,
           binRecipe: candidate.binRecipe ? structuredClone(candidate.binRecipe) : undefined,
           radialContext: candidate.radialContext,
+          arcContext: candidate.arcContext,
           statisticalContext: candidate.statisticalContext,
           positionFields: candidate.positionFields,
           sourceMethod: candidate.sourceMethod,

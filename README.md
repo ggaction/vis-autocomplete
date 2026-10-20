@@ -23,9 +23,9 @@ npm run dev
 
 - **Cars 원본 406행·9개 열**을 기본으로 쓴다. Vega 원본과 값이 일치하며, null도 보존한다.
   출처는 `web/data/SOURCE.md`에 기록했다. Monthly sales 예제와 CSV/JSON 업로드도 지원한다.
-- Code view 오른쪽 위의 **− / +**는 코드 글자 크기를 8–20px 범위에서 1px씩 조절한다.
-- History와 Code view 우상단의 화살표로 각 패널을 접고 펼칠 수 있다. History를 접으면
-  확보된 높이를 Current / Preview와 Option cards에 나눠주며, Code view를 접으면 두 영역의
+- ggaction Code 오른쪽 위의 **− / +**는 코드 글자 크기를 8–20px 범위에서 1px씩 조절한다.
+- History와 ggaction Code 우상단의 화살표로 각 패널을 접고 펼칠 수 있다. History를 접으면
+  확보된 높이를 Current / Preview와 Option cards에 나눠주며, ggaction Code를 접으면 두 영역의
   가로폭이 넓어진다. 코드 펼침 상태·히스토리 위치·옵션 페이지는 유지하고 패널 접힘 설정은 새로고침 후에도 복원한다.
   고정폭 글꼴은 유지하며, 선택한 크기는 브라우저에 저장한다. **Copy code**는 접힌 설정·파라미터를
   포함한 전체 원문을 복사한다. 프리뷰 중에는 새 액션을 포함하고, 줄 번호·접기 표시·차이 표시는 제외한다.
@@ -96,7 +96,7 @@ npm run dev
   카드·선택지·슬라이더는 문서 전체의 화면 좌표(`screenX/Y`)를 공유한다.
   레이아웃/배율 변화로 생기는 enter/leave나 같은 화면 위치의 client 좌표 변화는 새 선택으로 처리하지 않는다.
 - 차트를 선택한 뒤부터 엔진이 계산한 상위 5개 함수를 순서대로 표시한다.
-- Current visualization, Preview, Option cards, Code view를 제공한다. 코드에서 새 호출은 초록색으로 표시한다.
+- Current visualization, Preview, Option cards, ggaction Code를 제공한다. 코드에서 새 호출은 초록색으로 표시한다.
   캔버스·테마·데이터·초기 축 같은 준비 호출은 접힌 `Setup` 그룹으로 표시한다. 그룹을 열면 실제 함수들을 볼 수 있고 각 함수 인자도 개별적으로 펼친다.
   프리뷰 중인 새 함수는 인자를 전부 펼치고, 확정 후 0.7초 동안 유지한 뒤 `함수명(...)`으로 접는다. 적용된 함수는 클릭해서 다시 펼칠 수 있다.
   호버를 끝내면 현재 코드를 복원한다. 후속 추천을 적용할 때마다 최상위 함수 호출이 정확히 하나 증가한다.
@@ -605,7 +605,7 @@ Facet와 Facet grid, Arrange facets의 간격은 `spacing: "plot"`으로 데이�
 ggaction 검증을 통해 필요한 간격까지 늘린다. 최종 간격과 이후 가이드 편집에
 필요한 `editCompositionLayout` 호출은 코드와 프로젝트에 명시적으로 저장된다.
 
-Code view의 `.mjs`는 데이터, 전체 공개 호출, native SVG 저장 코드를 함께 내보낸다.
+ggaction Code의 `.mjs`는 데이터, 전체 공개 호출, native SVG 저장 코드를 함께 내보낸다.
 파일 주석에 기록된 ggaction 소스를 설치한 Node 프로젝트에서 `node 파일명.mjs`로
 실행하면 `chart.svg`를 생성한다. Current/Preview의 `Expand`는 compact layout을
 유지하면서 차트를 크게 읽는 기능이다. 기존 PNG/PDF/SVG 다운로드도 유지한다.

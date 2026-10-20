@@ -1228,7 +1228,7 @@ initializePanelLayout({
       contents: [$('history'), $('history-meta')], label: 'history', icons: ['⌄', '⌃'] },
     code: { panel: $('code-content').closest('.code-panel'), button: $('toggle-code'),
       contents: [$('code-content'), $('code-mode'), document.querySelector('.code-tools')],
-      label: 'code view', icons: ['›', '‹'] },
+      label: 'ggaction Code', icons: ['›', '‹'] },
   },
   beforeChange() {
     layoutGalleryPage = currentGalleryPage();

@@ -551,13 +551,26 @@ function addControl(card, definition, parent = card.controlsElement) {
     range.title = 'Move to preview. Click to fix the value; click again to resume. Enter or Space also toggles.';
     const valueLabel = document.createElement('output'); valueLabel.className = 'slider-value';
     span.classList.add('slider-label'); span.append(valueLabel);
-    let locked = false;
+    let locked = false, visualFraction = null;
+    const fractionOf = value => {
+      const min = Number(range.min), span = Number(range.max) - min;
+      return span > 0 ? Math.max(0, Math.min(1, (value - min) / span)) : 0;
+    };
+    const steppedValue = value => {
+      const min = Number(range.min), max = Number(range.max), step = definition.step || 1;
+      return Math.max(min, Math.min(max, Number((min + Math.round((value - min) / step) * step).toPrecision(12))));
+    };
     const refresh = () => {
       range.dataset.locked = String(locked);
+      inputs.dataset.locked = String(locked);
+      // The visible thumb follows continuous pointer travel. The accessible
+      // native range, label, code and chart keep the actual discrete value.
+      inputs.style.setProperty('--slider-position', visualFraction ?? fractionOf(Number(range.value)));
       valueLabel.textContent = `${range.value}${locked ? ' · Fixed' : ''}`;
       range.setAttribute('aria-valuetext', `${range.value}, ${locked ? 'fixed' : 'following pointer'}. Press Enter or Space to ${locked ? 'resume' : 'fix'}.`);
     };
-    const updateValue = value => {
+    const updateValue = (value, fraction = null) => {
+      visualFraction = fraction;
       range.value = value;
       const next = Number(range.value);
       refresh();
@@ -567,10 +580,10 @@ function addControl(card, definition, parent = card.controlsElement) {
     const followPointer = event => {
       if (locked || event.pointerType === 'touch') return;
       const bounds = range.getBoundingClientRect();
-      const thumbRadius = 6;
+      const thumbRadius = window.matchMedia('(pointer: coarse)').matches ? 12 : 6;
       const fraction = Math.max(0, Math.min(1, (event.clientX - bounds.left - thumbRadius) / Math.max(1, bounds.width - 2 * thumbRadius)));
-      const min = Number(range.min), max = Number(range.max), step = definition.step || 1;
-      updateValue(Math.max(min, Math.min(max, Number((min + Math.round(fraction * (max - min) / step) * step).toPrecision(12)))));
+      const min = Number(range.min), max = Number(range.max);
+      updateValue(steppedValue(min + fraction * (max - min)), fraction);
     };
     // The whole bounded parameter group is the hit area, including its label
     // and padding. Map values against the track so widening it adds tolerance
@@ -598,14 +611,19 @@ function addControl(card, definition, parent = card.controlsElement) {
       }
     });
     range.addEventListener('input', () => {
-      // Arrow keys and touch retain the native range interaction and fix its result.
-      locked = true; updateValue(range.value);
+      // Native touch dragging stays smooth while committing only legal steps.
+      const value = Number(range.value);
+      locked = true; updateValue(steppedValue(value), fractionOf(value));
     });
     refresh();
     card.controlRefreshers ??= [];
     card.controlRefreshers.push(controls => {
       const next = controls.find(c => c.key === definition.key);
-      if (next) { range.min = next.min; range.max = next.max; range.value = card.values[definition.key]; refresh(); }
+      if (next) {
+        if (Number(range.min) !== next.min || Number(range.max) !== next.max ||
+            Number(range.value) !== card.values[definition.key]) visualFraction = null;
+        range.min = next.min; range.max = next.max; range.value = card.values[definition.key]; refresh();
+      }
     });
     inputs.append(range); label.append(inputs);
   } else {

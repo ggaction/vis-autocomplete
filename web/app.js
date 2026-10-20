@@ -80,7 +80,7 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 
 function updateHistoryButtons() {
   chartDownloads.refresh();
-  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema']) $(id).disabled = state.committing;
+  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset']) $(id).disabled = state.committing;
   $('undo').disabled = state.committing || !history.canUndo;
   $('redo').disabled = state.committing || !history.canRedo;
   for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = state.committing;
@@ -1070,6 +1070,18 @@ async function editSchema() {
   // A new interpretation is a new revision; the original chart/session remains selectable.
   await activateDataset({ id: crypto.randomUUID(), name: `${record.name} · revised types`, imported }, { selection: state.selection, restore: false });
 }
+
+async function resetVisualization() {
+  if (state.committing || !state.datasetId) return;
+  state.committing = true; updateHistoryButtons();
+  pointerMotion.reset(); historyView.release();
+  try {
+    await activateDataset(datasets.get(state.datasetId), { restore: false });
+    // Replace the durable draft as well, so reload cannot revive the old chart.
+    await savingDraft;
+  } catch (error) { notice(error.message, true); }
+  finally { state.committing = false; updateHistoryButtons(); updateGalleryNavigation(); }
+}
 function downloadText(source, filename, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([source], { type }));
   const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
@@ -1192,6 +1204,7 @@ $('dataset').addEventListener('change', async event => {
   catch (error) { $('dataset').value = state.datasetId; notice(error.message, true); }
 });
 $('edit-schema').addEventListener('click', () => editSchema().catch(error => notice(error.message, true)));
+$('reset').addEventListener('click', resetVisualization);
 $('undo').addEventListener('click', () => restoreHistory('undo'));
 $('redo').addEventListener('click', () => restoreHistory('redo'));
 $('save-project').addEventListener('click', () => {

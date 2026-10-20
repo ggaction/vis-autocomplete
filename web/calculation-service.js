@@ -111,11 +111,25 @@ export function createCalculationService(model) {
             // it bypasses promotion and still uses the same cached raw ranking.
             hierarchy: options?.hierarchy && !query ? createHierarchyProjection(matches, program) : null,
             emitted: new Set(), unavailable: new Set(),
+            separateApplied: options?.deprioritizeAppliedActions && !query, reachedApplied: false,
+            pages: [], pageStart: 0,
             recommendations: [], defaults: [], diagnostics: { validatedCalls: [], rejected: [] } });
         }
         const { ranked, profile, diagnostics } = deck;
-        while (deck.recommendations.length < (page + 1) * 5 && deck.cursor < ranked.recommendations.length) {
-          const rank = deck.cursor++, source = ranked.recommendations[rank];
+        const finishPage = () => {
+          deck.pages.push({ start: deck.pageStart, end: deck.recommendations.length });
+          deck.pageStart = deck.recommendations.length;
+        };
+        while (deck.pages.length <= page && deck.cursor < ranked.recommendations.length) {
+          const rank = deck.cursor, source = ranked.recommendations[rank];
+          // Demotion must survive pagination: never backfill a short new-action
+          // page with used actions. Do not validate those until their page opens.
+          if (deck.separateApplied && source.previouslyApplied && !deck.reachedApplied) {
+            deck.reachedApplied = true;
+            if (deck.recommendations.length > deck.pageStart || !deck.pages.length) finishPage();
+            if (deck.pages.length > page) break;
+          }
+          deck.cursor++;
           for (const candidate of deck.hierarchy?.choices(source) ?? [source]) {
             // A valid displayed ancestor covers later descendants too. An
             // invalid ancestor does not: try the next ancestor or the leaf.
@@ -134,15 +148,21 @@ export function createCalculationService(model) {
               diagnostics.rejected.push({ method: recommendation.method, reason: 'parameters', message: error.message });
             }
           }
+          if (deck.recommendations.length - deck.pageStart === 5) finishPage();
         }
+        if (deck.cursor === ranked.recommendations.length && deck.recommendations.length > deck.pageStart) finishPage();
         const projected = deck.hierarchy?.project(deck.unavailable) ?? ranked.recommendations;
-        const remaining = projected.filter(rec => !deck.emitted.has(rec.id) && !deck.unavailable.has(rec.id)).length;
-        return { result: { ...ranked, recommendations: deck.recommendations.slice(0, (page + 1) * 5),
+        const remaining = projected.filter(rec => !deck.emitted.has(rec.id) && !deck.unavailable.has(rec.id));
+        const remainingApplied = deck.separateApplied ? remaining.filter(rec => rec.previouslyApplied).length : 0;
+        const pageCount = deck.pages.length + Math.ceil((remaining.length - remainingApplied) / 5) + Math.ceil(remainingApplied / 5);
+        const range = deck.pages[page] ?? { start: deck.recommendations.length, end: deck.recommendations.length };
+        return { result: { ...ranked, recommendations: deck.recommendations.slice(0, range.end),
           diagnostics: { ...ranked.diagnostics, hierarchy: Boolean(deck.hierarchy), eligibleGroups: projected.length, validatedCalls: [...diagnostics.validatedCalls],
             rejected: [...diagnostics.rejected], scannedCandidates: deck.cursor } }, profile,
-          defaults: deck.defaults.slice(page * 5, (page + 1) * 5),
-          pagination: { page, pageSize: 5, pageCount: Math.ceil((deck.recommendations.length + remaining) / 5),
-            complete: remaining === 0, rankedCandidates: projected.length } };
+          defaults: deck.defaults.slice(range.start, range.end),
+          pagination: { page, pageSize: 5, pageCount, pageRanges: deck.pages.slice(0, page + 1),
+            complete: remaining.length === 0, rankedCandidates: projected.length,
+            newActionsExhausted: deck.separateApplied && deck.reachedApplied && deck.pages[0]?.end === 0 } };
       }
       throw new Error(`Unknown calculation request: ${type}`);
     },

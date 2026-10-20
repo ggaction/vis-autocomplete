@@ -75,3 +75,42 @@ test('lazy worker pagination keeps used actions discoverable and validates their
   assert.equal(used.validation.topLevelActions, 1);
   assert.deepEqual(request(0).result.recommendations, first.result.recommendations);
 });
+
+test('a short pie action page never backfills with the color scale that was just applied', () => {
+  const before = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values:
+    Array.from({ length: 18 }, (_, i) => ({ X: i + 1, Y: i % 7 + 1, Group: i % 2 ? 'A' : 'B' })) })
+    .createPiePlot({ id: 'plot', category: 'Group', value: 'Y', aggregate: 'sum' })
+    .encodeStroke({ target: 'plot', value: '#000000' })
+    .editThetaScale({ target: 'plot', reverse: true })
+    .orderCategories({ target: 'plot', channel: 'theta', by: 'category', direction: 'descending' });
+  const after = before.editColorScale({ target: 'plot', palette: 'set2' });
+  const service = createCalculationService(model);
+  for (const [stateId, raw] of [[1, before], [2, after]]) {
+    service.execute({ type: 'state', stateId, snapshot: serializeProgram(raw),
+      guideCall: { method: 'createGuides', args: {} } });
+  }
+  const request = (stateId, page = 0, searchQuery = '') => service.execute({
+    type: 'recommend', stateId, options, group: 'encoding', page, searchQuery });
+  const original = request(1), first = request(2);
+  assert.ok(original.result.recommendations.some(r => r.method === 'editColorScale' && !r.previouslyApplied));
+  assert.ok(first.result.recommendations.length > 0 && first.result.recommendations.length < 5);
+  assert.ok(first.result.recommendations.every(r => !r.previouslyApplied));
+  assert.ok(!first.result.diagnostics.validatedCalls.some(call => call.method === 'editColorScale'),
+    'an unopened used-action page must not perform native validation');
+  assert.deepEqual(first.pagination.pageRanges, [{ start: 0, end: first.result.recommendations.length }]);
+  const next = request(2, 1), range = next.pagination.pageRanges[1];
+  assert.equal(range.start, first.result.recommendations.length);
+  const later = next.result.recommendations.slice(range.start, range.end);
+  assert.ok(later.every(r => r.previouslyApplied));
+  const scale = later.find(r => r.method === 'editColorScale');
+  assert.ok(scale, 'used color scale remains accessible on the next page');
+  assert.equal(scale.validation.topLevelActions, 1);
+  assert.deepEqual(next.defaults.map(entry => entry.action.method), later.map(r => r.method));
+  assert.deepEqual(request(2).result.recommendations, first.result.recommendations,
+    'opening a later page must not backfill the cached first page');
+  const searched = request(2, 0, 'editColorScale');
+  assert.deepEqual(searched.result.recommendations.map(r => r.method), ['editColorScale']);
+  assert.equal(searched.result.recommendations[0].score, scale.score);
+  assert.deepEqual(request(1).result.recommendations, original.result.recommendations,
+    'Undo returns the color-scale action to its unused position');
+});

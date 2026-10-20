@@ -784,7 +784,7 @@ async function updateCards() {
   if (generation !== state.generation) return;
   try {
     const restored = state.phase === 'recommendations' ? galleryCache.get(state.view)?.get(JSON.stringify([state.optionGroup, state.searchQuery])) : null;
-    let specs = restored?.specs, pageCount = restored?.pageCount;
+    let specs = restored?.specs, pageCount = restored?.pageCount, pagination = restored?.pagination;
     if (restored) {
       state.cards = restored.cards; state.galleryRows = restored.rows;
       elements.cards.append(...restored.rows); elements.cards.scrollLeft = restored.scrollLeft ?? 0;
@@ -804,6 +804,7 @@ async function updateCards() {
       const response = await recommendationResponse();
       if (generation !== state.generation) return;
       specs = recommendationSpecs(response);
+      pagination = response.pagination;
       pageCount = response.pagination.pageCount;
       if (!specs.length) elements['step-description'].textContent = emptyActionsMessage();
     }
@@ -816,7 +817,7 @@ async function updateCards() {
     const rows = [...state.galleryRows];
     const deck = restored ?? { view: state.view, program: state.program, guideCall: state.guideCall,
       context: structuredClone(state.context), phase: state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
-      specs, pages, rows, cards: state.cards, pageCount: count };
+      specs, pages, rows, cards: state.cards, pageCount: count, pagination };
     mountedGallery = deck;
     const restoredCard = restored && state.cards.find(card => !card.disabled);
     if (restoredCard) selectCard(restoredCard, false, false);
@@ -832,6 +833,7 @@ async function updateCards() {
             const response = await recommendationResponse(deck.program, deck.view, deck.guideCall, deck.context, deck.group, page, deck.searchQuery);
             if (generation !== state.generation) return;
             specs = deck.specs = recommendationSpecs(response);
+            deck.pagination = response.pagination;
             deck.pageCount = response.pagination.pageCount;
             for (const removed of rows.splice(deck.pageCount)) removed.remove();
             state.galleryRows = rows;
@@ -842,7 +844,8 @@ async function updateCards() {
           // Build a complete row before revealing it. Incremental flex children
           // otherwise make the first cards visibly shift as later cards arrive.
           const fragment = document.createDocumentFragment();
-          for (let index = page * 5; index < Math.min(specs.length, page * 5 + 5); index++) {
+          const range = deck.pagination?.pageRanges?.[page] ?? { start: page * 5, end: Math.min(specs.length, page * 5 + 5) };
+          for (let index = range.start; index < range.end; index++) {
             if (generation !== state.generation) return;
             const spec = specs[index], card = await createCard(spec, index);
             if (generation !== state.generation) return;
@@ -890,7 +893,9 @@ async function updateCards() {
       showPreview(null);
       elements['step-description'].textContent = state.phase === 'initial'
         ? 'These charts need an adjustment. Open a card for its parameters and the specific reason.'
-        : emptyActionsMessage();
+        : deck.pagination?.newActionsExhausted
+          ? 'All available actions in this group have been used. Browse the next page or search to edit them.'
+          : emptyActionsMessage();
     }
   } catch (error) { if (generation === state.generation) notice(error.message, true); }
 }

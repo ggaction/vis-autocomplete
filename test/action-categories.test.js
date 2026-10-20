@@ -99,6 +99,8 @@ test('all generated chart-family recipes have an audited semantic category', () 
           : rec.args.whisker?.type || rec.args.whisker?.factor !== undefined ? 'transform' : 'style');
       } else if (rec.method === 'editArcMark') {
         assert.equal(group, rec.args.innerRadius !== undefined || rec.args.padAngle !== undefined ? 'encoding' : 'style');
+      } else if (rec.method === 'editGradientPlot') {
+        assert.equal(group, rec.args.density ? 'transform' : rec.args.center ? 'style' : 'encoding');
       } else assert.equal(group, expected[rec.method], rec.method);
     }
   }

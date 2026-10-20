@@ -115,8 +115,11 @@ function candidateRecipes(program, { layer, profile, actionEvidence }) {
         { [direction]: { color: '#cbd5e1', lineWidth: 1.5 } });
       candidates.at(-1).guideContext = { direction, directions: directions.map(([key]) => key) };
     }
-    const x = encoding.x?.title ?? encoding.x?.field ?? encoding.theta?.field;
-    const y = encoding.y?.title ?? encoding.y?.field ?? encoding.r?.field ?? encoding.radius?.field;
+    const distribution = program.markConfigs[target]?.gradientPlot;
+    const x = distribution ? (distribution.orientation === 'vertical' ? distribution.category : distribution.measure) :
+      encoding.x?.title ?? encoding.x?.field ?? encoding.theta?.field;
+    const y = distribution ? (distribution.orientation === 'vertical' ? distribution.measure : distribution.category) :
+      encoding.y?.title ?? encoding.y?.field ?? encoding.r?.field ?? encoding.radius?.field;
     if (program.semanticSpec.title.text) {
       add('editTitle', 'action.editTitle', 'guide', '기존 차트 제목 수정',
         { text: program.semanticSpec.title.text, position: program.titleConfig?.position ?? 'top',

@@ -33,8 +33,9 @@ function derivedFieldLabels(program, data) {
   const names = { q1: 'lower quartile', q3: 'upper quartile', median: 'median', count: 'observation count',
     lowerWhisker: 'lower whisker', upperWhisker: 'upper whisker', lowerFence: 'lower fence', upperFence: 'upper fence' };
   return Object.fromEntries((program.semanticSpec.datasets.find(d => d.id === data)?.transform ?? [])
-    .filter(transform => transform.type === 'boxSummary').flatMap(transform => Object.entries(transform.as)
-      .map(([statistic, field]) => [field, `${transform.field}: ${names[statistic] ?? statistic}`])));
+    .filter(transform => ['boxSummary', 'gradientProfile'].includes(transform.type)).flatMap(transform => Object.entries(transform.as)
+      .map(([statistic, field]) => [field, statistic === 'category' ? transform.category :
+        `${transform.field}: ${statistic === 'center' ? transform.center : names[statistic] ?? statistic}`])));
 }
 
 export function neighboringParameters(candidate) {

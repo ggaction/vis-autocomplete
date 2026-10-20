@@ -192,6 +192,13 @@ function prepareUncached(program, action, view, setupCalls) {
       return { ...prepared, actionBase, prerequisiteCalls };
     }
     const axis = error.message.match(/([xy])-axis labels overlap/i)?.[1]?.toLowerCase();
+    if (axis === 'x' && ['editGradientPlot', 'editViolinPlot', 'editBoxPlot'].includes(sourceAction.method)) {
+      const call = sourceCall('editXAxisLabels', { rotation: { value: 90, unit: 'degrees' } });
+      actionBase = actionBase[call.method](call.args);
+      prerequisiteCalls.push(call);
+      prepared = prepareFittedPlot(actionBase, action, finish);
+      return { ...prepared, actionBase, prerequisiteCalls };
+    }
     if (!axis || !['encodeX', 'encodeY', 'editXScale', 'editYScale'].includes(sourceAction.method)) throw error;
     const resources = Object.entries(actionBase.semanticSpec.guides.axis ?? {}).filter(([id, value]) => (value.channel ?? id) === axis);
     if (!resources.length) throw error;

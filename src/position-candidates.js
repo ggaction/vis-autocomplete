@@ -108,8 +108,15 @@ export function ownedPositionCandidates(program, { layer, profile }) {
     const categories = source.fields.filter(f => f.usable && ['nominal', 'ordinal'].includes(f.type)).map(f => f.name);
     if (['editViolinPlot', 'editGradientPlot'].includes(owner.method)) {
       const categoryAxis = config.orientation === 'horizontal' ? 'y' : 'x', valueAxis = categoryAxis === 'x' ? 'y' : 'x';
-      for (const field of q) add(owner.method, { target, [categoryAxis]: { field: config.category, fieldType: config.categoryType }, [valueAxis]: { field, fieldType: 'quantitative' } },
-        [parameter(`${categoryAxis}.field`, 'Category', config.category, categories), parameter(`${valueAxis}.field`, 'Measure', field, q)], `action.${owner.method}`, 'Distribution variables');
+      const categoryFields = [...new Set([config.category, ...categories])];
+      for (const category of categoryFields) for (const field of q.filter(f => f !== category)) {
+        const args = { target, [categoryAxis]: { field: category, fieldType: category === config.category ? config.categoryType : 'nominal' },
+          [valueAxis]: { field, fieldType: 'quantitative' } };
+        add(owner.method, args,
+          [{ ...parameter(`${categoryAxis}.field`, 'Category', category, categoryFields), distinctFrom: `${valueAxis}.field` },
+            { ...parameter(`${valueAxis}.field`, 'Measure', field, q), distinctFrom: `${categoryAxis}.field` }],
+          `action.${owner.method}`, 'Edit distribution variables');
+      }
     } else if (owner.method === 'editECDFPlot') {
       for (const field of q) add(owner.method, { target, field }, [parameter('field', 'Variable', field, q)], 'action.editECDFPlot', 'ECDF variable');
     } else if (owner.method === 'editErrorBar') {

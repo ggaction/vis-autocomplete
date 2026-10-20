@@ -15,7 +15,11 @@ export function profileDataset(program, data, fieldTypes = {}) {
       throw new TypeError(`Invalid field type hint: ${name} = ${type}`);
     }
   }
-  const fields = schema.fields.filter(f => f.name).map(field => {
+  const gradient = dataset.transform?.find(t => t.type === 'gradientProfile');
+  // Sample arrays and support endpoints are implementation details, not user
+  // variables. Expose the category and meaningful per-strip summaries only.
+  const exposed = gradient ? new Set([gradient.as.category, gradient.as.center, gradient.as.count]) : null;
+  const fields = schema.fields.filter(f => f.name && (!exposed || exposed.has(f.name))).map(field => {
     const values = rows.map(row => row[field.name]);
     const present = values.filter(v => v !== null && v !== undefined);
     const allNumbers = present.length > 0 && present.every(v => typeof v === 'number' && Number.isFinite(v));
@@ -23,7 +27,9 @@ export function profileDataset(program, data, fieldTypes = {}) {
       typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)));
     const inferredType = allNumbers ? 'quantitative' : present.length > 0 && present.every(isoDate) ? 'temporal' : 'nominal';
     const hint = fieldTypes[field.name];
-    const type = (typeof hint === 'string' ? hint : hint?.type) ?? inferredType;
+    const categoryType = gradient && field.name === gradient.category
+      ? Object.values(program.markConfigs).find(c => c.gradientPlot?.profileId === resolvedId)?.gradientPlot?.categoryType : undefined;
+    const type = (typeof hint === 'string' ? hint : hint?.type) ?? categoryType ?? inferredType;
     const compatible = type === 'quantitative' ? allNumbers : type === 'temporal'
       ? present.every(v => (typeof v === 'number' && Number.isFinite(v)) || isoDate(v))
       : allCategories;

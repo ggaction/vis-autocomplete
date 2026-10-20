@@ -73,7 +73,8 @@ export function extendedCandidates(program, { layer, profile }) {
   if (['point', 'bar', 'rect', 'arc', 'rule'].includes(mark) &&
       !program.semanticSpec.layers.some(l => l.source === target && program.markConfigs[l.id]?.labelAuthoring)) {
     const semantic = ['bar', 'arc'].includes(mark);
-    const field = encoding.color?.field ?? encoding.y?.field ?? encoding.x?.field;
+    const field = encoding.color?.field ?? program.markConfigs[target]?.gradientPlot?.category ??
+      encoding.y?.field ?? encoding.x?.field;
     if (semantic || fields.some(f => f.name === field)) {
       const args = { source: target, ...(semantic ? { content: 'value' } : { field }),
         fontFamily: 'Arial', fontSize: 11, placement: { anchor: semantic ? 'outsideEnd' : 'center' } };
@@ -174,9 +175,39 @@ export function extendedCandidates(program, { layer, profile }) {
     if (packingChannel && !program.materializationConfigs.jitters?.[target]) add('packPoints', 'transform', { target, channel: packingChannel, maxOffset: { pixels: 20 }, padding: 1, overflow: 'overlap' },
       [number('maxOffset.pixels', 'Spread', 20, 4, 40), number('padding', 'Padding', 1, 0, 4, .5)]);
   }
-  const statisticGroups = preferVisualFields(fields.filter(field => field.complete && field.distinct > 1), 'color')
+  const gradient = program.markConfigs[target]?.gradientPlot;
+  if (gradient) {
+    const density = gradient.density, width = gradient.width.band === .8 ? .7 : .8;
+    const profile = program.semanticSpec.datasets.find(d => d.id === gradient.profileId)?.transform?.[0];
+    const bandwidth = profile?.resolved?.bandwidth ?? 1;
+    const round = value => Number(value.toPrecision(2));
+    add('editGradientPlot', 'transform', { target, density: { bandwidth: round(bandwidth * 1.5) } }, [
+      number('density.bandwidth', 'Bandwidth', round(bandwidth * 1.5), round(Math.max(.01, bandwidth / 10)), round(bandwidth * 5), round(Math.max(.01, bandwidth / 20))),
+      choices('density.kernel', 'Kernel', density.kernel, ['gaussian', 'epanechnikov', 'uniform', 'triangular']),
+      choices('density.normalization', 'Density', density.normalization, [
+        { value: 'unit', label: 'Normalized density' }, { value: 'count', label: 'Count weighted density' }]),
+    ], 'action.editGradientPlot', 'Adjust density');
+    add('editGradientPlot', 'encoding', { target, width: { band: width } },
+      [number('width.band', 'Strip width', width, .1, .95, .05)], 'encoding.gradientWidth', 'Adjust gradient width');
+    // A field or fixed fill already owns hue. Do not offer a palette that it
+    // would override; opacity and center controls remain independently editable.
+    if (!encoding.color && !program.markConfigs[target]?.fillExplicit) {
+      const palette = (gradient.gradient.palette?.name ?? gradient.gradient.palette) === 'viridis' ? 'blues' : 'viridis';
+      add('editGradientPlot', 'encoding', { target, gradient: { palette, opacity: [...gradient.gradient.opacity] } }, [
+        choices('gradient.palette', 'Palette', palette, paletteChoices('quantitative')),
+        number('gradient.opacity.0', 'Minimum opacity', gradient.gradient.opacity[0], 0, 1, .05),
+        number('gradient.opacity.1', 'Maximum opacity', gradient.gradient.opacity[1], 0, 1, .05),
+      ], 'encoding.gradientPalette', 'Adjust density colors');
+    }
+    const center = gradient.center, type = center?.type === 'mean' ? 'median' : 'mean';
+    add('editGradientPlot', 'style', { target, center: { type } }, [
+      choices('center', 'Center line', { type }, [{ value: false, label: 'None' }, { value: { type: 'median' }, label: 'Median' }, { value: { type: 'mean' }, label: 'Mean' }]),
+    ], 'style.gradientCenter', 'Edit gradient center');
+  }
+  const statisticFields = gradient ? profileDataset(program, gradient.source).fields : fields;
+  const statisticGroups = preferVisualFields(statisticFields.filter(field => field.complete && field.distinct > 1), 'color')
     .map(field => {
-      let visibleItems = !['line', 'area'].includes(mark);
+      let visibleItems = gradient ? field.name === gradient.category : !['line', 'area'].includes(mark);
       if (visibleItems && mark === 'bar') {
         try { visibleItems = barGrain(program, layer).constant(field.name); }
         catch { visibleItems = false; }
@@ -185,7 +216,7 @@ export function extendedCandidates(program, { layer, profile }) {
     });
   for (const axis of ['x', 'y']) {
     if (encoding[axis]?.fieldType !== 'quantitative') continue;
-    add('createStatisticalReference', 'transform', { source: target, axis, population: ['line', 'area'].includes(mark) ? 'boundData' : 'visibleItems', statistic: { op: 'mean' },
+    add('createStatisticalReference', 'transform', { source: target, axis, population: gradient || ['line', 'area'].includes(mark) ? 'boundData' : 'visibleItems', statistic: { op: 'mean' },
       strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
     out.at(-1).statisticalContext = { series: ['line', 'area'].includes(mark), groupFields: statisticGroups };
   }

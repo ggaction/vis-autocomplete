@@ -3,6 +3,7 @@ import { paletteChoices } from '../src/palette-options.js';
 import { binnedPositionExpression } from '../src/plot-aggregation.js';
 import { applyParameterDefaults } from '../src/control-defaults.js';
 import { defaultFacetColumns } from '../src/facet-layout.js';
+import { DEFAULT_TITLE_FONT_SIZE } from '../src/parameter-defaults.js';
 const select = (key, label, choices, value) => ({ key, label, type: 'select',
   choices: choices.map(v => typeof v === 'object' ? v : { value: v, label: v }), value });
 const numeric = (key, label, value, min, max, step = 1) => ({ key, label, type: 'number', value, min, max, step });
@@ -297,7 +298,8 @@ export function recommendationParameters(recommendation, profile) {
       ...(v.title ? { title: v.title } : {}) });
   } else if (['createTitle', 'editTitle'].includes(method)) {
     controls = [text('text', 'Title', args.text), select('position', 'Position', recommendation.compositionContext?.facet ? ['top'] : ['top', 'bottom', 'left', 'right'], args.position ?? 'top'),
-      numeric('size', 'Font size', args.titleStyle?.fontSize ?? 16, 10, 30),
+      { ...numeric('size', 'Font size', args.titleStyle?.fontSize ?? DEFAULT_TITLE_FONT_SIZE, 10, 30),
+        ...(method === 'editTitle' ? { defaultPolicy: 'context' } : {}) },
       select('weight', 'Font weight', ['normal', 'bold'], args.titleStyle?.fontWeight ?? 'bold')];
     build = v => ({ ...clone(), text: v.text, position: v.position,
       titleStyle: { ...args.titleStyle, fontFamily: 'Arial', fontSize: v.size, fontWeight: v.weight } });

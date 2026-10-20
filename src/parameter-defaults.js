@@ -6,7 +6,11 @@ const settings = new Set(('aggregate method type palette position opacity fill s
   'anchor content align baseline zero nice clamp reverse scheme range').split(' '));
 const appearance = /^encode(Color|Stroke|Opacity|Size|StrokeWidth|StrokeDash|Angle|Shape)$/;
 export const MIN_DEFAULT_CHARTS = 3;
-export const DEFAULT_PREFERENCES = { encodeStroke: { $mode: 'fixed', value: '#000000' } };
+export const DEFAULT_TITLE_FONT_SIZE = 23;
+export const DEFAULT_PREFERENCES = {
+  encodeStroke: { $mode: 'fixed', value: '#000000' },
+  createTitle: { 'titleStyle.fontSize': DEFAULT_TITLE_FONT_SIZE },
+};
 export const settingKey = value => JSON.stringify(value);
 
 export function parameterSettings(method, args) {

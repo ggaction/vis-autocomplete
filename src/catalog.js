@@ -7,6 +7,7 @@ import { extendedCandidates } from './extended-catalog.js';
 import { appearanceCandidates } from './appearance-candidates.js';
 import { facetCandidates } from './facet-candidates.js';
 import { corpusCandidates } from './corpus-candidates.js';
+import { DEFAULT_TITLE_FONT_SIZE } from './parameter-defaults.js';
 export const ACTION_METHODS = PUBLIC_ACTION_METHODS;
 
 export function generateCandidates(program, { layer, profile, actionEvidence }) {
@@ -112,9 +113,10 @@ export function generateCandidates(program, { layer, profile, actionEvidence }) 
     if (program.semanticSpec.title.text) {
       add('editTitle', 'action.editTitle', 'guide', '기존 차트 제목 수정',
         { text: program.semanticSpec.title.text, position: program.titleConfig?.position ?? 'top',
-          titleStyle: { fontFamily: 'Arial', fontSize: 18 } });
+          titleStyle: { fontFamily: 'Arial', fontSize: program.titleConfig?.titleStyle?.fontSize ?? DEFAULT_TITLE_FONT_SIZE } });
     } else add('createTitle', 'guide.title', 'guide', '현재 변수로 차트 제목 추가',
-      { text: x && y ? `${y} by ${x}` : profile.id });
+      { text: x && y ? `${y} by ${x}` : profile.id,
+        titleStyle: { fontFamily: 'Arial', fontSize: DEFAULT_TITLE_FONT_SIZE } });
   };
   if (!supported || (layer.coordinate && program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type !== 'cartesian')) {
     addCommon();

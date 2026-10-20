@@ -286,3 +286,9 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .card-notice{font:11px/1.35 Arial,sans-serif;color:#626b78;margin:5px 0 0}
 .parameter-help{font:10px/1.35 Arial,sans-serif;color:#737b85;margin:4px 0 0}
 .card-error.unchanged{color:#6b7280}
+
+.palette-more { flex-basis: 100%; min-width: 0; }
+.palette-more > summary { width: fit-content; cursor: pointer; font-size: 11px; line-height: 1.4; padding: 3px 6px; border: 1px solid var(--border); border-radius: 3px; background: #fff; }
+.palette-more > summary:hover, .palette-more > summary:focus-visible { background: #f0f1f3; }
+.palette-more-options { width: min(100%, 360px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; max-height: 142px; overflow-y: auto; margin-top: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 3px; background: #fff; scrollbar-width: thin; }
+.palette-more-options .parameter-choice { text-align: left; overflow-wrap: anywhere; }

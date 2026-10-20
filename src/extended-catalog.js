@@ -1,3 +1,4 @@
+import { paletteChoices } from './palette-options.js';
 import { canGroupBar, barGrain, positionScaleContext } from './mark-grain.js';
 import { hasChartContext } from './chart-context.js';
 import { profileDataset } from './profile.js';
@@ -261,7 +262,7 @@ export function extendedCandidates(program, { layer, profile }) {
     if (['color', 'stroke'].includes(channel)) {
       const palette = ['nominal', 'ordinal'].includes(binding.fieldType) ? 'category10' : 'blues';
       style(method, { target, palette }, [choices('palette', 'Palette', palette,
-        ['nominal', 'ordinal'].includes(binding.fieldType) ? ['category10', 'tableau10'] : ['blues', 'reds', 'viridis'])]);
+        paletteChoices(binding.fieldType))]);
     } else if (['x', 'y', 'theta', 'radius', 'xOffset'].includes(channel) && !(channel === 'radius' && mark === 'arc')) {
       const direction = choices('reverse', 'Direction', !scale.reverse, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }]);
       if (['x', 'y'].includes(channel) && binding.fieldType === 'quantitative') {

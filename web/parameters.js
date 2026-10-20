@@ -1,3 +1,4 @@
+import { paletteChoices } from '../src/palette-options.js';
 // At most four visible parameter groups. Native ggaction options only.
 import { binnedPositionExpression } from '../src/plot-aggregation.js';
 import { applyParameterDefaults } from '../src/control-defaults.js';
@@ -137,7 +138,7 @@ export function recommendationParameters(recommendation, profile) {
         : numeric('value', size ? 'Area (px²)' : width ? 'Stroke width' : 'Opacity', fixedValue, 0, size ? 1600 : width ? 8 : 1, size ? 1 : width ? .25 : 0.05), v => !variable(v)),
       conditional(select('field', 'Variable', fieldOptions, defaultField), variable)];
     if (color) {
-      controls.push(conditional(select('palette', 'Palette', ['auto', 'tableau10', 'category10', 'viridis', 'blues', 'reds'], 'auto'), variable));
+      controls.push(conditional(select('palette', 'Palette', paletteChoices(fields.get(defaultField)?.type, { auto: true }), args.scale?.palette ?? 'auto'), variable));
       if (alternatives.some(option => option.args.aggregate)) {
         controls.push(conditional(select('aggregate', 'Aggregation', ['mean', 'median', 'sum', 'min', 'max'], args.aggregate ?? alternatives.find(option => option.args.aggregate).args.aggregate),
           v => variable(v) && Boolean(forField(v.field).aggregate)));
@@ -374,8 +375,7 @@ export function recommendationParameters(recommendation, profile) {
         ...(context.groups[choice.value]?.minDistinctX < 2 ? { reason: 'Every group needs at least two distinct X values.' } : {}) })) } : c);
     }
     if (['encodeColor', 'encodeStroke'].includes(method)) {
-      const paletteNames = ['nominal', 'ordinal'].includes(fields.get(values.field)?.type) ? ['auto', 'tableau10', 'category10'] : ['auto', 'viridis', 'blues', 'reds'];
-      resolved = resolved.map(c => c.key === 'palette' ? { ...c, choices: c.choices.filter(o => paletteNames.includes(o.value)) } : c);
+      resolved = resolved.map(c => c.key === 'palette' ? { ...c, choices: paletteChoices(fields.get(values.field)?.type, { auto: true }) } : c);
     }
     const numericControls = flat(resolved), lowKey = rangeIndices[0] >= 0 ? `p${rangeIndices[0]}` : 'min', highKey = rangeIndices[1] >= 0 ? `p${rangeIndices[1]}` : 'max';
     const low = numericControls.find(c => c.key === lowKey), high = numericControls.find(c => c.key === highKey);

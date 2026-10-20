@@ -433,6 +433,22 @@ function addControl(card, definition, parent = card.controlsElement) {
     const choices = document.createElement('div'); choices.className = 'parameter-options';
     choices.setAttribute('role', 'group');
     choices.setAttribute('aria-label', `${card.title}: ${definition.label}`);
+    // Keep native buttons inside the card so the existing pointer/focus preview
+    // route also handles the dropdown (native select options cannot hover-preview).
+    const overflow = definition.choices.some(choice => choice.featured === false);
+    let more, moreOptions;
+    if (overflow) {
+      more = document.createElement('details'); more.className = 'palette-more';
+      const summary = document.createElement('summary');
+      const extra = definition.choices.find(choice => choice.featured === false && String(choice.value) === String(card.values[definition.key]));
+      summary.textContent = extra ? `More · ${extra.label}` : 'More';
+      summary.setAttribute('aria-label', `${card.title}: More palettes`);
+      moreOptions = document.createElement('div'); moreOptions.className = 'palette-more-options';
+      more.append(summary, moreOptions);
+      more.addEventListener('keydown', event => {
+        if (event.key === 'Escape') { event.stopPropagation(); more.open = false; summary.focus(); }
+      });
+    }
     const buttons = [];
     const selected = value => definition.type === 'multiselect'
       ? card.values[definition.key].includes(value) : String(card.values[definition.key]) === String(value);
@@ -469,8 +485,9 @@ function addControl(card, definition, parent = card.controlsElement) {
       button.addEventListener('click', () => {
         pinValues(card, draft(), definition.key);
       });
-      choices.append(button);
+      (choice.featured === false ? moreOptions : choices).append(button);
     }
+    if (more) choices.append(more);
     refresh(); label.append(choices);
     const reasons = [...new Set(definition.choices.filter(choice => choice.disabled && choice.reason).map(choice => choice.reason))];
     if (reasons.length) {

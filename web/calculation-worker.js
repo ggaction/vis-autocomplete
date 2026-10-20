@@ -1,6 +1,6 @@
 import { createCalculationService } from './calculation-service.js';
 
-let service;
+let service, recommendationGeneration = 0;
 self.addEventListener('message', async ({ data: { id, request } }) => {
   try {
     if (request.type === 'initialize') {
@@ -12,6 +12,22 @@ self.addEventListener('message', async ({ data: { id, request } }) => {
       }
       service = createCalculationService(model);
       self.postMessage({ id, value: { ready: true } }); return;
+    }
+    if (request.type === 'materialize' || request.type === 'cancel-recommendations') recommendationGeneration++;
+    if (request.type === 'recommend' && request.stream) {
+      const generation = ++recommendationGeneration;
+      let value;
+      do {
+        if (generation !== recommendationGeneration) {
+          self.postMessage({ id, value: { ...value, cancelled: true } }); return;
+        }
+        value = service.execute({ ...request, batchSize: 1 });
+        if (!value.pagination.pending) break;
+        self.postMessage({ id, value, progress: true });
+        // Let newer group/search/Apply requests run between native candidates.
+        await new Promise(resolve => setTimeout(resolve, 0));
+      } while (true);
+      self.postMessage({ id, value }); return;
     }
     const value = service.execute(request);
     self.postMessage({ id, value });

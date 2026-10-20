@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><title>Recommendation stream regression</title>
+<script type="importmap">{"imports":{
+  "ggaction":"/node_modules/ggaction/src/index.js",
+  "ggaction/extension":"/node_modules/ggaction/src/extension.js",
+  "ggaction/inspection":"/node_modules/ggaction/src/inspection.js",
+  "ggaction/diagnostics":"/node_modules/ggaction/src/diagnostics.js",
+  "ggaction/svg":"/node_modules/ggaction/src/renderers/svg.js",
+  "ggaction/persistence":"/node_modules/ggaction/src/persistence.js"
+}}</script>
+<pre id="report">Running…</pre>
+<script type="module">
+import { chart } from 'ggaction';
+import { createCalculationClient } from '/web/calculation-client.js';
+import { FOLLOWUP_RECOMMENDATION_OPTIONS } from '/web/option-groups.js';
+import { defaultCanvasOptions } from '/src/prepare.js';
+const check = (value, message) => { if (!value) throw Error(message); };
+try {
+  const client = createCalculationClient(); await client.ready;
+  const rows = await (await fetch('/web/data/cars.json')).json();
+  const program = chart().createCanvas(defaultCanvasOptions()).createData({ id:'data', values: rows.filter(r=>r.Horsepower!=null&&r.Miles_per_Gallon!=null) })
+    .createScatterPlot({ id:'plot', x:'Horsepower', y:'Miles_per_Gallon', color:'Origin' });
+  const view=program.createGuides(), guide={method:'createGuides',args:{}}, options={target:'plot',...FOLLOWUP_RECOMMENDATION_OPTIONS};
+  let next, first, finished=false, progressCount=0;
+  const old = client.recommend(program,view,guide,options,'encoding',0,'', response=>{
+    if(!response.defaults.length || next)return;
+    check(!finished && response.pagination.pending,'Progress waited for the final batch');first=response.defaults[0];progressCount++;
+    next=client.recommend(program,view,guide,options,'style',0,'',()=>{});
+  });
+  const departed=await old;finished=true;
+  check(departed.cancelled,'Departed group kept calculating');check(progressCount===1,'First usable card missing');
+  const active=await next;check(!active.cancelled && !active.pagination.pending,'Active page did not complete');
+  // Apply a streamed card after another group interrupted its unfinished page.
+  const committed=await client.materialize(program,view,guide,first.action);
+  check(committed.program.trace.children.at(-1).op===first.action.method,'Streamed Apply used a different action');
+  const restored=await client.recommend(program,view,guide,options,'encoding',0,'',()=>{});
+  check(!restored.cancelled && !restored.pagination.pending,'Interrupted page failed to resume');
+  let earlyApply, earlyAction;
+  const interrupted=await client.recommend(committed.program,committed.view,committed.guideCall,options,'encoding',0,'', response=>{
+    if(!response.defaults.length || earlyApply)return;
+    check(response.pagination.pending,'Apply test must run while the page is incomplete');
+    earlyAction=response.defaults[0].action;
+    earlyApply=client.materialize(committed.program,committed.view,committed.guideCall,earlyAction);
+  });
+  check(interrupted.cancelled,'Apply did not stop the old recommendation page');
+  const applied=await earlyApply;
+  check(applied.program.trace.children.at(-1).op===earlyAction.method,'Early Apply did not commit the displayed action');
+  document.querySelector('#report').textContent='PASS: progress before completion; superseded work cancelled; streamed Apply exact; interrupted page resumes; Apply before page completion cancels old work.';
+  window.ready=true;
+} catch(error) { document.querySelector('#report').textContent='FAIL: '+error.stack; window.ready=true; }
+</script>

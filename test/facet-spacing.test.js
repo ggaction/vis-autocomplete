@@ -9,10 +9,29 @@ import { profileDataset } from '../src/profile.js';
 import { recommendationParameters, valuesFor } from '../web/parameters.js';
 import { createCalculationService } from '../web/calculation-service.js';
 import { readFileSync } from 'node:fs';
+import { getErrorDetails } from 'ggaction/diagnostics';
+import { fitFacetGap } from '../src/facet-spacing.js';
 
 const rows = Array.from({ length: 18 }, (_, i) => ({ X: i, Y: i * 2, Group: ['A', 'B', 'C'][i % 3], Series: ['One', 'Two'][i % 2] }));
 const base = () => chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: rows })
   .createScatterPlot({ id: 'plot', x: 'X', y: 'Y' });
+
+test('measured native header clearance avoids blind chart reconstruction and still validates the retry', () => {
+  const raw = base(), args = { field: 'Group', columns: 1, spacing: 'plot', gap: 0, guides: { axes: 'outer', legend: false } };
+  let details;
+  assert.throws(() => raw.facet(args), error => {
+    details = getErrorDetails(error); return details.optionPath === 'gap' && details.limit > 0 && details.actual === 0;
+  });
+  const probes = [];
+  const fitted = fitFacetGap(gap => {
+    probes.push(gap);
+    try { return raw.facet({ ...args, gap }); }
+    catch (error) { error.details = getErrorDetails(error); throw error; }
+  }, 0);
+  assert.deepEqual(probes, [0, Math.ceil(details.limit)]);
+  assert.deepEqual(fitted.graphicSpec, raw.facet({ ...args, gap: probes[1] }).graphicSpec);
+  assert.throws(() => raw.facet({ ...args, gap: probes[1] - 1 }), /gap is too small/);
+});
 
 test('Barley facet grid starts compact without removing larger field combinations', () => {
   const barley = JSON.parse(readFileSync(new URL('../web/data/barley.json', import.meta.url)));

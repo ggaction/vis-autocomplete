@@ -348,6 +348,9 @@ ggaction은 불변 리소스의 정확한 구조 비교와 변경되지 않은 �
 
 브라우저는 추천용/실시간 프리뷰용 module Worker를 따로 사용한다. 연속 파라미터 입력은 실행 중 하나와 최신 대기 하나만 유지한다.
 Apply는 호버 중인 값이 아닌 고정된 값을 검증·확정하며, 이동 애니메이션 중 다음 추천을 계산한다.
+추천은 기존 순위대로 한 후보씩 검증해 전달한다. 먼저 준비된 카드는 고정된 슬롯에서 바로 사용할 수 있고,
+느린 facet/회귀 프리뷰가 나머지 카드·Undo·탭·검색을 막지 않는다. 새 요청은 후보 사이에서 이전 요청을 중단한다.
+미완성 페이지는 완성된 캐시로 취급하지 않으며, 다시 열면 기존 검증 결과부터 이어서 채운다.
 프리뷰에는 SVG·실제 호출 인자·메타데이터를 반환한다. Apply 후에는 Worker의 확정 상태를 다음 계산에 재사용한다.
 최초 접속 이후의 상태 전달은 현재 native 상태와 기존 액션 트리의 참조·변경분으로 처리하여, 과거 전체 materialization 기록을 매번 복제하지 않는다.
 한동안 쓰지 않은 Worker와 퇴출된 Undo 상태도 알려진 상태가 있으면 같은 변경분 전달을 사용하며, 기준 상태가 없을 때만 전체 snapshot을 복원한다.
@@ -358,6 +361,9 @@ Apply는 호버 중인 값이 아닌 고정된 값을 검증·확정하며, 이�
 Current/Preview의 전체 SVG 템플릿은 최근 8개만 보관한다. 카드·히스토리 섬네일은 같은 native SVG를 벡터 이미지로 표시하여 마크마다 DOM을 누적하지 않는다.
 코드 뷰는 떠난 프리뷰의 인자 DOM·타이머를 해제하고, Undo/Redo용 접기 상태만 최대 128개 보관한다.
 접힌 함수의 인자 DOM은 펼칠 때 생성하며, 프리뷰와 Apply 후 0.7초 유지·접기 애니메이션은 그대로 동작한다.
+히스토리와 자동 저장은 이전의 불변 액션 인자와 검증된 메타데이터를 공유한다. 입력 파일은 그대로 검증하며,
+저장 파일 형식·원자적 저장·Undo/Redo를 유지하면서 매 편집마다 전체 과거 인자를 다시 복제하지 않는다.
+Facet header 간격은 ggaction이 보고한 실제 최소 간격으로 재검증하고, 추가 guide 충돌에만 기존 탐색을 사용한다.
 
 `npm run dev`는 같은 `vendor/ggaction` 소스로 Worker를 먼저 번들링한다. 소스 수정 후 실행 중인 서버를 유지한다면
 `npm run build:workers` 후 페이지를 새로고침한다. `npm run update`도 라이브러리 갱신 뒤 Worker를 다시 만든다.
@@ -370,6 +376,7 @@ Current/Preview의 전체 SVG 템플릿은 최근 8개만 보관한다. 카드·
 `npm run benchmark:session`은 같은 Cars facet에서 41회 편집하며 전체 snapshot 경로와 변경분 경로를 비교한다.
 전달량·복원·추천 시간과 최종 semantic/graphic/trace 동등성을 `output/progressive-latency/session-benchmark.json`에 기록한다.
 `/test/fixtures/thumbnail-render.html`, `code-retention.html`, `code-settlement.html`, `history-workflow.html`로 섬네일·프리뷰 DOM 해제·코드 접기·히스토리를 브라우저에서 확인할 수 있다.
+`/test/fixtures/recommendation-stream.html`은 조기 카드 전달·요청 취소·중단된 페이지 재개·스트리밍 카드 Apply를 실제 Worker로 검증한다.
 이 수치는 브라우저 DOM/paint와 Worker 메시지 왕복을 제외하며 전체 화면 응답 시간을 의미하지 않는다.
 
 이전의 32개 수동 실행 목록은 제거했다. `catalog:check`가 실제 공개 TypeScript 선언에서

@@ -1,6 +1,8 @@
 import { chart } from 'ggaction';
 import { PUBLIC_ACTION_NAMES } from '../src/public-actions.js';
 import { programCode } from './code-view.js';
+import { captureHistorySnapshot, isHistorySnapshot } from './history.js';
+import { freezeResult } from '../src/cache.js';
 
 const publicMethods = new Set(PUBLIC_ACTION_NAMES.filter(name => name !== 'constructor'));
 const metadataKeys = ['setupCalls', 'calls', 'context', 'steps', 'guideCall', 'selection', 'plotData',
@@ -9,6 +11,7 @@ const groups = new Set(['encoding', 'transform', 'style']);
 const fieldTypes = new Set(['quantitative', 'nominal', 'ordinal', 'temporal']);
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const validatedImports = new WeakMap();
+const packedSnapshots = new WeakMap(), trustedPacked = new WeakSet(), normalizedSnapshots = new WeakMap();
 export const PROJECT_FORMAT = 'visualization-autocomplete';
 export const PROJECT_VERSION = 1;
 
@@ -16,10 +19,15 @@ export const PROJECT_VERSION = 1;
 // Previews and rendered SVG caches never become persisted authoring state.
 export function packSession(session) {
   if (!session) return null;
-  return { index: session.index, entries: session.entries.map(snapshot => ({
-    ...Object.fromEntries(metadataKeys.map(key => [key, structuredClone(snapshot[key])])),
-    axesCalls: structuredClone(snapshot.selectionAxes?.calls ?? []),
-  })) };
+  return { index: session.index, entries: session.entries.map(snapshot => {
+    if (packedSnapshots.has(snapshot)) return packedSnapshots.get(snapshot);
+    const trusted = isHistorySnapshot(snapshot);
+    const packed = { ...Object.fromEntries(metadataKeys.map(key =>
+      [key, trusted ? snapshot[key] : structuredClone(snapshot[key])])),
+      axesCalls: structuredClone(snapshot.selectionAxes?.calls ?? []) };
+    if (trusted) { freezeResult(packed); packedSnapshots.set(snapshot, packed); trustedPacked.add(packed); }
+    return packed;
+  }) };
 }
 
 export function createProject(records, activeId, ggaction = null) {
@@ -69,6 +77,8 @@ function normalizeSession(session, names) {
   if (!plain(session) || !Array.isArray(session.entries) || !session.entries.length || session.entries.length > 10000 ||
       !Number.isInteger(session.index) || session.index < 0 || session.index >= session.entries.length) throw new TypeError('Invalid project history position.');
   const entries = session.entries.map(snapshot => {
+    const cached = normalizedSnapshots.get(snapshot)?.get(names);
+    if (cached) return cached;
     if (!plain(snapshot) || !['initial', 'recommendations'].includes(snapshot.phase) || !Number.isInteger(snapshot.steps) || snapshot.steps < 0 ||
         !plain(snapshot.selection) || !Array.isArray(snapshot.setupCalls) || !Array.isArray(snapshot.calls)) throw new TypeError('Invalid project history entry.');
     const axesCalls = snapshot.axesCalls ?? [];
@@ -94,9 +104,14 @@ function normalizeSession(session, names) {
     if (typeof currentNote !== 'string') throw new TypeError('Invalid project action label.');
     // Imported snapshots never get to write arbitrary application state keys.
     // Keep only the same authoring metadata that packSession emits.
-    return { setupCalls: snapshot.setupCalls, calls: snapshot.calls, axesCalls,
+    const normalized = { setupCalls: snapshot.setupCalls, calls: snapshot.calls, axesCalls,
       context: { ...context }, steps: snapshot.steps, guideCall: snapshot.guideCall ?? null,
       selection, plotData, optionGroup, phase: snapshot.phase, currentNote };
+    if (trustedPacked.has(snapshot)) {
+      if (!normalizedSnapshots.has(snapshot)) normalizedSnapshots.set(snapshot, new WeakMap());
+      normalizedSnapshots.get(snapshot).set(names, freezeResult(normalized));
+    }
+    return normalized;
   });
   return { index: session.index, entries };
 }
@@ -127,6 +142,7 @@ export function restoreSession(stored, rows) {
   if (!stored) return null;
   stored = normalizeSession(stored, new Set(rows.flatMap(Object.keys)));
   const cache = new Map([['', chart()]]);
+  const recorded = new Map();
   const replay = calls => {
     let program = cache.get(''), key = '';
     for (const call of calls) {
@@ -145,7 +161,11 @@ export function restoreSession(stored, rows) {
     const calls = [...snapshot.setupCalls, ...snapshot.calls], program = replay(calls);
     const view = snapshot.guideCall ? replay([...calls, snapshot.guideCall]) : program;
     const selectionAxes = snapshot.phase === 'initial' ? { program: replay([...calls, ...axesCalls]), calls: axesCalls } : null;
-    return { ...structuredClone(metadata), program, view, selectionAxes };
+    const shared = values => values.map(call => recorded.get(JSON.stringify(call)) ?? call);
+    const snapshotCopy = captureHistorySnapshot({ ...metadata, setupCalls: shared(metadata.setupCalls),
+      calls: shared(metadata.calls), program, view, selectionAxes });
+    for (const call of [...snapshotCopy.setupCalls, ...snapshotCopy.calls]) recorded.set(JSON.stringify(call), call);
+    return snapshotCopy;
   }) };
 }
 

@@ -1,6 +1,7 @@
 import { regressionContext } from './regression-context.js';
 import { positionScaleContext } from './mark-grain.js';
 import { describeAction, comparePrograms, inspectProgram } from 'ggaction/inspection';
+import { getErrorDetails } from 'ggaction/diagnostics';
 import { renderToSVG } from 'ggaction/svg';
 import { ACTION_METHODS, generateCandidates } from './catalog.js';
 import { CHANNELS, extractFeatures, canonicalChannel, encodingChannel } from './semantics.js';
@@ -118,7 +119,7 @@ function validateUncached(program, candidate) {
         renderStatus: pending ? 'pending-position-encoding' : 'svg-serialized',
         pixelVisibilityChecked: false } };
   } catch (error) {
-    return { ok: false, reason: 'execution', message: error.message };
+    return { ok: false, reason: 'execution', message: error.message, details: getErrorDetails(error) };
   }
 }
 
@@ -391,7 +392,7 @@ export function prepareAction(program, { method, args }) {
     ...(args.target && program.semanticSpec.layers.some(l => l.id === args.target) && !/^edit(?:[XY]|Theta|Radial|Parallel)Axis/.test(method)
       ? { inspectionTarget: { kind: 'mark', id: args.target } } : {}) };
   const check = validateCandidate(program, candidate);
-  if (!check.ok) throw Object.assign(new Error(check.message ?? check.findings?.[0]?.message ?? `Cannot apply action: ${check.reason}`), { reason: check.reason });
+  if (!check.ok) throw Object.assign(new Error(check.message ?? check.findings?.[0]?.message ?? `Cannot apply action: ${check.reason}`), { reason: check.reason, details: check.details });
   const recommendation = freeze({ method, args: structuredClone(args), call: callText(candidate), validation: check.validation });
   issued.set(recommendation, { program, variants: [{ candidate, check }] });
   return { recommendation, preview: check.next };

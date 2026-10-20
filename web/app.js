@@ -15,7 +15,7 @@ import { createPointerMotion } from './pointer-motion.js';
 import { defaultCanvasOptions } from './plot-setup.js';
 import { selectionAxes, selectionData } from './selection-setup.js';
 import { renderDataTable } from './data-table.js';
-import { createHistory, historyLabel, historyPreview } from './history.js';
+import { createHistory, captureHistorySnapshot, historyLabel, historyPreview } from './history.js';
 import { createHistoryView } from './history-view.js';
 import { OPTION_GROUPS, FOLLOWUP_RECOMMENDATION_OPTIONS } from './option-groups.js';
 import { createCalculationClient } from './calculation-client.js';
@@ -53,6 +53,7 @@ let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = fa
 const history = createHistory();
 const recommendationCache = new WeakMap();
 const calculations = createCalculationClient();
+let activeRecommendation = null;
 const galleryCache = new WeakMap();
 const recentGalleries = createLRU(8, view => { galleryCache.delete(view); recommendationCache.delete(view); });
 let mountedGallery = null;
@@ -75,10 +76,9 @@ let pointerChoice = null, pointerCard = null, pointerInGallery = false;
 const tick = () => new Promise(resolve => requestAnimationFrame(resolve));
 
 function historySnapshot(currentNote = elements['current-note'].textContent) {
-  return { program: state.program, view: state.view, phase: state.phase, selectionAxes: state.selectionAxes,
-    ...structuredClone({ setupCalls: state.setupCalls, calls: state.calls, context: state.context,
-      steps: state.steps, guideCall: state.guideCall, selection: state.selection, plotData: state.plotData,
-      optionGroup: state.optionGroup }), currentNote };
+  const snapshot = captureHistorySnapshot(state, currentNote);
+  state.calls = [...snapshot.calls]; state.setupCalls = snapshot.setupCalls;
+  return snapshot;
 }
 
 function updateHistoryButtons() {
@@ -181,7 +181,8 @@ async function restoreHistory(direction) {
   pointerMotion.reset(); cancelChartTransfer();
   saveGallery();
   const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
-  Object.assign(state, structuredClone(metadata), { program, view, selectionAxes: axes, active: null, codeCard: null });
+  Object.assign(state, structuredClone({ ...metadata, calls: [], setupCalls: [] }),
+    { program, view, calls: [...snapshot.calls], setupCalls: snapshot.setupCalls, selectionAxes: axes, active: null, codeCard: null });
   resetCodeView($('code-content'));
   elements.current.dataset.steps = state.steps;
   elements.current.dataset.traceCount = view.trace.children.length;
@@ -741,25 +742,50 @@ function saveGallery() {
   const deck = mountedGallery;
   deck.scrollLeft = elements.cards.scrollLeft;
   for (const card of deck.cards) { setCardExpanded(card, false); card.interaction.reset(); }
-  if (!galleryCache.has(deck.view)) galleryCache.set(deck.view, new Map());
-  const cache = galleryCache.get(deck.view), key = JSON.stringify([deck.group, deck.searchQuery]);
-  cache.delete(key); cache.set(key, deck);
-  if (cache.size > 8) cache.delete(cache.keys().next().value);
+  if (!deck.loading) {
+    if (!galleryCache.has(deck.view)) galleryCache.set(deck.view, new Map());
+    const cache = galleryCache.get(deck.view), key = JSON.stringify([deck.group, deck.searchQuery]);
+    cache.delete(key); cache.set(key, deck);
+    if (cache.size > 8) cache.delete(cache.keys().next().value);
+  }
   for (const row of deck.rows) row.remove();
   mountedGallery = null;
 }
 
-function recommendationResponse(program = state.program, view = state.view, guideCall = state.guideCall, context = state.context, group = state.optionGroup, page = 0, searchQuery = state.searchQuery) {
+function cancelRecommendationWork() {
+  if (!activeRecommendation) return;
+  activeRecommendation = null;
+  calculations.cancelRecommendations().catch(() => {});
+}
+
+function recommendationResponse(program = state.program, view = state.view, guideCall = state.guideCall, context = state.context, group = state.optionGroup, page = 0, searchQuery = state.searchQuery, onProgress) {
   recentGalleries.set(view, true);
   if (!recommendationCache.has(view)) recommendationCache.set(view, new Map());
   const cache = recommendationCache.get(view), key = JSON.stringify([context, group, page, searchQuery]);
+  const previous = cache.get(key);
+  // Returning quickly to an interrupted tab must restart/resume its worker
+  // deck, not attach to the cancelled request while it is still settling.
+  if (previous && !previous.settled && previous !== activeRecommendation) cache.delete(key);
   if (!cache.has(key)) {
-    cache.set(key, calculations.recommend(program, view, guideCall, { ...context, fieldTypes: datasets.get(state.datasetId)?.imported.fieldTypes,
-      ...FOLLOWUP_RECOMMENDATION_OPTIONS }, group, page, searchQuery)
-      .catch(error => { cache.delete(key); throw error; }));
+    const entry = { listeners: new Set(), latest: null, settled: false };
+    activeRecommendation = entry;
+    const remove = () => { if (cache.get(key) === entry) cache.delete(key); };
+    entry.promise = calculations.recommend(program, view, guideCall, { ...context, fieldTypes: datasets.get(state.datasetId)?.imported.fieldTypes,
+      ...FOLLOWUP_RECOMMENDATION_OPTIONS }, group, page, searchQuery, response => {
+        entry.latest = response;
+        for (const listener of entry.listeners) listener(response);
+      }).then(response => { if (response.cancelled) remove(); return response; })
+      .catch(error => { remove(); throw error; }).finally(() => {
+        entry.settled = true; entry.listeners.clear();
+        if (activeRecommendation === entry) activeRecommendation = null;
+      });
+    cache.set(key, entry);
     if (cache.size > 32) cache.delete(cache.keys().next().value);
   }
-  return cache.get(key);
+  const entry = cache.get(key);
+  if (entry.settled) cancelRecommendationWork();
+  if (onProgress) { if (!entry.settled) entry.listeners.add(onProgress); if (entry.latest) onProgress(entry.latest); }
+  return entry.promise;
 }
 
 function recommendationSpecs({ result, profile }) {
@@ -789,6 +815,7 @@ async function updateCards() {
     : 'Hover parameters to preview · click to keep · apply when ready.';
   elements['options-note'].textContent = state.phase === 'initial' ? 'ggaction plot functions' : '';
   if (state.phase === 'initial') {
+    cancelRecommendationWork();
     showPreview(null);
     if (!state.selection.x) {
       elements.cards.dataset.selectedFields = '[]';
@@ -805,9 +832,10 @@ async function updateCards() {
   notice('Preparing options…'); await tick();
   if (generation !== state.generation) return;
   try {
-    const restored = state.phase === 'recommendations' ? galleryCache.get(state.view)?.get(JSON.stringify([state.optionGroup, state.searchQuery])) : null;
+    let restored = state.phase === 'recommendations' ? galleryCache.get(state.view)?.get(JSON.stringify([state.optionGroup, state.searchQuery])) : null;
     let specs = restored?.specs, pageCount = restored?.pageCount, pagination = restored?.pagination;
     if (restored) {
+      cancelRecommendationWork();
       state.cards = restored.cards; state.galleryRows = restored.rows;
       elements.cards.append(...restored.rows); elements.cards.scrollLeft = restored.scrollLeft ?? 0;
     } else if (state.phase === 'initial') {
@@ -823,11 +851,53 @@ async function updateCards() {
     } else {
       elements.cards.dataset.ranking = 'paper-cooccurrence-with-appearance-revisions';
       state.context = focus(state.program, state.context);
-      const response = await recommendationResponse();
+      let pendingCards = Promise.resolve();
+      const progress = response => {
+        pendingCards = pendingCards.then(async () => {
+          if (generation !== state.generation || !response.result.recommendations.length) return;
+          if (!restored) {
+            const row = document.createElement('div'); row.className = 'card-row';
+            row.dataset.page = '1'; row.setAttribute('aria-busy', 'true');
+            for (let i = 0; i < 5; i++) {
+              const space = document.createElement('div'); space.className = 'card-space';
+              if (i < 2) space.classList.add(i === 0 ? 'primary' : 'secondary');
+              space.setAttribute('aria-hidden', 'true'); row.append(space);
+            }
+            state.galleryRows.push(row); elements.cards.append(row);
+            restored = { view: state.view, program: state.program, guideCall: state.guideCall,
+              context: structuredClone(state.context), phase: state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
+              specs: [], pages: new Set(), rows: state.galleryRows, cards: state.cards, pageCount: 1, loading: true };
+            mountedGallery = restored;
+          }
+          const available = recommendationSpecs(response), row = restored.rows[0];
+          for (let index = restored.cards.length; index < available.length; index++) {
+            const card = await createCard(available[index], index);
+            if (generation !== state.generation) return;
+            restored.cards.push(card); row.children[index].replaceWith(card.element);
+            if (!state.active && !card.disabled) selectCard(card, false, false);
+          }
+          restored.specs = available;
+        });
+        // Rejections are observed here even while the worker is still running.
+        pendingCards.catch(() => {});
+      };
+      const response = await recommendationResponse(state.program, state.view, state.guideCall, state.context, state.optionGroup, 0, state.searchQuery, progress);
+      await pendingCards;
       if (generation !== state.generation) return;
+      if (response.cancelled) return;
       specs = recommendationSpecs(response);
       pagination = response.pagination;
       pageCount = response.pagination.pageCount;
+      if (restored) {
+        restored.loading = false; restored.specs = specs; restored.pagination = pagination;
+        restored.pages.add(0); restored.rows[0].setAttribute('aria-busy', 'false');
+        restored.pageCount = pagination.complete ? pagination.pageCount : pagination.pageRanges.length + 1;
+        while (restored.rows.length < restored.pageCount) {
+          const row = document.createElement('div'); row.className = 'card-row';
+          row.dataset.page = restored.rows.length + 1; row.setAttribute('aria-busy', 'true');
+          restored.rows.push(row); elements.cards.append(row);
+        }
+      }
       if (!specs.length) elements['step-description'].textContent = emptyActionsMessage();
     }
     // The worker's pageCount is an upper bound until native validation finishes.
@@ -946,6 +1016,13 @@ async function commit(card) {
   // Apply always uses the pinned settings, never a queued hover from a control
   // the pointer has already left on its way to this button.
   state.committing = true;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true; state.committing = false;
+    elements.cards.inert = false; elements.cards.removeAttribute('aria-busy'); elements.current.removeAttribute('aria-busy');
+    updateHistoryButtons(); updateGalleryNavigation();
+  };
   historyView.release();
   historyView.clear({ restore: false }); historyInspection = null;
   card.request = (card.request ?? 0) + 1;
@@ -1008,14 +1085,13 @@ async function commit(card) {
     renderChart(elements.current, view, 'Current visualization');
     elements['current-note'].textContent = card.title;
     elements['current-note'].title = elements['current-note'].textContent;
+    // The chart is committed. Background recommendation thumbnails must not
+    // lock Undo, groups, search, or already validated cards behind the slowest.
+    release();
     await updateCards();
   } catch (error) { notice(error.message, true); }
   finally {
-    state.committing = false;
-    elements.cards.inert = false;
-    elements.cards.removeAttribute('aria-busy');
-    elements.current.removeAttribute('aria-busy');
-    updateHistoryButtons(); updateGalleryNavigation();
+    release();
   }
 }
 

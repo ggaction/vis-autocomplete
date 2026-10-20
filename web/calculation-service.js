@@ -70,7 +70,8 @@ export function createCalculationService(model) {
     return null;
   };
   return {
-    execute({ type, stateId, nextStateId, baseStateId, snapshot, update, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '' }) {
+    execute({ type, stateId, nextStateId, baseStateId, snapshot, update, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '', batchSize = Infinity }) {
+      if (type === 'cancel-recommendations') return {};
       if (type === 'activate') return { exists: Boolean(states.get(stateId)) };
       if (type === 'state') {
         const program = deserializeProgram(snapshot);
@@ -139,7 +140,8 @@ export function createCalculationService(model) {
           deck.pages.push({ start: deck.pageStart, end: deck.recommendations.length });
           deck.pageStart = deck.recommendations.length;
         };
-        while (deck.pages.length <= page && deck.cursor < ranked.recommendations.length) {
+        let processed = 0;
+        while (deck.pages.length <= page && deck.cursor < ranked.recommendations.length && processed++ < batchSize) {
           const rank = deck.cursor, source = ranked.recommendations[rank];
           // Demotion must survive pagination: never backfill a short new-action
           // page with used actions. Do not validate those until their page opens.
@@ -175,12 +177,13 @@ export function createCalculationService(model) {
         const remaining = complete ? [] : projected.filter(rec => !deck.emitted.has(rec.id) && !deck.unavailable.has(rec.id));
         const remainingApplied = deck.separateApplied ? remaining.filter(rec => rec.previouslyApplied).length : 0;
         const pageCount = deck.pages.length + Math.ceil((remaining.length - remainingApplied) / 5) + Math.ceil(remainingApplied / 5);
-        const range = deck.pages[page] ?? { start: deck.recommendations.length, end: deck.recommendations.length };
+        const pending = deck.pages.length <= page && !complete;
+        const range = deck.pages[page] ?? { start: deck.pageStart, end: deck.recommendations.length };
         return { result: { ...ranked, recommendations: deck.recommendations.slice(0, range.end),
           diagnostics: { ...ranked.diagnostics, hierarchy: Boolean(deck.hierarchy), eligibleGroups: projected.length, validatedCalls: [...diagnostics.validatedCalls],
             rejected: [...diagnostics.rejected], scannedCandidates: deck.cursor } }, profile,
           defaults: deck.defaults.slice(range.start, range.end),
-          pagination: { page, pageSize: 5, pageCount, pageRanges: deck.pages.slice(0, page + 1),
+          pagination: { page, pageSize: 5, pageCount, pageRanges: deck.pages.slice(0, page + 1), pending,
             complete: complete || remaining.length === 0, rankedCandidates: projected.length,
             newActionsExhausted: deck.separateApplied && deck.reachedApplied &&
               deck.recommendations.every(rec => rec.previouslyApplied) } };

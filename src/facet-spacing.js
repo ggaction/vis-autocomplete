@@ -15,6 +15,14 @@ export function fitFacetGap(attempt, requested) {
       return null;
     }
   };
+  // Native layout already measured header lanes. Retry that exact lower bound
+  // before searching; rebuilding every cell at guessed gaps is unnecessary.
+  const details = firstError.details;
+  if (details?.optionPath === 'gap' && Number.isFinite(details.limit) && details.limit > requested && details.limit <= 1024) {
+    const minimum = Math.ceil(details.limit), result = probe(minimum);
+    if (result) return result.value;
+    lower = minimum; upper = Math.max(upper, minimum + 1);
+  }
   // A bounded search runs only after a real collision, through public actions.
   // Keep the first fitting whole-pixel gap and record it in the executable call.
   while (upper <= 1024) {

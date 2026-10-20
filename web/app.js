@@ -10,6 +10,7 @@ import { initializePanelLayout } from './panel-layout.js';
 import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { fitChartViewport } from './chart-viewport.js';
+import { createCanvasResize } from './canvas-resize.js';
 import { createPreviewInteraction } from './preview-interaction.js';
 import { createPointerMotion } from './pointer-motion.js';
 import { createCardMotion } from './card-motion.js';
@@ -43,7 +44,7 @@ const sales = Array.from({ length: 36 }, (_, i) => ({
 
 const state = { initialEngine: null, rows: [], name: '', program: null, base: null,
   phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [], codeCard: null,
-  committing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
+  committing: false, resizing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
   selection: { x: '', y: '', color: '' }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
   optionGroup: 'encoding', searchQuery: '', datasetId: null };
 let cars;
@@ -62,8 +63,8 @@ let svgId = 0;
 const renderedCharts = new WeakMap();
 const chartTemplates = createLRU(8);
 const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
-  getCurrent: () => state.phase === 'initial' ? null : { program: renderedCharts.get(elements.current)?.program, name: state.name },
-  isBusy: () => state.committing, onError: message => notice(message, true) });
+  getCurrent: () => state.phase === 'initial' ? null : { program: state.resizing ? state.view : renderedCharts.get(elements.current)?.program, name: state.name },
+  isBusy: () => state.committing || state.resizing, onError: message => notice(message, true) });
 let historyInspection = null;
 const historyView = createHistoryView($('history'), {
   renderChart, meta: $('history-meta'),
@@ -77,6 +78,35 @@ const cardMotion = createCardMotion();
 let selectedPreviewFrame = null;
 let pointerChoice = null, pointerCard = null, pointerInGallery = false;
 const tick = () => new Promise(resolve => requestAnimationFrame(resolve));
+const canvasResize = createCanvasResize(elements.current, {
+  canStart: () => state.phase !== 'initial' && !state.committing && !state.resizing,
+  start(handle) {
+    leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
+    state.codeCard = null; state.resizing = true; elements.cards.inert = true;
+    updateHistoryButtons(); updateGalleryNavigation();
+    return { base: state.program, view: state.view, guideCall: state.guideCall, resizeTitle: handle.startsWith('canvas') ? 'Resize canvas' : 'Resize plot' };
+  },
+  prepare: (context, action) => calculations.prepare(context.base, context.view, context.guideCall, action, [], { interactive: true }),
+  preview(context, prepared) {
+    renderChart(elements.current, prepared.preview, 'Resize chart');
+    showCode({ ...context, prepared });
+    $('code-mode').textContent = 'Resize chart';
+  },
+  async commit(context, action, retainViewport) {
+    await commit({ ...context, method: action.method, values: {}, build: () => action.args,
+      title: context.resizeTitle,
+      interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true, retainViewport });
+  },
+  cancel(context, error) {
+    state.codeCard = null;
+    renderChart(elements.current, context.view, 'Current visualization'); showCode();
+    if (error && error.reason !== 'no-change') notice(error.message, true);
+  },
+  end() {
+    state.resizing = false; elements.cards.inert = state.committing;
+    updateHistoryButtons(); updateGalleryNavigation();
+  },
+});
 
 function historySnapshot(currentNote = elements['current-note'].textContent) {
   const snapshot = captureHistorySnapshot(state, currentNote);
@@ -85,13 +115,14 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 }
 
 function updateHistoryButtons() {
+  const busy = state.committing || state.resizing;
   chartDownloads.refresh();
-  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = state.committing;
-  $('undo').disabled = state.committing || !history.canUndo;
-  $('redo').disabled = state.committing || !history.canRedo;
-  for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = state.committing;
-  $('action-search').disabled = state.committing;
-  historyView.update(history, state.committing);
+  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
+  $('undo').disabled = busy || !history.canUndo;
+  $('redo').disabled = busy || !history.canRedo;
+  for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = busy;
+  $('action-search').disabled = busy;
+  historyView.update(history, busy);
 }
 
 function updateOptionGroups() {
@@ -163,6 +194,7 @@ $('action-search').addEventListener('keydown', event => {
 });
 
 function mountDataTable() {
+  canvasResize.clear();
   state.tableView?.destroy?.();
   renderedCharts.delete(elements.current);
   chartDownloads.refresh();
@@ -175,7 +207,7 @@ function mountDataTable() {
 }
 
 async function restoreHistory(direction) {
-  if (state.committing) return;
+  if (state.committing || state.resizing) return;
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
   const snapshot = typeof direction === 'number' ? history.jump(direction) : history[direction]();
@@ -212,6 +244,7 @@ function notice(message = '', isError = false) {
 
 function placeholder(host, message) {
   renderedCharts.delete(host);
+  if (host === elements.current) canvasResize.clear();
   if (host === elements.current) chartDownloads.refresh();
   const wrapper = document.createElement('div'); wrapper.className = 'empty-state';
   const text = document.createElement('p'); text.textContent = message;
@@ -259,7 +292,8 @@ function renderChart(host, program, label) {
     if (!svg.hasAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${svg.getAttribute('width')} ${svg.getAttribute('height')}`);
     svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', label);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    if (host.classList.contains('chart-view')) fitChartViewport(svg, program);
+    if (host === elements.current && state.phase !== 'initial') canvasResize.mount(program, svg);
+    else if (host.classList.contains('chart-view')) fitChartViewport(svg, program);
   }
 }
 
@@ -321,12 +355,13 @@ function showPreview(card, { showCodeChange = true } = {}) {
     elements['preview-note'].textContent = ''; elements['preview-note'].title = '';
     showCode(); return;
   }
+  const focusedCard = card?.element?.contains(document.activeElement) && document.activeElement.matches(':focus-visible');
+  if (card && pointerCard !== card && !focusedCard) card = null;
   $('preview-heading').textContent = 'Preview';
   if (!card && state.phase === 'initial') state.codeCard = null;
   showCode(showCodeChange ? card : null);
   if (!card) {
-    if (state.phase === 'initial' && state.selectionAxes) renderChart(elements.preview, state.selectionAxes.program, 'Selected axes');
-    else placeholder(elements.preview, 'Select an option to preview it.');
+    placeholder(elements.preview, '');
     elements['preview-name'].textContent = ''; elements['preview-note'].textContent = ''; elements['preview-note'].title = '';
     return;
   }
@@ -362,28 +397,21 @@ function cancelSelectedPreview() {
   selectedPreviewFrame = null;
 }
 
-function selectCard(card, showCodeChange = true, expand = true) {
-  if (card.disabled || card.base !== state.program) return;
-  // Restoring a gallery also selects its default card, without user input.
-  // Only an interactive option choice releases the history position marker.
-  if (expand) historyView.release();
+function selectCard(card) {
+  if (state.resizing || state.committing || card.disabled || card.base !== state.program) return;
+  historyView.release();
   state.active = card;
-  for (const item of state.cards) {
-    item.element.classList.toggle('selected', item === card);
-  }
-  expandCards(state.cards.map(item => [item, item === card && expand]));
+  for (const item of state.cards) item.element.classList.toggle('selected', item === card);
+  expandCards(state.cards.map(item => [item, item === card]));
   cancelSelectedPreview();
-  const preview = () => {
+  // Start the card movement before mounting the chart and expanded code.
+  selectedPreviewFrame = requestAnimationFrame(() => {
     selectedPreviewFrame = null;
-    if (state.active !== card || card.base !== state.program || (expand && state.committing)) return;
-    showPreview(card, { showCodeChange });
+    if (state.active !== card || card.base !== state.program || state.committing) return;
+    showPreview(card);
     // A canceled hover may have left a newer pinned value waiting for execution.
     card.preparePromise = prepareCard(card, card.values);
-  };
-  // Start the card movement before mounting the chart and expanded code. Both
-  // have independent layouts; doing them in the same frame delays the motion.
-  if (expand) selectedPreviewFrame = requestAnimationFrame(preview);
-  else preview();
+  });
 }
 
 async function prepareCard(card, values = card.values, { interactive = true } = {}) {
@@ -644,7 +672,7 @@ async function createCard(spec, index) {
   card.values = card.normalizeValues?.(card.values) ?? card.values;
   card.controls = card.resolveControls?.(card.values) ?? card.controls;
   card.interaction = createPreviewInteraction({ readPinned: () => card.values,
-    render: values => { if (!state.committing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
+    render: values => { if (!state.committing && !state.resizing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
     requestFrame: requestAnimationFrame, cancelFrame: cancelAnimationFrame });
   if (state.phase === 'initial' && !card.disabled) {
     // Corpus role transfer proposes parameters; the real library decides whether
@@ -728,8 +756,8 @@ async function createCard(spec, index) {
       if (!element.contains(event.relatedTarget) && !pointerInGallery) {
         expandCards([[card, false]]);
         const inspecting = inspectingCode(event.relatedTarget);
-        if (state.phase === 'initial' && !inspecting) state.active = null;
-        showPreview(state.active, { showCodeChange: inspecting });
+        state.active = null;
+        showPreview(null, { showCodeChange: inspecting });
       }
     });
   }
@@ -747,8 +775,8 @@ function updateGalleryNavigation() {
   const page = currentGalleryPage(), count = state.galleryRows.length;
   const pending = mountedGallery?.phase === 'recommendations' && !mountedGallery.pagination.complete;
   $('cards-page').textContent = `${page + 1} / ${pending ? '…' : Math.max(1, count)}`;
-  $('cards-prev').disabled = page === 0 || state.committing;
-  $('cards-next').disabled = page >= count - 1 || state.committing;
+  $('cards-prev').disabled = page === 0 || state.committing || state.resizing;
+  $('cards-next').disabled = page >= count - 1 || state.committing || state.resizing;
   $('cards-prev').closest('nav').hidden = count <= 1;
 }
 
@@ -928,7 +956,6 @@ async function updateCards() {
             const card = await createCard(available[index], index);
             if (generation !== state.generation) return;
             restored.cards.push(card); row.children[index].replaceWith(card.element);
-            if (!state.active && !card.disabled) selectCard(card, false, false);
           }
           restored.specs = available;
         });
@@ -970,8 +997,6 @@ async function updateCards() {
       context: structuredClone(state.context), phase: state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
       specs, pages, rows, cards: state.cards, pageCount: count, pagination };
     mountedGallery = deck;
-    const restoredCard = restored && state.cards.find(card => !card.disabled);
-    if (restoredCard) selectCard(restoredCard, false, false);
     let rendering = Promise.resolve();
     const renderPage = requested => {
       // Keep page construction ordered even if a fast scroll observes several
@@ -1013,7 +1038,6 @@ async function updateCards() {
               specs.splice(index, 1); specs.push(spec); index--; continue;
             }
             state.cards.push(card); fragment.append(card.element);
-            if (state.phase !== 'initial' && !state.active && !card.disabled) selectCard(card, false, false);
             if (state.phase === 'initial') await tick();
           }
           if (generation !== state.generation) return;
@@ -1063,7 +1087,7 @@ function emptyActionsMessage() {
     : `No applicable ${state.optionGroup} actions for this chart yet.`;
 }
 
-async function commit(card) {
+async function commit(card, { direct = false, retainViewport = () => {} } = {}) {
   if (state.committing || card.base !== state.program) return;
   const datasetId = state.datasetId;
   clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
@@ -1127,9 +1151,12 @@ async function commit(card) {
     // Compute the complete next recommendation set while the chart flies.
     const warming = recommendationResponse();
     warming.catch(() => {});
-    renderChart(elements.preview, view, card.title);
-    await transferChart(elements.preview, elements.current,
-      host => renderChart(host, view, card.title));
+    if (!direct) {
+      canvasResize.inherit(card.view, view);
+      renderChart(elements.preview, view, card.title);
+      await transferChart(elements.preview, elements.current, host => renderChart(host, view, card.title));
+    } else retainViewport(view);
+    showPreview(null, { showCodeChange: false });
     if (state.program !== committedProgram) return;
     elements.current.classList.remove('data-view'); state.tableView?.destroy?.(); state.tableView = null;
     $('selection-controls').hidden = true;
@@ -1142,13 +1169,15 @@ async function commit(card) {
     // The chart is committed. Background recommendation thumbnails must not
     // lock Undo, groups, search, or already validated cards behind the slowest.
     release();
-    await updateCards();
+    if (direct) updateCards().catch(error => notice(error.message, true));
+    else await updateCards();
   } catch (error) {
     const unchanged = error.reason === 'no-change';
     const message = unchanged ? 'These settings are already applied.' : error.message;
     card.errorElement.textContent = message;
     card.errorElement.classList.toggle('unchanged', unchanged);
     notice(message, !unchanged);
+    if (direct) { state.codeCard = null; renderChart(elements.current, state.view, 'Current visualization'); showCode(); }
   }
   finally {
     release();
@@ -1322,7 +1351,7 @@ async function openProject(value) {
 // particular, mouseleave/pointerenter caused by animation never collapse or
 // reopen the gallery. All screen positions are tracked, even outside it.
 function routePointer(event) {
-  if (state.committing) return;
+  if (state.committing || state.resizing) return;
   if ($('history').contains(event.target)) {
     if (pointerInGallery) leaveGallery();
     historyView.move(event); return;
@@ -1336,6 +1365,7 @@ function routePointer(event) {
   const card = cardElements.get(event.target.closest('.card'));
   if (card && !card.disabled && (pointerCard !== card || !card.element.classList.contains('expanded'))) selectCard(card);
   pointerCard = card ?? null;
+  if (!card) showPreview(null, { showCodeChange: false });
   card?.interaction.movePointer();
   const button = event.target.closest('.parameter-choice');
   const intent = parameterIntents.get(button);
@@ -1358,8 +1388,8 @@ function leaveGallery() {
     card.interaction.leavePointer();
   }
   expandCards(collapsed);
-  if (state.phase === 'initial' && !inspectingCode()) state.active = null;
-  showPreview(state.active, { showCodeChange: false });
+  state.active = null;
+  showPreview(null, { showCodeChange: false });
 }
 
 const pointerMotion = createPointerMotion({ render: routePointer,

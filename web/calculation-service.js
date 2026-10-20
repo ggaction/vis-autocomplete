@@ -1,3 +1,4 @@
+import { canvasGeometry } from './canvas-geometry.js';
 import { deserializeProgram, serializeProgram } from 'ggaction/persistence';
 import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
 import { getDatasetSchema } from 'ggaction/inspection';
@@ -20,7 +21,7 @@ export function createCalculationService(model) {
     if (artifacts.has(prepared)) return artifacts.get(prepared);
     const value = { recommendation: prepared.recommendation, guideCall: prepared.guideCall,
       prerequisiteCalls: prepared.prerequisiteCalls, postActionCalls: prepared.postActionCalls,
-      preview: { svg: renderToSVG(prepared.preview, { resourceNamespace: 'worker-preview' }),
+      preview: { canvasGeometry: canvasGeometry(prepared.preview), svg: renderToSVG(prepared.preview, { resourceNamespace: 'worker-preview' }),
         semanticSpec: { layers: prepared.preview.semanticSpec.layers, coordinates: prepared.preview.semanticSpec.coordinates } } };
     artifacts.set(prepared, value); return value;
   };

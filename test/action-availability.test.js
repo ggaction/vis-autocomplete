@@ -94,7 +94,9 @@ test('facet stays in Encoding and supports real source actions, guide edits, lay
     const start=prepareGuidedAction(raw,{method,args:editor.build(valuesFor(editor.controls))},view);
     assert.ok(Object.keys(start.preview.children).length>1);
     assert.equal(start.preview.trace.children.at(-1).op,'createGuides');
-    const next=engine.recommend(start.preview,{target:'plot',...FOLLOWUP_RECOMMENDATION_OPTIONS,authoringProgram:start.authoringPreview});
+    // Audit every callable action, including details represented by a parent
+    // in the normal hierarchy deck (and directly accessible through search).
+    const next=engine.recommend(start.preview,{target:'plot',...FOLLOWUP_RECOMMENDATION_OPTIONS,hierarchy:false,authoringProgram:start.authoringPreview});
     assert.ok(next.recommendations.some(r=>r.method==='editFacetScales'));
     for(const sourceMethod of ['encodeOpacity','createMarkLabels','editXAxisLabels','createStatisticalReference']) {
       const sourceRec=next.recommendations.find(r=>r.sourceMethod===sourceMethod);

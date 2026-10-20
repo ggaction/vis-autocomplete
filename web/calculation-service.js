@@ -7,6 +7,7 @@ import { createLRU, signature } from '../src/cache.js';
 import { profileDataset } from '../src/profile.js';
 import { recommendationParameters, valuesFor, buildRecommendationCall } from './parameters.js';
 import { filterActionRecommendations, normalizeSearchQuery } from '../src/action-search.js';
+import { createHierarchyProjection } from '../src/action-hierarchy.js';
 
 // Both worker roles use the exact public native calls and the shared preparer.
 export function createCalculationService(model) {
@@ -98,7 +99,7 @@ export function createCalculationService(model) {
             const data = target?.data ?? options?.data;
             const names = new Set(getDatasetSchema(view, { ...(data ? { data } : {}) }).schema.fields.map(field => field.name));
             const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => names.has(name)));
-            original = rankings.set(rankingKey, engine.rank(view, { ...options, fieldTypes, group }));
+            original = rankings.set(rankingKey, engine.rank(view, { ...options, fieldTypes, group, hierarchy: false }));
           }
           const matches = filterActionRecommendations(original.recommendations, query);
           const ranked = { ...original, recommendations: matches, diagnostics: { ...original.diagnostics,
@@ -106,27 +107,42 @@ export function createCalculationService(model) {
           const available = new Set(getDatasetSchema(view, { data: ranked.state.data }).schema.fields.map(f => f.name));
           const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => available.has(name)));
           deck = decks.set(key, { ranked, profile: profileDataset(view, ranked.state.data, fieldTypes), cursor: 0,
+            // Searching is an explicit request for the fine-grained action;
+            // it bypasses promotion and still uses the same cached raw ranking.
+            hierarchy: options?.hierarchy && !query ? createHierarchyProjection(matches, program) : null,
+            emitted: new Set(), unavailable: new Set(),
             recommendations: [], defaults: [], diagnostics: { validatedCalls: [], rejected: [] } });
         }
         const { ranked, profile, diagnostics } = deck;
         while (deck.recommendations.length < (page + 1) * 5 && deck.cursor < ranked.recommendations.length) {
-          const recommendation = ranked.recommendations[deck.cursor++];
-          try {
-            const next = prepareDefault(program, view, recommendation, profile, diagnostics);
-            if (!next) continue;
-            deck.recommendations.push(next.recommendation);
-            deck.defaults.push({ action: next.action, prepared: next.prepared });
-          } catch (error) {
-            diagnostics.rejected.push({ method: recommendation.method, reason: 'parameters', message: error.message });
+          const rank = deck.cursor++, source = ranked.recommendations[rank];
+          for (const candidate of deck.hierarchy?.choices(source) ?? [source]) {
+            // A valid displayed ancestor covers later descendants too. An
+            // invalid ancestor does not: try the next ancestor or the leaf.
+            if (deck.unavailable.has(candidate.id)) continue;
+            if (deck.emitted.has(candidate.id)) break;
+            const recommendation = deck.hierarchy?.promote(candidate, source, rank) ?? candidate;
+            try {
+              const next = prepareDefault(program, view, recommendation, profile, diagnostics);
+              if (!next) { deck.unavailable.add(candidate.id); continue; }
+              deck.emitted.add(candidate.id);
+              deck.recommendations.push(next.recommendation);
+              deck.defaults.push({ action: next.action, prepared: next.prepared });
+              break;
+            } catch (error) {
+              deck.unavailable.add(candidate.id);
+              diagnostics.rejected.push({ method: recommendation.method, reason: 'parameters', message: error.message });
+            }
           }
         }
-        const remaining = ranked.recommendations.length - deck.cursor;
+        const projected = deck.hierarchy?.project(deck.unavailable) ?? ranked.recommendations;
+        const remaining = projected.filter(rec => !deck.emitted.has(rec.id) && !deck.unavailable.has(rec.id)).length;
         return { result: { ...ranked, recommendations: deck.recommendations.slice(0, (page + 1) * 5),
-          diagnostics: { ...ranked.diagnostics, validatedCalls: [...diagnostics.validatedCalls],
+          diagnostics: { ...ranked.diagnostics, hierarchy: Boolean(deck.hierarchy), eligibleGroups: projected.length, validatedCalls: [...diagnostics.validatedCalls],
             rejected: [...diagnostics.rejected], scannedCandidates: deck.cursor } }, profile,
           defaults: deck.defaults.slice(page * 5, (page + 1) * 5),
           pagination: { page, pageSize: 5, pageCount: Math.ceil((deck.recommendations.length + remaining) / 5),
-            complete: remaining === 0, rankedCandidates: ranked.recommendations.length } };
+            complete: remaining === 0, rankedCandidates: projected.length } };
       }
       throw new Error(`Unknown calculation request: ${type}`);
     },

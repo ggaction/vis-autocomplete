@@ -3,5 +3,6 @@ export { trainCooccurrenceModel, scoreCandidate } from './model.js';
 export { extractFeatures } from './semantics.js';
 export { profileDataset } from './profile.js';
 export { ACTION_METHODS } from './catalog.js';
+export { ACTION_HIERARCHY, createHierarchyProjection } from './action-hierarchy.js';
 export { createInitialChartRecommender, retrieveInitialEvidence } from './initial-recommender.js';
 export { describeDataset } from './dataset-profile.js';

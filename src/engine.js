@@ -13,6 +13,7 @@ import { createProgramResultCache } from './program-cache.js';
 import { prepareGuidedAction } from './prepare.js';
 import { optionGroup } from './recommendation-groups.js';
 import { variantPreference } from './parameter-defaults.js';
+import { createHierarchyProjection } from './action-hierarchy.js';
 
 const validations = new WeakMap();
 const recentValidations = createLRU(12, program => validations.delete(program));
@@ -191,7 +192,7 @@ export function createRecommendationEngine(model) {
     },
     recommend(program, options = {}) {
       const { limit = 5, category, includeRevisions = false, excludeMappedChannels = [], excludeAppliedEncodings = false } = options;
-      const { group, validationMode = 'full', deprioritizeAppliedActions = false } = options;
+      const { group, validationMode = 'full', deprioritizeAppliedActions = false, hierarchy = false } = options;
       if (group !== undefined && !['encoding', 'transform', 'style'].includes(group)) throw new TypeError('Unknown recommendation group.');
       if (!['full', 'deferred'].includes(validationMode)) throw new TypeError('Unknown validation mode.');
       const deferred = validationMode === 'deferred';
@@ -199,6 +200,7 @@ export function createRecommendationEngine(model) {
       if (typeof includeRevisions !== 'boolean') throw new TypeError('includeRevisions must be boolean.');
       if (typeof excludeAppliedEncodings !== 'boolean') throw new TypeError('excludeAppliedEncodings must be boolean.');
       if (typeof deprioritizeAppliedActions !== 'boolean') throw new TypeError('deprioritizeAppliedActions must be boolean.');
+      if (typeof hierarchy !== 'boolean') throw new TypeError('hierarchy must be boolean.');
       if (!Array.isArray(excludeMappedChannels) || excludeMappedChannels.some(channel => !CHANNELS.includes(channel))) {
         throw new TypeError('excludeMappedChannels must list known encoding channels.');
       }
@@ -332,13 +334,18 @@ export function createRecommendationEngine(model) {
       // paper score. This is presentation order, shared by eager and paged UI.
       ranked.sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) ||
         b.score - a.score || a.id.localeCompare(b.id, 'en'));
+      const displayed = hierarchy ? createHierarchyProjection(ranked, options.authoringProgram ?? program).project() : ranked;
+      if (hierarchy && !deferred) for (const recommendation of displayed) {
+        const original = ranked.find(value => value.id === recommendation.id);
+        issued.set(recommendation, issued.get(original));
+      }
       return freeze({
         state: { target: context.layer?.id ?? null, data: context.profile.id,
           datasetType: options.datasetType ?? context.profile.datasetType,
           rowCount: context.profile.rowCount, fields: structuredClone(context.profile.fields), features },
         model: { method: model.method, chartCount: model.chartCount, provenance: structuredClone(model.provenance) },
-        recommendations: ranked.slice(0, limit),
-        diagnostics: { eligibleGroups: ranked.length, rejected, unchanged, establishedChannels, appliedChannels, validationMode,
+        recommendations: displayed.slice(0, limit),
+        diagnostics: { eligibleGroups: displayed.length, rawRankedGroups: ranked.length, hierarchy, rejected, unchanged, establishedChannels, appliedChannels, validationMode,
           candidateCoverage: [...candidateCoverage.values()].sort((a, b) => a.method.localeCompare(b.method)),
           corpusActions: model.actionEvidence?.methods.map(record => ({ method: record.method, charts: record.charts,
             ...corpusActionPolicy(record.method), candidates: ranked.filter(r => r.method === record.method ||

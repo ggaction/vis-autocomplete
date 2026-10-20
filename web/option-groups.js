@@ -11,7 +11,7 @@ export const OPTION_GROUPS = Object.freeze([
 // New actions come first; already-used actions stay available on later pages.
 // Keep paper scores and validate only the currently requested group/page.
 export const FOLLOWUP_RECOMMENDATION_OPTIONS = Object.freeze({
-  limit: 1000, includeRevisions: true, deprioritizeAppliedActions: true,
+  limit: 1000, includeRevisions: true, deprioritizeAppliedActions: true, hierarchy: true,
 });
 
 export function groupRecommendations(recommendations, limit = 5) {

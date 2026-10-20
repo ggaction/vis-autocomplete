@@ -1,6 +1,8 @@
 import { describeAction } from 'ggaction/inspection';
 import { profileDataset } from './profile.js';
 import { encodingFeature } from './semantics.js';
+import { chartOwner } from './chart-owner.js';
+import { ownedChartCandidates } from './owned-chart-candidates.js';
 
 const categorical = type => ['nominal', 'ordinal'].includes(type);
 const choices = values => values.map(value => ({ value, label: value }));
@@ -8,21 +10,7 @@ const positionMethods = { x: 'encodeX', y: 'encodeY', x2: 'encodeX2', y2: 'encod
 
 // Domain-owned derived coordinates must be edited through their semantic owner,
 // not by swapping a density/quantile/bin boundary for another generated column.
-export function positionOwner(program, layer) {
-  const config = program.markConfigs[layer.id] ?? {};
-  if (config.intervalPlot) return { method: 'editErrorBar', target: config.intervalPlot.intervalId,
-    config: program.markConfigs[config.intervalPlot.intervalId].errorBar };
-  for (const [key, method] of Object.entries({ boxPlot: 'editBoxPlot', violinPlot: 'editViolinPlot',
-    gradientPlot: 'editGradientPlot', endpointPlot: 'editEndpointPlot', ecdfPlot: 'editECDFPlot' })) {
-    if (config[key]) return { method, config: config[key] };
-  }
-  const dataset = program.semanticSpec.datasets.find(d => d.id === layer.data);
-  const transform = dataset?.transform?.[0];
-  if (['bin2d', 'horizon'].includes(transform?.type)) return {
-    method: { bin2d: 'editBin2DData' }[transform.type] ?? null, dataset, transform,
-  };
-  return null;
-}
+export const positionOwner = chartOwner;
 
 export function positionCandidates(program, { layer, profile }) {
   if (!layer || layer.source || positionOwner(program, layer)) return [];
@@ -53,6 +41,17 @@ export function positionCandidates(program, { layer, profile }) {
       if (mark === 'area' && encoding[`${channel}2`] && f.type !== 'quantitative') return false;
       if (mark === 'line' && channel === 'y' && categorical(f.type) &&
           !categorical(encoding.x?.fieldType) && encoding.x?.fieldType !== 'temporal' && !encoding.x?.bin) return false;
+      if (mark === 'line' && channel === 'x' && encoding.y?.aggregate && categorical(f.type)) {
+        const seriesFields = encoding.group?.fields ?? (encoding.group?.field ? [encoding.group.field]
+          : categorical(encoding.color?.fieldType) ? [encoding.color.field] : []);
+        const positions = new Map();
+        for (const row of rows) {
+          const key = JSON.stringify(seriesFields.map(field => row[field]));
+          if (!positions.has(key)) positions.set(key, new Set());
+          positions.get(key).add(row[f.name]);
+        }
+        if ([...positions.values()].some(values => values.size < 2)) return false;
+      }
       if (channel === 'radius') return f.type === 'quantitative' && (mark !== 'arc' || rows.every(r => Number.isFinite(r[f.name]) && r[f.name] >= 0));
       if (measured && channel === 'theta') return categorical(f.type);
       if (supportedTypes && !supportedTypes.includes(f.type)) return false;
@@ -99,16 +98,28 @@ export function positionCandidates(program, { layer, profile }) {
 // Rebind source variables at the facade that owns all dependent marks/data.
 export function ownedPositionCandidates(program, { layer, profile }) {
   if (!layer) return [];
-  const target = layer.id, owner = positionOwner(program, layer), out = [];
+  const owner = positionOwner(program, layer), target = owner?.target ?? layer.id;
+  const out = ownedChartCandidates(program, { layer, profile, owner });
   const parameter = (path, label, value, fields) => ({ path, label, value, type: 'select', choices: choices(fields) });
   const add = (method, args, parameters, feature, label) => out.push({ method, args, parameters, category: 'encoding', feature, label });
   if (owner?.config && owner.method !== 'editBoxPlot') {
     const config = owner.config, source = profileDataset(program, config.source);
     const q = source.fields.filter(f => f.usable && f.type === 'quantitative').map(f => f.name);
     const categories = source.fields.filter(f => f.usable && ['nominal', 'ordinal'].includes(f.type)).map(f => f.name);
-    if (['editViolinPlot', 'editGradientPlot'].includes(owner.method)) {
+    if (owner.method === 'editRaincloudPlot') {
+      const categoryFields = [...new Set([config.category.field, ...categories])];
+      for (const category of categoryFields) for (const field of q.filter(f => f !== category)) {
+        add(owner.method, { target, category: { field: category, fieldType: category === config.category.field ? config.category.fieldType : 'nominal' },
+          value: { field, fieldType: 'quantitative' },
+          ...(config.color?.field === config.category.field ? { color: { ...config.color, field: category } } : {}) },
+        [{ ...parameter('category.field', 'Category', category, categoryFields),
+          ...(config.color?.field === config.category.field ? { alsoSet: ['color.field'] } : {}) },
+          parameter('value.field', 'Measure', field, q)],
+        'encoding.raincloudRoles', 'Edit raincloud variables');
+      }
+    } else if (['editViolinPlot', 'editGradientPlot'].includes(owner.method)) {
       const categoryAxis = config.orientation === 'horizontal' ? 'y' : 'x', valueAxis = categoryAxis === 'x' ? 'y' : 'x';
-      const categoryFields = [...new Set([config.category, ...categories])];
+      const categoryFields = [...new Set([config.category, ...categories])].filter(field => field !== config.split?.field);
       for (const category of categoryFields) for (const field of q.filter(f => f !== category)) {
         const args = { target, [categoryAxis]: { field: category, fieldType: category === config.category ? config.categoryType : 'nominal' },
           [valueAxis]: { field, fieldType: 'quantitative' } };
@@ -117,8 +128,6 @@ export function ownedPositionCandidates(program, { layer, profile }) {
             { ...parameter(`${valueAxis}.field`, 'Measure', field, q), distinctFrom: `${categoryAxis}.field` }],
           `action.${owner.method}`, 'Edit distribution variables');
       }
-    } else if (owner.method === 'editECDFPlot') {
-      for (const field of q) add(owner.method, { target, field }, [parameter('field', 'Variable', field, q)], 'action.editECDFPlot', 'ECDF variable');
     } else if (owner.method === 'editErrorBar') {
       const valueAxis = config.orientation === 'vertical' ? 'y' : 'x', categoryAxis = valueAxis === 'y' ? 'x' : 'y';
       const positions = source.fields.filter(f => f.usable && f.type === config.positionFieldType).map(f => f.name);

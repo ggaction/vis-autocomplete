@@ -70,7 +70,7 @@ export function getPlotDefinitions(profile) {
   const colored = value => value ? { color: value } : {};
   const definitions = [];
   const add = (method, controls, build, requirement = null) => {
-    if (controls.length > 3) throw new Error('A starting chart exposes at most three controls.');
+    if (controls.length > 4) throw new Error('A starting chart exposes at most four controls.');
     definitions.push({ method, title: names[method][0], description: names[method][1],
       controls, requirement,
       build: values => ({ id: 'plot', data: profile.id, ...build(values) }) });
@@ -102,7 +102,9 @@ export function getPlotDefinitions(profile) {
   add('createBoxPlot', [...catMeasure(), select('whisker', 'Whiskers', enums(['tukey', 'minmax']))],
     v => ({ x: cat(v.category), y: { field: v.value }, whisker: { type: v.whisker } }), needGroups);
   const bandwidth = () => select('bandwidth', 'Bandwidth', enums(['auto', '1', '5', '10', '20']), 'auto');
-  const density = v => ({ bandwidth: v.bandwidth === 'auto' ? 'auto' : Number(v.bandwidth) });
+  const density = v => ({ bandwidth: v.bandwidth === 'auto' ? 'auto' : Number(v.bandwidth),
+    ...(v.kernel ? { kernel: v.kernel } : {}), ...(v.normalization ? { normalization: v.normalization } : {}),
+    ...(v.densitySide ? { side: v.densitySide } : {}) });
   add('createViolinPlot', [...catMeasure(), bandwidth()],
     v => ({ x: cat(v.category), y: { field: v.value, fieldType: 'quantitative' }, density: density(v) }), needGroups);
   add('createDensityPlot', [select('field', 'Variable', qc), select('group', 'Group', optional(cc), ''), bandwidth()],
@@ -110,19 +112,23 @@ export function getPlotDefinitions(profile) {
   add('createGradientPlot', [...catMeasure(), bandwidth()],
     v => ({ x: cat(v.category), y: { field: v.value }, density: density(v) }), needGroups);
   add('createRegressionPlot', [...xy(), select('method', 'Model', enums(['linear', 'polynomial', 'loess', 'exp']))],
-    v => ({ x: v.x, y: v.y, method: v.method }), needPair);
+    v => ({ x: v.x, y: v.y, method: v.method,
+      ...(v.method === 'polynomial' && v.degree !== undefined ? { degree: v.degree } : {}),
+      ...(v.method === 'loess' ? { span: v.span ?? .5, robustIterations: v.robustIterations ?? 0 } : {}),
+      ...(['linear', 'polynomial'].includes(v.method) && v.interval !== undefined ? { interval: v.interval } : {}) }), needPair);
   add('createIntervalPlot', [...catMeasure(), number('level', 'Confidence level', 0.95, 0.5, 0.99, 0.01)],
     v => ({ x: cat(v.category), y: { field: v.value, center: 'mean', extent: 'ci', level: v.level } }), needGroups);
   for (const method of ['createDotPlot', 'createLollipopPlot']) {
-    add(method, [...catMeasure(), aggregate()], v => ({ category: v.category, value: v.value, summary: v.aggregate }), needGroups);
+    add(method, [...catMeasure(), aggregate()], v => ({ category: v.category, value: v.value, summary: v.aggregate,
+      ...(method === 'createLollipopPlot' && v.baseline !== undefined ? { baseline: v.baseline } : {}) }), needGroups);
   }
   add('createDumbbellPlot', [select('category', 'Category', cc), select('start', 'Start', qc, first), select('end', 'End', qc, second)],
     v => ({ category: v.category, start: v.start, end: v.end, summary: 'mean' }), needGroups || needPair);
   add('createECDFPlot', [select('field', 'Variable', qc), select('group', 'Group', optional(cc), ''),
-    number('width', 'Line width', 2, 0.5, 5, 0.5)],
-    v => ({ field: v.field, ...(v.group ? { groupBy: v.group, color: v.group } : {}), line: { strokeWidth: v.width } }), needQ);
+    select('weight', 'Weight', optional(qc), '')],
+    v => ({ field: v.field, ...(v.group ? { groupBy: v.group, color: v.group } : {}), ...(v.weight ? { weight: v.weight } : {}) }), needQ);
   add('createStripPlot', [...catMeasure(), number('jitter', 'Jitter width', 0.2, 0, 0.45, 0.05)],
-    v => ({ x: cat(v.category), y: v.value, jitter: { maxOffset: { band: v.jitter }, seed: 7 } }), needGroups);
+    v => ({ x: cat(v.category), y: v.value, jitter: v.jitter === 0 ? false : { maxOffset: { band: v.jitter }, seed: 7 } }), needGroups);
   add('createBeeswarmPlot', [...catMeasure(), number('radius', 'Point radius', 3, 1, 6, 0.5)],
     v => ({ x: cat(v.category), y: v.value, point: { radius: v.radius }, packing: { overflow: 'overlap' } }), needGroups);
   add('createRaincloudPlot', [...catMeasure(), select('side', 'Density side', enums(['before', 'after']))],

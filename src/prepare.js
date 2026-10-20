@@ -76,7 +76,7 @@ export function prepareGuidedAction(program, action, view = program, setupCalls 
   return prepared;
 }
 
-function prepareUncached(program, action, view, setupCalls) {
+function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   let actionBase = program;
   const prerequisiteCalls = [];
   for (const setup of setupCalls) {
@@ -92,6 +92,16 @@ function prepareUncached(program, action, view, setupCalls) {
   const sourceAction = action.method === 'editFacetSource' ? { method: action.args.action.method, args: action.args.action.options } : action;
   const sourceCall = (method, args) => action.method === 'editFacetSource'
     ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
+  if (['encodeX', 'encodeY', 'encodeHistogram'].includes(sourceAction.method)) {
+    const layer = actionBase.semanticSpec.layers.find(l => l.id === sourceAction.args.target);
+    const rows = actionBase.semanticSpec.datasets.find(d => d.id === layer?.data)?.values ?? [];
+    if (layer && ['point', 'bar', 'rect', 'rule', 'tick', 'text'].includes(layer.mark.type) &&
+        layer.mark.missing !== 'skip' && rows.some(row => row[sourceAction.args.field] == null)) {
+      const method = `edit${layer.mark.type[0].toUpperCase()}${layer.mark.type.slice(1)}Mark`;
+      const call = sourceCall(method, { target: layer.id, missing: 'skip' });
+      actionBase = actionBase[call.method](call.args); prerequisiteCalls.push(call);
+    }
+  }
   if (['encodeX', 'encodeY'].includes(sourceAction.method)) {
     const layer = actionBase.semanticSpec.layers.find(l => l.id === sourceAction.args.target);
     const fit = actionBase.markConfigs[layer?.id]?.regression;
@@ -163,6 +173,23 @@ function prepareUncached(program, action, view, setupCalls) {
   };
   let prepared;
   try { prepared = prepareFittedPlot(actionBase, action, finish); } catch (error) {
+    if (!repairs.sharedLegend && actionBase.compositionSpec?.facet &&
+        /^(Shared facet legend requires|Facet child .*incompatible resolved legend scale)/.test(error.message)) {
+      // A shared legend is a presentation policy, not a prerequisite for color
+      // removal, independent scales, or another statistical layer. Preserve a
+      // compatible explicit owner when possible; otherwise release the owner.
+      const target = sourceAction.args.target ?? actionBase.semanticSpec.layers[0]?.id;
+      let lastError = error;
+      for (const legend of [{ target, channels: ['color'] }, false]) {
+        try {
+          const call = { method: 'editFacetGuides', args: { legend } };
+          const base = actionBase.editFacetGuides(call.args);
+          const result = prepareUncached(base, action, base, [], { ...repairs, sharedLegend: true });
+          return { ...result, prerequisiteCalls: [...prerequisiteCalls, call, ...result.prerequisiteCalls] };
+        } catch (failure) { lastError = failure; }
+      }
+      throw lastError;
+    }
     if (facetSpacingCollision(error) && actionBase.compositionSpec?.spacing === 'plot') {
       // A later header/axis edit can need more room than the existing gap.
       // Keep that edit available, with an explicit native layout prerequisite
@@ -176,22 +203,46 @@ function prepareUncached(program, action, view, setupCalls) {
       return { ...fitted.prepared, actionBase: fitted.base, prerequisiteCalls };
     }
     const polar = error.message.match(/^(Theta|Radial) axis labels require sufficient/i)?.[1];
-    if (polar && ['encodeTheta', 'encodeR', 'editThetaScale', 'editRScale'].includes(sourceAction.method)) {
+    if (polar) {
+      if (sourceAction.method === 'editAxes' || new RegExp(`^edit${polar}Axis`).test(sourceAction.method)) {
+        let lastError = error;
+        for (const count of [4, 3, 2]) {
+          const args = structuredClone(sourceAction.args);
+          if (sourceAction.method === 'editAxes') {
+            const channel = polar === 'Radial' ? 'radius' : 'theta';
+            const fit = entry => ({ ...entry, ticksAndLabels: { ...entry?.ticksAndLabels, count } });
+            args[channel] = Array.isArray(args[channel]) ? args[channel].map(fit) : fit(args[channel]);
+          } else if (sourceAction.method.endsWith('Labels') || sourceAction.method.endsWith('TicksAndLabels')) args.count = count;
+          else args.ticksAndLabels = { ...args.ticksAndLabels, count };
+          const fitted = sourceCall(sourceAction.method, args);
+          try { return { ...finish(prepareAction(actionBase, fitted)), actionBase, prerequisiteCalls }; }
+          catch (failure) { lastError = failure; }
+        }
+        throw lastError;
+      }
       const axis = polar === 'Radial' ? 'radius' : 'theta';
       const semantic = actionBase.semanticSpec.guides.axis?.[axis], config = actionBase.guideConfigs.axis?.[axis];
       if (!semantic || !config) throw error;
       const remove = sourceCall(`remove${polar}Axis`, {});
       actionBase = actionBase[remove.method](remove.args); prerequisiteCalls.push(remove);
-      const edited = prepareAction(actionBase, action);
       let lastError = error;
       for (const count of [4, 3, 2]) {
-        const call = sourceCall(`create${polar}Axis`, fittedPolarAxisOptions(edited.preview, sourceAction.args.target, axis, semantic, config, count));
-        try { prepared = finish(edited, [call]); break; } catch (failure) { lastError = failure; }
+        try {
+          prepared = prepareFittedPlot(actionBase, action, edited => {
+            const args = fittedPolarAxisOptions(edited.preview, sourceAction.args.target, axis, semantic, config, count);
+            const call = edited.preview.compositionSpec?.facet
+              ? { method: 'editFacetSource', args: { action: { method: `create${polar}Axis`, options: args } } }
+              : sourceCall(`create${polar}Axis`, args);
+            return finish(edited, [call]);
+          });
+          break;
+        } catch (failure) { lastError = failure; }
       }
       if (!prepared) throw lastError;
       return { ...prepared, actionBase, prerequisiteCalls };
     }
-    const axis = error.message.match(/([xy])-axis labels overlap/i)?.[1]?.toLowerCase();
+    const axis = error.message.match(/([xy])-axis (?:labels overlap|title (?:and.*overlap|overlaps))/i)?.[1]?.toLowerCase();
+    const staleTicks = /Tick values must be inside the scale domain/.test(error.message);
     if (axis === 'x' && ['editGradientPlot', 'editViolinPlot', 'editBoxPlot'].includes(sourceAction.method)) {
       const call = sourceCall('editXAxisLabels', { rotation: { value: 90, unit: 'degrees' } });
       actionBase = actionBase[call.method](call.args);
@@ -199,19 +250,23 @@ function prepareUncached(program, action, view, setupCalls) {
       prepared = prepareFittedPlot(actionBase, action, finish);
       return { ...prepared, actionBase, prerequisiteCalls };
     }
-    if (!axis || !['encodeX', 'encodeY', 'editXScale', 'editYScale'].includes(sourceAction.method)) throw error;
-    const resources = Object.entries(actionBase.semanticSpec.guides.axis ?? {}).filter(([id, value]) => (value.channel ?? id) === axis);
+    if (!axis && !staleTicks) throw error;
+    const resources = Object.entries(actionBase.semanticSpec.guides.axis ?? {}).filter(([id, value]) =>
+      staleTicks ? actionBase.guideConfigs.axis[id]?.ticks?.mode === 'values' : (value.channel ?? id) === axis);
     if (!resources.length) throw error;
     const configs = resources.map(([id, semantic]) => ({ id, semantic, config: actionBase.guideConfigs.axis[id] }));
-    for (const { id } of configs) {
-      const call = sourceCall(axis === 'x' ? 'removeXAxis' : 'removeYAxis', { target: id });
+    for (const { id, semantic } of configs) {
+      const call = sourceCall((semantic.channel ?? id) === 'x' ? 'removeXAxis' : 'removeYAxis', { target: id });
       actionBase = actionBase[call.method](call.args); prerequisiteCalls.push(call);
     }
     const edited = prepareAction(actionBase, action);
     let lastError = error;
-    for (const count of [6, 4, 3]) {
-      const calls = configs.map(saved => sourceCall(axis === 'x' ? 'createXAxis' : 'createYAxis',
-        fittedAxisOptions(edited.preview, sourceAction.args.target, axis, saved, count)));
+    for (const count of [6, 4, 3, 2]) {
+      const calls = configs.map(saved => {
+        const channel = saved.semantic.channel ?? saved.id;
+        return sourceCall(channel === 'x' ? 'createXAxis' : 'createYAxis',
+          fittedAxisOptions(edited.preview, sourceAction.args.target, channel, saved, count));
+      });
       try { prepared = finish(edited, calls); break; } catch (error) { lastError = error; }
     }
     if (!prepared) throw lastError;
@@ -221,11 +276,13 @@ function prepareUncached(program, action, view, setupCalls) {
 
 function fittedPolarAxisOptions(program, target, axis, semantic, config, count) {
   const pick = (object, names) => Object.fromEntries(names.filter(name => object?.[name] !== undefined).map(name => [name, structuredClone(object[name])]));
-  const layer = program.semanticSpec.layers.find(layer => layer.id === target);
+  const layer = program.semanticSpec.layers.find(layer => layer.id === target) ??
+    program.semanticSpec.layers.find(layer => layer.coordinate === semantic.coordinate);
   const scale = layer?.encoding[axis]?.scale ?? semantic.scale;
   const domain = program.resolvedScales[scale]?.domain ?? [];
   const discrete = ['nominal', 'ordinal'].includes(layer?.encoding[axis]?.fieldType);
   const title = pick(config.title, ['text', 'offset', 'position', 'color', 'fontSize', 'fontFamily', 'fontWeight']);
+  if (config.title?.inferredOffset) delete title.offset;
   if (config.title?.inferredText) delete title.text;
   else if (semantic.title !== undefined) title.text = semantic.title;
   return { scale, coordinate: semantic.coordinate, ...(axis === 'radius' ? { angle: config.layout?.angle ?? 90 } : {}),
@@ -247,15 +304,17 @@ function fittedAxisOptions(program, target, axis, { id, semantic, config }, coun
   const domain = program.resolvedScales[scale]?.domain ?? [];
   const discrete = ['nominal', 'ordinal'].includes(layer?.encoding[axis]?.fieldType);
   const labels = pick(config.labels, ['offset', 'format', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'maxWidth', 'wrap', 'lineHeight', 'alongOffset', 'labelMap', 'flush', 'colorMap', 'align']);
-  labels.rotation = axis === 'x' ? { value: 90, unit: 'degrees' } : { value: config.labels?.rotation ?? 0, unit: 'radians' };
+  labels.rotation = axis === 'x' && discrete ? { value: 90, unit: 'degrees' } : { value: config.labels?.rotation ?? 0, unit: 'radians' };
   const title = pick(config.title, ['text', 'at', 'offset', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'alongOffset', 'align', 'baseline']);
+  if (config.title?.inferredOffset) delete title.offset;
   if (config.title?.inferredText) delete title.text;
   else if (semantic.title !== undefined) title.text = semantic.title;
   if (!config.title?.inferredRotation) title.rotation = { value: config.title?.rotation ?? 0, unit: 'radians' };
   return { id, scale, coordinate: semantic.coordinate, position: config.line?.position ?? config.labels?.position,
     ...(config.frame?.offset !== undefined ? { offset: config.frame.offset } : {}),
     line: config.line ? pick(config.line, ['color', 'lineWidth']) : false,
-    ticksAndLabels: config.labels || config.ticks ? { ...(discrete ? { values: domain.filter((_, index) => index % Math.ceil(domain.length / count) === 0) } : { count }),
+    ticksAndLabels: config.labels || config.ticks ? { ...(discrete ? { values: domain.filter((_, index) => index % Math.ceil(domain.length / count) === 0) }
+      : count <= 2 && domain.length === 2 ? { values: [...new Set(domain)] } : { count }),
       ticks: config.ticks ? pick(config.ticks, ['length', 'color', 'lineWidth', 'alongOffset', 'strokeDash', 'strokeDashMap']) : false,
       labels: config.labels ? labels : false } : false, title: config.title ? title : false };
 }
@@ -280,16 +339,22 @@ function prepareFittedPlot(program, action, finish = value => value) {
       return finish(prepareAction(program, { ...action, args }));
     }
   }
-  if (!/^create.*(?:Plot|Heatmap|ParallelCoordinates)$/.test(action.method)) return finish(prepareAction(program, action));
+  if (!/^create.*(?:Plot|Histogram|Heatmap|ParallelCoordinates)$/.test(action.method)) return finish(prepareAction(program, action));
   let lastError;
   try { return finish(prepareAction(program, action)); } catch (error) { lastError = error; }
   if (!/label|text|overlap|Canvas space/i.test(lastError.message)) throw lastError;
-  const rows = program.semanticSpec.datasets.find(d => d.id === action.args.data)?.values ?? [];
+  const data = program.semanticSpec.datasets.find(d => d.id === action.args.data) ??
+    (program.semanticSpec.datasets.length === 1 ? program.semanticSpec.datasets[0] : undefined);
+  const rows = data?.values ?? [];
   for (const count of [6, 4, 3]) {
     const args = structuredClone(action.args);
     if (args.guides === false) throw lastError;
     args.guides = { ...args.guides, axes: { ...args.guides?.axes } };
     const bindings = { x: args.x, y: args.y };
+    if (action.method === 'createHistogram') {
+      bindings.x = { field: args.field, fieldType: 'quantitative' };
+      bindings.y = { field: args.field, fieldType: 'quantitative' };
+    }
     if (['createDotPlot', 'createLollipopPlot', 'createDumbbellPlot', 'createRaincloudPlot'].includes(action.method)) {
       bindings[args.orientation === 'horizontal' ? 'y' : 'x'] = { field: args.category, fieldType: 'nominal' };
       bindings[args.orientation === 'horizontal' ? 'x' : 'y'] = { field: args.value ?? args.start, fieldType: 'quantitative' };

@@ -157,6 +157,7 @@ export const PUBLIC_ACTION_NAMES = Object.freeze([
   "editParallelScale",
   "editPointMark",
   "editRScale",
+  "editRadarPlot",
   "editRadialAxis",
   "editRadialAxisLabels",
   "editRadialAxisLine",

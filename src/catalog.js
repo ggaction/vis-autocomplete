@@ -18,7 +18,13 @@ export function generateCandidates(program, { layer, profile, actionEvidence }) 
 }
 
 function candidateRecipes(program, { layer, profile, actionEvidence }) {
-  const candidates = [...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile }), ...corpusCandidates(program, { layer, profile }, actionEvidence)];
+  const candidates = [...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile })];
+  // Corpus defaults already feed the parameter editors. A second opaque preset
+  // card must not bypass the same mark's coordinate/grain-aware editor.
+  const editors = new Set(candidates.filter(candidate => /^edit.*Mark$/.test(candidate.method))
+    .map(candidate => `${candidate.method}:${candidate.args.target}`));
+  candidates.push(...corpusCandidates(program, { layer, profile }, actionEvidence)
+    .filter(candidate => !editors.has(`${candidate.method}:${candidate.args.target}`)));
   const add = (method, feature, category, label, args, inspectionTarget) => {
     candidates.push({ method, feature, category, label, args, inspectionTarget });
   };

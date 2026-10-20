@@ -3,6 +3,7 @@ import { hasChartContext } from './chart-context.js';
 import { describeAction } from 'ggaction/inspection';
 import { preferVisualFields } from './profile.js';
 import { actionFeatures } from './semantics.js';
+import { chartOwner } from './chart-owner.js';
 
 // Recipes describe useful values; the library's target/type inspection owns
 // compatibility. Every mark uses this path, including derived and non-Cartesian
@@ -18,6 +19,8 @@ export function appearanceCandidates(program, { layer, profile }) {
   if (!layer) return [];
   const target = layer.id, inspectionTarget = { kind: 'mark', id: target };
   const encoding = layer.encoding ?? {}, mark = layer.mark.type;
+  const owner = chartOwner(program, layer);
+  const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
   if (!hasChartContext(program, layer)) return [];
   const rows = program.semanticSpec.datasets.find(d => d.id === profile.id)?.values ?? [];
   const fields = preferVisualFields(profile.fields.filter(f => f.usable), 'color');
@@ -41,6 +44,10 @@ export function appearanceCandidates(program, { layer, profile }) {
     const types = descriptor.parameterDefinitions.find(p => p.path === 'fieldType')?.choices ?? [];
     const hasField = descriptor.parameterDefinitions.some(p => p.path === 'field');
     for (const field of hasField ? fields : []) {
+      // Horizon hue is owned by signed bands and their two palettes. Its folded
+      // bookkeeping columns are not new user variables for a path color scale.
+      if (owner?.method === 'editHorizon' && channel === 'color') continue;
+      if (raincloud && channel === 'color' && field.name !== raincloud.category.field) continue;
       if (!types.includes(field.type)) continue;
       if (channel === 'size' && field.type !== 'quantitative') continue;
       if (channel === 'shape' && (field.distinct < 2 || field.distinct > 6)) continue;
@@ -55,9 +62,9 @@ export function appearanceCandidates(program, { layer, profile }) {
         } else if (!constantIn(field.name, group)) continue;
         if (mark === 'line' && channel === 'color' && !['nominal', 'ordinal'].includes(field.type)) continue;
       }
-      if (mark === 'arc' && channel === 'color' && ['nominal', 'ordinal'].includes(encoding.theta?.fieldType) &&
+      if (mark === 'arc' && ['color', 'stroke', 'opacity', 'strokeWidth', 'strokeDash'].includes(channel) && ['nominal', 'ordinal'].includes(encoding.theta?.fieldType) &&
           !constantIn(field.name, [encoding.theta.field])) {
-        unavailableField(method, field, 'Each sector needs one color value. Choose a field constant within its category.'); continue;
+        unavailableField(method, field, 'Each sector needs one value. Choose a field constant within its category, or Fixed mode.'); continue;
       }
       if (mark === 'bar' && ['stroke', 'opacity', 'strokeWidth', 'strokeDash'].includes(channel) && !cells.constant(field.name)) {
         unavailableField(method, field, 'Needs one value per displayed bar cell. Choose a field constant within the category/series, or Fixed mode.'); continue;
@@ -66,7 +73,7 @@ export function appearanceCandidates(program, { layer, profile }) {
         unavailableField(method, field, 'Continuous color needs an aggregate bar without an existing categorical color layout. Remove the current color mapping first.'); continue;
       }
       const aggregateBar = mark === 'bar' && (encoding.x?.aggregate || encoding.y?.aggregate);
-      const args = { target, field: field.name, fieldType: field.type };
+      const args = { target: raincloud && channel === 'color' ? raincloud.id : target, field: field.name, fieldType: field.type };
       if (mark === 'bar' && channel === 'color' && field.type === 'quantitative' && aggregateBar) args.aggregate = aggregateBar;
       if (channel === 'opacity') args.scale = { range: [.25, 1] };
       if (channel === 'strokeWidth') {
@@ -79,7 +86,7 @@ export function appearanceCandidates(program, { layer, profile }) {
     // Two distinct constants ensure a native default/no-op cannot erase a
     // supported function when no field mapping is valid for this data grain.
     if (fixedValues && descriptor.parameterDefinitions.some(p => p.path === 'value')) for (const value of fixedValues) {
-      out.push({ method, args: { target, value }, feature: actionFeatures(method, { value })[0], category: 'encoding',
+      out.push({ method, args: { target: raincloud && channel === 'color' ? raincloud.id : target, value }, feature: actionFeatures(method, { value })[0], category: 'encoding',
         label: `Fixed ${channel}`, inspectionTarget });
     }
   }

@@ -4,7 +4,7 @@
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
     "branch": "codex/edit-axes-autocomplete",
-    "commit": "2076478e807d9ac5c8cf6901529b51f9b8343afe",
+    "commit": "f9b67f80a51ca94312e43ee606652398157492e4",
     "modified": false
   },
   "policy": "one-existing-public-ggaction-method-per-recommendation",
@@ -1976,6 +1976,12 @@
     },
     {
       "method": "editRScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editRadarPlot",
       "runtime": true,
       "publicTypeDeclaration": true,
       "inspectionDescriptor": true

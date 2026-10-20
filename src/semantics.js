@@ -110,6 +110,10 @@ export function extractFeatures(program, { target, data, datasetType = 'tabular'
     const node = entry.op === 'editFacetSource' && entry.args.action
       ? { op: entry.args.action.method, args: entry.args.action.options ?? {} } : entry;
     const otherMark = target && node.args.target && program.semanticSpec.layers.some(l => l.id === node.args.target) && node.args.target !== target;
+    if (node.op === 'createAnnotation' && (!target || !node.args.source || node.args.source === target) &&
+        program.semanticSpec.layers.some(layer => layer.id === (node.args.id ?? 'annotation'))) {
+      features.add('action.createAnnotation');
+    }
     const channel = encodingChannel(node.op);
     const owner = node.args.target ?? target ?? '*';
     if (channel && CHANNELS.includes(channel)) {

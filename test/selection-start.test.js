@@ -9,6 +9,7 @@ import { selectionAxes, selectionData } from '../web/selection-setup.js';
 import { prepareGuidedAction, defaultCanvasOptions, addDefaultGuides } from '../web/plot-setup.js';
 import { programCode, codeCallBlocks } from '../web/code-view.js';
 import { deriveLineSeries } from '../vendor/ggaction/src/grammar/lineSeries.js';
+import { initialParameters, activeControls } from '../web/parameters.js';
 
 const rows = JSON.parse(readFileSync(new URL('../web/data/cars.json', import.meta.url)));
 const model = JSON.parse(readFileSync(new URL('../data/initial-model.json', import.meta.url)));
@@ -65,7 +66,7 @@ test('unselected columns cannot affect initial chart ranking, neighbors or fixed
     assert.deepEqual(a.query.fields.map(field => field.name).sort(), a.selectedFields.toSorted());
     assert.deepEqual(a.recommendations.map(r => [r.method, r.score, r.build(r.values)]),
       b.recommendations.map(r => [r.method, r.score, r.build(r.values)]));
-    assert.ok(a.recommendations.every(r => r.controls.length <= 3 &&
+    assert.ok(a.recommendations.every(r => activeControls(initialParameters(r).controls, r.values).length <= 4 &&
       !r.controls.some(control => ['x', 'y', 'category', 'value', 'color'].includes(control.key))));
     assert.deepEqual(a.recommendations.map(r => r.setup(r.values)), b.recommendations.map(r => r.setup(r.values)));
     for (const r of a.recommendations) if (color) assert.equal(r.build(r.values).color.field, r.colorBinField ?? color);
@@ -299,7 +300,9 @@ test('regression switches between actual Color-group models and one pooled model
   const p = base(rows), profile = profileDataset(p, 'dataset'), chosen = { ...selection, color: 'Origin' };
   const setup = selectionData(p, profile, rows, chosen);
   const rec = engine.recommend(rows, { ...profile, id: setup.data }, { selection: chosen }).recommendations.find(r => r.method === 'createRegressionPlot');
-  assert.deepEqual(rec.controls.map(c => c.key), ['method', 'fit']);
+  assert.deepEqual(activeControls(initialParameters(rec).controls, rec.values).map(c => c.key), ['method', 'fit', 'interval']);
+  assert.ok(rec.controls.some(c => c.key === 'degree'));
+  assert.ok(rec.controls.some(c => c.key === 'span'));
   assert.equal(rec.values.fit, 'group');
   for (const method of rec.controls.find(c => c.key === 'method').choices.map(c => c.value)) {
     for (const fit of ['group', 'all']) {
@@ -367,7 +370,7 @@ test('three continuous variables offer Cartesian and polar/parallel plot types w
     ].sort());
     assert.deepEqual(result.selectedFields, [chosen.x, chosen.y, color]);
     for (const rec of result.recommendations) {
-      assert.ok(rec.controls.length <= 3, rec.method);
+      assert.ok(activeControls(initialParameters(rec).controls, rec.values).length <= 4, rec.method);
       const args = rec.build(rec.values), calls = rec.setup(rec.values);
       const prepared = prepareGuidedAction(selected.program, { method: rec.method, args }, selected.program, calls);
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);

@@ -11,7 +11,7 @@ const directXY = new Set(['createScatterPlot', 'createLinePlot', 'createBarPlot'
   'createHeatmap', 'createRegressionPlot', 'createHorizonPlot', 'createTextPlot']);
 const colorMethods = new Set(['createScatterPlot', 'createLinePlot', 'createBarPlot', 'createAreaPlot',
   'createRegressionPlot', 'createTextPlot', 'createStripPlot', 'createBeeswarmPlot', 'createIntervalPlot',
-  'createViolinPlot', 'createRaincloudPlot']);
+  'createViolinPlot', 'createRaincloudPlot', 'createBoxPlot', 'createGradientPlot']);
 const aggregateChoices = ['mean', 'median', 'sum', 'min', 'max'];
 const choice = (key, label, choices, value) => ({ key, label, type: 'select',
   choices: choices.map(item => typeof item === 'string' ? { value: item, label: item } : item), value });
@@ -63,6 +63,7 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
     if (method === 'createViolinPlot' && color && color.name !== category.name &&
         (!categorical(color) || color.distinct !== 2)) { omit('violin-split-requires-two-categories'); continue; }
     if (method === 'createRaincloudPlot' && color && color.name !== category.name) { omit('raincloud-color-must-match-position-category'); continue; }
+    if (['createBoxPlot', 'createGradientPlot'].includes(method) && color && color.name !== category.name) { omit('distribution-color-must-match-position-category'); continue; }
     if (method === 'createIntervalPlot' && color && color.name !== category.name && !categorical(color) && !isContinuousField(color)) {
       omit('color-cannot-identify-interval-groups'); continue;
     }
@@ -79,16 +80,22 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
     if (['createLinePlot', 'createAreaPlot'].includes(method) && color?.name === x.name && !binnedColor) {
       omit('color-groups-have-one-x-position'); continue;
     }
-    let groupedFitSupported = true;
+    let groupedFitSupported = true, regressionOptions;
     if (['createLinePlot', 'createAreaPlot', 'createRegressionPlot'].includes(method)) {
-      const series = new Map();
+      const series = new Map(), counts = new Map();
       for (const row of complete) {
         const key = color && categorical(color) ? row[color.name] : '';
         if (!series.has(key)) series.set(key, new Set());
         series.get(key).add(row[x.name]);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
       }
       const groups = [...series.values()];
       groupedFitSupported = groups.every(values => values.size >= 2);
+      if (method === 'createRegressionPlot') regressionOptions = {
+        all: { minDistinctX: new Set(complete.map(row => row[x.name])).size, minRows: complete.length },
+        group: { minDistinctX: Math.min(...groups.map(values => values.size)), minRows: Math.min(...counts.values()) },
+        positiveY: complete.every(row => row[y.name] > 0),
+      };
       // One sparse series does not invalidate every other path. Regression can
       // also fit all observations when a per-series fit is underdetermined.
       if (method !== 'createRegressionPlot' && groups.every(values => values.size < 2)) {
@@ -151,6 +158,24 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
     if (method === 'createRegressionPlot' && color && categorical(color)) {
       controls.push(choice('fit', 'Fit', [{ value: 'group', label: `By ${color.name}`, disabled: !groupedFitSupported },
         { value: 'all', label: 'All observations' }], groupedFitSupported ? 'group' : 'all'));
+    }
+    if (method === 'createRegressionPlot') {
+      controls.push(
+        { key: 'degree', label: 'Degree', type: 'number', value: 2, min: 1, max: Math.min(6, x.distinct - 1), step: 1, whenPath: { path: 'method', values: ['polynomial'] } },
+        { key: 'span', label: 'Span', type: 'number', value: .5, min: .1, max: 1, step: .05, whenPath: { path: 'method', values: ['loess'] } },
+        { key: 'robustIterations', label: 'Robust iterations', type: 'number', value: 0, min: 0, max: 5, step: 1, whenPath: { path: 'method', values: ['loess'] } },
+        { ...choice('interval', 'Interval', [{ value: false, label: 'None' }, { value: 'mean', label: 'Mean confidence' }, { value: 'prediction', label: 'Prediction' }], false),
+          whenPath: { path: 'method', values: ['linear', 'polynomial'] } },
+      );
+    }
+    if (['createViolinPlot', 'createGradientPlot'].includes(method)) {
+      controls.push(choice('kernel', 'Kernel', ['gaussian', 'epanechnikov', 'uniform', 'triangular'], 'gaussian'),
+        choice('normalization', 'Density', [{value:'unit',label:'Normalized density'},{value:'count',label:'Count weighted density'}], 'unit'));
+      if (method === 'createViolinPlot' && (!color || color.name === category.name)) controls.push(choice('densitySide', 'Density side', categorical(x) ? ['both','left','right'] : ['both','top','bottom'], 'both'));
+    }
+    if (method === 'createLollipopPlot') {
+      const values = complete.map(row => row[measure.name]), low = Math.min(0, ...values), high = Math.max(1, ...values);
+      controls.push({ key: 'baseline', label: 'Baseline', type: 'number', value: 0, min: low, max: high, step: Number(((high-low)/100).toPrecision(3)) });
     }
     // Use native encoding aggregation whenever supported. Numeric-X line/bar use
     // X bins and a Y aggregate directly; area/horizon need a summary dataset.
@@ -268,7 +293,8 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
       colorStrategy: binnedColor ? 'ordered-intervals' : aggregatedHeatmap ? 'cell-aggregate' : 'native' });
     definitions.push({ ...definition, controls, build, setup, binField: summarizes && binsX || binnedHeatmap ? binField : undefined,
       yBinField: binnedHeatmap ? yBinField : undefined, colorBinField: binnedColor ? colorBinField : undefined,
-      requirement, semanticDefaults: eventCounts && ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) ? { aggregate: 'sum' } : undefined, selection: { ...selection } });
+      requirement, regressionOptions,
+      semanticDefaults: eventCounts && ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) ? { aggregate: 'sum' } : undefined, selection: { ...selection } });
   }
   for (const definition of extraDefinitions) {
     const existing = eligibility.find(item => item.method === definition.method);

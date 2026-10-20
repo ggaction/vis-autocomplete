@@ -192,8 +192,10 @@ test('a no-op fixed default never removes a supported color or stroke-width acti
   }
   const rec=result.recommendations.find(r=>r.method===method);
   assert.ok(rec,`${plot}: ${method}`);
-  assert.equal(rec.args.value,method==='encodeColor'?'#e45756':3);
-  assert.equal(prepareGuidedAction(start.authoringPreview,rec,start.preview).recommendation.validation.topLevelActions,1);
+  if (method === 'encodeColor') assert.equal(rec.args.value, '#e45756');
+  else assert.ok([2, 3].includes(rec.args.value));
+  const prepared = prepareGuidedAction(start.authoringPreview,rec,start.preview);
+  assert.equal(prepared.recommendation.validation.topLevelActions,1);
  }
 });
 

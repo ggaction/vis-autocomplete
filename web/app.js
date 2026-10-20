@@ -1,7 +1,8 @@
 import { chart } from 'ggaction';
 import { renderToSVG } from 'ggaction/svg';
 import { createInitialChartRecommender, profileDataset } from '../src/index.js';
-import { recommendationParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
+import { recommendationParameters, initialParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
+import { primaryChartLayer } from '../src/chart-owner.js';
 import { programCode, renderCode, resetCodeView, displayedCode } from './code-view.js';
 import { initializeCodeToolbar } from './code-toolbar.js';
 import { initializePanelLayout } from './panel-layout.js';
@@ -265,11 +266,7 @@ function makeBase(rows = state.rows) {
 
 function focus(program, preferred = {}) {
   if (!program.semanticSpec.layers.length) return preferred.data ? { data: preferred.data } : { data: 'dataset' };
-  const layers = program.semanticSpec.layers;
-  const old = layers.find(layer => layer.id === preferred.target);
-  const root = layers.find(layer => layer.id === 'plot');
-  const nonempty = layers.find(layer => program.semanticSpec.datasets.find(d => d.id === layer.data)?.values?.length);
-  return { target: (old ?? root ?? nonempty ?? layers[0]).id };
+  return { target: primaryChartLayer(program, preferred.target).id };
 }
 
 function inspectingCode(focusTarget = document.activeElement) {
@@ -809,7 +806,7 @@ async function updateCards() {
     } else if (state.phase === 'initial') {
       const profile = { ...state.profile, id: state.plotData };
       const result = state.initialEngine.recommend(state.rows, profile, { selection: state.selection });
-      specs = result.recommendations;
+      specs = result.recommendations.map(initialParameters);
       elements.cards.dataset.ranking = 'selected-columns-similar-dataset-chart-frequency';
       elements.cards.dataset.neighborCount = result.neighbors.length;
       elements.cards.dataset.selectedFields = JSON.stringify(result.selectedFields);

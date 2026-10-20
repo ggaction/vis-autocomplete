@@ -66,11 +66,11 @@ test('mixed-purpose functions follow the card intent, not the function prefix', 
 // compound-chart children and corpus style variants. New methods require an
 // explicit expected group here rather than silently inheriting a wrong tab.
 const expected = Object.fromEntries(Object.entries({
-  encoding: `editECDFPlot editEndpointPlot editFacetScales editGradientPlot editViolinPlot
+  encoding: `editECDFPlot editEndpointPlot editFacetScales editGradientPlot editViolinPlot editRadarPlot
     encodeAngle encodeBarWidth encodeColor encodeGroup encodeOpacity encodeParallelCoordinates
     encodeR encodeShape encodeSize encodeStroke encodeStrokeDash encodeStrokeWidth encodeText
     encodeTheta encodeX2 encodeXOffset encodeY2 facet facetGrid createMarkLabels orderCategories encodePathOrder`,
-  transform: `createRegression createStatisticalReference editBin2DData editRegression filterMarks jitterPoints layoutSeries packPoints`,
+  transform: `createRegression createStatisticalReference editBin2DData editRegression editDensity filterMarks jitterPoints layoutSeries packPoints`,
   style: `createAnnotation createTitle editAxes editGrid editLegend editCompositionLayout
     editArcMark editAreaMark editBarMark editCanvas editCoordinate editErrorBand editFacetGuides editFacetHeaders
     editHorizontalGrid editLegendBlock editLegendBorder editLegendLabels editLegendLayout editLegendSymbols editLegendTitle
@@ -101,6 +101,12 @@ test('all generated chart-family recipes have an audited semantic category', () 
         assert.equal(group, rec.args.innerRadius !== undefined || rec.args.padAngle !== undefined ? 'encoding' : 'style');
       } else if (rec.method === 'editGradientPlot') {
         assert.equal(group, rec.args.density ? 'transform' : rec.args.center ? 'style' : 'encoding');
+      } else if (['editViolinPlot', 'editRaincloudPlot'].includes(rec.method)) {
+        assert.equal(group, rec.args.density ? 'transform' : 'encoding');
+      } else if (rec.method === 'editEndpointPlot') {
+        assert.equal(group, rec.args.summary !== undefined || rec.args.baseline !== undefined ? 'transform' : 'encoding');
+      } else if (rec.method === 'editHorizon') {
+        assert.equal(group, rec.args.palette ? 'encoding' : 'transform');
       } else assert.equal(group, expected[rec.method], rec.method);
     }
   }

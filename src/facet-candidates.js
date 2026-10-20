@@ -18,7 +18,9 @@ export function facetCandidates(program, { layer, profile }) {
       [...(facet.grid ? [] : [number('columns', 'Columns', spec.columns === 1 ? 2 : 1, 1, Math.max(6, Object.keys(program.children).length))]), number('gap', 'Minimum gap', spec.gap === 12 ? 16 : 12, 0, 40)], 'Arrange facets');
     const channels = ['x', 'y', 'color'].filter(c => layer.encoding?.[c]?.scale);
     if (channels.length) {
-      const resolutions = Object.fromEntries(channels.map(c => [c, facet.scales[c] === 'shared' ? 'independent' : 'shared']));
+      const resolutions = Object.fromEntries(channels.map(c => [c, facet.scales[c] ?? 'shared']));
+      const first = channels.find(channel => channel !== 'color') ?? channels[0];
+      resolutions[first] = resolutions[first] === 'shared' ? 'independent' : 'shared';
       add('editFacetScales', 'encoding', resolutions, channels.map(c => select(c, `${c.toUpperCase()} scales`, resolutions[c], ['shared', 'independent'])), 'Facet scales');
     }
     add('editFacetHeaders', 'style', { fontFamily: 'Arial', fontSize: 13, offset: 10 },
@@ -26,8 +28,14 @@ export function facetCandidates(program, { layer, profile }) {
         select('fontWeight', 'Font weight', 'bold', ['normal', 'bold']),
         { path: 'color', label: 'Text color', type: 'color', value: '#555555',
           choices: ['#000000', '#555555', '#9ca3af', '#4c78a8'].map(value => ({ value, label: value })) }], 'Facet headers');
-    if (cartesian) add('editFacetGuides', 'style', { axes: facet.guides.axes === 'outer' ? 'each' : 'outer' },
-      [select('axes', 'Axes', facet.guides.axes === 'outer' ? 'each' : 'outer', ['each', 'outer'])], 'Facet guides');
+    const axes = facet.guides.axes === 'outer' ? 'each' : 'outer';
+    const legend = facet.guides.legend;
+    add('editFacetGuides', 'style', cartesian ? { axes } : { legend: legend === false ? 'shared' : false },
+      [...(cartesian ? [select('axes', 'Axes', axes, ['each', 'outer'])] : []),
+        { path: 'legend', label: 'Legend', type: 'select', value: legend,
+          choices: [{ value: false, label: 'None' }, { value: 'shared', label: 'Shared · right' },
+            { value: { position: 'bottom' }, label: 'Shared · bottom' },
+            { value: { position: 'top' }, label: 'Shared · top' }] }], 'Facet guides');
     return out;
   }
   if (program.compositionSpec || !hasChartContext(program, layer)) return [];

@@ -16,7 +16,11 @@ export function rolePlotDefinitions(profile, selection, rows, { availableProfile
     if(x?.type==='quantitative') for(const method of ['createHistogram','createDensityPlot','createECDFPlot','createRugPlot']) {
       const d=definitions.find(d=>d.method===method),defaults={...defaultValues(d),field:x.name,color:color?.name??'',group:color?.name??''};
       if(color&&!cat(color))continue;
-      const controls=d.controls.filter(c=>!['field','group','color'].includes(c.key));
+      const controls=d.controls.filter(c=>!['field','color'].includes(c.key) && !(c.key==='group' && (color || method!=='createECDFPlot')));
+      for (const control of controls) if (control.key==='weight') control.choices=control.choices.filter(choice=>!choice.value||choice.value!==x.name&&choice.value!==color?.name&&rows.every(r=>Number.isFinite(r[choice.value])&&r[choice.value]>=0)&&rows.some(r=>r[choice.value]>0));
+      if(method==='createDensityPlot')controls.push(
+        {key:'kernel',label:'Kernel',type:'select',value:'gaussian',choices:['gaussian','epanechnikov','uniform','triangular'].map(value=>({value,label:value}))},
+        {key:'normalization',label:'Density',type:'select',value:'unit',choices:[{value:'unit',label:'Normalized density'},{value:'count',label:'Count weighted density'}]});
       add(method,controls,v=>({ ...d.build({...defaults,...v}), ...(method === 'createDensityPlot' ? { steps: Math.max(2, Math.min(100, Math.floor(10000 / (color?.distinct || 1)))) } : {}), ...(method === 'createECDFPlot' ? { guides: { axes: { x: { title: { text: x.name } }, y: { title: { text: 'Cumulative probability' } } } } } : {}) }));
     }
     if(cat(x)) {
@@ -35,7 +39,7 @@ export function rolePlotDefinitions(profile, selection, rows, { availableProfile
   if(category&&(!value||value.type==='quantitative')&&(!color||color.name===category.name)) {
     for(const method of ['createPiePlot','createRosePlot','createRadialBarPlot']) { add(method,[],()=>({category:category.name,...(value?{value:value.name,aggregate:'sum'}:{aggregate:'count'})})); if(value && rows.some(row=>row[value.name]<0))out.at(-1).requirement='Radial magnitude and shares require non-negative values. Use a bar or dot chart for signed measures.'; }
     const others=q.filter(f=>f.name!==value?.name);
-    if(value&&others.length)add('createDumbbellPlot',[choose('end','End value',others)],v=>({data:`${profile.id}-end-values`,category:category.name,start:value.name,end:v.end,summary:'mean',orientation:cat(x)?'vertical':'horizontal'}),v=>[{method:'filterData',args:{id:`${profile.id}-end-values`,source:profile.id,field:v.end,noneOf:[null],nulls:'exclude'}}]);
+    if(value&&others.length)add('createDumbbellPlot',[choose('end','End value',others),{key:'aggregate',label:'Aggregation',type:'select',value:'mean',choices:['mean','median','sum','min','max'].map(value=>({value,label:value}))}],v=>({data:`${profile.id}-end-values`,category:category.name,start:value.name,end:v.end,summary:v.aggregate,orientation:cat(x)?'vertical':'horizontal'}),v=>[{method:'filterData',args:{id:`${profile.id}-end-values`,source:profile.id,field:v.end,noneOf:[null],nulls:'exclude'}}]);
   }
   if(x?.type==='quantitative'&&y?.type==='quantitative') {
     add('createPolarScatterPlot',[],()=>({theta:x.name,radius:y.name,...(color?{color:pos(color)}:{})}));
@@ -48,11 +52,12 @@ export function rolePlotDefinitions(profile, selection, rows, { availableProfile
     const selected=[x.name,y.name];const dimensions={key:'dimensions',label:'Dimensions',type:'multiselect',choices:q.map(f=>({value:f.name,label:f.name})),value:selected,minimum:2};
     add('createParallelCoordinates',[dimensions],v=>({dimensions:v.dimensions,...(color?{color:pos(color)}:{}),line:{opacity:.5}}));
     const ids=all.filter(f=>f.distinct===profile.rowCount&&cat(f));
-    if(q.length>=3&&ids.length&&!color)add('createRadarPlot',[{...dimensions,minimum:3,value:[...new Set([...selected,...q.map(f=>f.name)])].slice(0,3)},choose('identity','Series identity',ids)],v=>({wide:{fields:v.dimensions},groupBy:v.identity,line:{opacity:.5}}));
+    if(q.length>=3&&ids.length&&(!color||cat(color)))add('createRadarPlot',[{...dimensions,minimum:3,value:[...new Set([...selected,...q.map(f=>f.name)])].slice(0,3)},choose('identity','Series identity',ids)],v=>({wide:{fields:v.dimensions},groupBy:v.identity,...(color?{color:pos(color)}:{}),line:{opacity:.5},
+      guides:{axes:{theta:{title:{text:'Dimension'},ticksAndLabels:{values:v.dimensions,labels:{format:'auto',fontFamily:'Arial',fontSize:11}}},radius:{title:{text:'Value'}}}}}));
   }
   if(x&&y&&y.type==='quantitative'&&!color) {
     const lower=q.filter(f=>/lower|low|ci0|lo(?:wer)?bound/i.test(f.name)&&f.name!==y.name),upper=q.filter(f=>/upper|high|ci1|up(?:per)?bound/i.test(f.name)&&f.name!==y.name);
-    if(lower.length&&upper.length)add('createIntervalPlot',[choose('lower','Lower bound',q,lower[0].name),choose('upper','Upper bound',q,upper[0].name)],v=>({data:`${profile.id}-bounds-upper`,x:pos(x),y:{center:y.name,lower:v.lower,upper:v.upper}}),v=>[
+    if(lower.length&&upper.length)add('createIntervalPlot',[{...choose('lower','Lower bound',q.filter(f=>f.name!==y.name),lower[0].name),distinctFrom:'upper'},{...choose('upper','Upper bound',q.filter(f=>f.name!==y.name),upper[0].name),distinctFrom:'lower'}],v=>({data:`${profile.id}-bounds-upper`,x:pos(x),y:{center:y.name,lower:v.lower,upper:v.upper}}),v=>[
       {method:'filterData',args:{id:`${profile.id}-bounds-lower`,source:profile.id,field:v.lower,noneOf:[null],nulls:'exclude'}},
       {method:'filterData',args:{id:`${profile.id}-bounds-upper`,source:`${profile.id}-bounds-lower`,field:v.upper,noneOf:[null],nulls:'exclude'}}]);
   }

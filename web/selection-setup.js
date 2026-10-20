@@ -35,10 +35,20 @@ export function selectionAxes(base, profile, rows, selection = {}) {
     const scale = `selection-${channel}`;
     call('createScale', { id: scale, type: categorical ? 'band' : temporal ? 'time' : 'linear', domain,
       ...(!categorical && !temporal ? { zero: false } : {}) });
-    call(channel === 'x' ? 'createXAxis' : 'createYAxis', { coordinate: 'selection-frame', scale,
+    const axisArgs = { coordinate: 'selection-frame', scale,
       title: field ? { text: field.name, fontFamily: 'Arial' } : false,
       ticksAndLabels: field ? { ...(categorical ? { values: field.guideValues ?? domain } : { count: 5 }),
-        labels: { fontFamily: 'Arial', fontSize: 10, ...(categorical ? { maxWidth: 55, wrap: 'word', overlap: 'allow' } : {}) } } : false });
+        labels: { fontFamily: 'Arial', fontSize: 10, ...(categorical ? { maxWidth: 55, wrap: 'word', overlap: 'allow' } : {}) } } : false };
+    const method = channel === 'x' ? 'createXAxis' : 'createYAxis';
+    try { call(method, axisArgs); } catch (error) {
+      if (categorical || !field || !/axis labels overlap/i.test(error.message)) throw error;
+      // Keep the user's numeric schema. Long epoch-sized numbers need a compact
+      // display, not an implicit conversion to a date or a rejected selection.
+      const fitted = structuredClone(axisArgs);
+      if (!temporal) fitted.ticksAndLabels.labels.format = '.2e';
+      fitted.ticksAndLabels.count = 3;
+      call(method, fitted);
+    }
   }
   return { program, calls };
 }

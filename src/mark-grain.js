@@ -4,6 +4,7 @@ import { resolveBarGrain } from '../vendor/ggaction/src/grammar/bars/policy.js';
 import { deriveBarAggregates } from '../vendor/ggaction/src/grammar/bars/aggregate.js';
 import { deriveHistogramSegments } from '../vendor/ggaction/src/materialization/bars/histogram.js';
 import { applyItemMissingPolicy } from '../vendor/ggaction/src/grammar/itemMissing.js';
+import { resolveHistogramBins } from '../vendor/ggaction/src/grammar/histogram.js';
 const cache = new WeakMap();
 export function barGrain(program, layer) {
   if (!cache.has(program)) cache.set(program, new Map());
@@ -32,9 +33,21 @@ export function canGroupBar(program, layer, field) {
 export function positionScaleContext(program, layer, profile) {
   if (!layer) return {};
   const encoding = layer.encoding ?? {}, mark = layer.mark.type;
+  const endpoint = program.markConfigs[layer.id]?.endpointPlot;
   const grain = mark === 'bar' && encoding.x && encoding.y ? resolveBarGrain(layer) : null;
   const source = program.semanticSpec.datasets.find(d => d.id === profile.id);
+  const nonPositiveBins = Object.fromEntries(['x', 'y'].map(axis => [axis,
+    !encoding[axis]?.bin && !(mark === 'line' && axis === 'x' && encoding.y?.aggregate) ? [] : profile.fields.filter(field => {
+      if (field.type !== 'quantitative') return false;
+      const values = source?.values.map(row => row[field.name]).filter(Number.isFinite) ?? [];
+      if (!values.length) return true;
+      const bin = encoding[axis]?.bin ?? { maxBins: 10 };
+      try { return resolveHistogramBins({ values, bin }).boundaries.some(value => value <= 0); }
+      catch { return true; } // An incompatible explicit bin domain cannot become a valid Log mapping.
+    }).map(field => field.name)]));
   return { zeroBaseline: Object.fromEntries(['x', 'y'].map(axis => [axis,
-    mark === 'bar' && (grain === 'aggregate' && Boolean(encoding[axis]?.aggregate) || grain === 'histogram' && axis === 'y') || mark === 'area' && axis === 'y'])),
+    mark === 'bar' && (grain === 'aggregate' && Boolean(encoding[axis]?.aggregate) || grain === 'histogram' && axis === 'y') || mark === 'area' && axis === 'y' ||
+    endpoint?.kind === 'lollipop' && axis === (endpoint.orientation === 'horizontal' ? 'x' : 'y') && endpoint.roles.baseline <= 0])),
+    nonPositiveBins,
     nonPositiveFields: profile.fields.filter(field => field.type === 'quantitative' && source?.values.some(row => Number.isFinite(row[field.name]) && row[field.name] <= 0)).map(field => field.name) };
 }

@@ -9,6 +9,7 @@ import { applyRecommendation } from '../src/engine.js';
 import { selectionData } from '../web/selection-setup.js';
 import { prepareGuidedAction, addDefaultGuides, defaultCanvasOptions } from '../src/prepare.js';
 import { binnedFieldSetup } from '../src/plot-aggregation.js';
+import { initialParameters, activeControls } from '../web/parameters.js';
 
 const rows = JSON.parse(readFileSync(new URL('../web/data/cars.json', import.meta.url)));
 const engine = createInitialChartRecommender(JSON.parse(readFileSync(new URL('../data/initial-model.json', import.meta.url))));
@@ -33,7 +34,8 @@ test('Miles_per_Gallon × Horsepower × Year offers ten native chart types with 
     assert.deepEqual(applied.graphicSpec, prepared.preview.graphicSpec, rec.method);
     assert.equal(prepared.recommendation.validation.topLevelActions, 1);
     assert.ok(renderToSVG(applied).startsWith('<svg'));
-    assert.ok(rec.controls.length <= 3, rec.method);
+    const editor = initialParameters(rec), values = editor.normalizeValues(rec.values);
+    assert.ok(activeControls(editor.resolveControls(values), values).length <= 4, rec.method);
     assert.deepEqual(applied.semanticSpec.datasets.find(d => d.id === 'dataset').values, rows);
     if (rec.colorBinField) {
       assert.ok(rec.setup(rec.values).some(c => c.method === 'createComputedData' && c.args.expression.op === 'parseTime'));

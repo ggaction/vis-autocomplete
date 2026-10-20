@@ -42,8 +42,8 @@ npm run dev
 - Preview는 **마크가 없는 실제 ggaction 독립 X/Y 축**으로 시작한다. X/Y를 선택하면 해당 축의 눈금과 제목을 표시한다.
   시간형 scale에는 `zero`를 전달하지 않는다. 카드 호버 중에만 완성된 차트를 미리 보고 Apply로 확정한다.
 - X/Y 선택 후 **선택한 2~3개 열만 투영한 데이터 통계**로 기존 유사 데이터셋 추천 엔진을 실행한다.
-  전체 29개 ggaction plot 중 지정한 X/Y/Color를 실제로 표현하는 Cartesian 차트만 제안한다.
-  변수는 표에서 정하고, 초기 차트 카드에는 집계·회귀 모델 등 필요한 구성 파라미터만 표시한다(최대 3개).
+  ggaction plot 중 지정한 변수의 역할을 실제로 표현할 수 있는 차트를 제안한다.
+  변수는 표에서 정하고, 초기 차트 카드에는 집계·회귀 모델 등 필요한 구성 파라미터만 표시한다(보통 3개 이하, 필요한 경우 4개).
   Bar·line·area·horizon은 기본 mean 집계이며 mean / median / sum / min / max를 고를 수 있다.
   Line·bar·area·horizon 모두 수치형 X/Y이면 **X bins (maximum) + Aggregation**을 표시한다.
   같은 X bin과 범주형 Color별로 Y를 집계한다. 가로 bar는 Y 범주와 Color별 X를 집계한다.
@@ -122,6 +122,14 @@ npm run dev
 - Adjust grid의 Cartesian 방향은 **Vertical / Horizontal / Both**다. Both는 한 `editGrid` 호출에서 양쪽 스타일을 수정한다.
   자동 가이드가 한 방향을 생략했다면 실제 `createGrid` 준비 호출을 코드에 표시한 뒤 편집한다.
 - Jitter points는 **X / Y / Both**와 Spread를 제공한다. Both는 한 `jitterPoints({ channel: 'both', maxOffset: { pixels: … } })` 호출로 양 축을 독립적으로 흔든다. 다시 적용할 때 이전 offset은 누적하지 않는다.
+- 복합 차트의 변수·구성 편집은 소유 차트의 공개 함수를 사용한다. Raincloud는 구름·박스·점을 함께 갱신하고,
+  Radar의 차원 목록·순서는 `editRadarPlot({ target, wide: { fields } })`로 바꾼다.
+  Density·Violin의 밀도 설정, Horizon의 밴드·기준선·범위, Endpoint의 집계·기준선,
+  Parallel의 차원별 scale, ECDF의 그룹·가중치도 생성 후 편집할 수 있다.
+  회귀 모델에 따라 degree/span/robust fit/interval이 바뀌며, 선택한 그룹의 유효 표본 수에 맞춰 범위를 제한한다.
+- 분포 차트의 통계는 밀도 격자나 요약 결과 행 대신 원자료 관측치에서 계산한다.
+  변수·필터·방향을 바꿔도 연결된 통계선을 갱신하며, 통계·주석은 검색에서 다시 찾아 여러 번 추가할 수 있다.
+  Horizon의 접힌 Y 좌표에는 원자료 통계선을 제공하지 않는다. 유효한 수치 X 축의 통계는 사용할 수 있다.
 
 UI에서 고른 변수의 역할을 다른 열로 바꾸거나 선택한 Color를 무시하지 않는다.
 X·Y가 수치형이고 Color가 수치형 또는 시간형이면 Scatter / Regression / Text 외에 Line / Area / Bar / Heatmap도 제안한다.
@@ -138,8 +146,9 @@ Heatmap은 X·Y 구간별로 선택한 Color를 기본 mean으로 집계한다(B
 구간화와 집계는 실제 `createBinData` / `createComputedData` / `createSummaryData` 준비 호출로 기록·재실행한다.
 숫자 구간의 마지막 상한을 포함하고, 원본 선택 열과 행을 보존하며, 파생 열 이름 충돌도 피한다.
 Color가 없는 두 수치 열의 heatmap은 기존처럼 셀 빈도를 사용한다. 별도의 범주형 Color는 셀 빈도와 동시에 표현하지 못하므로 제외한다.
-단변량·Polar 차트도 지정한 Cartesian X/Y 역할을 보존하지 못하면 초기 옵션에서 제외한다.
-기존 프로그래밍 API에서 `selection` 없이 호출하는 경우에는 전체 데이터의 29개 plot 및 코퍼스 기반 변수 기본값을 유지한다.
+단변량·Polar·다변량 차트는 해당 차트의 변수 역할과 자료 조건에 따라 제안한다.
+Box·Gradient와 Radar도 초기 Color 선택을 유지하면서 생성할 수 있다.
+기존 프로그래밍 API에서 `selection` 없이 호출하는 경우에는 전체 데이터의 plot 후보 및 코퍼스 기반 변수 기본값을 유지한다.
 차트 선택 이후의 액션 순위와 공동출현 점수는 아래 논문 공식을 그대로 사용한다. 후속 액션의 기본 인자는 기존 데이터 규칙을 사용한다.
 결측값이 있는 열도 변수 선택지에 포함한다. 원본 행과 null은 보존하고, 선택한 열의 결측 행은
 코드 뷰에도 기록되는 실제 ggaction `filterData` 준비 호출로 별도 파생 데이터에서 제외한다.

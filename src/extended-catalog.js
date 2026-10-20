@@ -5,6 +5,9 @@ import { profileDataset, preferVisualFields } from './profile.js';
 import { binnedPositionExpression } from './plot-aggregation.js';
 import { dataEditors } from './action-capabilities.js';
 import { arcMarkCandidates } from './arc-candidates.js';
+import { chartOwner } from './chart-owner.js';
+import { regressionFilterLimits } from './regression-context.js';
+import { editableFilterRows } from './filter-context.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -27,6 +30,14 @@ const aggregateOps = ['mean', 'median', 'sum', 'min', 'max'];
 export function extendedCandidates(program, { layer, profile }) {
   if (!hasChartContext(program, layer)) return [];
   const out = [], target = layer.id, encoding = layer.encoding ?? {}, mark = layer.mark?.type;
+  const owner = chartOwner(program, layer);
+  const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
+  const resourceId = stem => {
+    const used = new Set([...program.semanticSpec.layers.map(item => item.id), ...Object.keys(program.markConfigs)]);
+    let id = stem;
+    for (let n = 2; used.has(id); n++) id = `${stem}${n}`;
+    return id;
+  };
   const fields = profile.fields.filter(f => f.usable), quantitative = fields.filter(f => f.type === 'quantitative');
   const rows = program.semanticSpec.datasets.find(d => d.id === profile.id)?.values ?? [];
   const coordinateType = program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type;
@@ -84,14 +95,6 @@ export function extendedCandidates(program, { layer, profile }) {
   }
 
   if (program.markConfigs[target]?.markFilter) add('removeMarkFilter', 'transform', { target }, [], 'action.removeMarkFilter', 'Restore filtered values');
-  const regression = program.markConfigs[target]?.regression;
-  if (regression) {
-    const method = regression.parameters?.method === 'loess' ? 'linear' : 'loess';
-    add('editRegression', 'transform', { target, method },
-      [choices('method', 'Model', method, ['linear', 'polynomial', 'loess'])],
-      'transform.regression', 'Adjust regression');
-  }
-
   // The style family is based on the real mark type, including heatmap/arc/text/
   // rule/tick marks. A default opacity is not a reason to hide all mark editing.
   const editor = `edit${mark?.[0]?.toUpperCase()}${mark?.slice(1)}Mark`;
@@ -101,7 +104,8 @@ export function extendedCandidates(program, { layer, profile }) {
     const config = program.markConfigs[target] ?? {};
     const parameters = [number('opacity', 'Opacity', opacity, .05, 1, .05)];
     if (mark === 'text') parameters.push(number('fontSize', 'Font size', config.fontSize ?? 12, 8, 24),
-      color('fill', 'Text color', typeof config.fill === 'string' ? config.fill : '#555555'), weight('fontWeight', config.fontWeight ?? 'normal'));
+      ...(!encoding.color ? [color('fill', 'Text color', typeof config.fill === 'string' ? config.fill : '#555555')] : []),
+      weight('fontWeight', config.fontWeight ?? 'normal'));
     else {
       parameters.push(number('strokeWidth', 'Stroke width', config.strokeWidth ?? (['line', 'rule', 'tick'].includes(mark) ? 2 : 0), 0, 6, .25),
         ...(mark === 'line' && encoding.color?.field ? [] : [color('stroke', 'Stroke color', typeof config.stroke === 'string' ? config.stroke : '#000000')]));
@@ -109,7 +113,8 @@ export function extendedCandidates(program, { layer, profile }) {
       else if (['bar', 'rect'].includes(mark)) parameters.push(number('cornerRadius', 'Corner radius', config.cornerRadius ?? 0, 0, 12));
       else if (mark === 'tick') parameters.push(number('length', 'Length', config.length ?? 12, 1, 30));
       else if (mark === 'line' && coordinateType !== 'cartesian') parameters.push(choices('lineJoin', 'Line join', config.lineJoin ?? 'miter', ['miter', 'round', 'bevel']));
-      else if (['line', 'area'].includes(mark)) parameters.push(choices('curve', 'Curve', config.curve ?? 'linear', ['linear', 'step', 'step-before', 'step-after', 'monotone']));
+      else if (['line', 'area'].includes(mark)) parameters.push(choices('curve', 'Curve', config.curve ?? 'linear',
+        ['linear', 'step', 'step-before', 'step-after', ...(!config.ecdfPlot ? ['monotone'] : [])]));
       else parameters.push(dash('strokeDash', config.strokeDash ?? []));
     }
     style(editor, { target, opacity }, parameters.map(p => ({ ...p, omitUnchanged: p.path !== 'opacity',
@@ -119,10 +124,6 @@ export function extendedCandidates(program, { layer, profile }) {
   }
   if (mark === 'text' && !layer.source) for (const field of fields) add('encodeText', 'encoding', { target, field: field.name },
     [choices('field', 'Text', field.name, fields.map(f => f.name))], 'encoding.text');
-  if (coordinateType === 'parallel') {
-    for (const dimension of encoding.parallel?.dimensions ?? []) add('editParallelScale', 'encoding', { target, dimension: dimension.field, reverse: true },
-      [choices('reverse', 'Direction', true, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }])]);
-  }
   if (mark === 'bar') {
     add('encodeBarWidth', 'encoding', { target, pixels: 12 }, [number('pixels', 'Bar width', 12, 2, 40)], 'action.encodeBarWidth');
   }
@@ -134,7 +135,8 @@ export function extendedCandidates(program, { layer, profile }) {
     }
   }
   const group = encoding.group?.field ?? (['nominal', 'ordinal'].includes(encoding.color?.fieldType) ? encoding.color?.field : undefined);
-  if (group && ['bar', 'area'].includes(mark) && !program.markConfigs[target]?.horizon) {
+  if (group && ['bar', 'area'].includes(mark) && !program.markConfigs[target]?.horizon &&
+      !program.markConfigs[target]?.violinPlot) {
     const numericBar = mark === 'bar' && !encoding.x?.bin &&
       !['x', 'y'].some(c => ['nominal', 'ordinal', 'temporal'].includes(encoding[c]?.fieldType));
     if (!numericBar) for (const mode of (mark === 'bar' ? ['group', 'stack', 'fill', 'overlay'] : ['stack', 'fill', 'overlay', 'center'])) {
@@ -151,7 +153,16 @@ export function extendedCandidates(program, { layer, profile }) {
   }
   // Filtering works on final mark items and preserves native aggregation,
   // provenance, scales and dependency replay. No unused filtered dataset.
-  if (!box && program.markConfigs[target]?.itemFilterable !== false && ['point', 'bar', 'rect', 'arc', 'rule', 'tick'].includes(mark)) {
+  if (raincloud) {
+    const data = program.semanticSpec.datasets.find(item => item.id === raincloud.source);
+    for (const field of profileDataset(program, raincloud.source).fields.filter(field =>
+      field.usable && field.complete && ['nominal', 'ordinal'].includes(field.type) && field.distinct > 1 && field.distinct <= 20)) {
+      const values = [...new Set(data.values.map(row => row[field.name]))];
+      add('filterMarks', 'transform', { target: raincloud.id, field: field.name, op: 'eq', value: values[0], mode: 'replace' },
+        [choices('value', `Keep ${field.name}`, values[0], values)], 'transform.filter', 'Filter observations');
+    }
+  }
+  if (!box && !raincloud && program.markConfigs[target]?.itemFilterable !== false && ['point', 'bar', 'rect', 'arc', 'rule', 'tick'].includes(mark)) {
     for (const channel of ['x', 'y']) {
       if (encoding[channel]?.fieldType !== 'quantitative') continue;
       const field = encoding[channel].field;
@@ -204,23 +215,32 @@ export function extendedCandidates(program, { layer, profile }) {
       choices('center', 'Center line', { type }, [{ value: false, label: 'None' }, { value: { type: 'median' }, label: 'Median' }, { value: { type: 'mean' }, label: 'Mean' }]),
     ], 'style.gradientCenter', 'Edit gradient center');
   }
-  const statisticFields = gradient ? profileDataset(program, gradient.source).fields : fields;
+  const sourceData = owner?.source ?? gradient?.source;
+  const statisticFields = sourceData ? profileDataset(program, sourceData).fields : fields;
   const statisticGroups = preferVisualFields(statisticFields.filter(field => field.complete && field.distinct > 1), 'color')
     .map(field => {
-      let visibleItems = gradient ? field.name === gradient.category : !['line', 'area'].includes(mark);
+      let visibleItems = gradient ? field.name === gradient.category : !['line', 'area', 'text'].includes(mark);
       if (visibleItems && mark === 'bar') {
         try { visibleItems = barGrain(program, layer).constant(field.name); }
         catch { visibleItems = false; }
+      }
+      if (visibleItems && sourceData && sourceData !== layer.data) {
+        const itemRows = program.semanticSpec.datasets.find(dataset => dataset.id === layer.data)?.values ?? [];
+        visibleItems = itemRows.length > 0 && itemRows.every(row => Object.hasOwn(row, field.name));
       }
       return { name: field.name, visibleItems };
     });
   for (const axis of ['x', 'y']) {
     if (encoding[axis]?.fieldType !== 'quantitative') continue;
-    add('createStatisticalReference', 'transform', { source: target, axis, population: gradient || ['line', 'area'].includes(mark) ? 'boundData' : 'visibleItems', statistic: { op: 'mean' },
+    if (owner?.statisticalAxes && !owner.statisticalAxes.includes(axis)) continue;
+    add('createStatisticalReference', 'transform', { id: resourceId('statisticalReference'), source: target, axis, population: sourceData || ['line', 'area', 'text'].includes(mark) ? 'boundData' : 'visibleItems', statistic: { op: 'mean' },
       strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
-    out.at(-1).statisticalContext = { series: ['line', 'area'].includes(mark), groupFields: statisticGroups };
+    out.at(-1).statisticalContext = { series: ['line', 'area', 'text'].includes(mark), groupFields: statisticGroups,
+      ...(owner?.statisticalAxes ? { axisChoices: ['x', 'y'].filter(channel => encoding[channel]?.fieldType === 'quantitative')
+        .map(value => ({ value, label: value, disabled: !owner.statisticalAxes.includes(value),
+          reason: owner.statisticalAxes.includes(value) ? undefined : owner.statisticalAxisReason })) } : {}) };
   }
-  if (['line', 'area'].includes(mark) && group && rows.some(r => r[group] != null)) {
+  if (!raincloud && ['line', 'area'].includes(mark) && group && rows.some(r => r[group] != null)) {
     const values = [...new Set(rows.map(r => r[group]).filter(v => v != null))];
     add('filterMarks', 'transform', { target, field: group, op: 'eq', value: values[0], mode: 'replace' },
       [choices('value', 'Keep series', values[0], values)], 'transform.filter', 'Filter series');
@@ -237,7 +257,7 @@ export function extendedCandidates(program, { layer, profile }) {
       [choices('aggregate', 'Y aggregation', op, aggregateOps)], 'transform.aggregate', 'Aggregate Y');
   }
   const coordinate = program.semanticSpec.coordinates.find(c => c.id === layer.coordinate);
-  if (coordinate?.type === 'cartesian') add('createAnnotation', 'style', { source: target, x: (program.resolvedScales[encoding.x?.scale]?.domain ?? [0])[0],
+  if (coordinate?.type === 'cartesian') add('createAnnotation', 'style', { id: resourceId('annotation'), source: target, x: (program.resolvedScales[encoding.x?.scale]?.domain ?? [0])[0],
     y: (program.resolvedScales[encoding.y?.scale]?.domain ?? [0])[0],
     text: 'Note', fontFamily: 'Arial', fontSize: 13 },
     [text('text', 'Text', 'Note'), number('fontSize', 'Size', 13, 8, 24), color('fill', 'Text color'), weight('fontWeight')]);
@@ -300,8 +320,9 @@ export function extendedCandidates(program, { layer, profile }) {
       const direction = choices('reverse', 'Direction', !scale.reverse, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }]);
       if (['x', 'y'].includes(channel) && binding.fieldType === 'quantitative') {
         const values = rows.map(row => row[binding.field]).filter(Number.isFinite);
-        const baseline = positionScaleContext(program, layer, profile).zeroBaseline[channel];
-        const positive = values.length > 0 && values.every(v => v > 0);
+        const scaleContext = positionScaleContext(program, layer, profile);
+        const baseline = scaleContext.zeroBaseline[channel];
+        const positive = values.length > 0 && values.every(v => v > 0) && !scaleContext.nonPositiveBins[channel].includes(binding.field);
         const types = ['linear', { value: 'log', label: 'Log', disabled: baseline || !positive, reason: baseline ? 'This mark requires a zero baseline. Use symlog to retain zero.' : 'Log requires a strictly positive field.' }, 'sqrt', 'symlog'];
         add(method, 'encoding', { target, type: scale.type, reverse: !scale.reverse }, [choices('type', 'Scale', scale.type, types), direction]);
       } else add(method, 'encoding', { target, reverse: !scale.reverse }, [direction]);
@@ -366,12 +387,16 @@ export function extendedCandidates(program, { layer, profile }) {
         // Preserve the field and null exclusion used during selection setup.
         // Revise the *live source*, so every dependent summary/path recomputes.
         const field = sourceFields.find(f => f.name === transform.field && f.type === 'quantitative');
-        const values = datasets.get(dataset.source)?.values.map(r => r[field?.name]).filter(Number.isFinite).sort((a, b) => a - b) ?? [];
+        const usableRows = editableFilterRows(program, dataset.id, owner?.source ?? layer.data);
+        const values = usableRows.map(r => r[field?.name]).filter(Number.isFinite).sort((a, b) => a - b);
         if (field && values[0] < values.at(-1)) {
-          const threshold = values[Math.floor(values.length / 4)];
+          const limits = regressionFilterLimits(program, layer, field.name, usableRows);
+          const min = limits?.gte.min ?? values[0], max = limits?.gte.max ?? values.at(-1);
+          const threshold = Math.max(min, Math.min(max, values[Math.floor(values.length / 4)]));
           add(method, 'transform', { ...args, field: field.name, predicate: { op: 'gte', value: threshold }, nulls: 'exclude' },
             [choices('predicate.op', 'Keep values', 'gte', [{ value: 'gte', label: 'At least' }, { value: 'lte', label: 'At most' }]),
-              number('predicate.value', field.name, threshold, values[0], values.at(-1), (values.at(-1) - values[0]) / 100)], 'transform.filter', `Filter ${field.name}`);
+              { ...number('predicate.value', field.name, threshold, min, max, (values.at(-1) - values[0]) / 100),
+                ...(limits ? { rangeBy: { path: 'predicate.op', values: limits } } : {}) }], 'transform.filter', `Filter ${field.name}`);
         }
       } else if (transform.type === 'computed' && quantitative.some(f => f.name === transform.as)) {
         const referenced = new Set();

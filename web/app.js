@@ -501,6 +501,7 @@ function addControl(card, definition, parent = card.controlsElement) {
       label.append(input);
     }
   } else if (definition.type === 'number') {
+    label.classList.add('slider-control');
     const inputs = document.createElement('div'); inputs.className = 'number-control';
     const range = document.createElement('input'); range.type = 'range';
     // Keep an exact default instead of allowing the browser to snap it to a
@@ -532,13 +533,16 @@ function addControl(card, definition, parent = card.controlsElement) {
       const min = Number(range.min), max = Number(range.max), step = definition.step || 1;
       updateValue(Math.max(min, Math.min(max, Number((min + Math.round(fraction * (max - min) / step) * step).toPrecision(12)))));
     };
-    rangeIntents.set(range, followPointer);
-    range.addEventListener('pointerdown', event => {
+    // The whole bounded parameter group is the hit area, including its label
+    // and padding. Map values against the track so widening it adds tolerance
+    // without changing the scale or taking input from neighboring controls.
+    rangeIntents.set(label, followPointer);
+    label.addEventListener('pointerdown', event => {
       if (event.pointerType === 'touch') return;
       event.preventDefault(); // A click toggles fixing; it must not start a native drag.
       range.focus({ preventScroll: true });
     });
-    range.addEventListener('click', event => {
+    label.addEventListener('click', event => {
       if (event.pointerType === 'touch') return;
       if (!locked) followPointer(event);
       locked = !locked;
@@ -1152,7 +1156,7 @@ function routePointer(event) {
     pointerChoice = intent && !button.disabled ? { ...intent, button } : null;
     if (pointerChoice) pointerChoice.card.interaction.hover(button, pointerChoice.draft());
   }
-  rangeIntents.get(event.target)?.(event);
+  rangeIntents.get(event.target.closest('.slider-control'))?.(event);
 }
 
 function leaveGallery() {

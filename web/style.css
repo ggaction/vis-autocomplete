@@ -161,6 +161,7 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .parameter-choice:hover:not(:disabled), .parameter-choice.previewing { border-color: #4679b8; background: #dfeafa; color: #234c80; }
 .control input { width: 100%; min-width: 0; padding: 4px 5px; font-size: 11px; border: 1px solid var(--border); border-radius: 3px; background: #fff; }
 .number-control { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
+.slider-control { cursor: pointer; user-select: none; }
 .control > .slider-label { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
 .slider-value { flex: none; color: #4679b8; font-size: 10px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .number-control input[type="range"] { appearance: none; min-width: 24px; flex: 1; padding: 0; margin: 0; height: 16px; border: 0; background: transparent; }

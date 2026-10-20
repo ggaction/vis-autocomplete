@@ -66,6 +66,8 @@ test('worker filters the whole ranked deck before lazy validation, including alr
   assert.strictEqual(searched.result.state, first.result.state, 'typing reuses the group ranking');
   let all = first;
   for (let page = 1; page < all.pagination.pageCount; page++) all = request('', 'encoding', page);
+  assert.ok(!methods(all.result.recommendations).includes('removeEncoding'));
+  assert.ok(!methods(request('removeEncoding').result.recommendations).includes('removeEncoding'));
   assert.equal(searched.result.recommendations[0].score, all.result.recommendations.find(r => r.method === 'encodeOpacity').score);
   const none = request('totallyunrelated');
   assert.deepEqual(none.result.recommendations, []);

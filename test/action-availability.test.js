@@ -38,7 +38,7 @@ test('heatmap offers every supported unused appearance channel with real Fixed/V
   assert.ok(!result.recommendations.some(r => ['encodeSize', 'encodeShape'].includes(r.method)));
   assert.ok(result.recommendations.filter(r => ['encodeColor', 'encodeX', 'encodeY'].includes(r.method) && r.category === 'encoding')
     .every(r => r.previouslyApplied));
-  assert.ok(result.recommendations.some(r => r.method === 'removeEncoding'));
+  assert.ok(!result.recommendations.some(r => r.method === 'removeEncoding'), 'encoding removal belongs to history, not option cards');
 });
 
 test('sorting reaches both heatmap axes and polar categories through the actual parameter editor', () => {

@@ -81,9 +81,6 @@ export function extendedCandidates(program, { layer, profile }) {
     }
   }
 
-  const removable = ['color', 'stroke', 'size', 'shape', 'opacity', 'strokeWidth', 'strokeDash'].filter(c => encoding[c]);
-  if (removable.length) add('removeEncoding', 'encoding', { target, channel: removable[0] },
-    [choices('channel', 'Channel', removable[0], removable)], 'action.removeEncoding', 'Remove encoding');
   if (program.markConfigs[target]?.markFilter) add('removeMarkFilter', 'transform', { target }, [], 'action.removeMarkFilter', 'Restore filtered values');
   const regression = program.markConfigs[target]?.regression;
   if (regression) {

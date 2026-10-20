@@ -4,7 +4,7 @@ import { chart } from 'ggaction';
 import { generateCandidates } from '../src/catalog.js';
 import { profileDataset } from '../src/profile.js';
 import { defaultCanvasOptions, prepareGuidedAction } from '../src/prepare.js';
-import { recommendationParameters, valuesFor } from '../web/parameters.js';
+import { recommendationParameters, valuesFor, activeControls } from '../web/parameters.js';
 
 const rows = Array.from({ length: 24 }, (_, i) => ({ X: i + 1, Y: i % 8 + 1, Group: ['A', 'B', 'C'][i % 3] }));
 function fixture(method = 'createScatterPlot') {
@@ -53,7 +53,7 @@ test('expanded style controls build executable single-function edits for every e
     for (const rec of list.filter(c => methods.has(c.method))) {
       const editor = recommendationParameters(rec, profile), initial = valuesFor(editor.controls);
       assert.ok(editor.controls.length >= 2 && editor.controls.length <= 4, rec.method);
-      for (const control of editor.controls) {
+      for (const control of activeControls(editor.controls, initial)) {
         const probes = control.type === 'number' ? [control.min, Math.min(control.max, control.value + control.step)]
           : control.type === 'text' ? ['Example'] : control.choices.filter(c => !c.disabled).map(c => c.value);
         for (const value of probes) {
@@ -68,6 +68,35 @@ test('expanded style controls build executable single-function edits for every e
       }
     }
   }
+});
+
+test('title cards create, preserve, resize and remove subtitles through one native call without weight controls', () => {
+  const raw = fixture(), { profile, list } = candidates(raw);
+  const editor = recommendationParameters(list.find(c => c.method === 'createTitle'), profile);
+  const initial = valuesFor(editor.controls);
+  assert.equal(editor.controls.length, 4);
+  assert.ok(!activeControls(editor.controls, initial).some(c => c.key === 'weight'));
+  assert.equal(initial.size, 23);
+  assert.equal(initial.subtitle, '');
+  const values = { ...initial, text: 'Measurements', subtitle: 'Across three groups', subtitleSize: 18 };
+  const prepared = prepareGuidedAction(raw, { method: 'createTitle', args: editor.build(values) });
+  const next = prepared.authoringPreview;
+  assert.equal(prepared.recommendation.validation.topLevelActions, 1);
+  assert.equal(next.semanticSpec.title.subtitle, values.subtitle);
+  assert.equal(next.titleConfig.subtitleStyle.fontSize, 18);
+  const existing = next.editTitle({ titleStyle: { fontWeight: 'normal' } });
+  const edits = candidates(existing);
+  const edit = recommendationParameters(edits.list.find(c => c.method === 'editTitle'), edits.profile);
+  const saved = valuesFor(edit.controls);
+  assert.equal(saved.subtitle, values.subtitle);
+  assert.equal(saved.subtitleSize, 18);
+  const changed = existing.editTitle(edit.build({ ...saved, text: 'New title', subtitleSize: 20 }));
+  assert.equal(changed.semanticSpec.title.subtitle, values.subtitle);
+  assert.equal(changed.titleConfig.subtitleStyle.fontSize, 20);
+  assert.equal(changed.titleConfig.titleStyle.fontWeight, 'normal');
+  const removed = changed.editTitle(edit.build({ ...saved, subtitle: '  ' }));
+  assert.equal(removed.semanticSpec.title.subtitle, undefined);
+  assert.ok(!Object.hasOwn(editor.build({ ...initial, subtitle: '  ' }), 'subtitle'));
 });
 
 

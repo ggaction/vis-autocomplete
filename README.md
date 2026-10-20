@@ -305,6 +305,8 @@ const next = applyRecommendation(program, recommendation);
 기본 파라미터가 현재 차트와 같아도 사용한 카드를 삭제하지 않는다. 현재 차트 섬네일과 편집기를
 유지하고, 같은 설정의 Apply는 히스토리를 중복 생성하지 않는다. `createTitle`·`createRegression`은
 생성 후 실제 공개 편집 함수인 `editTitle`·`editRegression`으로 뒤쪽에서 제공한다.
+제목 카드는 제목·부제목 텍스트, 두 글자 크기, 위치를 제공한다. 글자 크기는 한 그룹에 묶고
+bold/normal 선택은 표시하지 않는다. Edit Title에서 부제목을 비우면 기존 부제목을 제거한다.
 
 관계는 `src/action-hierarchy.js`의 공개 함수 포함관계로 관리한다. 축·범례·그리드, 복합 인코딩,
 회귀·통계 참조 계열에 같은 알고리즘을 적용한다. **현재 후보에 실제 인자와 편집기가 있는 상위 함수만**

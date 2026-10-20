@@ -401,12 +401,24 @@ export function recommendationParameters(recommendation, profile) {
     build = v => ({ ...clone(), position: v.position, labels: { fontFamily: 'Arial', fontSize: v.fontSize },
       ...(v.title ? { title: v.title } : {}) });
   } else if (['createTitle', 'editTitle'].includes(method)) {
-    controls = [text('text', 'Title', args.text), select('position', 'Position', recommendation.compositionContext?.facet ? ['top'] : ['top', 'bottom', 'left', 'right'], args.position ?? 'top'),
-      { ...numeric('size', 'Font size', args.titleStyle?.fontSize ?? DEFAULT_TITLE_FONT_SIZE, 10, 30),
-        ...(method === 'editTitle' ? { defaultPolicy: 'context' } : {}) },
-      select('weight', 'Font weight', ['normal', 'bold'], args.titleStyle?.fontWeight ?? 'bold')];
-    build = v => ({ ...clone(), text: v.text, position: v.position,
-      titleStyle: { ...args.titleStyle, fontFamily: 'Arial', fontSize: v.size, fontWeight: v.weight } });
+    controls = [text('text', 'Title', args.text), text('subtitle', 'Subtitle', args.subtitle || ''),
+      { key: 'fontSizes', label: 'Font size', type: 'group', controls: [
+        { ...numeric('size', 'Title size', args.titleStyle?.fontSize ?? DEFAULT_TITLE_FONT_SIZE, 10, 30),
+          ...(method === 'editTitle' ? { defaultPolicy: 'context' } : {}) },
+        { ...numeric('subtitleSize', 'Subtitle size', args.subtitleStyle?.fontSize ?? 14, 8, 30),
+          ...(method === 'editTitle' ? { defaultPolicy: 'context' } : {}) },
+      ] },
+      select('position', 'Position', recommendation.compositionContext?.facet ? ['top'] : ['top', 'bottom', 'left', 'right'], args.position ?? 'top')];
+    build = v => {
+      const next = { ...clone(), text: v.text, position: v.position,
+        titleStyle: { ...args.titleStyle, fontFamily: 'Arial', fontSize: v.size,
+          fontWeight: args.titleStyle?.fontWeight ?? 'bold' },
+        subtitleStyle: { ...args.subtitleStyle, fontFamily: 'Arial', fontSize: v.subtitleSize } };
+      if (v.subtitle.trim()) next.subtitle = v.subtitle;
+      else if (method === 'editTitle') next.subtitle = false;
+      else delete next.subtitle;
+      return next;
+    };
   } else if (method === 'editPointMark') {
     controls = [numeric('opacity', 'Opacity', args.opacity ?? 0.7, 0.05, 1, 0.05),
       select('shape', 'Shape', ['circle', 'square', 'diamond', 'cross'], args.shape ?? 'circle'),

@@ -25,16 +25,17 @@ test('one statistical card defaults to a dark thick solid line and preserves rea
   const p = base(), rec = referenceCard(p), editor = recommendationParameters(rec, profileDataset(p, 'data'));
   assert.equal(rec.label, 'Add statistic');
   assert.deepEqual([...new Set(rec.alternatives.map(a => a.method))], ['createStatisticalReference']);
-  assert.deepEqual(editor.controls.map(c => c.key), ['axis', 'statistic', 'population']);
+  assert.deepEqual(editor.controls.map(c => c.key), ['axis', 'statistic', 'population', 'groupBy']);
   assert.deepEqual(editor.controls[1].choices.map(c => c.value), ['mean', 'median', 'min', 'max', 'middle50', 'middle95']);
   const action = buildRecommendationCall({ ...editor, method: rec.method }, valuesFor(editor.controls));
   assert.equal(action.method, 'createStatisticalReference');
-  assert.equal(action.args.stroke, '#222222');
+  assert.equal(action.args.stroke, undefined, 'leave color selection to the native default');
   assert.equal(action.args.strokeWidth, 2.5);
   assert.equal(action.args.strokeDash, 'solid');
   const implicit = recommendationParameters({ ...rec, args: { source: 'plot', axis: 'x' } }, profileDataset(p, 'data'));
   assert.equal(valuesFor(implicit.controls).statistic, 'mean', 'the editor must honor the native omitted-statistic default');
   const q = prepareGuidedAction(p, action).authoringPreview;
+  assert.equal(q.graphicSpec.objects.statisticalReference.items[0].properties.stroke, '#222222');
   assert.equal(q.graphicSpec.objects.statisticalReference.items[0].properties.strokeWidth, 2.5);
 });
 
@@ -76,4 +77,52 @@ test('worker defaults use the native facade and an applied statistical action do
   const applied = prepareGuidedAction(p, action).authoringPreview;
   const next = engine.recommend(addDefaultGuides(applied), options).recommendations;
   assert.ok(!next.some(r => r.method === 'createStatisticalReference'), 'an applied statistical action must not repeat');
+});
+
+test('Group by is available on both axes with or without a color mapping, including central intervals', () => {
+  const rows = [{ X: 1, Y: 2, Origin: 'USA' }, { X: 3, Y: 6, Origin: 'USA' },
+    { X: 6, Y: 12, Origin: 'Europe' }, { X: 10, Y: 20, Origin: 'Europe' },
+    { X: 20, Y: 40, Origin: 'Japan' }, { X: 30, Y: 60, Origin: 'Japan' }];
+  for (const color of [undefined, 'Origin']) {
+    const p = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: rows })
+      .createScatterPlot({ id: 'plot', x: 'X', y: 'Y', ...(color ? { color } : {}) });
+    const service = createCalculationService(model);
+    service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(p) });
+    const response = service.execute({ type: 'recommend', stateId: 1, options, group: 'transform', searchQuery: 'statistics' });
+    const rec = response.result.recommendations.find(r => r.method === 'createStatisticalReference');
+    const editor = recommendationParameters(rec, response.profile);
+    assert.equal(editor.controls.length, 4);
+    assert.ok(editor.controls.find(c => c.key === 'groupBy').choices.some(c => c.value === 'Origin'));
+    for (const axis of ['x', 'y']) for (const statistic of ['mean', 'middle95']) {
+      const values = editor.normalizeValues({ ...valuesFor(editor.controls), axis, statistic, groupBy: 'Origin' }, 'groupBy');
+      const action = buildRecommendationCall({ ...editor, method: rec.method }, values);
+      assert.equal(action.args.groupBy, 'Origin');
+      const result = prepareGuidedAction(p, action);
+      const config = result.authoringPreview.markConfigs.statisticalReference.statisticalReference;
+      const data = result.authoringPreview.semanticSpec.datasets.find(d => d.id === config.dataId).values;
+      assert.deepEqual(data.map(row => row.group), ['USA', 'Europe', 'Japan']);
+      if (statistic === 'mean') assert.deepEqual(data.map(row => row.value), [2, 8, 25].map(v => v * (axis === 'x' ? 1 : 2)));
+      assert.equal(result.authoringPreview.graphicSpec.objects.statisticalReference.items.length, 3);
+      if (statistic === 'mean') {
+        const expected = color ? [0, 2, 4].map(index => p.graphicSpec.objects.plot.items[index].properties.fill)
+          : Array(3).fill('#222222');
+        assert.deepEqual(result.authoringPreview.graphicSpec.objects.statisticalReference.items.map(item => item.properties.stroke), expected);
+      }
+      assert.equal(service.execute({ type: 'prepare', stateId: 1, action }).recommendation.validation.topLevelActions, 1);
+    }
+    assert.ok(!('groupBy' in editor.build({ ...valuesFor(editor.controls), groupBy: '' })));
+  }
+});
+
+test('grouping an aggregate uses bound rows when the chosen field splits a visible item', () => {
+  const p = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: [
+    { X: 'A', Y: 2, Origin: 'USA' }, { X: 'A', Y: 4, Origin: 'Europe' },
+    { X: 'B', Y: 6, Origin: 'USA' }, { X: 'B', Y: 8, Origin: 'Europe' },
+  ] }).createBarPlot({ id: 'plot', x: 'X', y: { field: 'Y', aggregate: 'mean' } });
+  const rec = referenceCard(p), editor = recommendationParameters(rec, profileDataset(p, 'data'));
+  const values = editor.normalizeValues({ ...valuesFor(editor.controls), groupBy: 'Origin' }, 'groupBy');
+  assert.equal(values.population, 'boundData');
+  assert.equal(editor.resolveControls(values).find(c => c.key === 'population').choices[0].disabled, true);
+  const result = prepareGuidedAction(p, buildRecommendationCall({ ...editor, method: rec.method }, values));
+  assert.equal(result.authoringPreview.graphicSpec.objects.statisticalReference.items.length, 2);
 });

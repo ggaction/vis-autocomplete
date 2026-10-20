@@ -64,16 +64,19 @@ export function recommendationParameters(recommendation, profile) {
       { value: 'middle50', label: 'Middle 50%' }, { value: 'middle95', label: 'Middle 95%' },
     ], initial), select('population', 'Population', [{ value: 'visibleItems', label: 'Visible marks',
       disabled: recommendation.statisticalContext?.series, reason: recommendation.statisticalContext?.series ? 'A line or area represents a series. Use its bound rows.' : undefined },
-      { value: 'boundData', label: 'All bound rows' }], args.population ?? 'visibleItems')];
+      { value: 'boundData', label: 'All bound rows' }], args.population ?? 'visibleItems'),
+      select('groupBy', 'Group by', [{ value: '', label: 'None' },
+        ...(recommendation.statisticalContext?.groupFields ?? []).map(field => ({ value: field.name, label: field.name }))], args.groupBy ?? '')];
     build = v => {
       const common = { source: args.source, axis: v.axis,
-        population: v.population, ...(args.field ? { field: args.field } : {}) };
+        population: v.population, ...(v.groupBy ? { groupBy: v.groupBy } : {}),
+        ...(args.field ? { field: args.field } : {}) };
       if (isInterval(v.statistic)) {
         const p = v.statistic === 'middle95' ? .025 : .25;
         return { ...common, statistics: [{ op: 'quantile', p }, { op: 'quantile', p: 1 - p }],
           fill: '#6b7280', opacity: .18 };
       }
-      return { ...common, statistic: { op: v.statistic }, stroke: '#222222', strokeWidth: 2.5, strokeDash: 'solid' };
+      return { ...common, statistic: { op: v.statistic }, strokeWidth: 2.5, strokeDash: 'solid' };
     };
   } else if (method === 'facet') {
     controls = [select('field', 'Facet by', [...new Set(alternatives.map(a => a.args.field))], args.field),
@@ -365,6 +368,12 @@ export function recommendationParameters(recommendation, profile) {
   const channelVariant = values => alternatives.find(a => a.args.channel === values[`p${channelIndex}`]);
   resolve = values => {
     let resolved = controls.map(c => ({ ...c, ...(c.controls ? { controls: c.controls.map(child => ({ ...child })) } : {}) }));
+    if (method === 'createStatisticalReference') {
+      const group = recommendation.statisticalContext?.groupFields?.find(field => field.name === values.groupBy);
+      const requiresRows = recommendation.statisticalContext?.series || group?.visibleItems === false;
+      resolved = resolved.map(c => c.key === 'population' ? { ...c, choices: c.choices.map(choice => choice.value === 'visibleItems'
+        ? { ...choice, disabled: Boolean(requiresRows), reason: requiresRows ? 'This grouping needs the bound rows because a visible mark can contain several group values.' : undefined } : choice) } : c);
+    }
     if (method === 'facet') resolved = resolved.map(c => c.key === 'columns' ? { ...c, max: Math.max(6, facetCount(values.field)) } : c);
     for (const [i, parameter] of generic.entries()) {
       if (!parameter.distinctFrom) continue;
@@ -409,6 +418,10 @@ export function recommendationParameters(recommendation, profile) {
   };
   normalize = (input, changedKey) => {
     const values = { ...input };
+    if (method === 'createStatisticalReference' && values.population === 'visibleItems' &&
+        (recommendation.statisticalContext?.series || recommendation.statisticalContext?.groupFields?.some(field => field.name === values.groupBy && !field.visibleItems))) {
+      values.population = 'boundData';
+    }
     if (method === 'facet' && changedKey === 'field') values.columns = defaultFacetColumns(facetCount(values.field));
     for (const [i, parameter] of generic.entries()) {
       if (!parameter.distinctFrom) continue;

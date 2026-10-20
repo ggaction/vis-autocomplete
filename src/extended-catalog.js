@@ -1,7 +1,7 @@
 import { paletteChoices } from './palette-options.js';
 import { canGroupBar, barGrain, positionScaleContext } from './mark-grain.js';
 import { hasChartContext } from './chart-context.js';
-import { profileDataset } from './profile.js';
+import { profileDataset, preferVisualFields } from './profile.js';
 import { binnedPositionExpression } from './plot-aggregation.js';
 import { dataEditors } from './action-capabilities.js';
 
@@ -176,11 +176,20 @@ export function extendedCandidates(program, { layer, profile }) {
     if (packingChannel && !program.materializationConfigs.jitters?.[target]) add('packPoints', 'transform', { target, channel: packingChannel, maxOffset: { pixels: 20 }, padding: 1, overflow: 'overlap' },
       [number('maxOffset.pixels', 'Spread', 20, 4, 40), number('padding', 'Padding', 1, 0, 4, .5)]);
   }
+  const statisticGroups = preferVisualFields(fields.filter(field => field.complete && field.distinct > 1), 'color')
+    .map(field => {
+      let visibleItems = !['line', 'area'].includes(mark);
+      if (visibleItems && mark === 'bar') {
+        try { visibleItems = barGrain(program, layer).constant(field.name); }
+        catch { visibleItems = false; }
+      }
+      return { name: field.name, visibleItems };
+    });
   for (const axis of ['x', 'y']) {
     if (encoding[axis]?.fieldType !== 'quantitative') continue;
     add('createStatisticalReference', 'transform', { source: target, axis, population: ['line', 'area'].includes(mark) ? 'boundData' : 'visibleItems', statistic: { op: 'mean' },
-      stroke: '#222222', strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
-    out.at(-1).statisticalContext = { series: ['line', 'area'].includes(mark) };
+      strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
+    out.at(-1).statisticalContext = { series: ['line', 'area'].includes(mark), groupFields: statisticGroups };
   }
   if (['line', 'area'].includes(mark) && group && rows.some(r => r[group] != null)) {
     const values = [...new Set(rows.map(r => r[group]).filter(v => v != null))];

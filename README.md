@@ -386,6 +386,16 @@ editCanvas, editCoordinate, createAnnotation
 Encoding / Transform / Style은 수정 추천까지 포함한 전체 원래 순위를 각각 유지한다. 일반 화면은
 계층에서 합친 카드를 그룹별로 5개씩 가로 페이지에 제공하며 6위 이후를 버리지 않는다.
 세부 함수는 상위 함수 Apply 또는 검색으로 접근한다. 점수 보정이나 빈 카드 채우기는 없다.
+분류는 `src/recommendation-groups.js`에서 공통으로 결정하며, 후보 생성·그룹 필터·검색·facet source 편집에 같은 기준을 적용한다.
+
+- **Encoding**: 변수와 시각 속성의 대응. 모든 스케일 편집(X/Y/Color뿐 아니라 size, opacity, stroke, polar, parallel 포함), 범주·경로의 시각적 순서, 데이터 값 라벨, facet 및 공유 스케일.
+- **Transform**: 집계·bin·필터·회귀·통계 계산과 stack/normalize, jitter/packing 같은 표시 위치 계산. 데이터 자체의 정렬도 여기에 속한다.
+- **Style**: 축·범례·제목·마크의 외형, 고정 설명문, facet 간격과 패널 배치.
+
+같은 함수도 카드의 목적을 구분한다. `encodeY`의 변수 변경은 Encoding, 집계 변경은 Transform이다.
+`editBoxPlot`의 변수 변경·수염 통계 계산·선과 박스 꾸미기도 각각 분리한다.
+분류를 바꿔도 학습된 공출현 feature와 점수는 바꾸지 않는다.
+
 `output/recommendation-coverage.json`은 실제 선택 흐름으로 만든 차트마다 그룹별 후보 수,
 프리뷰/Apply용 네이티브 호출 검증 결과, 탈락 원인을 기록한다.
 `data.tabular`, `encoding.color` 같은 문자열은 학습용 분류 이름이며 실행하는 액션 이름이 아니다.

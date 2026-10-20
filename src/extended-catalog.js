@@ -52,7 +52,7 @@ export function extendedCandidates(program, { layer, profile }) {
   for (const channel of ['x', 'y', 'theta']) {
     if (!['nominal', 'ordinal'].includes(encoding[channel]?.fieldType)) continue;
     const current = encoding[channel].categoryOrder;
-    add('orderCategories', 'transform', { target, channel, by: 'category',
+    add('orderCategories', 'encoding', { target, channel, by: 'category',
       direction: current?.direction === 'ascending' ? 'descending' : 'ascending' }, [], 'action.orderCategories', 'Sort categories');
   }
   for (const channel of ['x', 'y']) {
@@ -76,7 +76,7 @@ export function extendedCandidates(program, { layer, profile }) {
     if (semantic || fields.some(f => f.name === field)) {
       const args = { source: target, ...(semantic ? { content: 'value' } : { field }),
         fontFamily: 'Arial', fontSize: 11, placement: { anchor: semantic ? 'outsideEnd' : 'center' } };
-      add('createMarkLabels', 'guide', args, semantic ? [] : [choices('field', 'Label variable', field, fields.map(f => f.name)),
+      add('createMarkLabels', 'encoding', args, semantic ? [] : [choices('field', 'Label variable', field, fields.map(f => f.name)),
         number('fontSize', 'Label size', 11, 8, 18)], 'action.createMarkLabels', 'Add value labels');
     }
   }
@@ -121,7 +121,7 @@ export function extendedCandidates(program, { layer, profile }) {
   if (mark === 'text' && !layer.source) for (const field of fields) add('encodeText', 'encoding', { target, field: field.name },
     [choices('field', 'Text', field.name, fields.map(f => f.name))], 'encoding.text');
   if (coordinateType === 'parallel') {
-    for (const dimension of encoding.parallel?.dimensions ?? []) style('editParallelScale', { target, dimension: dimension.field, reverse: true },
+    for (const dimension of encoding.parallel?.dimensions ?? []) add('editParallelScale', 'encoding', { target, dimension: dimension.field, reverse: true },
       [choices('reverse', 'Direction', true, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }])]);
   }
   if (mark === 'bar') {
@@ -129,7 +129,7 @@ export function extendedCandidates(program, { layer, profile }) {
   }
   if (['line', 'area'].includes(mark) && coordinateType === 'cartesian') {
     for (const field of quantitative.filter(f => f.complete && !encoding.x?.bin && !encoding.y?.aggregate && !program.semanticSpec.datasets.find(d => d.id === layer.data)?.source)) {
-      add('encodePathOrder', 'transform', { target, field: field.name, order: 'ascending' },
+      add('encodePathOrder', 'encoding', { target, field: field.name, order: 'ascending' },
         [choices('field', 'Order by', field.name, quantitative.filter(f => f.complete).map(f => f.name)),
           choices('order', 'Order', 'ascending', ['ascending', 'descending'])]);
     }
@@ -261,11 +261,11 @@ export function extendedCandidates(program, { layer, profile }) {
     if (!scale) continue;
     if (['color', 'stroke'].includes(channel)) {
       const palette = ['nominal', 'ordinal'].includes(binding.fieldType) ? 'category10' : 'blues';
-      style(method, { target, palette }, [choices('palette', 'Palette', palette,
+      add(method, 'encoding', { target, palette }, [choices('palette', 'Palette', palette,
         paletteChoices(binding.fieldType))]);
     } else if (channel === 'radius' && scale.radialMapping) {
       const mapping = scale.radialMapping === 'area' ? 'radius-length' : 'area';
-      style(method, { target, radialMapping: mapping }, [choices('radialMapping', 'Measure by', mapping,
+      add(method, 'encoding', { target, radialMapping: mapping }, [choices('radialMapping', 'Measure by', mapping,
         [{ value: 'area', label: 'Area' }, { value: 'radius-length', label: 'Radius length' }])]);
     } else if (['x', 'y', 'theta', 'radius', 'xOffset', 'yOffset'].includes(channel)) {
       const direction = choices('reverse', 'Direction', !scale.reverse, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }]);
@@ -274,14 +274,14 @@ export function extendedCandidates(program, { layer, profile }) {
         const baseline = positionScaleContext(program, layer, profile).zeroBaseline[channel];
         const positive = values.length > 0 && values.every(v => v > 0);
         const types = ['linear', { value: 'log', label: 'Log', disabled: baseline || !positive, reason: baseline ? 'This mark requires a zero baseline. Use symlog to retain zero.' : 'Log requires a strictly positive field.' }, 'sqrt', 'symlog'];
-        style(method, { target, type: scale.type, reverse: !scale.reverse }, [choices('type', 'Scale', scale.type, types), direction]);
-      } else style(method, { target, reverse: !scale.reverse }, [direction]);
-    } else if (channel === 'shape') style(method, { target, range: ['square', 'circle', 'diamond', 'cross', 'triangle-up', 'triangle-down'].slice(0,
+        add(method, 'encoding', { target, type: scale.type, reverse: !scale.reverse }, [choices('type', 'Scale', scale.type, types), direction]);
+      } else add(method, 'encoding', { target, reverse: !scale.reverse }, [direction]);
+    } else if (channel === 'shape') add(method, 'encoding', { target, range: ['square', 'circle', 'diamond', 'cross', 'triangle-up', 'triangle-down'].slice(0,
       program.resolvedScales[binding.scale]?.domain?.length ?? 3) });
-    else if (channel === 'strokeDash') style(method, { target, reverse: !scale.reverse });
+    else if (channel === 'strokeDash') add(method, 'encoding', { target, reverse: !scale.reverse });
     else {
       const range = channel === 'size' ? [20, 240] : channel === 'opacity' ? [.25, .9] : [1, 5];
-      style(method, { target, range }, [number('range.0', 'Minimum', range[0], channel === 'opacity' ? .05 : 0, channel === 'size' ? 1600 : channel === 'opacity' ? 1 : 10, channel === 'opacity' ? .05 : 1),
+      add(method, 'encoding', { target, range }, [number('range.0', 'Minimum', range[0], channel === 'opacity' ? .05 : 0, channel === 'size' ? 1600 : channel === 'opacity' ? 1 : 10, channel === 'opacity' ? .05 : 1),
         number('range.1', 'Maximum', range[1], 0, channel === 'size' ? 1600 : channel === 'opacity' ? 1 : 10, channel === 'opacity' ? .05 : 1)]);
     }
   }

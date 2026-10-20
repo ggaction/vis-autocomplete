@@ -58,7 +58,7 @@ test('rose and radial bars offer sum/count and area/length via one native radius
       assert.equal(Object.hasOwn(args, 'field'), aggregate !== 'count');
       assert.match(renderToSVG(next), /<svg/);
     }
-    const scale = request(p, 'editRScale', 'style').result.recommendations.find(r => r.method === 'editRScale');
+    const scale = request(p, 'editRScale', 'encoding').result.recommendations.find(r => r.method === 'editRScale');
     assert.ok(scale); assert.equal(scale.args.range, undefined);
     assert.ok(['area', 'radius-length'].includes(scale.args.radialMapping));
     assert.ok(!recipes(p).find(r => r.method === 'editArcMark').parameters.some(p => p.path === 'padAngle'));

@@ -8,9 +8,16 @@ import { appearanceCandidates } from './appearance-candidates.js';
 import { facetCandidates } from './facet-candidates.js';
 import { corpusCandidates } from './corpus-candidates.js';
 import { DEFAULT_TITLE_FONT_SIZE } from './parameter-defaults.js';
+import { recommendationCategory } from './recommendation-groups.js';
 export const ACTION_METHODS = PUBLIC_ACTION_METHODS;
 
 export function generateCandidates(program, { layer, profile, actionEvidence }) {
+  return candidateRecipes(program, { layer, profile, actionEvidence }).map(candidate => ({
+    ...candidate, category: recommendationCategory(candidate),
+  }));
+}
+
+function candidateRecipes(program, { layer, profile, actionEvidence }) {
   const candidates = [...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile }), ...corpusCandidates(program, { layer, profile }, actionEvidence)];
   const add = (method, feature, category, label, args, inspectionTarget) => {
     candidates.push({ method, feature, category, label, args, inspectionTarget });

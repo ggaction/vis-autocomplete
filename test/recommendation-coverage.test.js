@@ -127,7 +127,7 @@ test('followups exclude established X/Y/Color before ranking while unselected Co
   assert.throws(() => engine.recommend(p, { excludeMappedChannels: ['absent'] }), /excludeMappedChannels/);
 });
 
-test('established positional choices retain binning and aggregation transforms and scale styles', () => {
+test('established positional choices retain binning and aggregation transforms and scale encodings', () => {
   const p = base().createLinePlot({ id: 'plot', x: { field: 'X', bin: { maxBins: 10 } },
     y: { field: 'Y', aggregate: 'mean' }, color: 'Group' }).createGuides();
   const { recommendations } = engine.recommend(p, { target: 'plot', ...FOLLOWUP_RECOMMENDATION_OPTIONS });

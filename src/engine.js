@@ -272,7 +272,7 @@ export function createRecommendationEngine(model) {
           continue;
         }
         coverage.eligible++;
-          const key = JSON.stringify([candidate.method, candidate.sourceMethod ?? '', candidate.groupTarget ?? candidate.args.target ?? candidate.args.id ?? '', candidate.feature]);
+        const key = JSON.stringify([candidate.method, candidate.sourceMethod ?? '', candidate.groupTarget ?? candidate.args.target ?? candidate.args.id ?? '', candidate.feature, optionGroup(candidate)]);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push({ candidate, check, revision, previouslyApplied });
       }

@@ -14,7 +14,7 @@ export function facetCandidates(program, { layer, profile }) {
     const spec = program.compositionSpec, out = [];
     const add = (method, category, args, parameters, label) => out.push({ method, category, args, parameters,
       feature: `action.${method}`, label, compositionAction: true });
-    add('editCompositionLayout', 'transform', { ...(facet.grid ? {} : { columns: spec.columns === 1 ? 2 : 1 }), spacing: 'plot', gap: spec.gap === 12 ? 16 : 12 },
+    add('editCompositionLayout', 'style', { ...(facet.grid ? {} : { columns: spec.columns === 1 ? 2 : 1 }), spacing: 'plot', gap: spec.gap === 12 ? 16 : 12 },
       [...(facet.grid ? [] : [number('columns', 'Columns', spec.columns === 1 ? 2 : 1, 1, Math.max(6, Object.keys(program.children).length))]), number('gap', 'Minimum gap', spec.gap === 12 ? 16 : 12, 0, 40)], 'Arrange facets');
     const channels = ['x', 'y', 'color'].filter(c => layer.encoding?.[c]?.scale);
     if (channels.length) {

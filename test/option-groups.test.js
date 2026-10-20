@@ -18,7 +18,7 @@ test('each group gets its own top five in unchanged engine order, rather than fi
   assert.equal(groups.transform[0], ranked[8]);
   assert.deepEqual(groups.style, ranked.slice(9));
   assert.equal(JSON.stringify(ranked), before);
-  assert.equal(optionGroup({ method: 'orderCategories', category: 'encoding' }), 'transform');
+  assert.equal(optionGroup({ method: 'orderCategories', category: 'encoding' }), 'encoding');
   assert.equal(optionGroup({ method: 'createPointMark', category: 'mark' }), 'encoding');
   assert.throws(() => optionGroup({ category: 'invented' }), /Unknown/);
   assert.deepEqual(OPTION_GROUPS.map(g => g.color), ['#0a6fc2', '#d6861a', '#1f9d55']);
@@ -50,6 +50,7 @@ test('native recommendations belong to exactly one group, preserve paper scores 
       }
     }
     assert.ok(groups.encoding.length && groups.style.length);
-    assert.ok(groupRecommendations(ranked, 1000).transform.some(r => r.method === (method === 'createBarPlot' ? 'orderCategories' : 'createRegression')));
+    const expectedGroup = method === 'createBarPlot' ? 'encoding' : 'transform';
+    assert.ok(groupRecommendations(ranked, 1000)[expectedGroup].some(r => r.method === (method === 'createBarPlot' ? 'orderCategories' : 'createRegression')));
   }
 });

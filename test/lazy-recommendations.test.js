@@ -42,8 +42,8 @@ test('first page validates five defaults only; alternatives, later pages and oth
   assert.equal(first.defaults.length, 5);
   assert.equal(first.result.diagnostics.validatedCalls.length, 5);
   assert.ok(first.result.recommendations.every(r => optionGroup(r) === 'encoding' && r.validation.executed));
-  assert.ok(first.result.recommendations[0].alternatives.length > 1);
-  assert.ok(first.result.recommendations[0].alternatives.every(a => a.validation.status === 'pending'));
+  assert.ok(first.result.recommendations.some(rec => rec.alternatives.length > 1));
+  assert.ok(first.result.recommendations.flatMap(rec => rec.alternatives).every(a => a.validation.status === 'pending'));
   assert.ok(!first.result.diagnostics.validatedCalls.some(c => /Regression|Axis|Axes|Grid|Title/.test(c.method)));
   const again = recommend({});
   assert.equal(again.result.diagnostics.validatedCalls.length, 5);

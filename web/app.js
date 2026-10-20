@@ -4,6 +4,7 @@ import { createInitialChartRecommender, profileDataset } from '../src/index.js';
 import { recommendationParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
 import { programCode, renderCode, resetCodeView, displayedCode } from './code-view.js';
 import { initializeCodeToolbar } from './code-toolbar.js';
+import { initializePanelLayout } from './panel-layout.js';
 import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { fitChartViewport } from './chart-viewport.js';
@@ -80,7 +81,7 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 
 function updateHistoryButtons() {
   chartDownloads.refresh();
-  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset']) $(id).disabled = state.committing;
+  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = state.committing;
   $('undo').disabled = state.committing || !history.canUndo;
   $('redo').disabled = state.committing || !history.canRedo;
   for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = state.committing;
@@ -271,6 +272,11 @@ function focus(program, preferred = {}) {
   return { target: (old ?? root ?? nonempty ?? layers[0]).id };
 }
 
+function inspectingCode(focusTarget = document.activeElement) {
+  const panel = $('code-content').closest('.code-panel');
+  return panel.dataset.collapsed !== 'true' && (panel.matches(':hover') || panel.contains(focusTarget));
+}
+
 function showCode(card = null, { settleApplied = false } = {}) {
   if (historyInspection) {
     const snapshot = historyInspection;
@@ -282,9 +288,8 @@ function showCode(card = null, { settleApplied = false } = {}) {
     $('code-content').dataset.previewMethod = '';
     return;
   }
-  const panel = $('code-content').closest('.code-panel');
   if (!card && state.codeCard?.base === state.program && state.codeCard.prepared &&
-    (panel.matches(':hover') || panel.contains(document.activeElement))) card = state.codeCard;
+    inspectingCode()) card = state.codeCard;
   const current = programCode([...state.setupCalls, ...state.calls,
     ...(state.phase === 'initial' ? state.selectionAxes?.calls ?? [] : []),
     ...(state.guideCall ? [state.guideCall] : [])], state.name, state.rows.length);
@@ -669,9 +674,9 @@ async function createCard(spec, index) {
     element.addEventListener('focusout', event => {
       if (!element.contains(event.relatedTarget) && !pointerInGallery) {
         setCardExpanded(card, false);
-        const inspectingCode = Boolean(event.relatedTarget?.closest?.('.code-panel'));
-        if (state.phase === 'initial' && !inspectingCode) state.active = null;
-        showPreview(state.active, { showCodeChange: inspectingCode });
+        const inspecting = inspectingCode(event.relatedTarget);
+        if (state.phase === 'initial' && !inspecting) state.active = null;
+        showPreview(state.active, { showCodeChange: inspecting });
       }
     });
   }
@@ -1175,7 +1180,7 @@ function leaveGallery() {
     if (!focused) setCardExpanded(card, false);
     card.interaction.leavePointer();
   }
-  if (state.phase === 'initial' && !$('code-content').closest('.code-panel').matches(':hover')) state.active = null;
+  if (state.phase === 'initial' && !inspectingCode()) state.active = null;
   showPreview(state.active, { showCodeChange: false });
 }
 
@@ -1192,17 +1197,16 @@ document.documentElement.addEventListener('pointerleave', () => {
 
 // Keep help in the header; reserve its height so switching hints never moves cards.
 function updateHeaderGuidance(focusTarget = document.activeElement) {
-  const panel = $('code-content').closest('.code-panel');
-  const inspectingCode = panel.matches(':hover') || panel.contains(focusTarget);
-  elements['step-description'].hidden = inspectingCode;
-  $('code-guidance').hidden = !inspectingCode;
+  const inspecting = inspectingCode(focusTarget);
+  elements['step-description'].hidden = inspecting;
+  $('code-guidance').hidden = !inspecting;
 }
 
 // Let the user inspect the last hovered proposal in the code panel itself.
 // Otherwise the new function would disappear before it could be expanded.
 $('code-content').closest('.code-panel').addEventListener('mouseenter', () => {
   updateHeaderGuidance();
-  if (state.codeCard?.base === state.program) showCode(state.codeCard);
+  if (inspectingCode() && state.codeCard?.base === state.program) showCode(state.codeCard);
 });
 $('code-content').closest('.code-panel').addEventListener('mouseleave', () => {
   updateHeaderGuidance();
@@ -1214,6 +1218,31 @@ $('code-content').closest('.code-panel').addEventListener('focusout', event => {
   updateHeaderGuidance(event.relatedTarget);
   const panel = $('code-content').closest('.code-panel');
   if (!panel.contains(event.relatedTarget) && !panel.matches(':hover')) showCode();
+});
+
+let layoutGalleryPage = 0;
+initializePanelLayout({
+  workspace: document.querySelector('.workspace'),
+  panels: {
+    history: { panel: $('history').closest('.history-section'), button: $('toggle-history'),
+      contents: [$('history'), $('history-meta')], label: 'history', icons: ['⌄', '⌃'] },
+    code: { panel: $('code-content').closest('.code-panel'), button: $('toggle-code'),
+      contents: [$('code-content'), $('code-mode'), document.querySelector('.code-tools')],
+      label: 'code view', icons: ['›', '‹'] },
+  },
+  beforeChange() {
+    layoutGalleryPage = currentGalleryPage();
+    historyView.clear();
+    pointerMotion.reset();
+  },
+  afterChange() {
+    // Resize the existing page without jumping to a neighboring recommendation.
+    const row = state.galleryRows[layoutGalleryPage];
+    if (row) elements.cards.scrollLeft += row.getBoundingClientRect().left - elements.cards.getBoundingClientRect().left;
+    historyView.refreshLayout();
+    updateGalleryNavigation();
+    updateHeaderGuidance();
+  },
 });
 
 $('upload').addEventListener('click', () => $('file').click());

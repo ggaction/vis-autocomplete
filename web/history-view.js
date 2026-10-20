@@ -7,18 +7,29 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
   const nodes = new Map();
   const scrub = document.createElement('span');
   scrub.className = 'history-scrub-bar'; scrub.setAttribute('aria-hidden', 'true');
-  let entries = [], hovered = null, current = -1, locked = false, pointerX = null, pinned = null;
+  let entries = [], hovered = null, current = -1, locked = false, pointerX = null, pinned = null, needsScroll = false;
 
   function paintPinned() {
     const button = pinned && nodes.get(pinned.snapshot);
     if (!button) pinned = null;
     host.classList.toggle('has-pinned-history', Boolean(pinned));
     if (pinned) {
-      scrub.style.left = `${button.offsetLeft + button.offsetWidth * pinned.fraction}px`;
+      if (host.clientWidth) scrub.style.left = `${button.offsetLeft + button.offsetWidth * pinned.fraction}px`;
       host.dataset.pinnedIndex = button.dataset.historyIndex;
     } else delete host.dataset.pinnedIndex;
   }
   function release() { pinned = null; paintPinned(); }
+  function refreshLayout() {
+    if (!host.clientWidth) return;
+    if (needsScroll) {
+      const selected = nodes.get(entries[current]);
+      if (selected && (selected.offsetLeft < host.scrollLeft || selected.offsetLeft + selected.offsetWidth > host.scrollLeft + host.clientWidth)) {
+        host.scrollLeft = Math.max(0, selected.offsetLeft + selected.offsetWidth - host.clientWidth);
+      }
+      needsScroll = false;
+    }
+    paintPinned();
+  }
 
   function preview(index) {
     if (locked || hovered === index || !entries[index]) return;
@@ -66,6 +77,7 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
   return {
     clear,
     release,
+    refreshLayout,
     move(event) { move(event.clientX); },
     update(history, busy = false) {
       entries = history.entries; locked = busy; host.setAttribute('aria-busy', String(busy));
@@ -105,12 +117,10 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
       host.append(scrub);
       if (current !== history.index) {
         current = history.index;
-        const selected = nodes.get(entries[current]);
-        if (selected && (selected.offsetLeft < host.scrollLeft || selected.offsetLeft + selected.offsetWidth > host.scrollLeft + host.clientWidth)) {
-          host.scrollLeft = Math.max(0, selected.offsetLeft + selected.offsetWidth - host.clientWidth);
-        }
+        needsScroll = true;
       }
       paintPinned();
+      refreshLayout();
     },
   };
 }

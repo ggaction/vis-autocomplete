@@ -24,6 +24,9 @@ npm run dev
 - **Cars 원본 406행·9개 열**을 기본으로 쓴다. Vega 원본과 값이 일치하며, null도 보존한다.
   출처는 `web/data/SOURCE.md`에 기록했다. Monthly sales 예제와 CSV/JSON 업로드도 지원한다.
 - Code view 오른쪽 위의 **− / +**는 코드 글자 크기를 8–20px 범위에서 1px씩 조절한다.
+- History와 Code view 우상단의 화살표로 각 패널을 접고 펼칠 수 있다. History를 접으면
+  확보된 높이를 Current / Preview와 Option cards에 나눠주며, Code view를 접으면 두 영역의
+  가로폭이 넓어진다. 코드 펼침 상태·히스토리 위치·옵션 페이지는 유지하고 패널 접힘 설정은 새로고침 후에도 복원한다.
   고정폭 글꼴은 유지하며, 선택한 크기는 브라우저에 저장한다. **Copy code**는 접힌 설정·파라미터를
   포함한 전체 원문을 복사한다. 프리뷰 중에는 새 액션을 포함하고, 줄 번호·접기 표시·차이 표시는 제외한다.
 - Current visualization에 차트가 있으면 **.png / .pdf / .svg**로 다운로드할 수 있다.

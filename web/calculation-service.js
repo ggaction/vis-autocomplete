@@ -31,6 +31,7 @@ export function createCalculationService(model) {
   };
   const prepareDefault = (program, view, recommendation, profile, diagnostics) => {
     const attempted = new Set();
+    let unchanged = null;
     const attempt = (choice, allowNeighbors = true) => {
       const editor = recommendationParameters(choice, profile);
       const parameterValues = valuesFor(editor.controls);
@@ -46,6 +47,19 @@ export function createCalculationService(model) {
           parameterValues, defaultDecisions: editor.defaultDecisions,
           validation: prepared.recommendation.validation }, action: fittedAction, prepared: artifact(prepared) };
       } catch (error) {
+        if (error.reason === 'no-change' && recommendation.previouslyApplied && !unchanged) {
+          // A valid native call that matches the current chart is still an
+          // available editor. Retain it if no differing default exists; Apply
+          // continues to validate normally and does not create duplicate history.
+          unchanged = {
+            recommendation: { ...choice, ...action,
+              call: `program.${action.method}(${JSON.stringify(action.args)})`,
+              parameterValues, defaultDecisions: editor.defaultDecisions,
+              validation: { status: 'unchanged', preflight: 'supported', executed: true,
+                topLevelActions: 1, changed: false, svgSerialized: false } },
+            action, prepared: null,
+          };
+        }
         if (error.reason === 'no-change' && allowNeighbors) {
           for (const neighbor of neighboringParameters({ ...choice, args: action.args })) {
             const next = attempt({ ...neighbor, skipParameterDefaults: true }, false);
@@ -67,7 +81,7 @@ export function createCalculationService(model) {
       const fallback = attempt({ ...recommendation, ...alternative, alternatives, skipParameterDefaults: true });
       if (fallback) return fallback;
     }
-    return null;
+    return unchanged;
   };
   return {
     execute({ type, stateId, nextStateId, baseStateId, snapshot, update, viewUpdate, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '', batchSize = Infinity }) {

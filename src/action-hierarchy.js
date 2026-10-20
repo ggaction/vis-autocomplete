@@ -104,7 +104,7 @@ export function createHierarchyProjection(recommendations, program) {
     if (source.previouslyApplied || wasApplied(source)) return [source];
     const action = hierarchyAction(source), found = [];
     for (const method of ancestors.get(action.method) ?? []) for (const candidate of byMethod.get(method) ?? []) {
-      if (optionGroup(candidate) !== optionGroup(source) || wasApplied(candidate)) continue;
+      if (optionGroup(candidate) !== optionGroup(source) || candidate.previouslyApplied || wasApplied(candidate)) continue;
       if (matchingOwner(hierarchyAction(candidate), action, program)) found.push(candidate);
     }
     return [...found, source];

@@ -112,7 +112,9 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       if (requestId !== recommendationRequest) return { cancelled: true };
       const receive = response => {
         if (requestId !== recommendationRequest) return;
-        for (const entry of response.defaults ?? []) context.cache.set(signature([entry.action, []]), { ...entry.prepared, workerRole: 'recommendation' });
+        for (const entry of response.defaults ?? []) if (entry.prepared) {
+          context.cache.set(signature([entry.action, []]), { ...entry.prepared, workerRole: 'recommendation' });
+        }
         onProgress?.(response);
       };
       const response = await endpoint.send({ type: 'recommend', stream: Boolean(onProgress), stateId: context.id, options, group, page, searchQuery }, receive);

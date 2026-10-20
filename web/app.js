@@ -642,7 +642,7 @@ async function createCard(spec, index) {
       } catch (error) { card.error = error.message; }
     }
     card.controls = card.controls.map(control => ({ ...control, value: structuredClone(card.values[control.key]) }));
-    if (!card.prepared && !card.controls.length) card.disabled = true;
+    if (!card.prepared && !card.unchanged && !card.controls.length) card.disabled = true;
   }
   const element = document.createElement('article'); element.className = 'card';
   element.dataset.method = card.method; element.dataset.controlCount = card.controls.length;
@@ -690,13 +690,13 @@ async function createCard(spec, index) {
   if (!card.disabled) {
     if (card.prepared) renderChart(card.thumbnail, card.prepared.preview, card.title);
     else await prepareCard(card, card.values, { interactive: false });
-    if (!card.prepared && !card.controls.length) card.disabled = true;
+    if (!card.prepared && !card.unchanged && !card.controls.length) card.disabled = true;
   }
   if (card.disabled) {
     element.classList.add('disabled'); button.disabled = true; apply.hidden = true;
     thumbnail.className = 'unavailable'; thumbnail.textContent = card.requirement || card.error;
   } else {
-    if (!card.prepared) {
+    if (!card.prepared && !card.unchanged) {
       card.thumbnail.classList.add('needs-adjustment');
       card.thumbnail.textContent = card.error || 'Open this card to adjust its parameters.';
     }

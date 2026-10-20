@@ -59,6 +59,72 @@ test('used action ordering follows immutable history and ignores calls on anothe
   assert.equal(opacity(original).previouslyApplied, false, 'Undo restores the original ordering');
 });
 
+test('reapplying an action moves it behind earlier used actions, with Undo restoring usage order', () => {
+  const first = base().encodeOpacity({ target: 'plot', value: .43 });
+  const second = first.encodeSize({ target: 'plot', value: 100 });
+  const third = second.encodeOpacity({ target: 'plot', value: .25 });
+  const queue = raw => engine.rank(addDefaultGuides(raw), { ...options, group: 'encoding' }).recommendations;
+  const methods = raw => queue(raw).map(r => r.method);
+  assert.deepEqual(methods(second).slice(-2), ['encodeOpacity', 'encodeSize']);
+  assert.deepEqual(methods(third).slice(-2), ['encodeSize', 'encodeOpacity']);
+  assert.deepEqual(methods(second).slice(-2), ['encodeOpacity', 'encodeSize'], 'Undo');
+  assert.deepEqual(queue(second).filter(r => !r.previouslyApplied).map(r => r.id),
+    queue(third).filter(r => !r.previouslyApplied).map(r => r.id), 'new actions keep their paper ordering');
+  assertUnusedFirst(queue(third));
+});
+
+test('unchanged Shape mapping remains on the final page and in search, including facet source edits', () => {
+  for (const faceted of [false, true]) {
+    let raw = base().encodeShape({ target: 'plot', field: 'Group', fieldType: 'nominal' });
+    if (faceted) raw = raw.facet({ field: 'Group', columns: 2, spacing: 'plot', gap: 12,
+      guides: { axes: 'outer', legend: 'shared' } }).editFacetSource({
+        action: { method: 'encodeShape', options: { target: 'plot', field: 'Group', fieldType: 'nominal' } } });
+    const before = serializeProgram(raw), service = createCalculationService(model);
+    service.execute({ type: 'state', stateId: 1, snapshot: before,
+      guideCall: { method: 'createGuides', args: { legend: { target: 'plot', channels: ['color', 'shape'] } } } });
+    const request = (page = 0, searchQuery = '') => service.execute({
+      type: 'recommend', stateId: 1, options, group: 'encoding', page, searchQuery });
+    let deck = request();
+    assert.ok(!deck.result.diagnostics.validatedCalls.some(call =>
+      (call.args.action?.method ?? call.method) === 'encodeShape'), 'used pages remain lazy');
+    for (let page = 1; page < deck.pagination.pageCount; page++) deck = request(page);
+    const shape = deck.result.recommendations.at(-1);
+    assert.equal(shape.sourceMethod ?? shape.method, 'encodeShape');
+    assert.equal(shape.previouslyApplied, true);
+    assert.equal(shape.validation.status, 'unchanged');
+    assert.equal(shape.validation.changed, false);
+    assert.equal(new Set(deck.result.recommendations.map(r => r.id)).size, deck.result.recommendations.length);
+    assert.equal(deck.pagination.complete, true);
+    assert.ok(deck.pagination.pageRanges.every(({ start, end }) => end > start), 'no phantom empty page');
+    const searched = request(0, 'encodeShape');
+    assert.deepEqual(searched.result.recommendations.map(r => r.id), [shape.id]);
+    assert.equal(searched.defaults[0].prepared, null, 'unchanged is not a successful mutation');
+    assert.throws(() => service.execute({ type: 'materialize', stateId: 1,
+      action: searched.defaults[0].action }), error => error.reason === 'no-change');
+    assert.equal(serializeProgram(raw), before, 'the unchanged card cannot add history');
+  }
+});
+
+test('native editors replacing applied creators are retained at the back instead of promoted or erased', () => {
+  for (const [group, creator, args, editor] of [
+    ['style', 'createTitle', { text: 'My chart' }, 'editTitle'],
+    ['transform', 'createRegression', { target: 'plot', method: 'linear' }, 'editRegression'],
+  ]) {
+    const raw = base()[creator](args), service = createCalculationService(model);
+    service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(raw),
+      guideCall: { method: 'createGuides', args: {} } });
+    const request = page => service.execute({ type: 'recommend', stateId: 1, options, group, page });
+    let deck = request(0);
+    for (let page = 1; page < deck.pagination.pageCount; page++) deck = request(page);
+    assertUnusedFirst(deck.result.recommendations);
+    const used = deck.result.recommendations.filter(r => r.method === editor);
+    assert.equal(used.length, 1);
+    assert.equal(used[0].previouslyApplied, true);
+    assert.equal(deck.result.recommendations.at(-1).method, editor);
+    assert.ok(!deck.result.recommendations.some(r => r.method === creator));
+  }
+});
+
 test('lazy worker pagination keeps used actions discoverable and validates their editable defaults', () => {
   const raw = base().encodeOpacity({ target: 'plot', value: .43 }), service = createCalculationService(model);
   service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(raw), guideCall: { method: 'createGuides', args: {} } });

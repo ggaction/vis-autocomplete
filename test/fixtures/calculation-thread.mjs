@@ -10,5 +10,5 @@ parentPort.on('message', ({ id, request }) => {
       parentPort.postMessage({ id, value: { ready: true } }); return;
     }
     parentPort.postMessage({ id, value: service.execute(request) });
-  } catch (error) { parentPort.postMessage({ id, error: error.message }); }
+  } catch (error) { parentPort.postMessage({ id, error: error.message, reason: error.reason }); }
 });

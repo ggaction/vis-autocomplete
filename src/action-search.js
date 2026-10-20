@@ -57,8 +57,7 @@ function searchableWords(recommendation) {
 
 export function filterActionRecommendations(recommendations, query = '') {
   const terms = words(normalizeSearchQuery(query));
-  if (!terms.length) return recommendations.some(rec => rec.searchOnly)
-    ? recommendations.filter(rec => !rec.searchOnly) : recommendations;
+  if (!terms.length) return recommendations;
   // Filtering never computes a relevance score or rearranges the paper ranking.
   return recommendations.filter(rec => {
     const tokens = searchableWords(rec);

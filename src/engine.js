@@ -171,13 +171,18 @@ function establishedEncodingChannels(program, layer) {
 }
 
 function appliedActionMethods(program, layer) {
-  const methods = new Set();
-  for (const { op, args } of program.trace.children) {
+  const methods = new Map();
+  for (const [index, { op, args }] of program.trace.children.entries()) {
     const action = op === 'editFacetSource' ? args.action : { method: op, options: args };
     if (!action) continue;
     const target = action.options?.target;
     if (target && layer && target !== layer.id && program.semanticSpec.layers.some(mark => mark.id === target)) continue;
-    methods.add(action.method === 'encodePointRadius' ? 'encodeSize' : action.method);
+    const method = action.method === 'encodePointRadius' ? 'encodeSize' : action.method;
+    methods.set(method, index);
+    // These authoring actions become native editors once their resource exists.
+    // Automatic guide/plot creation does not count as applying their editors.
+    const editor = { createTitle: 'editTitle', createRegression: 'editRegression' }[method];
+    if (editor) methods.set(editor, index);
   }
   return methods;
 }
@@ -214,7 +219,7 @@ export function createRecommendationEngine(model) {
         context.layer?.encoding?.[channel === 'r' ? 'radius' : channel]?.field);
       const appliedChannels = excludeAppliedEncodings ? establishedEncodingChannels(program, context.layer) : [];
       const existingChannels = deprioritizeAppliedActions ? establishedEncodingChannels(program, context.layer) : [];
-      const appliedMethods = deprioritizeAppliedActions ? appliedActionMethods(program, context.layer) : new Set();
+      const appliedMethods = deprioritizeAppliedActions ? appliedActionMethods(program, context.layer) : new Map();
       const features = extractFeatures(program, { target: context.layer?.id, data: context.profile.id,
         datasetType: options.datasetType ?? context.profile.datasetType });
       const groups = new Map();
@@ -238,16 +243,13 @@ export function createRecommendationEngine(model) {
         const exclude = reason => { coverage.excluded[reason] = (coverage.excluded[reason] ?? 0) + 1; };
         if (category && candidate.category !== category) { exclude('other-category'); continue; }
         if (group && optionGroup(candidate) !== group) { exclude('other-group'); continue; }
-        // Title creation already offers its editing controls. Keep later title
-        // edits discoverable through search without filling the normal deck.
-        const searchOnly = candidate.method === 'editTitle';
-        if (searchOnly && !deferred) { exclude('search-only'); continue; }
         // Established variable choices do not compete with new encodings. The
         // same native X/Y functions can still supply bin/aggregate transforms.
         if (candidate.category === 'encoding' && establishedChannels.some(channel => candidate.feature === `encoding.${channel}`)) { exclude('established-channel'); continue; }
         if (candidate.category === 'encoding' && appliedChannels.includes(encodingChannel(candidate.method))) { exclude('applied-channel'); continue; }
         const previouslyApplied = appliedMethods.has(candidate.method) ||
           (candidate.category === 'encoding' && existingChannels.includes(encodingChannel(candidate.method)));
+        const appliedOrder = previouslyApplied ? appliedMethods.get(candidate.method) ?? -1 : null;
         if (program.compositionSpec?.facet && !candidate.compositionAction &&
             !['createTitle', 'editTitle'].includes(candidate.method) && !/^editLegend/.test(candidate.method)) {
           candidate = { ...candidate, sourceMethod: candidate.method, sourceTarget: candidate.args.target,
@@ -276,7 +278,7 @@ export function createRecommendationEngine(model) {
         coverage.eligible++;
         const key = JSON.stringify([candidate.method, candidate.sourceMethod ?? '', candidate.groupTarget ?? candidate.args.target ?? candidate.args.id ?? '', candidate.feature, optionGroup(candidate)]);
         if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push({ candidate, check, revision, previouslyApplied });
+        groups.get(key).push({ candidate, check, revision, previouslyApplied, appliedOrder });
       }
       const ranked = [];
       for (const [id, variants] of groups) {
@@ -285,7 +287,7 @@ export function createRecommendationEngine(model) {
         const preference = ({ candidate: c }) => variantPreference(method,
           c.method === 'editFacetSource' ? c.args.action.options : c.args, defaultEvidence);
         variants.sort((a, b) => preference(b) - preference(a));
-        const { candidate, check, revision, previouslyApplied } = variants[0];
+        const { candidate, check, revision, previouslyApplied, appliedOrder } = variants[0];
         // Optional revision extension: remove the replaced primitive before applying
         // the unchanged paper formula. It is OFF by default and clearly labeled.
         const anchors = revision ? features.filter(f => f !== candidate.feature) : features;
@@ -294,8 +296,7 @@ export function createRecommendationEngine(model) {
           id, method: candidate.method, args: structuredClone(candidate.args),
           call: callText(candidate), label: candidate.label, category: candidate.category,
           feature: candidate.feature, kind: revision ? 'revision' : 'addition',
-          previouslyApplied,
-          searchOnly: candidate.method === 'editTitle',
+          previouslyApplied, appliedOrder,
           defaultEvidence,
           // An eager issued token already passed native validation. Its editor
           // must preserve those arguments; the paged worker learns additional
@@ -342,8 +343,8 @@ export function createRecommendationEngine(model) {
       }
       // Keep used actions discoverable after unused actions without altering the
       // paper score. This is presentation order, shared by eager and paged UI.
-      ranked.sort((a, b) => Number(a.searchOnly) - Number(b.searchOnly) ||
-        Number(a.previouslyApplied) - Number(b.previouslyApplied) ||
+      ranked.sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) ||
+        (a.previouslyApplied ? a.appliedOrder - b.appliedOrder : 0) ||
         b.score - a.score || a.id.localeCompare(b.id, 'en'));
       const displayed = hierarchy ? createHierarchyProjection(ranked, options.authoringProgram ?? program).project() : ranked;
       if (hierarchy && !deferred) for (const recommendation of displayed) {

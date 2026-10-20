@@ -79,7 +79,7 @@ test('worker filters the whole ranked deck before lazy validation, including alr
   assert.throws(() => request(null), /searchQuery/);
 });
 
-test('title editing is search-only after title creation and follows every ordinary match', () => {
+test('title editing stays at the ordinary queue tail after creation and remains searchable', () => {
   const raw = chart().createCanvas(defaultCanvasOptions()).createData({ values:
     Array.from({ length: 8 }, (_, i) => ({ X: i + 1, Y: i * 2 + 1, Group: i % 2 ? 'A' : 'B' })) })
     .createScatterPlot({ id: 'plot', x: 'X', y: 'Y', color: 'Group' });
@@ -88,13 +88,14 @@ test('title editing is search-only after title creation and follows every ordina
   const request = serviceFor(raw.createTitle({ text: 'My chart' }));
   let deck = request('', 'style');
   for (let page = 1; page < deck.pagination.pageCount; page++) deck = request('', 'style', page);
-  assert.ok(!methods(deck.result.recommendations).includes('editTitle'), 'absent even on later ordinary pages');
-  assert.ok(!deck.result.diagnostics.validatedCalls.some(call => call.method === 'editTitle'));
+  assert.equal(methods(deck.result.recommendations).at(-1), 'editTitle');
+  assert.ok(deck.result.recommendations.at(-1).previouslyApplied);
+  assert.ok(deck.result.diagnostics.validatedCalls.some(call => call.method === 'editTitle'));
   let matches = request('title', 'style');
   for (let page = 1; page < matches.pagination.pageCount; page++) matches = request('title', 'style', page);
   assert.equal(methods(matches.result.recommendations).at(-1), 'editTitle');
-  assert.ok(matches.result.recommendations.at(-1).searchOnly);
+  assert.ok(matches.result.recommendations.at(-1).previouslyApplied);
   assert.deepEqual(methods(request('editTitle', 'style').result.recommendations), ['editTitle']);
   assert.ok(methods(request('titlte', 'style').result.recommendations).includes('editTitle'));
-  assert.ok(!methods(request('   ', 'style').result.recommendations).includes('editTitle'));
+  assert.deepEqual(request('   ', 'style').result.recommendations, request('', 'style').result.recommendations);
 });

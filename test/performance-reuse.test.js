@@ -172,6 +172,34 @@ test('failed workers reject current and future requests instead of leaving Apply
   await assert.rejects(client.prepare(raw, view, null, action), /Calculation stopped/);
 });
 
+test('unchanged recommendation defaults never poison the preview cache or block later parameter edits', async t => {
+  const threads = [];
+  const client = createCalculationClient({ workerFactory: () => {
+    const worker = new Worker(new URL('./fixtures/calculation-thread.mjs', import.meta.url)); threads.push(worker);
+    return { addEventListener: (type, callback) => worker.on(type, type === 'message' ? data => callback({ data }) : callback),
+      postMessage: data => worker.postMessage(data) };
+  } });
+  t.after(() => Promise.all(threads.map(worker => worker.terminate())));
+  const raw = scatter().encodeShape({ target: 'plot', field: 'Group', fieldType: 'nominal' });
+  const guideCall = { method: 'createGuides', args: { legend: { target: 'plot', channels: ['color', 'shape'] } } };
+  const view = raw.createGuides(guideCall.args);
+  const response = await client.recommend(raw, view, guideCall,
+    { target: 'plot', ...FOLLOWUP_RECOMMENDATION_OPTIONS }, 'encoding', 0, 'encodeShape');
+  assert.equal(response.result.recommendations[0].validation.status, 'unchanged');
+  assert.equal(response.defaults[0].prepared, null);
+  const action = response.defaults[0].action;
+  await assert.rejects(client.prepare(raw, view, guideCall, action), error => error.reason === 'no-change');
+  await assert.rejects(client.materialize(raw, view, guideCall, action), error => error.reason === 'no-change');
+  const next = { method: 'encodeShape', args: { target: 'plot', field: 'Group',
+    fieldType: 'nominal', scale: { range: ['square', 'diamond'] } } };
+  const prepared = await client.prepare(raw, view, guideCall, next);
+  assert.ok(prepared.preview.svg.startsWith('<svg'));
+  const applied = await client.materialize(raw, view, guideCall, next);
+  assert.equal(applied.program.trace.children.length, raw.trace.children.length + 1);
+  assert.deepEqual(applied.program.semanticSpec, raw.encodeShape(next.args).semanticSpec);
+  assert.equal(applied.program.trace.children.at(-1).op, 'encodeShape');
+});
+
 test('successive Apply reuses worker states, cross-role advance and exact immutable inputs', async t => {
   const threads = [], requests = [];
   const client = createCalculationClient({ workerFactory: role => {

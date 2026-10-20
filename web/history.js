@@ -1,4 +1,8 @@
 // Snapshots retain immutable ggaction programs; previews never enter history.
+export const historyLabel = snapshot => snapshot.phase === 'initial' ? 'Variables' : snapshot.currentNote;
+export const historyPreview = snapshot => snapshot.phase === 'initial'
+  ? snapshot.selectionAxes?.program ?? snapshot.view : snapshot.view;
+
 export function createHistory() {
   let entries = [], index = -1;
   return {

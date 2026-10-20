@@ -12,7 +12,7 @@ import { createPointerMotion } from './pointer-motion.js';
 import { defaultCanvasOptions } from './plot-setup.js';
 import { selectionAxes, selectionData } from './selection-setup.js';
 import { renderDataTable } from './data-table.js';
-import { createHistory } from './history.js';
+import { createHistory, historyLabel, historyPreview } from './history.js';
 import { createHistoryView } from './history-view.js';
 import { OPTION_GROUPS, FOLLOWUP_RECOMMENDATION_OPTIONS } from './option-groups.js';
 import { createCalculationClient } from './calculation-client.js';
@@ -41,7 +41,7 @@ const state = { initialEngine: null, rows: [], name: '', program: null, base: nu
   phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [], codeCard: null,
   committing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
   selection: { x: '', y: '', color: '' }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
-  optionGroup: 'encoding', searchQuery: '', datasetId: null, variableDraft: null };
+  optionGroup: 'encoding', searchQuery: '', datasetId: null };
 let cars;
 const datasets = new Map();
 const datasetBases = createLRU(4);
@@ -80,14 +80,12 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 
 function updateHistoryButtons() {
   chartDownloads.refresh();
-  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'restart']) $(id).disabled = state.committing;
-  $('undo').disabled = state.committing || Boolean(state.variableDraft) || !history.canUndo;
-  $('redo').disabled = state.committing || Boolean(state.variableDraft) || !history.canRedo;
+  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema']) $(id).disabled = state.committing;
+  $('undo').disabled = state.committing || !history.canUndo;
+  $('redo').disabled = state.committing || !history.canRedo;
   for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = state.committing;
   $('action-search').disabled = state.committing;
-  historyView.update(history, state.committing || Boolean(state.variableDraft));
-  $('selection-edit-tools').hidden = !state.variableDraft;
-  $('cancel-variables').disabled = state.committing;
+  historyView.update(history, state.committing);
 }
 
 function updateOptionGroups() {
@@ -171,7 +169,7 @@ function mountDataTable() {
 }
 
 async function restoreHistory(direction) {
-  if (state.committing || state.variableDraft) return;
+  if (state.committing) return;
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
   const snapshot = typeof direction === 'number' ? history.jump(direction) : history[direction]();
@@ -187,7 +185,6 @@ async function restoreHistory(direction) {
   elements.current.dataset.lastMethod = state.calls.at(-1)?.method ?? '';
   elements['current-note'].textContent = currentNote;
   elements['current-note'].title = currentNote;
-  $('restart').hidden = state.phase === 'initial';
   try {
     if (state.phase === 'initial') mountDataTable();
     else {
@@ -305,9 +302,9 @@ function showCode(card = null, { settleApplied = false } = {}) {
 
 function showPreview(card, { showCodeChange = true } = {}) {
   if (historyInspection) {
-    renderChart(elements.preview, historyInspection.view, `History #${historyInspection.steps}`);
+    renderChart(elements.preview, historyPreview(historyInspection), `History #${historyInspection.steps}`);
     $('preview-heading').textContent = 'History preview';
-    elements['preview-name'].textContent = `#${historyInspection.steps} ${historyInspection.currentNote}`;
+    elements['preview-name'].textContent = `#${historyInspection.steps} ${historyLabel(historyInspection)}`;
     elements['preview-note'].textContent = ''; elements['preview-note'].title = '';
     showCode(); return;
   }
@@ -908,7 +905,6 @@ async function commit(card) {
       { method: recommendation.method, args: structuredClone(recommendation.args) },
       ...postActionCalls.map(call => structuredClone(call)));
     state.steps++; state.phase = 'recommendations';
-    state.variableDraft = null;
     clearSearch();
     state.context = focus(state.program, card.original?.nextContext ?? {});
     history.push(historySnapshot(card.title));
@@ -939,7 +935,6 @@ async function commit(card) {
     renderChart(elements.current, view, 'Current visualization');
     elements['current-note'].textContent = card.title;
     elements['current-note'].title = elements['current-note'].textContent;
-    $('restart').hidden = false;
     await updateCards();
   } catch (error) { notice(error.message, true); }
   finally {
@@ -960,10 +955,12 @@ async function refreshSelection() {
   state.codeCard = null; state.active = null;
   state.tableView?.update(state.selection);
   elements.current.dataset.traceCount = state.program.trace.children.length;
-  if (!state.variableDraft) history.reset(historySnapshot());
+  // An edited selection starts a new chart branch. Merely visiting History 0
+  // uses restoreHistory, so later snapshots remain available until this edit.
+  history.reset(historySnapshot());
   updateHistoryButtons();
   showPreview(null);
-  if (!state.variableDraft) scheduleSave();
+  scheduleSave();
   await updateCards();
 }
 
@@ -987,7 +984,7 @@ function projectSnapshot() {
   return createProject([...datasets.values()], state.datasetId, sourceVersion);
 }
 function flushSave() {
-  if (restoringProject || !state.datasetId || state.variableDraft) return;
+  if (restoringProject || !state.datasetId) return;
   $('draft-status').textContent = 'Saving draft…';
   // Start durable writes without a debounce gap: a dataset switch followed by
   // reload must not restore the previously selected dataset.
@@ -1021,7 +1018,6 @@ async function showSnapshot(snapshot) {
   elements.current.dataset.lastMethod = state.calls.at(-1)?.method ?? '';
   elements['current-note'].textContent = currentNote ?? '';
   elements['current-note'].title = currentNote ?? '';
-  $('restart').hidden = state.phase === 'initial';
   if (state.phase === 'initial') mountDataTable();
   else {
     state.tableView?.destroy?.(); state.tableView = null;
@@ -1045,7 +1041,7 @@ async function activateDataset(record, { selection = { x: '', y: '', color: '' }
   const session = restore ? record.session : null;
   rememberDataset(); cancelChartTransfer(); state.tableView?.destroy?.();
   datasets.set(record.id, record);
-  state.generation++; state.variableDraft = null;
+  state.generation++;
   state.datasetId = record.id; state.rows = rows; state.name = record.name;
   state.base = base.program; state.program = base.program; state.view = base.program; state.guideCall = null;
   state.baseCalls = base.calls; state.setupCalls = base.calls; state.profile = profile;
@@ -1061,25 +1057,9 @@ async function activateDataset(record, { selection = { x: '', y: '', color: '' }
     elements.current.dataset.steps = 0; elements.current.dataset.traceCount = state.base.trace.children.length;
     elements.current.dataset.lastMethod = '';
     mountDataTable(); elements['current-note'].textContent = ''; elements['current-note'].title = '';
-    $('restart').hidden = true;
     await refreshSelection();
   }
   scheduleSave();
-}
-
-async function beginVariableEdit() {
-  if (state.committing || state.variableDraft || state.phase === 'initial') return;
-  const snapshot = historySnapshot();
-  state.variableDraft = snapshot;
-  saveGallery(); clearSearch();
-  state.phase = 'initial'; state.calls = []; state.context = {}; state.guideCall = null;
-  $('restart').hidden = true; mountDataTable();
-  await refreshSelection();
-}
-async function cancelVariableEdit() {
-  if (state.committing || !state.variableDraft) return;
-  const snapshot = state.variableDraft; state.variableDraft = null;
-  await showSnapshot(snapshot); scheduleSave();
 }
 
 async function editSchema() {
@@ -1211,8 +1191,6 @@ $('dataset').addEventListener('change', async event => {
   try { await activateDataset(datasets.get(event.target.value)); }
   catch (error) { $('dataset').value = state.datasetId; notice(error.message, true); }
 });
-$('restart').addEventListener('click', () => beginVariableEdit().catch(error => notice(error.message, true)));
-$('cancel-variables').addEventListener('click', () => cancelVariableEdit().catch(error => notice(error.message, true)));
 $('edit-schema').addEventListener('click', () => editSchema().catch(error => notice(error.message, true)));
 $('undo').addEventListener('click', () => restoreHistory('undo'));
 $('redo').addEventListener('click', () => restoreHistory('redo'));
@@ -1229,7 +1207,7 @@ $('project-file').addEventListener('change', async event => {
 });
 $('code-export').addEventListener('click', () => {
   try {
-    const snapshot = state.variableDraft ?? historySnapshot();
+    const snapshot = historySnapshot();
     downloadText(runnableCode(snapshot, datasets.get(state.datasetId), sourceVersion), `${filename(state.name)}-chart.mjs`, 'text/javascript');
   } catch (error) { notice(error.message, true); }
 });

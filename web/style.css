@@ -46,7 +46,6 @@ main { padding: 14px 16px 16px; }
 .chart-view.data-view { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; }
 .current-panel-heading { justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; padding-bottom: 8px; }
 .current-panel-heading h2 { flex: none; white-space: nowrap; }
-.current-panel-heading #restart { margin-left: auto; }
 .current-view-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .chart-exports { display: flex; align-items: center; gap: 3px; }
 .chart-exports button { height: 23px; padding: 0 5px; white-space: nowrap; }
@@ -267,8 +266,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .project-menu > div { position: absolute; top: calc(100% + 5px); left: 0; z-index: 30; width: 205px; padding: 8px; display: grid; gap: 6px; border: 1px solid var(--border); border-radius: 4px; background: #fff; box-shadow: 0 5px 15px #0001; }
 .project-menu button { text-align: left; padding: 7px; }
 #draft-status { color: #747c85; font-size: 10px; line-height: 1.4; }
-.selection-edit-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; margin-bottom: 5px; color: #66717e; }
-.selection-edit-tools button { padding: 3px 8px; }
 .action-search { position: relative; }
 .action-search input { padding-right: 25px; }
 #clear-search { position: absolute; right: 3px; top: 4px; width: 22px; height: 22px; padding: 0; border: 0; font-size: 16px; background: transparent; }

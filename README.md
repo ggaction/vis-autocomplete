@@ -567,8 +567,10 @@ X만 선택해 Histogram, Density, ECDF, Rug 등의 분포 차트로 시작할 �
 Stocks, Gapminder, Barley, Iowa electricity를 제공하며 원본 출처는
 `web/data/sources.json`에 기록되어 있다. 지도는 구현 범위에서 제외한다.
 
-데이터셋마다 차트와 Undo/Redo 히스토리를 보관한다. `Change variables`는
-취소 가능한 편집이며 새 차트를 Apply한 뒤에도 Undo로 이전 차트에 돌아갈 수 있다.
+데이터셋마다 차트와 Undo/Redo 히스토리를 보관한다. History의 `0. Variables`에
+호버하면 선택한 축을 미리 보고, 클릭하면 X/Y/Color 선택을 유지한 데이터 표로 돌아간다.
+이동만 하면 이후 히스토리는 유지되므로 Redo나 섬네일로 기존 차트로 돌아갈 수 있다.
+변수를 바꾸거나 다른 차트를 Apply하면 그 지점에서 새로 분기한다.
 이 브라우저의 IndexedDB에 자동 저장하고 새로고침 시 복구한다. 원본 데이터는
 한 번 저장하고 일반 액션 적용에서는 히스토리 메타데이터만 갱신한다.
 `Project → Save project`의 `.visauto.json` 파일로 다른 세션에서도 이어서 작업한다.

@@ -1,4 +1,5 @@
 import { OPTION_GROUPS } from './option-groups.js';
+import { historyLabel, historyPreview } from './history.js';
 
 // Mount each immutable snapshot once. Hovering and navigation only change the
 // cursor/highlight; they never rebuild thumbnails or run recommendation work.
@@ -23,7 +24,7 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
     if (locked || hovered === index || !entries[index]) return;
     hovered = index;
     for (const [snapshot, button] of nodes) button.classList.toggle('inspecting', snapshot === entries[index]);
-    meta.textContent = `#${entries[index].steps} ${entries[index].currentNote}`;
+    meta.textContent = `#${entries[index].steps} ${historyLabel(entries[index])}`;
     onPreview(entries[index]);
   }
   function clear({ restore = true } = {}) {
@@ -68,9 +69,8 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
     move(event) { move(event.clientX); },
     update(history, busy = false) {
       entries = history.entries; locked = busy; host.setAttribute('aria-busy', String(busy));
-      const visible = entries.filter(snapshot => snapshot.steps > 0);
-      for (const [snapshot, button] of nodes) if (!visible.includes(snapshot)) { button.remove(); nodes.delete(snapshot); }
-      for (const snapshot of visible) {
+      for (const [snapshot, button] of nodes) if (!entries.includes(snapshot)) { button.remove(); nodes.delete(snapshot); }
+      for (const snapshot of entries) {
         let button = nodes.get(snapshot);
         if (!button) {
           button = document.createElement('button'); button.type = 'button'; button.className = 'history-item';
@@ -78,11 +78,12 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
           button.style.setProperty('--history-accent', group.color);
           button.style.setProperty('--history-rgb', group.rgb);
           const thumb = document.createElement('span'); thumb.className = 'history-thumbnail';
-          renderChart(thumb, snapshot.view, `History #${snapshot.steps}: ${snapshot.currentNote}`);
+          const label = historyLabel(snapshot);
+          renderChart(thumb, historyPreview(snapshot), `History #${snapshot.steps}: ${label}`);
           const caption = document.createElement('span'); caption.className = 'history-caption';
-          caption.textContent = `${snapshot.steps}. ${snapshot.currentNote}`;
+          caption.textContent = `${snapshot.steps}. ${label}`;
           button.append(thumb, caption); button.title = caption.textContent;
-          button.setAttribute('aria-label', `History #${snapshot.steps}: ${snapshot.currentNote}`);
+          button.setAttribute('aria-label', `History #${snapshot.steps}: ${label}`);
           button.addEventListener('click', event => {
             if (locked) return;
             const rect = button.getBoundingClientRect();

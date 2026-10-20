@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chart } from 'ggaction';
-import { createHistory } from '../web/history.js';
+import { createHistory, historyLabel, historyPreview } from '../web/history.js';
 import { defaultCanvasOptions, prepareGuidedAction, addDefaultGuides } from '../web/plot-setup.js';
 import { applyRecommendation } from '../src/index.js';
 
@@ -82,4 +82,26 @@ test('reading history and invalid or repeated jumps cannot change the current st
   assert.equal(h.index, 1);
   assert.equal(h.jump(0), first); assert.equal(h.redo(), second);
   h.reset(first); assert.deepEqual(h.entries, [first]); assert.equal(h.index, 0);
+});
+
+test('History 0 previews selected axes and retains selection and future charts when revisited', () => {
+  const base = {}, axes = {}, plot = {};
+  const initial = { steps: 0, phase: 'initial', view: base, currentNote: '',
+    selection: { x: 'Miles_per_Gallon', y: 'Horsepower', color: 'Origin' }, selectionAxes: { program: axes } };
+  const first = { ...initial, steps: 1, phase: 'recommendations', view: plot, currentNote: 'Scatter plot' };
+  const h = createHistory(); h.reset(initial); h.push(first);
+  assert.equal(historyLabel(initial), 'Variables');
+  assert.equal(historyPreview(initial), axes, 'zero shows the selected axes, not the data-only program');
+  assert.equal(historyLabel(first), 'Scatter plot');
+  assert.equal(historyPreview(first), plot, 'applied snapshots may still retain their initial axes metadata');
+  const restored = h.jump(0);
+  assert.equal(restored, initial);
+  assert.deepEqual(restored.selection, { x: 'Miles_per_Gallon', y: 'Horsepower', color: 'Origin' });
+  assert.equal(h.canUndo, false); assert.equal(h.canRedo, true);
+  assert.equal(h.redo(), first);
+  h.jump(0);
+  const branch = { ...first, currentNote: 'Line plot' };
+  h.push(branch);
+  assert.deepEqual(h.entries, [initial, branch]);
+  assert.equal(h.canRedo, false); assert.equal(h.undo(), initial);
 });

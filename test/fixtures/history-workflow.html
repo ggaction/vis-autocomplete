@@ -23,7 +23,8 @@ document.querySelector('#run').onclick = async event => {
   event.target.disabled = true;
   const passed = [];
   const doc = frame.contentDocument, win = frame.contentWindow, $ = selector => doc.querySelector(selector);
-  const items = () => [...doc.querySelectorAll('.history-item')];
+  const items = () => [...doc.querySelectorAll('.history-item')].filter(item => Number(item.dataset.historyIndex) > 0);
+  const zero = () => $('.history-item[data-history-index="0"]');
   const ready = () => !$('#undo').disabled && !$('#history').matches('[aria-busy="true"]') && !$('#notice').textContent;
   const choose = async method => {
     await wait(() => $(`.card .method-name`) && [...doc.querySelectorAll('.card')].some(card => card.querySelector('.method-name')?.textContent.includes(method)));
@@ -41,6 +42,7 @@ document.querySelector('#run').onclick = async event => {
     await wait(() => $('.column-select[data-field="Horsepower"]') && !$('#notice').textContent);
     $('.column-select[data-field="Horsepower"]').click();
     $('.column-select[data-field="Miles_per_Gallon"]').click();
+    check(zero()?.textContent.includes('0. Variables'), 'The variable selection must be visible as History 0');
     const scatter = await choose('createScatterPlot');
     check(items().length === 0, 'Card selection must not enter history');
     scatter.querySelector('.apply-button').click();
@@ -155,10 +157,30 @@ document.querySelector('#run').onclick = async event => {
     check($('.thumbnail').getBoundingClientRect().height === 86, 'Option thumbnails should be compact');
     passed.push('Current/Preview are 80% high and compact option cards leave space for History');
 
-    $('#restart').click();
-    await wait(() => $('.column-select') && items().length === 0 && !$('#notice').textContent);
-    check($('#undo').disabled && $('#redo').disabled, 'Changing variables should reset the timeline');
-    passed.push('Changing variables clears thumbnails and both history directions');
+    move(zero()); await wait(() => $('#code-mode').textContent === 'History #0');
+    check($('#preview').textContent.includes('Horsepower') && $('#preview').textContent.includes('Miles_per_Gallon'), 'History 0 must preview selected axes');
+    check($('#current').dataset.steps === '4', 'Hovering variables must leave the current chart untouched');
+    zero().click();
+    await wait(() => $('.column-select') && $('#current').dataset.steps === '0' && !$('#history').matches('[aria-busy="true"]'));
+    check($('#select-x').value === 'Horsepower' && $('#select-y').value === 'Miles_per_Gallon' && $('#select-color').value === '', 'History 0 must restore the selected variables');
+    check(items().length === 4 && items().every(item => item.classList.contains('future')), 'Visiting variables must keep future history');
+    check($('#undo').disabled && !$('#redo').disabled && zero().getAttribute('aria-current') === 'step', 'History 0 must share the Undo/Redo cursor');
+    check(!$('#restart'), 'Variables navigation belongs in history');
+    passed.push('History 0 previews axes and returns to the selected table without erasing later charts');
+
+    $('#redo').click(); await wait(() => ready() && $('#current').dataset.steps === '1');
+    check(items().length === 4 && items()[0].querySelector('svg') === originalThumb, 'Redo from variables must preserve cached chart history');
+    items().at(-1).click(); await wait(() => ready() && $('#current').dataset.steps === '4');
+    zero().click(); await wait(() => $('.column-select') && !$('#history').matches('[aria-busy="true"]'));
+    $('#select-x').value = 'Acceleration'; $('#select-x').dispatchEvent(new win.Event('change'));
+    await wait(() => items().length === 0 && !$('#notice').textContent);
+    check($('#undo').disabled && $('#redo').disabled, 'Editing variables must start a new branch');
+    const replacement = await choose('createScatterPlot'); replacement.querySelector('.apply-button').click();
+    await wait(() => ready() && items().length === 1);
+    check($('#current').dataset.steps === '1' && $('#current').textContent.includes('Acceleration'), 'New chart numbering must start at 1 from the edited selection');
+    $('#undo').click(); await wait(() => $('.column-select') && !$('#history').matches('[aria-busy="true"]'));
+    check($('#select-x').value === 'Acceleration' && !$('#redo').disabled, 'Undo must restore the new variable selection at History 0');
+    passed.push('Redo restores existing charts; editing variables and applying creates a new branch with a restorable History 0');
     report.textContent = `PASS ${passed.length} checks\n${passed.join('\n')}\nTop panels: ${topHeight.toFixed(2)}px`;
   } catch (error) { report.textContent = `FAIL after ${passed.length} checks\n${passed.join('\n')}\n${error.stack}`; }
   event.target.disabled = false;

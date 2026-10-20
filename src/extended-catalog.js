@@ -6,7 +6,7 @@ import { binnedPositionExpression } from './plot-aggregation.js';
 import { dataEditors } from './action-capabilities.js';
 import { arcMarkCandidates } from './arc-candidates.js';
 
-const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^(edit|encode|create) /, '').replace(/^./, s => s.toUpperCase());
+const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
 const choices = (path, label, value, values) => ({ path, label, type: 'select', value,
   choices: values.map(v => typeof v === 'object' ? v : { value: v, label: String(v) }) });
@@ -45,7 +45,7 @@ export function extendedCandidates(program, { layer, profile }) {
       if (measure.name === box.measure && categoryFields.length === 1) continue;
       const category = categoryFields.find(f => f.name !== box.category) ?? categoryFields[0];
       const args = { target, [categoryChannel]: { field: category.name, fieldType: encoding[categoryChannel].fieldType }, [measureChannel]: { field: measure.name, fieldType: 'quantitative' } };
-      add('editBoxPlot', 'encoding', args, [choices(`${categoryChannel}.field`, 'Category', category.name, categoryFields.map(f => f.name)), choices(`${measureChannel}.field`, 'Measure', measure.name, measureFields.map(f => f.name))], 'encoding.boxRoles', 'Box plot variables');
+      add('editBoxPlot', 'encoding', args, [choices(`${categoryChannel}.field`, 'Category', category.name, categoryFields.map(f => f.name)), choices(`${measureChannel}.field`, 'Measure', measure.name, measureFields.map(f => f.name))], 'encoding.boxRoles', 'Edit box plot variables');
     }
   }
   // Position ordering and final-item labels do not depend on the four basic

@@ -1,0 +1,125 @@
+{
+  "setupCalls": [
+    {
+      "method": "createCanvas",
+      "args": {
+        "plot": {
+          "width": 314,
+          "height": 314
+        },
+        "margin": {
+          "left": 170,
+          "right": 216,
+          "top": 42,
+          "bottom": 74
+        }
+      }
+    },
+    {
+      "method": "createData",
+      "args": {
+        "id": "dataset",
+        "values": "__LOADED_DATA__"
+      }
+    }
+  ],
+  "calls": [
+    {
+      "method": "createGradientPlot",
+      "args": {
+        "id": "plot",
+        "data": "dataset",
+        "x": {
+          "field": "variety",
+          "fieldType": "nominal"
+        },
+        "y": {
+          "field": "yield",
+          "fieldType": "quantitative"
+        },
+        "guides": {
+          "axes": {
+            "x": {
+              "ticksAndLabels": {
+                "values": [
+                  "Manchuria",
+                  "Svansota",
+                  "Trebi",
+                  "No. 462",
+                  "No. 475"
+                ],
+                "labels": {
+                  "fontFamily": "Arial",
+                  "fontSize": 9,
+                  "rotation": {
+                    "value": 90,
+                    "unit": "degrees"
+                  },
+                  "maxWidth": 120,
+                  "wrap": "word"
+                }
+              }
+            },
+            "y": {
+              "ticksAndLabels": {
+                "count": 6,
+                "labels": {
+                  "fontFamily": "Arial",
+                  "fontSize": 9,
+                  "maxWidth": 120,
+                  "wrap": "word"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "encodeColor",
+      "args": {
+        "target": "plot",
+        "field": "variety",
+        "fieldType": "nominal"
+      }
+    },
+    {
+      "method": "editColorScale",
+      "args": {
+        "target": "plot",
+        "palette": "set1"
+      }
+    },
+    {
+      "method": "editYScale",
+      "args": {
+        "target": "plot",
+        "reverse": true
+      }
+    }
+  ],
+  "context": {
+    "target": "plot"
+  },
+  "steps": 4,
+  "guideCall": {
+    "method": "createGuides",
+    "args": {
+      "legend": {
+        "target": "plot",
+        "channels": [
+          "color"
+        ]
+      }
+    }
+  },
+  "selection": {
+    "x": "variety",
+    "y": "yield",
+    "color": "variety"
+  },
+  "plotData": "dataset",
+  "optionGroup": "encoding",
+  "phase": "recommendations",
+  "currentNote": "Adjust Y scale"
+}

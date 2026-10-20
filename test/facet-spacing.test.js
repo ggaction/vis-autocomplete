@@ -8,10 +8,29 @@ import { facetCandidates } from '../src/facet-candidates.js';
 import { profileDataset } from '../src/profile.js';
 import { recommendationParameters, valuesFor } from '../web/parameters.js';
 import { createCalculationService } from '../web/calculation-service.js';
+import { readFileSync } from 'node:fs';
 
 const rows = Array.from({ length: 18 }, (_, i) => ({ X: i, Y: i * 2, Group: ['A', 'B', 'C'][i % 3], Series: ['One', 'Two'][i % 2] }));
 const base = () => chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: rows })
   .createScatterPlot({ id: 'plot', x: 'X', y: 'Y' });
+
+test('Barley facet grid starts compact without removing larger field combinations', () => {
+  const barley = JSON.parse(readFileSync(new URL('../web/data/barley.json', import.meta.url)));
+  const p = prepareGuidedAction(chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: barley }),
+    { method: 'createGradientPlot', args: { id: 'plot', data: 'data',
+      x: { field: 'variety', fieldType: 'nominal' }, y: { field: 'yield', fieldType: 'quantitative' } } }).preview;
+  const layer = p.semanticSpec.layers.find(l => l.id === 'plot');
+  const candidates = facetCandidates(p, { layer, profile: profileDataset(p, layer.data) });
+  const grid = candidates.find(c => c.method === 'facetGrid');
+  const editor = recommendationParameters({ ...grid, alternatives: [grid] }, profileDataset(p, layer.data));
+  const args = editor.build(valuesFor(editor.controls));
+  assert.equal(args.rows.field, 'year');
+  assert.equal(args.columns.field, 'site');
+  for (const control of editor.controls.slice(0, 2)) {
+    for (const field of ['year', 'site', 'variety']) assert.ok(control.choices.some(c => c.value === field));
+  }
+  assert.equal(Object.keys(prepareGuidedAction(p, { method: 'facetGrid', args }).preview.children).length, 12);
+});
 const action = (args = {}) => ({ method: 'facet', args: { field: 'Group', columns: 3,
   spacing: 'plot', gap: 0, guides: { axes: 'outer', legend: false }, ...args } });
 function origins(program) {

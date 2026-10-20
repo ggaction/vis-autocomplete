@@ -63,11 +63,14 @@ export function facetCandidates(program, { layer, profile }) {
   for (const data of datasets.values()) {
     const eligible = ordered.filter(f => profileDataset(program, data.id).fields.some(other => other.name === f.name && other.usable));
     if (eligible.length < 2) continue;
+    // The first two visual fields can create a very large cross-product.
+    // Start with the smallest grid; retain every field in both selectors.
+    const compact = eligible.toSorted((a, b) => a.distinct - b.distinct);
     for (const guidePolicy of guideVariants) out.push({ method: 'facetGrid', category: 'encoding', feature: 'action.facetGrid', label: 'Facet grid',
-      args: { data: data.id, rows: { field: eligible[0].name }, columns: { field: eligible[1].name }, spacing: 'plot', gap: 12, guides: guidePolicy,
+      args: { data: data.id, rows: { field: compact[0].name }, columns: { field: compact[1].name }, spacing: 'plot', gap: 12, guides: guidePolicy,
         ...(hasLegend && guidePolicy.legend === false && layer.encoding?.color?.scale ? { scales: { color: 'independent' } } : {}) },
-      parameters: [select('rows.field', 'Rows', eligible[0].name, eligible.map(f => f.name)),
-        select('columns.field', 'Columns', eligible[1].name, eligible.map(f => f.name)), number('gap', 'Minimum gap', 12, 0, 40)] });
+      parameters: [select('rows.field', 'Rows', compact[0].name, eligible.map(f => f.name)),
+        select('columns.field', 'Columns', compact[1].name, eligible.map(f => f.name)), number('gap', 'Minimum gap', 12, 0, 40)] });
     break;
   }
   return out.filter(candidate => describeAction(program, { action: candidate.method, options: candidate.args }).applicability === 'supported');

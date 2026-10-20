@@ -64,11 +64,15 @@ globalThis.postMessage = message => message.value?.pagination?.page > 0
                 if page.locator("#cards-next").is_disabled():
                     break
                 page.locator("#cards-next").click()
-                page.wait_for_timeout(100)
-                # While awaiting the worker, retain the existing visible cards.
-                if page.locator("#notice").inner_text() == "Preparing options…":
-                    assert visible_page(page) == before
-                expect(page.locator("#notice")).to_have_text("", timeout=60000)
+                page.wait_for_timeout(350)
+                # Navigation is immediate; expensive previews cannot lock Back.
+                expect(page.locator("#cards-prev")).to_be_enabled()
+                page.wait_for_function("""() => {
+                  const gallery = document.querySelector('#cards'), left = gallery.getBoundingClientRect().left;
+                  const row = [...gallery.children].sort((a,b) => Math.abs(a.getBoundingClientRect().left-left)
+                    - Math.abs(b.getBoundingClientRect().left-left))[0];
+                  return row?.getAttribute('aria-busy') === 'false';
+                }""", timeout=60000)
             else:
                 raise AssertionError("Pagination did not terminate")
             assert "…" not in page.locator("#cards-page").inner_text()

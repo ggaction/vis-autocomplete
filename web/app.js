@@ -694,31 +694,33 @@ function updateGalleryNavigation() {
   const page = currentGalleryPage(), count = state.galleryRows.length;
   const pending = mountedGallery?.phase === 'recommendations' && !mountedGallery.pagination.complete;
   $('cards-page').textContent = `${page + 1} / ${pending ? '…' : Math.max(1, count)}`;
-  $('cards-prev').disabled = page === 0 || state.committing || mountedGallery?.loading;
-  $('cards-next').disabled = page >= count - 1 || state.committing || mountedGallery?.loading;
+  $('cards-prev').disabled = page === 0 || state.committing;
+  $('cards-next').disabled = page >= count - 1 || state.committing;
   $('cards-prev').closest('nav').hidden = count <= 1;
 }
 
 async function goToGalleryPage(index) {
   const deck = mountedGallery, generation = state.generation;
-  if (deck?.loading || state.committing) return;
-  if (deck?.phase === 'recommendations' && !deck.pages.has(index)) {
-    deck.loading = true; updateGalleryNavigation(); notice('Preparing options…');
-    try { await deck.renderPage(index); }
-    catch (error) {
-      if (generation === state.generation) notice(error.message, true);
-      return;
-    } finally {
-      deck.loading = false;
-      if (mountedGallery === deck) updateGalleryNavigation();
-    }
-    if (generation !== state.generation || mountedGallery !== deck) return;
-    notice();
-  }
-  const row = state.galleryRows[Math.max(0, Math.min(state.galleryRows.length - 1, index))];
+  if (state.committing) return;
+  const target = Math.max(0, Math.min(state.galleryRows.length - 1, index));
+  const row = state.galleryRows[target];
   if (!row) return;
   elements.cards.scrollTo({ left: elements.cards.scrollLeft + row.getBoundingClientRect().left - elements.cards.getBoundingClientRect().left,
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  // Navigation must not wait for expensive native previews. Keep Back and the
+  // existing pages usable, and prepare this destination explicitly (not only
+  // through an observer that may miss a fast scroll or a hidden gallery).
+  if (deck && !deck.pages.has(target)) {
+    try { await deck.renderPage(target); }
+    catch (error) {
+      if (generation === state.generation) notice(error.message, true);
+      return;
+    }
+    if (generation !== state.generation || mountedGallery !== deck) return;
+    // Validation may exhaust the deck and remove the pending destination.
+    // The browser clamps scrollLeft to the last real page in that case.
+    updateGalleryNavigation();
+  }
 }
 
 $('cards-prev').addEventListener('click', () => goToGalleryPage(currentGalleryPage() - 1));
@@ -907,7 +909,7 @@ async function updateCards() {
     if (generation !== state.generation) return;
     // Execute only pages the user opens, never adjacent/offscreen pages.
     state.galleryObserver = new IntersectionObserver(entries => {
-      for (const entry of entries) if (entry.isIntersecting) {
+      for (const entry of entries) if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
         renderPage(Number(entry.target.dataset.page) - 1).catch(error => {
           if (generation === state.generation) notice(error.message, true);
         });

@@ -121,7 +121,7 @@ main { padding: 14px 16px 16px; }
 .options-section[data-option-group] .parameter-choice.previewing { border-color: var(--group-accent); background: rgba(var(--group-rgb), .18); color: var(--group-accent); }
 .cards { min-height: 0; min-width: 0; flex: 1; display: flex; flex-direction: row; gap: 10px; overflow-x: auto; overflow-y: hidden; padding: 2px 2px 5px; overscroll-behavior-x: contain; scrollbar-width: thin; scroll-snap-type: x proximity; }
 .card-row { display: flex; align-items: flex-start; flex: 0 0 100%; width: 100%; gap: 8px; min-height: 150px; height: 100%; scroll-snap-align: start; }
-.card-row[aria-busy="true"]:empty { background: linear-gradient(100deg, #fafafa, #fff); border-radius: 4px; }
+.card-row[aria-busy="true"]:empty { background: #fff; border-radius: 4px; }
 .card-row[aria-busy="true"] { pointer-events: none; }
 .card-row[aria-busy="true"]:empty::before { content: "Preparing options…"; color: var(--muted); padding: 16px; font-size: 12px; }
 .card-row[aria-busy="false"] { animation: cards-appear 280ms ease-out both; }

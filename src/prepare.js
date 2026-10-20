@@ -55,8 +55,14 @@ export function addDefaultGuides(program, call = defaultGuideCall(program)) {
       before.some((node, index) => node.id !== after[index].id)) {
     throw new Error('Expected one default createGuides setup call.');
   }
-  displayedGuideCalls.set(next, structuredClone(call));
-  return next;
+  return rememberDisplayedGuides(next, call);
+}
+
+// Hydrated worker results already contain the final native guide call. Retain
+// its replayable arguments without regenerating axes, legends and facet cells.
+export function rememberDisplayedGuides(view, call) {
+  displayedGuideCalls.set(view, structuredClone(call));
+  return view;
 }
 
 export function prepareStartingPlot(program, action) {

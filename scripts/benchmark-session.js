@@ -14,6 +14,7 @@ const rows = JSON.parse(await readFile(new URL('../web/data/cars.json', import.m
 const timed = fn => { const start = performance.now(), value = fn(); return { ms: performance.now() - start, value }; };
 function run(incremental) {
   const service = createCalculationService(model), samples = [];
+  let view;
   let program = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'dataset', values: rows })
     .createScatterPlot({ id: 'plot', x: 'Horsepower', y: 'Miles_per_Gallon', color: 'Origin' })
     .facet({ field: 'Origin', data: 'dataset', columns: 3, spacing: 'plot', gap: 120,
@@ -32,24 +33,29 @@ function run(incremental) {
     const result = timed(() => service.execute({ type: 'materialize', stateId: step + 1,
       ...(incremental ? { nextStateId: step + 2 } : {}), action }));
     const restore = timed(() => incremental ? unpackProgramUpdate(program, result.value.update) : deserializeProgram(result.value.snapshot));
-    const guide = timed(() => addDefaultGuides(restore.value, result.value.guideCall));
+    const guide = timed(() => incremental
+      ? unpackProgramUpdate(restore.value, result.value.viewUpdate)
+      : addDefaultGuides(restore.value, result.value.guideCall));
+    view = guide.value;
     if (step % 5 === 0) {
       const recommend = timed(() => service.execute({ type: 'recommend', stateId: step + 1,
         options: { target: 'plot', includeRevisions: true, deprioritizeAppliedActions: true, hierarchy: true }, group: 'style' }));
-      samples.push({ step, transferBytes: incremental ? Buffer.byteLength(JSON.stringify(result.value.update)) : Buffer.byteLength(result.value.snapshot),
+      samples.push({ step, transferBytes: incremental ? Buffer.byteLength(JSON.stringify(result.value)) : Buffer.byteLength(result.value.snapshot),
         hydrateMs: hydration, prepareMs: prepared.ms, transferMs: result.ms, restoreMs: restore.ms, guidesMs: guide.ms,
         recommendMs: recommend.ms, totalMs: hydration + prepared.ms + result.ms + restore.ms + guide.ms + recommend.ms });
     }
     program = restore.value;
   }
-  return { program, samples };
+  return { program, view, samples };
 }
 const legacy = run(false), current = run(true);
 assert.deepEqual(current.program.semanticSpec, legacy.program.semanticSpec);
 assert.deepEqual(current.program.graphicSpec, legacy.program.graphicSpec);
 assert.deepEqual(current.program.trace, legacy.program.trace);
+assert.deepEqual(current.view.graphicSpec, legacy.view.graphicSpec);
+assert.deepEqual(current.view.trace, legacy.view.trace);
 const report = { runtime: process.version, library: ggactionSource(),
-  scope: '41 native facet edits, identical source rows and unchanged mark count. Legacy full snapshots versus retained states and lossless trace deltas. Excludes browser IPC, DOM, paint and fixed UI animations; first hydration of the incremental path is outside its samples.',
+  scope: '41 native facet edits, identical source rows and unchanged mark count. Legacy full snapshots and guide replay versus retained states and lossless authoring/view updates. Excludes browser IPC, DOM, paint and fixed UI animations; first hydration of the incremental path is outside its samples.',
   outputEquivalent: true, legacy: legacy.samples, current: current.samples };
 await mkdir(new URL('../output/progressive-latency/', import.meta.url), { recursive: true });
 await writeFile(new URL('../output/progressive-latency/session-benchmark.json', import.meta.url), JSON.stringify(report, null, 2) + '\n');

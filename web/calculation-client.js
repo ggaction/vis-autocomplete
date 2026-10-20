@@ -1,6 +1,6 @@
 import { serializeProgram } from 'ggaction/persistence';
 import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
-import { addDefaultGuides } from '../src/prepare.js';
+import { rememberDisplayedGuides } from '../src/prepare.js';
 import { createLRU, signature } from '../src/cache.js';
 
 export function latestQueue(run) {
@@ -58,7 +58,7 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
   const contextFor = (program, view, guideCall) => {
     if (!contexts.has(program)) contexts.set(program, new WeakMap());
     const views = contexts.get(program);
-    if (!views.has(view)) views.set(view, { id: ++nextState, program, view, guideCall, cache: createLRU(64), initialized: {} });
+    if (!views.has(view)) views.set(view, { id: ++nextState, program, view, guideCall, cache: createLRU(64), pending: new Map() });
     const context = views.get(view); recent.set(context.id, context); return context;
   };
   const ensure = async (role, context) => {
@@ -83,12 +83,19 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
     await active[role].promise;
     return endpoint;
   };
-  const prepareJob = async ({ context, action, setupCalls, role = 'preview' }) => {
+  const prepareJob = ({ context, action, setupCalls, role = 'preview' }) => {
     const key = signature([action, setupCalls]), cached = context.cache.get(key);
-    if (cached) return cached;
-    const endpoint = await ensure(role, context);
-    const prepared = { ...await endpoint.send({ type: 'prepare', stateId: context.id, action, setupCalls }), workerRole: role };
-    context.cache.set(key, prepared); return prepared;
+    if (cached) return Promise.resolve(cached);
+    // Apply can arrive while the identical hover preview is still running.
+    // Share the job across roles, including its worker ownership for materialize.
+    if (context.pending.has(key)) return context.pending.get(key);
+    const pending = (async () => {
+      const endpoint = await ensure(role, context);
+      const prepared = { ...await endpoint.send({ type: 'prepare', stateId: context.id, action, setupCalls }), workerRole: role };
+      context.cache.set(key, prepared); return prepared;
+    })().finally(() => context.pending.delete(key));
+    context.pending.set(key, pending);
+    return pending;
   };
   const preview = latestQueue(prepareJob);
   return {
@@ -122,14 +129,18 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
     async materialize(program, view, guideCall, action, setupCalls = []) {
       preview.cancelPending();
       const context = contextFor(program, view, guideCall);
-      const role = context.cache.get(signature([action, setupCalls]))?.workerRole ?? 'preview';
+      const key = signature([action, setupCalls]);
+      await context.pending.get(key);
+      const role = context.cache.get(key)?.workerRole ?? 'preview';
       const endpoint = await ensure(role, context);
       const nextId = ++nextState;
       const result = await endpoint.send({ type: 'materialize', stateId: context.id, nextStateId: nextId, action, setupCalls });
       const next = unpackProgramUpdate(program, result.update);
-      const nextView = addDefaultGuides(next, result.guideCall);
-      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64),
-        transition: structuredClone({ baseStateId: context.id, action, setupCalls }) };
+      const nextView = rememberDisplayedGuides(unpackProgramUpdate(next, result.viewUpdate), result.guideCall);
+      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64), pending: new Map(),
+        // The other role can install the same finished native state, rather than
+        // re-executing the selected action and all of its facet/guide derivations.
+        transition: { baseStateId: context.id, update: result.update, viewUpdate: result.viewUpdate, guideCall: result.guideCall } };
       contexts.set(next, new WeakMap([[nextView, nextContext]])); recent.set(nextId, nextContext);
       active[role] = { id: nextId, context: nextContext, promise: Promise.resolve() };
       return { program: next, view: nextView, guideCall: result.guideCall };

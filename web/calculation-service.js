@@ -3,7 +3,7 @@ import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
 import { getDatasetSchema } from 'ggaction/inspection';
 import { renderToSVG } from 'ggaction/svg';
 import { createRecommendationEngine, neighboringParameters } from '../src/engine.js';
-import { addDefaultGuides, prepareGuidedAction } from '../src/prepare.js';
+import { addDefaultGuides, prepareGuidedAction, rememberDisplayedGuides } from '../src/prepare.js';
 import { createLRU, signature } from '../src/cache.js';
 import { profileDataset } from '../src/profile.js';
 import { recommendationParameters, valuesFor, buildRecommendationCall } from './parameters.js';
@@ -70,7 +70,7 @@ export function createCalculationService(model) {
     return null;
   };
   return {
-    execute({ type, stateId, nextStateId, baseStateId, snapshot, update, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '', batchSize = Infinity }) {
+    execute({ type, stateId, nextStateId, baseStateId, snapshot, update, viewUpdate, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '', batchSize = Infinity }) {
       if (type === 'cancel-recommendations') return {};
       if (type === 'activate') return { exists: Boolean(states.get(stateId)) };
       if (type === 'state') {
@@ -85,6 +85,12 @@ export function createCalculationService(model) {
       }
       if (type === 'advance') {
         const base = stateFor(baseStateId);
+        if (update && viewUpdate) {
+          const program = unpackProgramUpdate(base.program, update);
+          const view = rememberDisplayedGuides(unpackProgramUpdate(program, viewUpdate), guideCall);
+          retain(stateId, program, view);
+          return { exists: true };
+        }
         const prepared = prepareGuidedAction(base.program, action, base.view, setupCalls);
         retain(stateId, prepared.authoringPreview, prepared.preview);
         return { exists: true };
@@ -95,8 +101,9 @@ export function createCalculationService(model) {
         if (type === 'materialize') {
           if (nextStateId !== undefined) {
             const update = packProgramUpdate(program, prepared.authoringPreview);
+            const viewUpdate = packProgramUpdate(prepared.authoringPreview, prepared.preview);
             retain(nextStateId, prepared.authoringPreview, prepared.preview);
-            return { update, guideCall: prepared.guideCall };
+            return { update, viewUpdate, guideCall: prepared.guideCall };
           }
           return { snapshot: serializeProgram(prepared.authoringPreview), guideCall: prepared.guideCall };
         }

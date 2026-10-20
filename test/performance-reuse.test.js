@@ -55,6 +55,64 @@ test('latest preview queue keeps one running request and only the newest pending
   assert.deepEqual(calls, [1, 3]); releases.shift()(); assert.equal(await third, 3);
 });
 
+test('Apply shares an in-flight hover preparation and materializes on its owning worker', async t => {
+  const threads = [], requests = [];
+  const client = createCalculationClient({ workerFactory: role => {
+    const worker = new Worker(new URL('./fixtures/calculation-thread.mjs', import.meta.url)); threads.push(worker);
+    return { addEventListener: (type, callback) => worker.on(type, type === 'message' ? data => callback({ data }) : callback),
+      postMessage: data => { requests.push({ role, ...data.request }); worker.postMessage(data); } };
+  } });
+  t.after(() => Promise.all(threads.map(worker => worker.terminate())));
+  await client.ready;
+  const raw = scatter(), view = raw.createGuides(), guides = { method: 'createGuides', args: {} };
+  const action = { method: 'encodeSize', args: { target: 'plot', value: 948 } };
+  const hover = client.prepare(raw, view, guides, action, [], { interactive: true });
+  const apply = client.prepare(raw, view, guides, structuredClone(action));
+  const [preview, confirmed] = await Promise.all([hover, apply]);
+  assert.equal(preview, confirmed);
+  assert.equal(preview.workerRole, 'preview');
+  const next = await client.materialize(raw, view, guides, action);
+  assert.deepEqual(next.view.graphicSpec, prepareGuidedAction(raw, action, view).preview.graphicSpec);
+  assert.deepEqual(requests.filter(r => r.type === 'prepare').map(r => r.role), ['preview']);
+  assert.deepEqual(requests.filter(r => r.type === 'materialize').map(r => r.role), ['preview']);
+
+  const distinct = { ...action, args: { ...action.args, value: 120 } };
+  await client.prepare(raw, view, guides, distinct);
+  assert.equal(requests.filter(r => r.type === 'prepare').length, 2, 'different parameters must not share results');
+  const invalid = { method: 'encodeSize', args: { target: 'plot', value: -10 } };
+  await assert.rejects(client.prepare(raw, view, guides, invalid));
+  await assert.rejects(client.prepare(raw, view, guides, invalid));
+  assert.equal(requests.filter(r => r.type === 'prepare').length, 4, 'failed preparations must remain retryable');
+});
+
+test('worker transfers completed facet guides exactly, including replayable legend options', async t => {
+  const threads = [];
+  const client = createCalculationClient({ workerFactory: () => {
+    const worker = new Worker(new URL('./fixtures/calculation-thread.mjs', import.meta.url)); threads.push(worker);
+    return { addEventListener: (type, callback) => worker.on(type, type === 'message' ? data => callback({ data }) : callback),
+      postMessage: data => worker.postMessage(data) };
+  } });
+  t.after(() => Promise.all(threads.map(worker => worker.terminate())));
+  const raw = scatter().encodeShape({ target: 'plot', field: 'Group', fieldType: 'nominal' })
+    .facet({ field: 'Group', columns: 2, spacing: 'plot', gap: 12, guides: { axes: 'outer', legend: 'shared' } });
+  const guides = { method: 'createGuides', args: { legend: { target: 'plot', channels: ['color', 'shape'] } } };
+  const { addDefaultGuides } = await import('../src/prepare.js');
+  const view = addDefaultGuides(raw, guides);
+  const action = { method: 'editFacetSource', args: { action: { method: 'encodeOpacity', options: { target: 'plot', value: .25 } } } };
+  await client.prepare(raw, view, guides, action);
+  const next = await client.materialize(raw, view, guides, action);
+  const reference = prepareGuidedAction(raw, action, view);
+  assert.equal(serializeProgram(next.program), serializeProgram(reference.authoringPreview));
+  assert.equal(serializeProgram(next.view), serializeProgram(reference.preview));
+  const legend = { method: 'editFacetSource', args: { action: { method: 'editLegendLabels', options: { fontSize: 14 } } } };
+  const hydrated = prepareGuidedAction(next.program, legend, next.view);
+  const original = prepareGuidedAction(reference.authoringPreview, legend, reference.preview);
+  assert.equal(serializeProgram(hydrated.preview), serializeProgram(original.preview),
+    'guide editing after transfer must promote the same exact native legend call');
+  const handedOff = await client.prepare(next.program, next.view, next.guideCall, legend, [], { interactive: true });
+  assert.equal(handedOff.preview.svg, renderSVG(original.preview), 'the second worker receives the same completed guide state');
+});
+
 test('worker recommendation and materialization preserve rankings, parameters, SVG and native output', async t => {
   const threads = [];
   const client = createCalculationClient({ workerFactory: () => {
@@ -144,6 +202,9 @@ test('successive Apply reuses worker states, cross-role advance and exact immuta
   assert.equal(requests.filter(r => r.type === 'state' && r.role === 'recommendation').length, 1,
     'Apply cannot resend or rehydrate a growing complete history');
   assert.equal(requests.filter(r => r.type === 'advance').length, 1, 'the other worker advances its existing native baseline');
+  const advance = requests.find(r => r.type === 'advance');
+  assert.ok(advance.update && advance.viewUpdate, 'cross-worker handoff transfers both completed native states');
+  assert.equal(advance.action, undefined, 'the other worker must not repeat an already completed action');
   const late = await client.prepare(program, view, guideCall,
     { method: 'encodeSize', args: { target: 'plot', value: 100 } }, [], { interactive: true });
   assert.equal(late.preview.svg, renderSVG(prepareGuidedAction(program, { method: 'encodeSize', args: { target: 'plot', value: 100 } }, view).preview));

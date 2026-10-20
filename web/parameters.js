@@ -2,6 +2,7 @@ import { paletteChoices } from '../src/palette-options.js';
 // At most four visible parameter groups. Native ggaction options only.
 import { binnedPositionExpression } from '../src/plot-aggregation.js';
 import { applyParameterDefaults } from '../src/control-defaults.js';
+import { defaultFacetColumns } from '../src/facet-layout.js';
 const select = (key, label, choices, value) => ({ key, label, type: 'select',
   choices: choices.map(v => typeof v === 'object' ? v : { value: v, label: v }), value });
 const numeric = (key, label, value, min, max, step = 1) => ({ key, label, type: 'number', value, min, max, step });
@@ -25,6 +26,7 @@ export function recommendationParameters(recommendation, profile) {
   const alternatives = recommendation.alternatives ?? [{ args }];
   const options = [...new Set(alternatives.map(v => fieldOf(v.args)).filter(Boolean))];
   const fields = new Map(profile.fields.map(f => [f.name, f]));
+  const facetCount = field => recommendation.facetFieldCounts?.[field] ?? fields.get(field)?.distinct ?? args.columns ?? 1;
   const validFieldOptions = options.map(value => ({ value, label: recommendation.fieldLabels?.[value] ?? value, missing: fields.get(value)?.missing,
     fieldType: fields.get(value)?.type }));
   const fieldOptions = [...validFieldOptions, ...(recommendation.unavailableFields ?? []).filter(f => !options.includes(f.value)).map(f => ({ ...f, label: recommendation.fieldLabels?.[f.value] ?? f.label }))];
@@ -75,7 +77,8 @@ export function recommendationParameters(recommendation, profile) {
     };
   } else if (method === 'facet') {
     controls = [select('field', 'Facet by', [...new Set(alternatives.map(a => a.args.field))], args.field),
-      numeric('columns', 'Columns', args.columns ?? 3, 1, 6), numeric('gap', 'Minimum gap', args.gap ?? 12, 0, Math.max(40, args.gap ?? 12))];
+      { ...numeric('columns', 'Columns', defaultFacetColumns(facetCount(args.field)), 1, Math.max(6, facetCount(args.field))), defaultPolicy: 'context' },
+      numeric('gap', 'Minimum gap', args.gap ?? 12, 0, Math.max(40, args.gap ?? 12))];
     build = v => {
       const variants = alternatives.filter(a => a.args.field === v.field);
       const selected = v.field !== args.field ? variants.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') ?? variants[0] : undefined;
@@ -362,6 +365,7 @@ export function recommendationParameters(recommendation, profile) {
   const channelVariant = values => alternatives.find(a => a.args.channel === values[`p${channelIndex}`]);
   resolve = values => {
     let resolved = controls.map(c => ({ ...c, ...(c.controls ? { controls: c.controls.map(child => ({ ...child })) } : {}) }));
+    if (method === 'facet') resolved = resolved.map(c => c.key === 'columns' ? { ...c, max: Math.max(6, facetCount(values.field)) } : c);
     for (const [i, parameter] of generic.entries()) {
       if (!parameter.distinctFrom) continue;
       const other = generic.findIndex(p => p.path === parameter.distinctFrom);
@@ -405,6 +409,7 @@ export function recommendationParameters(recommendation, profile) {
   };
   normalize = (input, changedKey) => {
     const values = { ...input };
+    if (method === 'facet' && changedKey === 'field') values.columns = defaultFacetColumns(facetCount(values.field));
     for (const [i, parameter] of generic.entries()) {
       if (!parameter.distinctFrom) continue;
       const other = generic.findIndex(p => p.path === parameter.distinctFrom);

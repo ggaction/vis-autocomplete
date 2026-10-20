@@ -1,6 +1,7 @@
 import { describeAction } from 'ggaction/inspection';
 import { hasChartContext } from './chart-context.js';
 import { profileDataset, preferVisualFields } from './profile.js';
+import { defaultFacetColumns } from './facet-layout.js';
 const select = (path, label, value, values) => ({ path, label, type: 'select', value,
   choices: values.map(value => ({ value, label: String(value) })) });
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -14,7 +15,7 @@ export function facetCandidates(program, { layer, profile }) {
     const add = (method, category, args, parameters, label) => out.push({ method, category, args, parameters,
       feature: `action.${method}`, label, compositionAction: true });
     add('editCompositionLayout', 'transform', { ...(facet.grid ? {} : { columns: spec.columns === 1 ? 2 : 1 }), spacing: 'plot', gap: spec.gap === 12 ? 16 : 12 },
-      [...(facet.grid ? [] : [number('columns', 'Columns', spec.columns === 1 ? 2 : 1, 1, 6)]), number('gap', 'Minimum gap', spec.gap === 12 ? 16 : 12, 0, 40)], 'Arrange facets');
+      [...(facet.grid ? [] : [number('columns', 'Columns', spec.columns === 1 ? 2 : 1, 1, Math.max(6, Object.keys(program.children).length))]), number('gap', 'Minimum gap', spec.gap === 12 ? 16 : 12, 0, 40)], 'Arrange facets');
     const channels = ['x', 'y', 'color'].filter(c => layer.encoding?.[c]?.scale);
     if (channels.length) {
       const resolutions = Object.fromEntries(channels.map(c => [c, facet.scales[c] === 'shared' ? 'independent' : 'shared']));
@@ -50,12 +51,13 @@ export function facetCandidates(program, { layer, profile }) {
   const guides = { axes: cartesian ? 'outer' : 'each', legend: hasLegend ? 'shared' : false };
   const guideVariants = hasLegend ? [guides, { ...guides, legend: false }] : [guides];
   const out = ordered.flatMap(field => guideVariants.map(guidePolicy => ({ method: 'facet', category: 'encoding', feature: 'action.facet', label: 'Facet',
-    args: { field: field.name, data: field.data, columns: Math.min(3, field.distinct), spacing: 'plot', gap: 12, guides: guidePolicy,
+    args: { field: field.name, data: field.data, columns: defaultFacetColumns(field.distinct), spacing: 'plot', gap: 12, guides: guidePolicy,
       ...(hasLegend && guidePolicy.legend === false && layer.encoding?.color?.scale ? { scales: { color: 'independent' } } : {}) },
-    parameters: [select('field', 'Facet by', field.name, names), number('columns', 'Columns', Math.min(3, field.distinct), 1, 6),
+    parameters: [select('field', 'Facet by', field.name, names), number('columns', 'Columns', defaultFacetColumns(field.distinct), 1, Math.max(6, field.distinct)),
       number('gap', 'Minimum gap', 12, 0, 40)],
     // Changing the partition field may change its owning source dataset.
     facetFields: Object.fromEntries(ordered.map(f => [f.name, f.data])),
+    facetFieldCounts: Object.fromEntries(ordered.map(f => [f.name, f.distinct])),
   })));
   // Grid facets require both roles to exist in one actual partition dataset.
   for (const data of datasets.values()) {

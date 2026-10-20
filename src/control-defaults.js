@@ -42,7 +42,7 @@ export function applyParameterDefaults(controls, build, recommendation) {
   const mode = flat.find(c => c.key === 'mode');
   if (mode) set(mode, preferredSetting(method, evidence, '$mode', v => allowed(mode, v)));
   for (const { control, when } of entries) {
-    if (control === mode || !when(values)) continue;
+    if (control === mode || control.defaultPolicy === 'context' || !when(values)) continue;
     if (control.key === 'variant') {
       const variants = recommendation.alternatives ?? [];
       const ranked = variants.map((alternative, value) => ({ value,

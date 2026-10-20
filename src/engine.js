@@ -319,6 +319,7 @@ export function createRecommendationEngine(model) {
           positionFields: candidate.positionFields,
           sourceMethod: candidate.sourceMethod,
           facetFields: candidate.facetFields,
+          facetFieldCounts: candidate.facetFieldCounts,
           guideContext: candidate.guideContext ? structuredClone(candidate.guideContext) : undefined,
           nextContext: candidate.groupTarget ? { data: candidate.args.id }
             : context.layer ? { target: context.layer.id } : { data: context.profile.id },

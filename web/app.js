@@ -872,9 +872,13 @@ async function updateCards() {
             state.galleryRows.push(row); elements.cards.append(row);
             restored = { view: state.view, program: state.program, guideCall: state.guideCall,
               context: structuredClone(state.context), phase: state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
-              specs: [], pages: new Set(), rows: state.galleryRows, cards: state.cards, pageCount: 1, loading: true };
+              specs: [], pages: new Set(), rows: state.galleryRows, cards: state.cards, pageCount: 1,
+              pagination: response.pagination, loading: true };
             mountedGallery = restored;
-          }
+          } else restored.pagination = response.pagination;
+          // A streamed card is already interactive. Scroll/Apply can read its
+          // gallery before the final batch arrives, so page state travels with
+          // every partial result, not only the completed recommendation list.
           const available = recommendationSpecs(response), row = restored.rows[0];
           for (let index = restored.cards.length; index < available.length; index++) {
             const card = await createCard(available[index], index);

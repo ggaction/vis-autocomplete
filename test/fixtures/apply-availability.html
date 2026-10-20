@@ -22,17 +22,26 @@ const wait = async predicate => {
 // Keep real worker calculation, validation and errors. Delaying message delivery
 // makes the interval between a parameter change and its preview deterministic.
 const bootstrap = () => {
+  window.applicationErrors = [];
+  window.addEventListener('error', event => window.applicationErrors.push(event.message));
+  window.addEventListener('unhandledrejection', event => window.applicationErrors.push(event.reason?.message ?? String(event.reason)));
   window.prepareDelay = 0;
   window.delayedPrepares = 0;
+  window.recommendationDelay = 700;
   const NativeWorker = Worker;
   window.Worker = class extends NativeWorker {
-    constructor(...args) { super(...args); this.types = new Map(); }
+    constructor(...args) { super(...args); this.types = new Map(); this.progressSeen = new Set(); }
     postMessage(message, ...args) { this.types.set(message.id, message.request?.type); super.postMessage(message, ...args); }
     addEventListener(type, listener, ...args) {
       if (type !== 'message') return super.addEventListener(type, listener, ...args);
       return super.addEventListener(type, event => {
-        const delay = this.types.get(event.data.id) === 'prepare' ? window.prepareDelay : 0;
-        if (delay) { window.delayedPrepares++; setTimeout(() => listener(event), delay); }
+        const request = this.types.get(event.data.id);
+        let delay = request === 'prepare' ? window.prepareDelay : 0;
+        if (request === 'recommend') {
+          if (this.progressSeen.has(event.data.id)) delay = window.recommendationDelay;
+          else if (event.data.progress) this.progressSeen.add(event.data.id);
+        }
+        if (delay) { if (request === 'prepare') window.delayedPrepares++; setTimeout(() => listener(event), delay); }
         else listener(event);
       }, ...args);
     }
@@ -64,6 +73,11 @@ document.querySelector('#run').onclick = async event => {
     for (const field of ['Horsepower', 'Miles_per_Gallon', 'Origin']) $(`.column-select[data-field="${field}"]`).click();
     let card = await choose('createScatterPlot'); card.querySelector('.apply-button').click();
     await wait(() => $('#current').dataset.steps === '1' && idle());
+    await wait(() => $('.card-row[aria-busy="true"] .card'));
+    $('#cards').dispatchEvent(new win.Event('scroll'));
+    check(!win.applicationErrors.length, 'An interactive partial recommendation page has no pagination state');
+    passed.push('A streamed card has usable navigation state before its recommendation page finishes');
+    win.recommendationDelay = 0;
     card = await choose('encodeOpacity'); win.prepareDelay = 700; pinNumber(card, .43);
     await wait(() => card.dataset.previewState === 'pending' && win.delayedPrepares > 0);
     check(!card.querySelector('.apply-button').disabled, 'A pending preview disabled Apply');
@@ -96,6 +110,35 @@ document.querySelector('#run').onclick = async event => {
     await wait(() => $('#current').dataset.steps === '4' && idle());
     check($('#current').textContent.includes('Recovered title'), 'Corrected settings were not applied');
     passed.push('Invalid settings report the native error without changing history, and corrected inputs apply');
+    for (const method of ['createBarPlot', 'createAreaPlot']) {
+      $('#reset').click();
+      await wait(() => $('.column-select') && idle());
+      for (const field of ['Horsepower', 'Miles_per_Gallon', 'Origin']) $(`.column-select[data-field="${field}"]`).click();
+      card = await choose(method); card.querySelector('.apply-button').click();
+      await wait(() => $('#current').dataset.steps === '1' && idle());
+      let steps = 1;
+      const layouts = method === 'createBarPlot' ? ['stack', 'fill', 'group'] : ['stack', 'fill', 'center'];
+      for (const layout of layouts) {
+        for (const mode of [layout, 'overlay']) {
+          card = await choose('layoutSeries', 'transform');
+          card.querySelector(`.parameter-choice[data-value="${mode}"]`).click();
+          check(!card.querySelector('.apply-button').disabled, `${method}: ${mode} disabled Apply`);
+          card.querySelector('.apply-button').click(); steps++;
+          await wait(() => $('#current').dataset.steps === String(steps) && idle());
+        }
+        // Re-select the layout that is already on screen. This is an accepted
+        // no-op, not an invalid parameter or a reason to disable Apply.
+        card = await choose('layoutSeries', 'transform');
+        card.querySelector('.parameter-choice[data-value="overlay"]').click();
+        await wait(() => card.dataset.previewState === 'unchanged');
+        check(!card.querySelector('.apply-button').disabled, `${method}: repeated Overlay disabled Apply`);
+        card.querySelector('.apply-button').click();
+        await wait(() => idle() && card.querySelector('.card-error').textContent === 'These settings are already applied.');
+        check($('#current').dataset.steps === String(steps), `${method}: repeated Overlay duplicated history`);
+        passed.push(`${method}: ${layout} → Overlay applies; repeated Overlay stays actionable without adding history`);
+      }
+    }
+    check(!win.applicationErrors.length, win.applicationErrors.join('\n'));
     report.textContent = 'PASS ' + passed.length + ' checks\n' + passed.join('\n');
   } catch (error) { report.textContent = 'FAIL: ' + error.stack + '\n' + passed.join('\n'); }
 };

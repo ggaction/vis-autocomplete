@@ -22,13 +22,15 @@ const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/
 const numberString = value => typeof value === 'string' && /^[+-]?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(Number(value));
 const present = value => value !== null && value !== undefined;
 
-export function describeColumn(values) {
+export function describeColumn(values, typeHint) {
+  const hint = typeof typeHint === 'string' ? typeHint : typeHint?.type;
+  const categoricalHint = ['nominal', 'ordinal'].includes(hint);
   const available = values.filter(present), count = available.length;
-  const numbers = count > 0 && available.every(v => typeof v === 'number' && Number.isFinite(v));
-  const temporal = count > 0 && available.every(date);
+  const numbers = !categoricalHint && hint !== 'temporal' && count > 0 && available.every(v => typeof v === 'number' && Number.isFinite(v));
+  const temporal = hint === 'temporal' || !categoricalHint && count > 0 && available.every(date);
   const categorical = count > 0 && available.every(v => ['string', 'boolean'].includes(typeof v));
-  const numericString = count > 0 && available.every(numberString);
-  const type = numbers ? 'quantitative' : temporal ? 'temporal' : categorical ? 'nominal' : 'mixed';
+  const numericString = !categoricalHint && hint !== 'temporal' && count > 0 && available.every(numberString);
+  const type = hint ?? (numbers ? 'quantitative' : temporal ? 'temporal' : categorical ? 'nominal' : 'mixed');
   const frequencies = new Map();
   for (const value of available) {
     const key = JSON.stringify([typeof value, value]);
@@ -73,13 +75,13 @@ function pairRows(rows, names) {
   return keyed.filter(value => value.key <= cutoff).map(value => value.row);
 }
 
-export function describeDataset(rows) {
+export function describeDataset(rows, fieldTypes = {}) {
   if (!Array.isArray(rows)) throw new TypeError('Expected an array of data rows.');
   const normalized = rows.map(row => row && typeof row === 'object' && !Array.isArray(row) ? row : { value: row });
   const names = [...new Set(normalized.flatMap(row => Object.keys(row)))].sort();
-  const fields = names.map(name => ({ name, ...describeColumn(normalized.map(row => row[name])) }));
+  const fields = names.map(name => ({ name, ...describeColumn(normalized.map(row => row[name]), fieldTypes[name]) }));
   const numeric = fields.filter(f => f.type === 'quantitative' || f.numericString);
-  const categories = fields.filter(f => f.type === 'nominal' && !f.numericString);
+  const categories = fields.filter(f => ['nominal', 'ordinal'].includes(f.type) && !f.numericString);
   const times = fields.filter(f => f.type === 'temporal');
   const pairs = [], coverage = [];
   // Select by statistics only, including cutoff ties so field renaming cannot

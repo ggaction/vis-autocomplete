@@ -65,8 +65,8 @@ export function getPlotDefinitions(profile) {
         labels: { fontFamily: 'Arial', fontSize: 9, maxWidth: 48, wrap: 'word', overlap: 'allow' } } }]));
     return Object.keys(axes).length ? { guides: { axes } } : {};
   };
-  const pos = name => ({ field: name, fieldType: fields.get(name)?.type ?? 'quantitative' });
-  const cat = name => ({ field: name, fieldType: fields.get(name)?.type === 'ordinal' ? 'ordinal' : 'nominal' });
+  const pos = name => ({ field: name, fieldType: fields.get(name)?.type ?? 'quantitative', ...(fields.get(name)?.order?.length ? { scale: { domain: fields.get(name).order } } : {}) });
+  const cat = name => ({ field: name, fieldType: fields.get(name)?.type === 'ordinal' ? 'ordinal' : 'nominal', ...(fields.get(name)?.order?.length ? { scale: { domain: fields.get(name).order } } : {}) });
   const colored = value => value ? { color: value } : {};
   const definitions = [];
   const add = (method, controls, build, requirement = null) => {

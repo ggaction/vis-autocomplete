@@ -1,4 +1,5 @@
 // At most three visible parameter groups, except aggregate color (four). Native ggaction options only.
+import { binnedPositionExpression } from '../src/plot-aggregation.js';
 import { applyParameterDefaults } from '../src/control-defaults.js';
 const select = (key, label, choices, value) => ({ key, label, type: 'select',
   choices: choices.map(v => typeof v === 'object' ? v : { value: v, label: v }), value });
@@ -17,16 +18,23 @@ export function recommendationParameters(recommendation, profile) {
   const alternatives = recommendation.alternatives ?? [{ args }];
   const options = [...new Set(alternatives.map(v => fieldOf(v.args)).filter(Boolean))];
   const fields = new Map(profile.fields.map(f => [f.name, f]));
-  const fieldOptions = options.map(value => ({ value, label: value, missing: fields.get(value)?.missing,
+  const validFieldOptions = options.map(value => ({ value, label: recommendation.fieldLabels?.[value] ?? value, missing: fields.get(value)?.missing,
     fieldType: fields.get(value)?.type }));
+  const fieldOptions = [...validFieldOptions, ...(recommendation.unavailableFields ?? []).filter(f => !options.includes(f.value)).map(f => ({ ...f, label: recommendation.fieldLabels?.[f.value] ?? f.label }))];
   const usable = profile.fields.filter(f => f.usable);
   const quantitative = usable.filter(f => f.type === 'quantitative').map(f => f.name);
   const categories = usable.filter(f => ['nominal', 'ordinal'].includes(f.type)).map(f => f.name);
   const clone = () => structuredClone(args);
   const forField = field => structuredClone(alternatives.find(option => fieldOf(option.args) === field)?.args ?? args);
   let controls, build;
+  let normalize = values => ({ ...values });
+  let resolve = () => controls;
 
-  if (method === 'createStatisticalReference') {
+  if (recommendation.binRecipe) {
+    const recipe = recommendation.binRecipe;
+    controls = [numeric('bins', 'X bins (maximum)', recipe.bins, 2, 24)];
+    build = v => ({ ...clone(), expression: binnedPositionExpression(recipe.field, recipe.domain, v.bins) });
+  } else if (method === 'createStatisticalReference') {
     const axes = [...new Set(alternatives.map(option => option.args.axis))];
     const isInterval = value => ['middle50', 'middle95'].includes(value);
     const initial = args.statistics ?
@@ -35,10 +43,10 @@ export function recommendationParameters(recommendation, profile) {
       { value: 'mean', label: 'Mean' }, { value: 'median', label: 'Median' },
       { value: 'min', label: 'Minimum' }, { value: 'max', label: 'Maximum' },
       { value: 'middle50', label: 'Middle 50%' }, { value: 'middle95', label: 'Middle 95%' },
-    ], initial)];
+    ], initial), select('population', 'Population', [{ value: 'visibleItems', label: 'Visible marks' }, { value: 'boundData', label: 'All bound rows' }], args.population ?? 'visibleItems')];
     build = v => {
       const common = { source: args.source, axis: v.axis,
-        ...(args.population ? { population: args.population } : {}), ...(args.field ? { field: args.field } : {}) };
+        population: v.population, ...(args.field ? { field: args.field } : {}) };
       if (isInterval(v.statistic)) {
         const p = v.statistic === 'middle95' ? .025 : .25;
         return { ...common, statistics: [{ op: 'quantile', p }, { op: 'quantile', p: 1 - p }],
@@ -49,9 +57,12 @@ export function recommendationParameters(recommendation, profile) {
   } else if (method === 'facet') {
     controls = [select('field', 'Facet by', [...new Set(alternatives.map(a => a.args.field))], args.field),
       numeric('columns', 'Columns', args.columns ?? 3, 1, 6), numeric('gap', 'Gap', args.gap ?? 12, 0, 40)];
-    build = v => ({ ...forField(v.field), data: recommendation.facetFields?.[v.field] ??
-      alternatives.find(a => a.args.field === v.field)?.args.data ?? args.data,
-      field: v.field, columns: v.columns, gap: v.gap });
+    build = v => {
+      const variants = alternatives.filter(a => a.args.field === v.field);
+      const selected = v.field !== args.field ? variants.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') ?? variants[0] : undefined;
+      return { ...(selected ? structuredClone(selected.args) : forField(v.field)), data: recommendation.facetFields?.[v.field] ?? variants[0]?.args.data ?? args.data,
+        field: v.field, columns: v.columns, gap: v.gap };
+    };
   } else if (recommendation.parameterMode === 'presets') {
     const label = args => Object.entries(args).filter(([key]) => key !== 'target').slice(0, 3)
       .map(([key, value]) => `${key.replace(/([a-z])([A-Z])/g, '$1 $2')}${typeof value === 'object' ? '' : `: ${value}`}`).join(' · ');
@@ -63,7 +74,9 @@ export function recommendationParameters(recommendation, profile) {
     controls = recommendation.parameters.map((parameter, i) => ({ ...structuredClone(parameter), key: `p${i}`,
       value: at(args, parameter.path) ?? parameter.value }));
     build = values => {
-      const out = clone();
+      const changedPartition = method === 'facetGrid' && recommendation.parameters.some((parameter, i) => ['rows.field', 'columns.field'].includes(parameter.path) && values[`p${i}`] !== at(args, parameter.path));
+      const fallback = changedPartition ? alternatives.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') : undefined;
+      const out = fallback ? structuredClone(fallback.args) : clone();
       for (const [i, parameter] of recommendation.parameters.entries()) {
         for (const name of [parameter.path, ...(values[`p${i}`] !== at(args, parameter.path) ? parameter.alsoSet ?? [] : [])]) {
           const path = name.split('.'), key = path.pop();
@@ -81,7 +94,13 @@ export function recommendationParameters(recommendation, profile) {
     build = v => {
       const out = forField(v.field); out.field = v.field; out.fieldType = fields.get(v.field)?.type ?? args.fieldType;
       if (v.aggregate) out.aggregate = v.aggregate;
-      if (v.scale !== 'auto') out.scale = { ...out.scale, type: v.scale };
+      if (v.scale !== 'auto') {
+        let id = `${args.target ?? 'plot'}-${method === 'encodeX' ? 'x' : 'y'}-${v.scale}`;
+        const ids = recommendation.scaleIds ?? [];
+        for (let suffix = 2; ids.includes(id); suffix++) id = `${args.target ?? 'plot'}-${method === 'encodeX' ? 'x' : 'y'}-${v.scale}-${suffix}`;
+        out.scale = { ...out.scale, id, type: v.scale };
+        if (['log', 'time', 'utc'].includes(v.scale)) delete out.scale.zero;
+      }
       return out;
     };
   } else if (['encodeColor', 'encodeStroke', 'encodeOpacity', 'encodeSize', 'encodeStrokeWidth'].includes(method)) {
@@ -93,7 +112,7 @@ export function recommendationParameters(recommendation, profile) {
     const variableArgs = alternatives.find(option => option.args.field)?.args;
     const defaultField = args.field ?? variableArgs?.field;
     const fixedValue = args.value ?? (method === 'encodeStroke' ? '#000000' : color ? '#4c78a8' : size ? 64 : width ? 2 : 0.7);
-    controls = [select('mode', 'Mode', [{ value: 'fixed', label: 'Fixed' }, { value: 'variable', label: 'Variable', disabled: !fieldOptions.length }],
+    controls = [select('mode', 'Mode', [{ value: 'fixed', label: 'Fixed' }, { value: 'variable', label: 'Variable', disabled: !validFieldOptions.length }],
       args.field ? 'variable' : 'fixed'),
       conditional(color ? { key: 'value', label: 'Color', type: 'color', value: fixedValue, choices: [...(method === 'encodeStroke' ? ['#000000'] : []), '#4c78a8', '#f58518', '#e45756', '#72b7b2', '#54a24b', '#b279a2', '#555555'].map(value => ({ value, label: value })) }
         : numeric('value', size ? 'Area (px²)' : width ? 'Stroke width' : 'Opacity', fixedValue, 0, size ? 1600 : width ? 8 : 1, size ? 1 : width ? .25 : 0.05), v => !variable(v)),
@@ -129,7 +148,7 @@ export function recommendationParameters(recommendation, profile) {
     const angle = method === 'encodeAngle';
     const variable = v => v.mode === 'variable';
     controls = [select('mode', 'Mode', [{ value: 'fixed', label: 'Fixed' },
-      { value: 'variable', label: 'Variable', disabled: !fieldOptions.length }], args.field ? 'variable' : 'fixed'),
+      { value: 'variable', label: 'Variable', disabled: !validFieldOptions.length }], args.field ? 'variable' : 'fixed'),
       { ...select('field', 'Variable', fieldOptions, args.field ?? options[0]), when: variable },
       { ...(angle ? numeric('value', 'Angle', args.value ?? 30, 0, 360, 5)
         : select('value', 'Dash', ['solid', 'dashed', 'dotted'], args.value ?? 'dashed')), when: v => !variable(v) }];
@@ -139,10 +158,17 @@ export function recommendationParameters(recommendation, profile) {
     build = v => ({ ...clone(), field: v.field });
   } else if (method === 'createRegression') {
     controls = [select('method', 'Model', ['linear', 'polynomial', 'loess', 'exp'], args.method ?? 'linear'),
-      numeric('level', 'Confidence level', 0.95, 0.5, 0.99, 0.01),
+      { ...numeric('level', 'Confidence level', 0.95, 0.5, 0.99, 0.01), when: v => ['linear', 'polynomial'].includes(v.method) },
       select('group', 'Group', [{ value: '', label: 'All observations' }, ...categories.map(value => ({ value, label: value }))], '')];
-    build = v => ({ ...clone(), method: v.method, groupBy: v.group || false,
-      ...(['linear', 'polynomial'].includes(v.method) ? { level: v.level } : {}) });
+    build = v => {
+      const out = { ...clone(), method: v.method, groupBy: v.group || false };
+      delete out.level; delete out.interval; delete out.confidence; delete out.confidenceMethod; delete out.band;
+      if (v.method !== 'polynomial') delete out.degree;
+      if (v.method !== 'loess') { delete out.span; delete out.robustIterations; }
+      if (['linear', 'polynomial'].includes(v.method)) { out.level = v.level; }
+      else if (v.method === 'exp') out.interval = false;
+      return out;
+    };
   } else if (method === 'editAxes') {
     const contexts = recommendation.guideContext?.axes ?? {};
     const channels = Object.keys(args);
@@ -222,7 +248,7 @@ export function recommendationParameters(recommendation, profile) {
     build = v => ({ ...clone(), position: v.position, labels: { fontFamily: 'Arial', fontSize: v.fontSize },
       ...(v.title ? { title: v.title } : {}) });
   } else if (['createTitle', 'editTitle'].includes(method)) {
-    controls = [text('text', 'Title', args.text), select('position', 'Position', ['top', 'bottom', 'left', 'right'], args.position ?? 'top'),
+    controls = [text('text', 'Title', args.text), select('position', 'Position', recommendation.compositionContext?.facet ? ['top'] : ['top', 'bottom', 'left', 'right'], args.position ?? 'top'),
       numeric('size', 'Font size', args.titleStyle?.fontSize ?? 16, 10, 30)];
     build = v => ({ ...clone(), text: v.text, position: v.position,
       titleStyle: { fontFamily: 'Arial', fontSize: v.size } });
@@ -253,7 +279,7 @@ export function recommendationParameters(recommendation, profile) {
   } else if (method === 'createMarkLabels') {
     controls = [select('content', 'Label', ['value', 'category'], args.content ?? 'value'),
       numeric('fontSize', 'Font size', args.fontSize ?? 11, 8, 18),
-      select('anchor', 'Position', ['center', 'insideEnd', 'outsideEnd'], 'center')];
+      select('anchor', 'Position', ['center', 'insideEnd', 'outsideEnd'], args.placement?.anchor ?? 'outsideEnd')];
     build = v => ({ ...clone(), content: v.content, fontSize: v.fontSize, fontFamily: 'Arial', placement: { anchor: v.anchor } });
   } else if (method === 'createComputedData') {
     controls = [select('field', 'Source variable', options, args.expression.operand.field), text('as', 'Output column', args.as)];
@@ -283,7 +309,75 @@ export function recommendationParameters(recommendation, profile) {
     const limit = method === 'encodeColor' && controls.some(c => c.key === 'aggregate') ? 4 : 3;
     if (count > limit) throw new Error('Too many visible parameter groups.');
   }
-  return { controls, build, defaultDecisions };
+  // Dependent numeric bounds and model controls share one pure contract. Hover
+  // normalizes values; callers rerender control structure only after a click.
+  const flat = list => list.flatMap(c => c.type === 'group' ? flat(c.controls) : [c]);
+  const generic = recommendation.parameters ?? [];
+  const channelIndex = generic.findIndex(p => p.path === 'channel');
+  const thresholdIndex = generic.findIndex(p => p.path === 'value');
+  const rangeIndices = ['range.0', 'range.1'].map(path => generic.findIndex(p => p.path === path));
+  const facetIndices = ['rows.field', 'columns.field'].map(path => generic.findIndex(p => p.path === path));
+  const channelVariant = values => alternatives.find(a => a.args.channel === values[`p${channelIndex}`]);
+  resolve = values => {
+    let resolved = controls.map(c => ({ ...c, ...(c.controls ? { controls: c.controls.map(child => ({ ...child })) } : {}) }));
+    if (method === 'filterMarks' && channelIndex >= 0 && thresholdIndex >= 0) {
+      const parameter = channelVariant(values)?.parameters?.find(p => p.path === 'value');
+      if (parameter) resolved[thresholdIndex] = { ...resolved[thresholdIndex], min: parameter.min, max: parameter.max, step: parameter.step };
+    }
+    if (method === 'facetGrid' && facetIndices.every(i => i >= 0)) {
+      for (const [i, other] of [facetIndices, [...facetIndices].reverse()]) resolved[i] = { ...resolved[i], choices: resolved[i].choices.map(c => ({ ...c, disabled: c.value === values[`p${other}`], ...(c.value === values[`p${other}`] ? { reason: 'Rows and columns must use different fields.' } : {}) })) };
+    }
+    if (['encodeX', 'encodeY'].includes(method) && !generic.length) {
+      const type = fields.get(values.field)?.type;
+      const baseline = recommendation.positionScaleContext?.zeroBaseline?.[method === 'encodeX' ? 'x' : 'y'];
+      const nonPositive = recommendation.positionScaleContext?.nonPositiveFields?.includes(values.field);
+      resolved = resolved.map(c => c.key === 'scale' ? { ...c, choices: c.choices.map(o => ({ ...o,
+        disabled: o.value !== 'auto' && type !== 'quantitative' || o.value === 'log' && Boolean(baseline || nonPositive),
+        reason: o.value !== 'auto' && type !== 'quantitative' ? 'This field uses a categorical or time scale.' : o.value === 'log' && baseline ? 'This mark requires a zero baseline. Use symlog to retain zero.' : o.value === 'log' && nonPositive ? 'Log requires a strictly positive field.' : undefined })) } : c);
+    }
+    if (['createRegression', 'editRegression'].includes(method) && recommendation.regressionContext) {
+      const context = recommendation.regressionContext, current = context.groups[values.group ?? context.currentGroup ?? ''];
+      const modelKey = method === 'createRegression' ? 'method' : `p${generic.findIndex(parameter => parameter.path === 'method')}`;
+      resolved = resolved.map(c => c.key === modelKey ? { ...c, choices: c.choices.map(choice => {
+        const reason = current?.minDistinctX < (choice.value === 'polynomial' ? 3 : 2) ? 'Each regression group needs more distinct X values for this model.'
+          : choice.value === 'exp' && !current?.positiveY ? 'Exponential regression requires strictly positive Y values.'
+          : choice.value === 'loess' && current?.loessWork > context.workLimit ? 'LOESS exceeds the computation budget for these rows. Choose grouped fits, linear, or polynomial regression.' : undefined;
+        return { ...choice, disabled: Boolean(reason), reason };
+      }) } : c.key === 'group' ? { ...c, choices: c.choices.map(choice => ({ ...choice,
+        disabled: context.groups[choice.value]?.minDistinctX < 2,
+        ...(context.groups[choice.value]?.minDistinctX < 2 ? { reason: 'Every group needs at least two distinct X values.' } : {}) })) } : c);
+    }
+    if (['encodeColor', 'encodeStroke'].includes(method)) {
+      const paletteNames = ['nominal', 'ordinal'].includes(fields.get(values.field)?.type) ? ['auto', 'tableau10', 'category10'] : ['auto', 'viridis', 'blues', 'reds'];
+      resolved = resolved.map(c => c.key === 'palette' ? { ...c, choices: c.choices.filter(o => paletteNames.includes(o.value)) } : c);
+    }
+    const numericControls = flat(resolved), lowKey = rangeIndices[0] >= 0 ? `p${rangeIndices[0]}` : 'min', highKey = rangeIndices[1] >= 0 ? `p${rangeIndices[1]}` : 'max';
+    const low = numericControls.find(c => c.key === lowKey), high = numericControls.find(c => c.key === highKey);
+    if (low && high) { low.max = Math.min(low.max, values[highKey]); high.min = Math.max(high.min, values[lowKey]); }
+    return resolved;
+  };
+  normalize = (input, changedKey) => {
+    const values = { ...input };
+    if (method === 'filterMarks' && changedKey === `p${channelIndex}` && thresholdIndex >= 0) {
+      const variant = channelVariant(values); if (variant) values[`p${thresholdIndex}`] = variant.args.value;
+    }
+    if (method === 'facetGrid' && facetIndices.every(i => i >= 0) && values[`p${facetIndices[0]}`] === values[`p${facetIndices[1]}`]) {
+      const index = changedKey === `p${facetIndices[0]}` ? facetIndices[1] : facetIndices[0];
+      values[`p${index}`] = controls[index].choices.find(c => c.value !== values[changedKey ?? `p${facetIndices[1]}`])?.value;
+    }
+    if (['encodeX', 'encodeY'].includes(method) && fields.get(values.field)?.type !== 'quantitative') values.scale = 'auto';
+    const lowKey = rangeIndices[0] >= 0 ? `p${rangeIndices[0]}` : 'min', highKey = rangeIndices[1] >= 0 ? `p${rangeIndices[1]}` : 'max';
+    if (Number.isFinite(values[lowKey]) && Number.isFinite(values[highKey]) && values[lowKey] > values[highKey]) {
+      if (changedKey === lowKey) values[highKey] = values[lowKey]; else values[lowKey] = values[highKey];
+    }
+    for (const c of flat(resolve(values))) { if (c.type === 'select' && c.choices.some(choice => choice.value === values[c.key] && choice.disabled)) values[c.key] = c.choices.find(choice => !choice.disabled)?.value;
+      if (c.key === 'palette' && !c.choices.some(choice => choice.value === values.palette)) values.palette = 'auto';
+      if (c.type === 'number' && Number.isFinite(values[c.key])) values[c.key] = Math.max(c.min, Math.min(c.max, values[c.key])); }
+    return values;
+  };
+  const rawBuild = build;
+  build = values => rawBuild(normalize(values));
+  return { controls, build, defaultDecisions, normalizeValues: normalize, resolveControls: resolve };
 }
 
 export function valuesFor(controls) {

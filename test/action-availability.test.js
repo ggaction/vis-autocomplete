@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chart } from 'ggaction';
+import { renderToSVG } from 'ggaction/svg';
 import { describeAction } from 'ggaction/inspection';
 import { createRecommendationEngine, profileDataset } from '../src/index.js';
 import { recommendationParameters, valuesFor, activeControls } from '../web/parameters.js';
@@ -115,7 +116,7 @@ test('facet stays in Encoding and supports real source actions, guide edits, lay
   }
 });
 
-test('binned heatmaps retain facet candidates when shared legends need independent per-panel color scales', async () => {
+test('binned heatmaps retain facet candidates with semantically coherent shared or independent color guides', async () => {
   const { createCalculationService } = await import('../web/calculation-service.js');
   const { serializeProgram } = await import('ggaction/persistence');
   const cars = JSON.parse(readFileSync(new URL('../web/data/cars.json',import.meta.url))).filter(r=>r.Horsepower!=null&&r.Miles_per_Gallon!=null);
@@ -132,8 +133,18 @@ test('binned heatmaps retain facet candidates when shared legends need independe
   assert.ok(rec,'valid per-panel guides must rescue a facet card');
   assert.equal(rec.args.field,'Origin');
   assert.equal(rec.args.data,'data');
-  assert.equal(rec.args.scales.color,'independent');
-  assert.equal(rec.args.guides.legend,false);
+  const faceted = prepareGuidedAction(raw, { method: rec.method, args: rec.args }).preview;
+  if (rec.args.scales?.color === 'independent') assert.equal(rec.args.guides.legend, false);
+  else {
+    assert.equal(rec.args.guides.legend, 'shared');
+    const domains = Object.values(faceted.children).map(child => {
+      const layer = child.semanticSpec.layers.find(layer => layer.encoding?.color?.scale);
+      return child.resolvedScales[layer.encoding.color.scale].domain;
+    });
+    assert.ok(domains.length > 1);
+    assert.ok(domains.every(domain => JSON.stringify(domain) === JSON.stringify(domains[0])), 'a shared color legend uses the same domain in every panel');
+  }
+  assert.ok(renderToSVG(faceted).startsWith('<svg'));
   assert.ok(response.result.recommendations.some(r=>r.method==='encodeStrokeWidth'));
   assert.ok(response.result.recommendations.some(r=>r.method==='encodeOpacity'));
 });

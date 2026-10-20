@@ -1,5 +1,6 @@
+import { rolePlotDefinitions } from './role-plots.js';
 import { getPlotDefinitions, defaultValues } from './plot-catalog.js';
-import { xBinControl, binnedSummarySetup, binnedFieldSetup } from './plot-aggregation.js';
+import { xBinControl, binnedSummarySetup, binnedFieldSetup, continuousFieldSetup, isContinuousField } from './plot-aggregation.js';
 
 const categorical = field => ['nominal', 'ordinal'].includes(field.type);
 const barCategory = field => categorical(field) || field.type === 'temporal';
@@ -19,7 +20,7 @@ const choice = (key, label, choices, value) => ({ key, label, type: 'select',
 // every original row and null; no unselected column can influence this query.
 export function projectSelection(rows, profile, selection) {
   const fields = new Map(profile.fields.map(field => [field.name, field]));
-  if (!selection?.x || !selection?.y) throw new Error('Select X and Y variables.');
+  if (!selection?.x) throw new Error('Select an X variable.');
   if (selection.x === selection.y) throw new Error('Choose different X and Y variables.');
   const names = [...new Set([selection.x, selection.y, selection.color].filter(Boolean))];
   for (const name of names) if (!fields.get(name)?.usable) throw new Error(`Variable ${name} has no usable values.`);
@@ -30,7 +31,7 @@ export function projectSelection(rows, profile, selection) {
 // The chosen roles are constraints, not corpus-generated defaults. Plots that
 // cannot represent these roles (e.g. a univariate histogram, or a count heatmap
 // with an unrelated color variable) are omitted rather than silently rebound.
-export function selectedPlotDefinitions(profile, selection, rows) {
+export function selectedPlotDefinitions(profile, selection, rows, eligibility = [], options = {}) {
   const selectedFields = [...new Set([selection.x, selection.y, selection.color].filter(Boolean))];
   const complete = rows.filter(row => selectedFields.every(field => row[field] !== null && row[field] !== undefined));
   if (!complete.length) return [];
@@ -44,27 +45,41 @@ export function selectedPlotDefinitions(profile, selection, rows) {
   }) };
   const fields = new Map(profile.fields.map(field => [field.name, field]));
   const x = fields.get(selection.x), y = fields.get(selection.y), color = fields.get(selection.color);
+  const ySelected = fields.get(selection.y);
+  if (!ySelected) return rolePlotDefinitions(profile, selection, complete, options);
   const grouped = categorical(x) && y.type === 'quantitative' || categorical(y) && x.type === 'quantitative';
   const aggregateBar = barCategory(x) && y.type === 'quantitative' || barCategory(y) && x.type === 'quantitative';
   const category = categorical(x) ? x : y, measure = categorical(x) ? y : x;
-  const pos = field => ({ field: field.name, fieldType: field.type });
+  const pos = field => ({ field: field.name, fieldType: field.type, ...(field.order?.length ? { scale: { domain: field.order } } : {}) });
+  const extraDefinitions = rolePlotDefinitions(profile, selection, complete, options);
   const definitions = [];
+  if (!y) return extraDefinitions;
   for (const definition of getPlotDefinitions(profile)) {
     const method = definition.method;
-    if (!directXY.has(method) && !groupedXY.has(method) && !endpoints.has(method)) continue;
-    if ((groupedXY.has(method) || endpoints.has(method)) && !grouped) continue;
-    if (color && !colorMethods.has(method) && method !== 'createHeatmap') continue;
+    const omit = reason => eligibility.push({ method, eligible: false, reason });
+    if (!directXY.has(method) && !groupedXY.has(method) && !endpoints.has(method)) { omit('does-not-represent-selected-xy'); continue; }
+    if ((groupedXY.has(method) || endpoints.has(method)) && !grouped) { omit('requires-categorical-and-numerical-positions'); continue; }
+    if (color && !colorMethods.has(method) && method !== 'createHeatmap') { omit('does-not-support-selected-color'); continue; }
     if (method === 'createViolinPlot' && color && color.name !== category.name &&
-        (!categorical(color) || color.distinct !== 2)) continue;
-    if (method === 'createRaincloudPlot' && color && color.name !== category.name) continue;
-    if (method === 'createIntervalPlot' && color && color.name !== category.name && !categorical(color)) continue;
-    const binnedColor = color?.type === 'quantitative' &&
-      (['createLinePlot', 'createAreaPlot'].includes(method) || method === 'createBarPlot' && !aggregateBar);
-    const binnedHeatmap = method === 'createHeatmap' && color?.type === 'quantitative' &&
+        (!categorical(color) || color.distinct !== 2)) { omit('violin-split-requires-two-categories'); continue; }
+    if (method === 'createRaincloudPlot' && color && color.name !== category.name) { omit('raincloud-color-must-match-position-category'); continue; }
+    if (method === 'createIntervalPlot' && color && color.name !== category.name && !categorical(color) && !isContinuousField(color)) {
+      omit('color-cannot-identify-interval-groups'); continue;
+    }
+    // Color is adapted to the mark's required grain, not rejected by source
+    // type. Path/group colors need intervals; heatmap values need aggregation.
+    const binnedColor = isContinuousField(color) &&
+      (['createLinePlot', 'createAreaPlot', 'createIntervalPlot'].includes(method) ||
+        method === 'createBarPlot' && (!aggregateBar || color.type === 'temporal'));
+    const binnedHeatmap = method === 'createHeatmap' && isContinuousField(color) &&
       x.type === 'quantitative' && y.type === 'quantitative';
+    const aggregatedHeatmap = method === 'createHeatmap' && isContinuousField(color);
     if (['createAreaPlot', 'createLinePlot'].includes(method) &&
-        (y.type !== 'quantitative' || color && !categorical(color) && !binnedColor)) continue;
-    if (['createLinePlot', 'createAreaPlot'].includes(method) && color?.name === x.name && !binnedColor) continue;
+        (y.type !== 'quantitative' || color && !categorical(color) && !binnedColor)) { omit('path-requires-numerical-y-and-series-color'); continue; }
+    if (['createLinePlot', 'createAreaPlot'].includes(method) && color?.name === x.name && !binnedColor) {
+      omit('color-groups-have-one-x-position'); continue;
+    }
+    let groupedFitSupported = true;
     if (['createLinePlot', 'createAreaPlot', 'createRegressionPlot'].includes(method)) {
       const series = new Map();
       for (const row of complete) {
@@ -72,38 +87,70 @@ export function selectedPlotDefinitions(profile, selection, rows) {
         if (!series.has(key)) series.set(key, new Set());
         series.get(key).add(row[x.name]);
       }
-      if ([...series.values()].some(values => values.size < 2)) continue;
+      const groups = [...series.values()];
+      groupedFitSupported = groups.every(values => values.size >= 2);
+      // One sparse series does not invalidate every other path. Regression can
+      // also fit all observations when a per-series fit is underdetermined.
+      if (method !== 'createRegressionPlot' && groups.every(values => values.size < 2)) {
+        omit('no-series-has-two-distinct-x-values'); continue;
+      }
     }
-    if (method === 'createBarPlot' && !aggregateBar && !(x.type === 'quantitative' && y.type === 'quantitative')) continue;
-    if (method === 'createBarPlot' && color?.type === 'temporal') continue;
-    if (method === 'createRegressionPlot' && !(x.type === 'quantitative' && y.type === 'quantitative')) continue;
-    if (method === 'createHorizonPlot' && (y.type !== 'quantitative' || categorical(x) || x.distinct < 2)) continue;
+    if (method === 'createBarPlot' && !aggregateBar && !(x.type === 'quantitative' && y.type === 'quantitative')) {
+      omit('bar-requires-a-numerical-measure'); continue;
+    }
+    if (method === 'createRegressionPlot' && (!(x.type === 'quantitative' && y.type === 'quantitative') || x.distinct < 2)) {
+      omit('regression-requires-numerical-xy-and-distinct-x'); continue;
+    }
+    if (method === 'createHorizonPlot' && (y.type !== 'quantitative' || categorical(x) || x.distinct < 2)) {
+      omit('horizon-requires-ordered-x-and-numerical-y'); continue;
+    }
     if (method === 'createHeatmap' && !(color
-      ? (categorical(x) && categorical(y) || binnedHeatmap) && color.type === 'quantitative'
-      : x.type === 'quantitative' && y.type === 'quantitative')) continue;
+      ? (categorical(x) && categorical(y) || binnedHeatmap) && isContinuousField(color)
+      : x.type === 'quantitative' && y.type === 'quantitative')) { omit('heatmap-requires-binnable-xy-or-categorical-grid-with-continuous-color'); continue; }
 
+    const groupCounts = new Map();
+    if (grouped) for (const row of complete) {
+      const key = JSON.stringify([row[category.name], ...(color && color.name !== category.name && categorical(color) ? [row[color.name]] : [])]);
+      groupCounts.set(key, (groupCounts.get(key) ?? 0) + 1);
+    }
+    const singletonGroups = grouped && [...groupCounts.values()].every(count => count < 2);
+    const densityMethods = ['createViolinPlot', 'createGradientPlot', 'createRaincloudPlot'];
+    const denseSteps = Math.min(100, Math.floor(10000 / Math.max(1, groupCounts.size)));
+    let requirement = null;
+    if (singletonGroups && (method === 'createIntervalPlot' || densityMethods.includes(method))) requirement = 'Each group has only one observation. Choose a dot/bar chart or supply measured interval bounds; group distributions and confidence intervals require repeated observations.';
+    if (densityMethods.includes(method) && denseSteps < 2) requirement = 'Too many groups for a density estimate. Choose a bar/dot chart or fewer grouping categories.';
+    if (complete.length > 50000 && ['createScatterPlot', 'createRegressionPlot', 'createStripPlot', 'createBeeswarmPlot', 'createRaincloudPlot', 'createTextPlot'].includes(method)) requirement = `This chart would create ${complete.length.toLocaleString('en-US')} observation marks (limit 50,000). Use an aggregated bar, line, area, histogram, or heatmap.`;
+    const summarizedText = method === 'createTextPlot' && grouped;
+    const textGroups = [...new Set([category.name, color && categorical(color) ? color.name : undefined].filter(Boolean))];
+    const textCount = summarizedText ? new Set(complete.map(row => JSON.stringify(textGroups.map(field => row[field])))).size : complete.length;
+    if (method === 'createTextPlot' && textCount > 60) requirement = `This selection would place ${textCount} text labels in one chart. Use a scatter plot with selected value labels, or fewer categories, for readable labels.`;
+    const eventCounts = complete.every(row => row[y.name] === 1);
     const defaults = { ...defaultValues(definition), x: x.name, y: y.name, category: category.name,
       value: measure.name, color: color?.name ?? '', text: color?.name ?? y.name,
-      aggregate: 'mean', radius: 3, width: 2, opacity: method === 'createAreaPlot' ? .65 : method === 'createBarPlot' ? .85 : .8 };
+      aggregate: eventCounts ? 'sum' : 'mean', radius: 3, width: 2, opacity: method === 'createAreaPlot' ? .65 : method === 'createBarPlot' ? .85 : .8 };
     // Only construction decisions belong here; X/Y/Color remain fixed by the table.
     const controls = definition.controls.filter(control => !['x', 'y', 'category', 'value', 'color', 'text'].includes(control.key) &&
       !(method === 'createHeatmap' && color && !binnedHeatmap && control.key === 'bins'));
+    if (summarizedText) controls.push(choice('aggregate', `${measure.name} aggregation`, aggregateChoices, 'mean'));
     if (['createLinePlot', 'createAreaPlot', 'createHorizonPlot'].includes(method)) {
-      controls.unshift(choice('aggregate', 'Aggregation', aggregateChoices, 'mean'));
+      controls.unshift(choice('aggregate', 'Y aggregation', aggregateChoices, eventCounts ? 'sum' : 'mean'));
     }
     const binsX = ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) &&
       x.type === 'quantitative' && y.type === 'quantitative';
     if (binsX) controls.unshift(xBinControl());
+    const calendar = ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) && x.type === 'temporal' && y.type === 'quantitative';
+    if (calendar) controls.unshift(choice('timeUnit', 'Calendar interval (UTC)', [{ value: 'raw', label: 'Original dates' }, ...['year', 'quarter', 'month', 'week', 'day'].map(value => ({ value, label: value }))], 'raw'));
     if (binnedColor) controls.push({ key: 'colorBins', label: `${color.name} color bins (maximum)`,
       type: 'number', value: 3, min: 2, max: 6, step: 1 });
-    if (binnedHeatmap) controls.push(choice('aggregate', 'Color aggregation', aggregateChoices, 'mean'));
+    if (aggregatedHeatmap) controls.push(choice('aggregate', 'Color aggregation',
+      color.type === 'temporal' ? ['mean', 'median', 'min', 'max'] : aggregateChoices, 'mean'));
     if (method === 'createBarPlot' && binsX && color && categorical(color)) {
       controls.push(choice('layout', 'Layout', ['overlay', 'stack', 'fill', 'group'].map(value => ({ value,
         label: { overlay: 'Overlay', stack: 'Stack', fill: 'Normalize', group: 'Dodge' }[value] })), 'overlay'));
     }
     if (method === 'createRegressionPlot' && color && categorical(color)) {
-      controls.push(choice('fit', 'Fit', [{ value: 'group', label: `By ${color.name}` },
-        { value: 'all', label: 'All observations' }], 'group'));
+      controls.push(choice('fit', 'Fit', [{ value: 'group', label: `By ${color.name}`, disabled: !groupedFitSupported },
+        { value: 'all', label: 'All observations' }], groupedFitSupported ? 'group' : 'all'));
     }
     // Use native encoding aggregation whenever supported. Numeric-X line/bar use
     // X bins and a Y aggregate directly; area/horizon need a summary dataset.
@@ -116,24 +163,37 @@ export function selectedPlotDefinitions(profile, selection, rows) {
     const unusedField = name => { while (reserved.includes(name) || name === binField) name += ' (bin)'; return name; };
     const colorBinField = unusedField(`${color?.name} (color bin)`), yBinField = unusedField(`${y.name} (bin)`);
     const colorPlan = binnedColor ? binnedFieldSetup({ source: profile.id, rows: complete,
-      field: color.name, as: colorBinField, role: 'color' }) : null;
+      field: color.name, as: colorBinField, role: 'color', type: color.type, reserved }) : null;
     const colorSource = binnedColor ? `${profile.id}-color-binned-rows` : profile.id;
     const summaryColor = binnedColor ? colorBinField : color && categorical(color) ? color.name : undefined;
+    const calendarField = unusedField(`${x.name} (calendar)`);
+    const calendarData = `${colorSource}-calendar`;
+    const calendarCalls = values => calendar && values.timeUnit && values.timeUnit !== 'raw' ? [{ method: 'createTimeUnitData', args: { id: calendarData, source: colorSource, field: x.name, as: calendarField, unit: values.timeUnit, timeZone: 'UTC', ...(values.timeUnit === 'week' ? { weekStartsOn: 1 } : {}) } }] : [];
+    const calendarSource = values => calendarCalls(values).length ? calendarData : colorSource;
+    const summaryX = values => calendarCalls(values).length ? calendarField : x.name;
     const summarySetup = summarizes && binsX ? binnedSummarySetup({ source: colorSource, rows: complete,
       x: x.name, binField, y: y.name, color: summaryColor, output: summaryId })
       : summarizes ? (values = {}) => [{ method: 'createSummaryData', args: {
-      id: summaryId, source: colorSource,
-      groupBy: [...new Set([x.name, summaryColor].filter(Boolean))],
+      id: summaryId, source: calendarSource(values),
+      groupBy: [...new Set([summaryX(values), summaryColor].filter(Boolean))],
       aggregates: [{ op: values.aggregate ?? 'mean', field: y.name, as: y.name }], missing: 'drop',
     } }] : () => [];
-    const heatX = binnedHeatmap ? binnedFieldSetup({ source: profile.id, rows: complete,
+    const heatColor = aggregatedHeatmap ? continuousFieldSetup({ source: profile.id, field: color.name,
+      type: color.type, role: 'heat-color', reserved }) : null;
+    const heatX = binnedHeatmap ? binnedFieldSetup({ source: heatColor.data, rows: complete,
       field: x.name, as: binField, role: 'heat-x' }) : null;
-    const heatY = binnedHeatmap ? binnedFieldSetup({ source: `${profile.id}-heat-x-binned-rows`, rows: complete,
+    const heatY = binnedHeatmap ? binnedFieldSetup({ source: `${heatColor.data}-heat-x-binned-rows`, rows: complete,
       field: y.name, as: yBinField, role: 'heat-y' }) : null;
-    const setup = (values = {}) => binnedHeatmap ? [...heatX(values.bins ?? 8).calls, ...heatY(values.bins ?? 8).calls,
-      { method: 'createSummaryData', args: { id: summaryId, source: `${profile.id}-heat-x-binned-rows-heat-y-binned-rows`,
-        groupBy: [binField, yBinField], aggregates: [{ op: values.aggregate ?? 'mean', field: color.name, as: color.name }], missing: 'drop' } }]
-      : [...(colorPlan ? colorPlan(values.colorBins ?? 3).calls : []), ...summarySetup(values)];
+    const textColor = summarizedText && color?.type === 'temporal' ? continuousFieldSetup({ source: profile.id, field: color.name, type: color.type, role: 'text-color', reserved }) : null;
+    const setup = (values = {}) => summarizedText ? [...(textColor?.calls ?? []), { method: 'createSummaryData', args: { id: summaryId, source: textColor?.data ?? profile.id, groupBy: textGroups, aggregates: [...new Set([measure.name, color && !categorical(color) ? color.name : undefined].filter(Boolean))].map(field => ({ field: field === color?.name && textColor ? textColor.field : field, as: field, op: values.aggregate ?? 'mean' })), missing: 'drop' } }] : aggregatedHeatmap ? [...heatColor.calls,
+      ...(binnedHeatmap ? [...heatX(values.bins ?? 8).calls, ...heatY(values.bins ?? 8).calls] : []),
+      { method: 'createSummaryData', args: { id: summaryId,
+        source: binnedHeatmap ? `${heatColor.data}-heat-x-binned-rows-heat-y-binned-rows` : heatColor.data,
+        groupBy: binnedHeatmap ? [binField, yBinField] : [x.name, y.name],
+        aggregates: [{ op: values.aggregate ?? 'mean', field: heatColor.field, as: color.name }], missing: 'drop' } }]
+      : [...(colorPlan ? colorPlan(values.colorBins ?? 3).calls : []), ...calendarCalls(values), ...summarySetup(values),
+        ...(method === 'createAreaPlot' && summaryColor ? [{ method: 'createCompleteData', args: { id: `${summaryId}-aligned`, source: summaryId, key: binsX ? binField : summaryX(values), groupBy: [summaryColor],
+          ...(['sum', 'count'].includes(values.aggregate) ? { fill: { [y.name]: 0 } } : {}) } }] : [])];
     const build = (values = {}) => {
       const v = { ...defaults, ...Object.fromEntries(controls.map(control => [control.key, values[control.key] ?? control.value])) };
       let args;
@@ -157,11 +217,20 @@ export function selectedPlotDefinitions(profile, selection, rows) {
         args = definition.build(v);
         if (groupedXY.has(method) && !categorical(x)) [args.x, args.y] = [args.y, args.x];
         if (endpoints.has(method)) args.orientation = categorical(x) ? 'vertical' : 'horizontal';
-        if (method === 'createTextPlot') args.style.missing = 'skip';
+        if (method === 'createTextPlot') {
+          args.style.missing = 'skip';
+          if (summarizedText) { args.data = summaryId; args.text = { field: color && categorical(color) ? color.name : measure.name, ...(!color || !categorical(color) ? { format: '.2f' } : {}) }; }
+        }
+        if (densityMethods.includes(method)) args.density = { ...args.density, steps: Math.max(2, denseSteps) };
       }
-      if (summarizes) args.data = summaryId;
+      if (summarizes || aggregatedHeatmap) args.data = summaryId;
+      if (calendarCalls(v).length) {
+        if (!summarizes) args.data = calendarData;
+        args.x = { ...args.x, field: calendarField, fieldType: 'temporal', temporalUnit: 'timestamp' };
+      }
+      if (method === 'createAreaPlot' && summaryColor) args.data = `${summaryId}-aligned`;
       if (summarizes && binsX) args.x = { ...args.x, field: binField };
-      if (binnedColor && !summarizes) args.data = colorSource;
+      if (binnedColor && !summarizes && !calendarCalls(v).length) args.data = colorSource;
       if (binnedHeatmap) {
         args.data = summaryId;
         args.x = { field: binField, fieldType: 'ordinal', scale: { domain: heatX(v.bins).domain } };
@@ -171,15 +240,17 @@ export function selectedPlotDefinitions(profile, selection, rows) {
           labels: { fontFamily: 'Arial', fontSize: 9, maxWidth: 48, wrap: 'word' } } });
         args.guides = { axes: { x: axis(x, heatX(v.bins).domain), y: axis(y, heatY(v.bins).domain) } };
       }
+      if (aggregatedHeatmap && color.type === 'temporal') args.color.temporalUnit = 'timestamp';
       if (method === 'createRegressionPlot') args.groupBy = v.fit === 'all' || !color || !categorical(color) ? false : color.name;
       if (color && colorMethods.has(method)) {
         args.color = binnedColor ? { field: colorBinField, fieldType: 'ordinal',
           scale: { domain: colorPlan(v.colorBins).domain, palette: 'blues' } } : pos(color);
+        if (summarizedText && color.type === 'temporal') args.color.temporalUnit = 'timestamp';
         if (method === 'createBarPlot' && binsX) args.color.layout = v.layout ?? 'overlay';
         if (method === 'createBarPlot' && aggregateBar && color.type === 'quantitative') args.color.aggregate = 'mean';
         if (['createLinePlot', 'createAreaPlot'].includes(method) && categorical(color)) args.groupBy = [color.name];
         if (['createLinePlot', 'createAreaPlot'].includes(method) && binnedColor) args.groupBy = [colorBinField];
-        if (method === 'createIntervalPlot' && categorical(color) && color.name !== category.name) args.groupBy = color.name;
+        if (method === 'createIntervalPlot' && color.name !== category.name) args.groupBy = binnedColor ? colorBinField : color.name;
         if (method === 'createViolinPlot' && color.name !== category.name) args.split = { field: color.name };
       }
       const axes = Object.fromEntries([['x', x], ['y', y]].filter(([, field]) => field.guideValues)
@@ -193,9 +264,16 @@ export function selectedPlotDefinitions(profile, selection, rows) {
         axes: { ...args.guides?.axes, x: { ...args.guides?.axes?.x, title: { text: x.name } } } };
       return args;
     };
+    eligibility.push({ method, eligible: true, colorType: color?.type,
+      colorStrategy: binnedColor ? 'ordered-intervals' : aggregatedHeatmap ? 'cell-aggregate' : 'native' });
     definitions.push({ ...definition, controls, build, setup, binField: summarizes && binsX || binnedHeatmap ? binField : undefined,
       yBinField: binnedHeatmap ? yBinField : undefined, colorBinField: binnedColor ? colorBinField : undefined,
-      requirement: null, selection: { ...selection } });
+      requirement, semanticDefaults: eventCounts && ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) ? { aggregate: 'sum' } : undefined, selection: { ...selection } });
   }
-  return definitions;
+  for (const definition of extraDefinitions) {
+    const existing = eligibility.find(item => item.method === definition.method);
+    if (existing) Object.assign(existing, { eligible: true, reason: undefined });
+    else eligibility.push({ method: definition.method, eligible: true });
+  }
+  return [...definitions.filter(d => !extraDefinitions.some(e => e.method === d.method)), ...extraDefinitions];
 }

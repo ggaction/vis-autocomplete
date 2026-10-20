@@ -25,7 +25,7 @@ test('one statistical card defaults to a dark thick solid line and preserves rea
   const p = base(), rec = referenceCard(p), editor = recommendationParameters(rec, profileDataset(p, 'data'));
   assert.equal(rec.label, 'Add statistic');
   assert.deepEqual([...new Set(rec.alternatives.map(a => a.method))], ['createStatisticalReference']);
-  assert.deepEqual(editor.controls.map(c => c.key), ['axis', 'statistic']);
+  assert.deepEqual(editor.controls.map(c => c.key), ['axis', 'statistic', 'population']);
   assert.deepEqual(editor.controls[1].choices.map(c => c.value), ['mean', 'median', 'min', 'max', 'middle50', 'middle95']);
   const action = buildRecommendationCall({ ...editor, method: rec.method }, valuesFor(editor.controls));
   assert.equal(action.method, 'createStatisticalReference');

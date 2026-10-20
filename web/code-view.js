@@ -60,6 +60,13 @@ export function codeCallBlocks(current, proposed = null) {
 
 const codeViews = new WeakMap();
 
+// Copy the canonical source, including folded setup/arguments, without UI
+// line numbers, disclosure arrows, ellipses or diff markers.
+export function displayedCode(host) {
+  const view = codeViews.get(host);
+  return view?.proposed ?? view?.current ?? '';
+}
+
 export function resetCodeView(host) {
   for (const record of codeViews.get(host)?.calls.values() ?? []) cancelSettlement(record);
   codeViews.delete(host); host.replaceChildren(); host.scrollTop = 0;

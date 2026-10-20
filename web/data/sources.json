@@ -1,0 +1,51 @@
+[
+  {
+    "name": "tips",
+    "sourceId": "vl_1491",
+    "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_1491/data.json",
+    "sha256": "f9ed1cae1a578774a57c37e208b46cac65264ee423dca62cb936ab6b35a94ff2",
+    "originalValuesPreserved": true
+  },
+  {
+    "name": "iris",
+    "sourceId": "vl_1278",
+    "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_1278/data.json",
+    "sha256": "8ad7f2a56dde80c9fca4c8c7a19e2f4ba434e7fe52d49dd9311a4280a5ce118e",
+    "originalValuesPreserved": true
+  },
+  {
+    "name": "weather",
+    "sourceId": "vl_1063",
+    "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_1063/data.json",
+    "sha256": "ab3753bf8cd9bfe866822a3b89bb80e9621393d58384b5134ad45e8f50a03c92",
+    "originalValuesPreserved": true
+  },
+  {
+    "name": "stocks",
+    "sourceId": "vl_1055",
+    "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_1055/data.json",
+    "sha256": "1bdaf793f6aae36096d9946eaddc54f313be476f70ff874ed70e2c0b676bac8c",
+    "originalValuesPreserved": true
+  },
+  {
+    "name": "gapminder",
+    "sourceId": "vl_0111",
+    "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_0111/data.json",
+    "sha256": "1586280bdbb4a2d64951d8f5a351cd7a86d24301d69ee0abe9228eba17fd6afb",
+    "originalValuesPreserved": true
+  },
+  {
+    "name": "barley",
+    "sourceId": "vl_1619",
+    "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_1619/data.json",
+    "sha256": "4e4664407841f694c40747996eda55db6c787041d3687969c320f79686659ec2",
+    "originalValuesPreserved": true
+  },
+  {
+    "name": "electricity",
+    "sourceId": "vl_0150",
+    "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_0150/data.json",
+    "sha256": "90f5f29523476c2af3b718f8123b53a0ccb029ada50485f5a136a4e092e857df",
+    "originalValuesPreserved": true
+  }
+]

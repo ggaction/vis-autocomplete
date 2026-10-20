@@ -1,15 +1,16 @@
 import { getDatasetSchema } from 'ggaction/inspection';
+import { isTemporalValue } from './data-import.js';
 
 const FIELD_TYPES = new Set(['quantitative', 'nominal', 'ordinal', 'temporal']);
-const isoDate = value => typeof value === 'string' &&
-  /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) && Number.isFinite(Date.parse(value));
+const isoDate = isTemporalValue;
 
 export function profileDataset(program, data, fieldTypes = {}) {
   const { data: resolvedId, schema } = getDatasetSchema(program, { data });
   const dataset = program.semanticSpec.datasets.find(d => d.id === resolvedId);
   const rows = dataset?.values;
   if (!Array.isArray(rows)) throw new Error(`Dataset ${data} has no materialized rows.`);
-  for (const [name, type] of Object.entries(fieldTypes)) {
+  for (const [name, hint] of Object.entries(fieldTypes)) {
+    const type = typeof hint === 'string' ? hint : hint?.type;
     if (!schema.fields.some(f => f.name === name) || !FIELD_TYPES.has(type)) {
       throw new TypeError(`Invalid field type hint: ${name} = ${type}`);
     }
@@ -21,7 +22,8 @@ export function profileDataset(program, data, fieldTypes = {}) {
     const allCategories = present.length > 0 && new Set(present.map(v => typeof v)).size === 1 && present.every(v =>
       typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)));
     const inferredType = allNumbers ? 'quantitative' : present.length > 0 && present.every(isoDate) ? 'temporal' : 'nominal';
-    const type = fieldTypes[field.name] ?? inferredType;
+    const hint = fieldTypes[field.name];
+    const type = (typeof hint === 'string' ? hint : hint?.type) ?? inferredType;
     const compatible = type === 'quantitative' ? allNumbers : type === 'temporal'
       ? present.every(v => (typeof v === 'number' && Number.isFinite(v)) || isoDate(v))
       : allCategories;
@@ -35,9 +37,11 @@ export function profileDataset(program, data, fieldTypes = {}) {
       entropy = -bins.filter(Boolean).reduce((sum, n) => sum + n / present.length * Math.log(n / present.length), 0) / Math.log(10);
     }
     const unique = [...new Set(present)];
+    const order = typeof hint === 'object' && Array.isArray(hint.order) ? hint.order.filter(value => unique.includes(value)) : undefined;
+    const domain = order ? [...order, ...unique.filter(value => !order.includes(value))] : unique;
     const guideValues = ['nominal', 'ordinal'].includes(type) && distinct > 12
-      ? unique.filter((value, i) => i % Math.ceil(unique.length / 6) === 0) : undefined;
-    return { name: field.name, type, distinct, guideValues,
+      ? domain.filter((value, i) => i % Math.ceil(domain.length / 6) === 0) : undefined;
+    return { name: field.name, type, distinct, guideValues, ...(order ? { order: domain } : {}),
       visualVariation: allNumbers ? 0.55 * Math.min((distinct - 1) / 30, 1) + 0.45 * entropy : 0,
       missing: values.length - present.length,
       numericString: present.length === rows.length && present.length > 0 && present.every(v =>
@@ -45,7 +49,8 @@ export function profileDataset(program, data, fieldTypes = {}) {
       complete: present.length === rows.length,
       // Missingness is handled by each native action's explicit policy. A null
       // does not erase an otherwise correctly typed column from the dataset.
-      usable: rows.length > 0 && present.length > 0 && compatible };
+      usable: rows.length > 0 && present.length > 0 && compatible,
+      reason: !present.length ? 'No non-missing values.' : !compatible ? `Values do not consistently match ${type}; review this field’s type or missing-value settings.` : '' };
   });
   return { id: resolvedId, rowCount: rows.length, fields,
     datasetType: fields.some(f => f.usable && f.type === 'temporal') ? 'time-series' : 'tabular' };

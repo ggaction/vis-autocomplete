@@ -15,5 +15,5 @@ self.addEventListener('message', async ({ data: { id, request } }) => {
     }
     const value = service.execute(request);
     self.postMessage({ id, value });
-  } catch (error) { self.postMessage({ id, error: error.message }); }
+  } catch (error) { self.postMessage({ id, error: error.message, reason: error.reason }); }
 });

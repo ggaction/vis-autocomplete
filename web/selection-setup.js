@@ -1,7 +1,7 @@
 export function selectionData(base, profile, rows, selection) {
   let program = base, data = profile.id;
   const calls = [];
-  if (selection.x && selection.y) {
+  if (selection.x) {
     for (const field of [...new Set([selection.x, selection.y, selection.color].filter(Boolean))]) {
       if (!rows.some(row => row[field] === null || row[field] === undefined)) continue;
       const args = { id: `selected-rows-${calls.length + 1}`, source: data, field, noneOf: [null], nulls: 'exclude' };
@@ -23,7 +23,7 @@ export function selectionAxes(base, profile, rows, selection = {}) {
     const categorical = field && ['nominal', 'ordinal'].includes(field.type);
     const temporal = field?.type === 'temporal';
     let domain = [0, 1];
-    if (categorical) domain = [...new Set(values)];
+    if (categorical) domain = field.order ?? [...new Set(values)];
     else if (values.length) {
       const numeric = values.map(value => temporal && typeof value === 'string' ? Date.parse(value) : value);
       domain = [numeric.reduce((a, b) => Math.min(a, b), Infinity), numeric.reduce((a, b) => Math.max(a, b), -Infinity)];

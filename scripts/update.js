@@ -15,4 +15,4 @@ run('npm', ['ci'], library);
 run('npm', ['install', '--ignore-scripts']);
 run('npm', ['run', 'test:unit'], library);
 run('npm', ['run', 'test:contracts'], library);
-for (const script of ['catalog:check', 'corpus:update', 'build:workers', 'test', 'demo', 'demo:initial', 'validate:corpus', 'validate:initial']) run('npm', ['run', script]);
+for (const script of ['catalog:check', 'corpus:update', 'build:workers', 'test', 'audit:initial-options', 'demo', 'demo:initial', 'validate:corpus', 'validate:initial']) run('npm', ['run', script]);

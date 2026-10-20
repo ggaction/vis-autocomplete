@@ -1,5 +1,7 @@
+import { canGroupBar, barGrain, positionScaleContext } from './mark-grain.js';
 import { hasChartContext } from './chart-context.js';
 import { profileDataset } from './profile.js';
+import { binnedPositionExpression } from './plot-aggregation.js';
 import { dataEditors } from './action-capabilities.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^(edit|encode|create) /, '').replace(/^./, s => s.toUpperCase());
@@ -24,6 +26,19 @@ export function extendedCandidates(program, { layer, profile }) {
     out.push({ method, category, args, parameters, feature, label });
   };
   const style = (method, args, parameters, feature) => add(method, 'style', args, parameters, feature);
+  const box = program.markConfigs[target]?.boxPlot;
+  if (box) {
+    const source = profileDataset(program, box.source), horizontal = box.orientation === 'horizontal';
+    const categoryChannel = horizontal ? 'y' : 'x', measureChannel = horizontal ? 'x' : 'y';
+    const categoryFields = source.fields.filter(f => f.usable && (['nominal', 'ordinal'].includes(f.type) || f.name === box.category));
+    const measureFields = source.fields.filter(f => f.usable && f.type === 'quantitative');
+    for (const measure of measureFields) {
+      if (measure.name === box.measure && categoryFields.length === 1) continue;
+      const category = categoryFields.find(f => f.name !== box.category) ?? categoryFields[0];
+      const args = { target, [categoryChannel]: { field: category.name, fieldType: encoding[categoryChannel].fieldType }, [measureChannel]: { field: measure.name, fieldType: 'quantitative' } };
+      add('editBoxPlot', 'encoding', args, [choices(`${categoryChannel}.field`, 'Category', category.name, categoryFields.map(f => f.name)), choices(`${measureChannel}.field`, 'Measure', measure.name, measureFields.map(f => f.name))], 'encoding.boxRoles', 'Box plot variables');
+    }
+  }
   // Position ordering and final-item labels do not depend on the four basic
   // Cartesian mark types. A heatmap cell or polar category is equally eligible.
   for (const channel of ['x', 'y', 'theta']) {
@@ -41,9 +56,10 @@ export function extendedCandidates(program, { layer, profile }) {
         `encoding.${channel}Offset`, `Offset ${channel.toUpperCase()}`);
     }
   }
-  if (['bar', 'line', 'area'].includes(mark)) for (const field of categories.filter(f => f.complete)) {
+  const groupFields = categories.filter(f => f.complete && (mark !== 'bar' || canGroupBar(program, layer, f.name)));
+  if (['bar', 'line', 'area'].includes(mark)) for (const field of groupFields) {
     add('encodeGroup', 'encoding', { target, field: field.name },
-      [choices('field', 'Series', field.name, categories.filter(f => f.complete).map(f => f.name))], 'encoding.group');
+      [choices('field', 'Series', field.name, groupFields.map(f => f.name))], 'encoding.group');
   }
   if (['point', 'bar', 'rect', 'arc', 'rule'].includes(mark) &&
       !program.semanticSpec.layers.some(l => l.source === target && program.markConfigs[l.id]?.labelAuthoring)) {
@@ -51,7 +67,7 @@ export function extendedCandidates(program, { layer, profile }) {
     const field = encoding.color?.field ?? encoding.y?.field ?? encoding.x?.field;
     if (semantic || fields.some(f => f.name === field)) {
       const args = { source: target, ...(semantic ? { content: 'value' } : { field }),
-        fontFamily: 'Arial', fontSize: 11, placement: { anchor: 'center' } };
+        fontFamily: 'Arial', fontSize: 11, placement: { anchor: semantic ? 'outsideEnd' : 'center' } };
       add('createMarkLabels', 'guide', args, semantic ? [] : [choices('field', 'Label variable', field, fields.map(f => f.name)),
         number('fontSize', 'Label size', 11, 8, 18)], 'action.createMarkLabels', 'Add value labels');
     }
@@ -113,12 +129,21 @@ export function extendedCandidates(program, { layer, profile }) {
     }
   }
 
+  if (box) {
+    const channel = box.orientation === 'horizontal' ? 'y' : 'x';
+    const groups = [...new Set(rows.map(row => row[box.category]))];
+    if (groups.length > 1) add('filterMarks', 'transform', { target, channel, op: 'eq', value: groups[0], mode: 'replace' },
+      [choices('value', `Keep ${box.category}`, groups[0], groups)], 'transform.filter', 'Filter box groups');
+  }
   // Filtering works on final mark items and preserves native aggregation,
   // provenance, scales and dependency replay. No unused filtered dataset.
-  if (program.markConfigs[target]?.itemFilterable !== false && ['point', 'bar', 'rect', 'arc', 'rule', 'tick'].includes(mark)) {
+  if (!box && program.markConfigs[target]?.itemFilterable !== false && ['point', 'bar', 'rect', 'arc', 'rule', 'tick'].includes(mark)) {
     for (const channel of ['x', 'y']) {
       if (encoding[channel]?.fieldType !== 'quantitative') continue;
-      const field = encoding[channel].field, values = rows.map(r => r[field]).filter(Number.isFinite).sort((a, b) => a - b);
+      const field = encoding[channel].field;
+      // Aggregated marks live in the displayed scale domain, not the raw column.
+      const domain = program.resolvedScales[encoding[channel].scale]?.domain;
+      const values = (mark === 'bar' ? barGrain(program, layer).values?.[channel] ?? rows.map(r => r[field]) : encoding[channel].aggregate || encoding[channel].bin ? domain ?? [] : rows.map(r => r[field])).filter(Number.isFinite).sort((a, b) => a - b);
       if (values.length < 2 || values[0] === values.at(-1)) continue;
       const value = values[Math.floor(values.length / 4)], min = values[0], max = values.at(-1);
       add('filterMarks', 'transform', { target, channel, op: 'gte', value, mode: 'replace' },
@@ -138,7 +163,7 @@ export function extendedCandidates(program, { layer, profile }) {
   }
   for (const axis of ['x', 'y']) {
     if (encoding[axis]?.fieldType !== 'quantitative') continue;
-    add('createStatisticalReference', 'transform', { source: target, axis, statistic: { op: 'mean' },
+    add('createStatisticalReference', 'transform', { source: target, axis, population: 'visibleItems', statistic: { op: 'mean' },
       stroke: '#222222', strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
   }
   if (['line', 'area'].includes(mark) && group && rows.some(r => r[group] != null)) {
@@ -146,13 +171,13 @@ export function extendedCandidates(program, { layer, profile }) {
     add('filterMarks', 'transform', { target, field: group, op: 'eq', value: values[0], mode: 'replace' },
       [choices('value', 'Keep series', values[0], values)], 'transform.filter', 'Filter series');
   }
-  if (mark === 'line' && encoding.x?.fieldType === 'quantitative' && encoding.y?.aggregate) {
+  if (['line', 'bar'].includes(mark) && encoding.x?.fieldType === 'quantitative' && encoding.y?.aggregate) {
     const bins = encoding.x.bin?.maxBins === 12 ? 10 : 12;
     add('encodeX', 'transform', { target, field: encoding.x.field, fieldType: 'quantitative', bin: { maxBins: bins } },
       [number('bin.maxBins', 'X bins (maximum)', bins, 2, 24)], 'transform.bin', 'Bin X');
   }
-  if (['line', 'bar'].includes(mark) && encoding.y?.fieldType === 'quantitative' &&
-      (mark === 'line' && (encoding.x?.bin || ['nominal', 'ordinal', 'temporal'].includes(encoding.x?.fieldType)) || mark === 'bar' && ['nominal', 'ordinal'].includes(encoding.x?.fieldType))) {
+  if (!box && ['line', 'bar'].includes(mark) && encoding.y?.fieldType === 'quantitative' &&
+      (mark === 'line' && (encoding.x?.bin || ['nominal', 'ordinal', 'temporal'].includes(encoding.x?.fieldType)) || mark === 'bar' && (encoding.x?.bin || ['nominal', 'ordinal', 'temporal'].includes(encoding.x?.fieldType)))) {
     const op = encoding.y.aggregate === 'mean' ? 'sum' : 'mean';
     add('encodeY', 'transform', { target, field: encoding.y.field, fieldType: 'quantitative', aggregate: op },
       [choices('aggregate', 'Y aggregation', op, aggregateOps)], 'transform.aggregate', 'Aggregate Y');
@@ -201,15 +226,21 @@ export function extendedCandidates(program, { layer, profile }) {
       style(method, { target, palette }, [choices('palette', 'Palette', palette,
         ['nominal', 'ordinal'].includes(binding.fieldType) ? ['category10', 'tableau10'] : ['blues', 'reds', 'viridis'])]);
     } else if (['x', 'y', 'theta', 'radius', 'xOffset'].includes(channel) && !(channel === 'radius' && mark === 'arc')) {
-      style(method, { target, reverse: !scale.reverse }, [choices('reverse', 'Direction', !scale.reverse,
-        [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }])]);
+      const direction = choices('reverse', 'Direction', !scale.reverse, [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }]);
+      if (['x', 'y'].includes(channel) && binding.fieldType === 'quantitative') {
+        const values = rows.map(row => row[binding.field]).filter(Number.isFinite);
+        const baseline = positionScaleContext(program, layer, profile).zeroBaseline[channel];
+        const positive = values.length > 0 && values.every(v => v > 0);
+        const types = ['linear', { value: 'log', label: 'Log', disabled: baseline || !positive, reason: baseline ? 'This mark requires a zero baseline. Use symlog to retain zero.' : 'Log requires a strictly positive field.' }, 'sqrt', 'symlog'];
+        style(method, { target, type: scale.type, reverse: !scale.reverse }, [choices('type', 'Scale', scale.type, types), direction]);
+      } else style(method, { target, reverse: !scale.reverse }, [direction]);
     } else if (channel === 'shape') style(method, { target, range: ['square', 'circle', 'diamond', 'cross', 'triangle-up', 'triangle-down'].slice(0,
       program.resolvedScales[binding.scale]?.domain?.length ?? 3) });
     else if (channel === 'strokeDash') style(method, { target, reverse: !scale.reverse });
     else {
       const range = channel === 'size' ? [20, 240] : channel === 'opacity' ? [.25, .9] : [1, 5];
-      style(method, { target, range }, [number('range.0', 'Minimum', range[0], channel === 'opacity' ? .05 : 0, channel === 'size' ? 500 : channel === 'opacity' ? .8 : 4, channel === 'opacity' ? .05 : 1),
-        number('range.1', 'Maximum', range[1], channel === 'opacity' ? .9 : channel === 'size' ? 500 : 5, channel === 'size' ? 1600 : channel === 'opacity' ? 1 : 10, channel === 'opacity' ? .05 : 1)]);
+      style(method, { target, range }, [number('range.0', 'Minimum', range[0], channel === 'opacity' ? .05 : 0, channel === 'size' ? 1600 : channel === 'opacity' ? 1 : 10, channel === 'opacity' ? .05 : 1),
+        number('range.1', 'Maximum', range[1], 0, channel === 'size' ? 1600 : channel === 'opacity' ? 1 : 10, channel === 'opacity' ? .05 : 1)]);
     }
   }
   const covered = new Set(Object.values(program.semanticSpec.guides.legend ?? {}).flatMap(l => [l.scale, ...(l.scales ?? [])]));
@@ -273,7 +304,13 @@ export function extendedCandidates(program, { layer, profile }) {
         const visit = value => { if (!value || typeof value !== 'object') return;
           if (value.field) referenced.add(value.field); Object.values(value).forEach(visit); };
         visit(transform.expression);
-        for (const field of q.filter(f => referenced.has(f))) add(method, 'transform', { ...args,
+        const binOwner = program.semanticSpec.datasets.find(d => d.source === dataset.source && d.transform?.[0]?.type === 'bin' && referenced.has(d.transform[0].field));
+        if (binOwner && transform.expression?.op === 'if') {
+          const bin = binOwner.transform[0], values = datasets.get(dataset.source).values.map(row => row[bin.field]).filter(Number.isFinite);
+          const domain = values.reduce((d, v) => [Math.min(d[0], v), Math.max(d[1], v)], [Infinity, -Infinity]), bins = bin.maxBins === 12 ? 10 : 12;
+          add('editComputedData', 'transform', { ...args, expression: binnedPositionExpression(bin.field, domain, bins) }, [], 'transform.bin', 'Bin X');
+          out.at(-1).binRecipe = { field: bin.field, domain, bins };
+        } else for (const field of q.filter(f => referenced.has(f))) add(method, 'transform', { ...args,
           expression: { op: 'multiply', left: { field }, right: { constant: 1.1 } } },
           [number('expression.right.constant', 'Multiplier', 1.1, .25, 2, .05)], 'action.createComputedData', 'Compute values');
       } else if (transform.type === 'bin') {

@@ -1,3 +1,5 @@
+import { regressionContext } from './regression-context.js';
+import { positionScaleContext } from './mark-grain.js';
 import { describeAction, comparePrograms, inspectProgram } from 'ggaction/inspection';
 import { renderToSVG } from 'ggaction/svg';
 import { ACTION_METHODS, generateCandidates } from './catalog.js';
@@ -7,6 +9,7 @@ import { scoreCandidate } from './model.js';
 import { INITIAL_PLOT_METHODS } from './plot-catalog.js';
 import { corpusActionPolicy } from './action-capabilities.js';
 import { createLRU, signature, freezeResult } from './cache.js';
+import { createProgramResultCache } from './program-cache.js';
 import { prepareGuidedAction } from './prepare.js';
 import { optionGroup } from './recommendation-groups.js';
 import { variantPreference } from './parameter-defaults.js';
@@ -24,6 +27,14 @@ const freeze = value => {
   return value;
 };
 const callText = ({ method, args }) => `program.${method}(${JSON.stringify(args)})`;
+
+function derivedFieldLabels(program, data) {
+  const names = { q1: 'lower quartile', q3: 'upper quartile', median: 'median', count: 'observation count',
+    lowerWhisker: 'lower whisker', upperWhisker: 'upper whisker', lowerFence: 'lower fence', upperFence: 'upper fence' };
+  return Object.fromEntries((program.semanticSpec.datasets.find(d => d.id === data)?.transform ?? [])
+    .filter(transform => transform.type === 'boxSummary').flatMap(transform => Object.entries(transform.as)
+      .map(([statistic, field]) => [field, `${transform.field}: ${names[statistic] ?? statistic}`])));
+}
 
 export function neighboringParameters(candidate) {
   if (candidate.method === 'editFacetSource' && candidate.args.action) {
@@ -62,7 +73,7 @@ function invokeSingle(program, call) {
 
 export function validateCandidate(program, candidate) {
   recentValidations.set(program, true);
-  if (!validations.has(program)) validations.set(program, createLRU(128));
+  if (!validations.has(program)) validations.set(program, createProgramResultCache());
   const cache = validations.get(program), key = signature([candidate.method, candidate.args, candidate.inspectionTarget]);
   const cached = cache.get(key);
   if (cached) return cached;
@@ -137,7 +148,7 @@ function resolveContext(program, options) {
     const selected = new Set(options.fields);
     profile.fields = profile.fields.filter(field => selected.has(field.name));
   }
-  return { layer, profile };
+  return { layer, profile, positionScaleContext: positionScaleContext(program, layer, profile), regressionContext: regressionContext(program, layer, profile) };
 }
 
 const encodingChannel = method => method === 'encodePointRadius' ? 'size'
@@ -288,7 +299,16 @@ export function createRecommendationEngine(model) {
             x: context.layer?.encoding?.x?.field, y: context.layer?.encoding?.y?.field,
           } : undefined,
           parameters: candidate.parameters ? structuredClone(candidate.parameters) : undefined,
+          compositionContext: { facet: Boolean(program.compositionSpec?.facet) },
+          notice: candidate.method === 'encodeAngle' && context.layer?.mark?.type === 'point' && !context.layer.encoding?.shape && (program.markConfigs[context.layer.id]?.shape ?? 'circle') === 'circle'
+            ? 'Rotation is not visible on circles. Choose a different point shape to see the angle.' : undefined,
+          unavailableFields: candidate.unavailableFields,
+          fieldLabels: derivedFieldLabels(program, context.profile.id),
+          scaleIds: program.semanticSpec.scales.map(scale => scale.id),
+          positionScaleContext: context.positionScaleContext,
+          regressionContext: context.regressionContext,
           parameterMode: candidate.parameterMode,
+          binRecipe: candidate.binRecipe ? structuredClone(candidate.binRecipe) : undefined,
           sourceMethod: candidate.sourceMethod,
           facetFields: candidate.facetFields,
           guideContext: candidate.guideContext ? structuredClone(candidate.guideContext) : undefined,
@@ -298,6 +318,7 @@ export function createRecommendationEngine(model) {
           alternatives: variants.map(({ candidate: c, check: v }) => ({
             method: c.method, args: structuredClone(c.args), call: callText(c),
             label: c.label, validation: v.validation,
+            parameters: c.parameters ? structuredClone(c.parameters) : undefined,
             guideContext: c.guideContext ? structuredClone(c.guideContext) : undefined,
             nextContext: c.groupTarget ? { data: c.args.id }
               : context.layer ? { target: context.layer.id } : { data: context.profile.id },

@@ -23,6 +23,15 @@ npm run dev
 
 - **Cars 원본 406행·9개 열**을 기본으로 쓴다. Vega 원본과 값이 일치하며, null도 보존한다.
   출처는 `web/data/SOURCE.md`에 기록했다. Monthly sales 예제와 CSV/JSON 업로드도 지원한다.
+- Code view 오른쪽 위의 **− / +**는 코드 글자 크기를 8–20px 범위에서 1px씩 조절한다.
+  고정폭 글꼴은 유지하며, 선택한 크기는 브라우저에 저장한다. **Copy code**는 접힌 설정·파라미터를
+  포함한 전체 원문을 복사한다. 프리뷰 중에는 새 액션을 포함하고, 줄 번호·접기 표시·차이 표시는 제외한다.
+- Current visualization에 차트가 있으면 **.png / .pdf / .svg**로 다운로드할 수 있다.
+  ggaction의 공개 렌더러를 사용하며 PNG는 2× 해상도, PDF·SVG는 벡터 형식이다.
+  범례·축·제목을 포함한 현재 확정 상태를 저장하고, 호버 프리뷰는 포함하지 않는다.
+  Undo/Redo 및 History로 돌아간 상태도 저장할 수 있으며 데이터 표에서는 버튼을 숨긴다.
+  내보내기는 `npm run dev`의 로컬 `/api/export/:format`에서 처리한다. 브라우저는 현재 차트의
+  resolved `graphicSpec`만 보내며, 새 액션 실행이나 추천 재계산은 하지 않는다.
 - 처음 Current visualization은 **전체 원본 데이터 표**다. 열을 차례로 클릭하면 X → Y → Color로 지정한다.
   이미 선택한 열을 다시 클릭하면 해제하고, 새 열은 비어 있는 X → Y → Color 순서로 채운다. 한 열이 여러 역할을 맡았다면 그 열의 역할을 함께 해제한다.
   Color는 선택 사항이며, 선택된 항목에만 드롭다운이 나타나 변수를 변경하거나 선택을 지울 수 있다.
@@ -101,10 +110,17 @@ npm run dev
 - Jitter points는 **X / Y / Both**와 Spread를 제공한다. Both는 한 `jitterPoints({ channel: 'both', maxOffset: { pixels: … } })` 호출로 양 축을 독립적으로 흔든다. 다시 적용할 때 이전 offset은 누적하지 않는다.
 
 UI에서 고른 변수의 역할을 다른 열로 바꾸거나 선택한 Color를 무시하지 않는다.
-X·Y·Color가 모두 수치형이면 Scatter / Regression / Text 외에 Line / Area / Bar / Heatmap도 제안한다.
+X·Y가 수치형이고 Color가 수치형 또는 시간형이면 Scatter / Regression / Text 외에 Line / Area / Bar / Heatmap도 제안한다.
 Line·Area·Bar는 Color를 기본 최대 3구간으로 나누어 순서 있는 색상 그룹으로 표현한다.
 X bins·Y Aggregation·Color bins의 세 파라미터로 조절하며, 연속형 Color의 값마다 별도 시리즈를 만들지 않는다.
 Heatmap은 X·Y 구간별로 선택한 Color를 기본 mean으로 집계한다(Bins per axis·Color aggregation).
+시간형 Color도 같은 연속형 처리 경로를 사용한다. 실제 ggaction `createComputedData`의 `parseTime`으로
+파생 timestamp 열을 만들고, Line·Area·Bar는 `createBinData`의 구간으로 묶는다. UTC 날짜 구간을
+범례에 표시하며 원래 날짜 열은 보존한다. Heatmap은 셀별 timestamp를 mean / median / min / max로
+집계하고 `temporalUnit: "timestamp"`로 인코딩한다. 날짜의 sum은 제공하지 않는다.
+범주형 X/Y의 Heatmap도 셀별 Color를 먼저 집계하여 같은 위치의 rect가 겹치지 않게 한다.
+일부 Color 그룹에 X 값이 하나뿐이어도 다른 유효한 Line·Area 시리즈는 유지하며,
+그룹별 회귀가 불가능하면 Regression의 전체 관측치 모델을 기본으로 제공한다.
 구간화와 집계는 실제 `createBinData` / `createComputedData` / `createSummaryData` 준비 호출로 기록·재실행한다.
 숫자 구간의 마지막 상한을 포함하고, 원본 선택 열과 행을 보존하며, 파생 열 이름 충돌도 피한다.
 Color가 없는 두 수치 열의 heatmap은 기존처럼 셀 빈도를 사용한다. 별도의 범주형 Color는 셀 빈도와 동시에 표현하지 못하므로 제외한다.
@@ -469,6 +485,12 @@ Encoding에는 native `facet`/`facetGrid`도 포함된다. Facet 이후의 sourc
 
 고정값 후보는 서로 다른 두 값을 제공한다. 현재 기본값과 같은 한 후보가 `no-change`여도 함수 전체를 제외하지 않고 실제로 변화를 만드는 값을 선택한다. Line의 Color/Dash는 native series 추론을 따르며, Area의 경로별 외형은 실제 그룹 grain에서 상수인 필드만 제공한다. 논문의 순위 계산식은 그대로 유지한다. 고정값 인코딩도 현재 시각화의 적용된 primitive로 기록하며, facet source 편집은 원래 함수의 primitive를 사용한다.
 
+초기 차트 누락은 `npm run audit:initial-options`로 별도 검사한다. Cars의 수치·범주·시간 축과
+Color를 조합한 32개 선택에서 모든 후보를 native 호출로 검증하며, 반드시 존재해야 하는 차트가
+사라진 경우도 실패로 처리한다. 결과는 `output/initial-option-audit.json`에 기록되고 `npm run update`에도 포함된다.
+`diagnostics.chartEligibility`와 갤러리의 `data-chart-eligibility`에는 29개 plot의 포함·제외 사유를,
+`data-chart-preparation-failures`에는 실제 프리뷰 검증 실패를 기록한다.
+
 ## 코퍼스 기반 파라미터 기본값
 
 `npm run corpus:train` / `npm run corpus:update`는 전체 차트의 명시적 설정을
@@ -495,3 +517,35 @@ Encode stroke color는 프로젝트 선호값인 **Fixed / #000000**을 우선�
 
 이 빈도는 번역된 차트 코퍼스의 관측 설정이다. 사용자의 실제 클릭 로그나 설정을 생략한
 라이브러리 기본값까지 추정한 빈도는 아니다. 새 차트가 추가되면 위 갱신 명령에서 다시 학습한다.
+
+
+## 데이터 해석, 역할 선택과 작업 복구
+
+`Upload dataset`은 CSV와 JSON을 같은 `src/data-import.js` 경로로 해석한다.
+미리보기에서 날짜 형식, 숫자/범주/순서형 타입, 결측 토큰, 중첩 JSON 경로,
+열 이름과 포함 여부를 조정할 수 있다. 원본 값과 해석 설정은 함께 보존한다.
+테이블의 `Types` 또는 `Project → Data types`로 다시 해석하면 새 데이터셋 버전으로
+추가하므로 이전 차트와 히스토리도 데이터셋 메뉴에서 다시 열 수 있다.
+
+X만 선택해 Histogram, Density, ECDF, Rug 등의 분포 차트로 시작할 수 있다.
+차트가 추가 역할을 필요로 하면 카드에서 끝값, 범위, 차원, 식별자를 선택한다.
+날짜 X의 달력 집계는 UTC를 사용한다. 현재 집계 단위와 맞지 않는 인코딩이나
+0 기준선을 요구하는 막대의 Log처럼 성립하지 않는 선택은 이유를 표시한다.
+카드를 누르면 미리보고 **Apply만 확정**한다.
+
+테이블은 행과 열을 함께 가상화한다. `Find a dataset field`와 타입 필터로
+넓은 원본 데이터의 모든 열을 찾을 수 있다. Cars 외에 Tips, Iris, Seattle weather,
+Stocks, Gapminder, Barley, Iowa electricity를 제공하며 원본 출처는
+`web/data/sources.json`에 기록되어 있다. 지도는 구현 범위에서 제외한다.
+
+데이터셋마다 차트와 Undo/Redo 히스토리를 보관한다. `Change variables`는
+취소 가능한 편집이며 새 차트를 Apply한 뒤에도 Undo로 이전 차트에 돌아갈 수 있다.
+이 브라우저의 IndexedDB에 자동 저장하고 새로고침 시 복구한다. 원본 데이터는
+한 번 저장하고 일반 액션 적용에서는 히스토리 메타데이터만 갱신한다.
+`Project → Save project`의 `.visauto.json` 파일로 다른 세션에서도 이어서 작업한다.
+프로젝트를 읽을 때는 등록된 ggaction 공개 호출만 재생하며 JavaScript를 평가하지 않는다.
+
+Code view의 `.mjs`는 데이터, 전체 공개 호출, native SVG 저장 코드를 함께 내보낸다.
+파일 주석에 기록된 ggaction 소스를 설치한 Node 프로젝트에서 `node 파일명.mjs`로
+실행하면 `chart.svg`를 생성한다. Current/Preview의 `Expand`는 compact layout을
+유지하면서 차트를 크게 읽는 기능이다. 기존 PNG/PDF/SVG 다운로드도 유지한다.

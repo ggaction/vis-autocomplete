@@ -2,7 +2,9 @@ import { chart } from 'ggaction';
 import { renderToSVG } from 'ggaction/svg';
 import { createInitialChartRecommender, profileDataset } from '../src/index.js';
 import { recommendationParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
-import { programCode, renderCode, resetCodeView } from './code-view.js';
+import { programCode, renderCode, resetCodeView, displayedCode } from './code-view.js';
+import { initializeCodeToolbar } from './code-toolbar.js';
+import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { fitChartViewport } from './chart-viewport.js';
 import { createPreviewInteraction } from './preview-interaction.js';
@@ -15,12 +17,19 @@ import { createHistoryView } from './history-view.js';
 import { OPTION_GROUPS, FOLLOWUP_RECOMMENDATION_OPTIONS } from './option-groups.js';
 import { createCalculationClient } from './calculation-client.js';
 import { createLRU } from '../src/cache.js';
-import { ACTION_LABELS as labels } from '../src/action-labels.js';
+import { actionTitle } from '../src/action-labels.js';
 import { normalizeSearchQuery } from '../src/action-search.js';
+import { importDataset, parseCSV } from '../src/data-import.js';
+import { reviewDatasetImport } from './import-dialog.js';
+import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore } from './project.js';
+export { parseCSV } from '../src/data-import.js';
 
 const $ = id => document.getElementById(id);
 const elements = Object.fromEntries(['current', 'preview', 'cards', 'notice',
   'current-note', 'preview-note', 'preview-name', 'options-note', 'step-description'].map(id => [id, $(id)]));
+initializeCodeToolbar({ panel: $('code-content').closest('.code-panel'),
+  decrease: $('code-font-decrease'), increase: $('code-font-increase'), copy: $('code-copy'), status: $('code-tools-status'),
+  source: () => displayedCode($('code-content')), onError: message => notice(message, true) });
 const sales = Array.from({ length: 36 }, (_, i) => ({
   Month: `${2023 + Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}-01`,
   Sales: Math.round(100 + i * 3 + Math.sin(i / 2) * 24),
@@ -32,8 +41,12 @@ const state = { initialEngine: null, rows: [], name: '', program: null, base: nu
   phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [], codeCard: null,
   committing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
   selection: { x: '', y: '', color: '' }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
-  optionGroup: 'encoding', searchQuery: '' };
+  optionGroup: 'encoding', searchQuery: '', datasetId: null, variableDraft: null };
 let cars;
+const datasets = new Map();
+const datasetBases = createLRU(4);
+const drafts = createDraftStore();
+let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = false;
 const history = createHistory();
 const recommendationCache = new WeakMap();
 const calculations = createCalculationClient();
@@ -43,6 +56,9 @@ let mountedGallery = null;
 let svgId = 0;
 const renderedCharts = new WeakMap();
 const chartTemplates = new WeakMap();
+const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
+  getCurrent: () => state.phase === 'initial' ? null : { program: renderedCharts.get(elements.current)?.program, name: state.name },
+  isBusy: () => state.committing, onError: message => notice(message, true) });
 let historyInspection = null;
 const historyView = createHistoryView($('history'), {
   renderChart, meta: $('history-meta'),
@@ -63,17 +79,25 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 }
 
 function updateHistoryButtons() {
-  $('undo').disabled = state.committing || !history.canUndo;
-  $('redo').disabled = state.committing || !history.canRedo;
+  chartDownloads.refresh();
+  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'restart']) $(id).disabled = state.committing;
+  $('undo').disabled = state.committing || Boolean(state.variableDraft) || !history.canUndo;
+  $('redo').disabled = state.committing || Boolean(state.variableDraft) || !history.canRedo;
   for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = state.committing;
   $('action-search').disabled = state.committing;
-  historyView.update(history, state.committing);
+  historyView.update(history, state.committing || Boolean(state.variableDraft));
+  $('selection-edit-tools').hidden = !state.variableDraft;
+  $('cancel-variables').disabled = state.committing;
 }
 
 function updateOptionGroups() {
   const initial = state.phase === 'initial';
   $('option-groups').hidden = initial;
   $('action-search-control').hidden = initial;
+  $('clear-search').hidden = !state.searchQuery;
+  $('action-search').placeholder = `Search ${state.optionGroup}…`;
+  $('action-search').setAttribute('aria-label', `Search ${state.optionGroup} actions`);
+  $('action-search-control').title = `Searches the ${state.optionGroup} group. Change tabs to search another group.`;
   const section = elements.cards.closest('.options-section');
   if (initial) {
     delete section.dataset.optionGroup;
@@ -135,8 +159,11 @@ $('action-search').addEventListener('keydown', event => {
 });
 
 function mountDataTable() {
+  state.tableView?.destroy?.();
   renderedCharts.delete(elements.current);
+  chartDownloads.refresh();
   state.tableView = renderDataTable(elements.current, { rows: state.rows, profile: state.profile, selection: state.selection, controlsHost: $('selection-controls'),
+    onSchemaEdit: editSchema,
     onChange: changes => {
       state.selection = { ...state.selection, ...changes };
       refreshSelection().catch(error => notice(error.message, true));
@@ -144,8 +171,8 @@ function mountDataTable() {
 }
 
 async function restoreHistory(direction) {
-  if (state.committing) return;
-  clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
+  if (state.committing || state.variableDraft) return;
+  clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
   const snapshot = typeof direction === 'number' ? history.jump(direction) : history[direction]();
   if (!snapshot) { showPreview(state.active); return; }
@@ -164,14 +191,14 @@ async function restoreHistory(direction) {
   try {
     if (state.phase === 'initial') mountDataTable();
     else {
-      elements.current.classList.remove('data-view'); state.tableView = null;
+      elements.current.classList.remove('data-view'); state.tableView?.destroy?.(); state.tableView = null;
       $('selection-controls').hidden = true;
       renderChart(elements.current, view, 'Current visualization');
     }
     showPreview(null);
     await updateCards();
   } catch (error) { notice(error.message, true); }
-  finally { state.committing = false; updateHistoryButtons(); updateGalleryNavigation(); }
+  finally { state.committing = false; updateHistoryButtons(); updateGalleryNavigation(); scheduleSave(); }
 }
 
 function notice(message = '', isError = false) {
@@ -181,6 +208,7 @@ function notice(message = '', isError = false) {
 
 function placeholder(host, message) {
   renderedCharts.delete(host);
+  if (host === elements.current) chartDownloads.refresh();
   const wrapper = document.createElement('div'); wrapper.className = 'empty-state';
   const text = document.createElement('p'); text.textContent = message;
   wrapper.append(text); host.replaceChildren(wrapper);
@@ -215,6 +243,7 @@ function renderChart(host, program, label) {
     }
   }
   renderedCharts.set(host, { program, label });
+  if (host === elements.current) chartDownloads.refresh();
   const svg = host.querySelector('svg');
   if (svg) {
     if (!svg.hasAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${svg.getAttribute('width')} ${svg.getAttribute('height')}`);
@@ -224,16 +253,16 @@ function renderChart(host, program, label) {
   }
 }
 
-function makeBase() {
+function makeBase(rows = state.rows) {
   // Dataset setup and shared typography precede authoring; gallery actions stay single calls.
   const canvas = defaultCanvasOptions();
   const theme = { theme: { base: 'light', tokens: {
       background: '#ffffff', fontFamily: 'Arial', axisLabelFontFamily: 'Arial',
       axisTitleFontFamily: 'Arial', mark: '#4c78a8',
   } } };
-  state.setupCalls = [{ method: 'createCanvas', args: canvas }, { method: 'applyTheme', args: theme },
+  const calls = [{ method: 'createCanvas', args: canvas }, { method: 'applyTheme', args: theme },
     { method: 'createData', args: { id: 'dataset', values: '__LOADED_DATA__' } }];
-  return chart().createCanvas(canvas).applyTheme(theme).createData({ id: 'dataset', values: state.rows });
+  return { program: chart().createCanvas(canvas).applyTheme(theme).createData({ id: 'dataset', values: rows }), calls };
 }
 
 function focus(program, preferred = {}) {
@@ -266,7 +295,8 @@ function showCode(card = null, { settleApplied = false } = {}) {
   if (call) state.codeCard = card;
   const proposed = call ? programCode([...state.setupCalls, ...state.calls,
     ...(card.prepared.prerequisiteCalls ?? []),
-    { method: call.method, args: call.args }, card.prepared.guideCall], state.name, state.rows.length) : null;
+    { method: call.method, args: call.args }, ...(card.prepared.postActionCalls ?? []),
+    card.prepared.guideCall], state.name, state.rows.length) : null;
   const setupCallCount = state.setupCalls.length + (!call && state.phase === 'initial' ? state.selectionAxes?.calls.length ?? 0 : 0);
   renderCode($('code-content'), current, proposed, { setupCallCount, settleApplied });
   $('code-mode').textContent = proposed ? 'Preview changes' : 'Current';
@@ -291,8 +321,8 @@ function showPreview(card, { showCodeChange = true } = {}) {
     return;
   }
   elements['preview-name'].textContent = card.title;
-  if (card.prepared) {
-    renderChart(elements.preview, card.prepared.preview, card.title);
+  if (card.prepared || card.unchanged) {
+    renderChart(elements.preview, card.prepared?.preview ?? card.view, card.title);
     elements['preview-note'].textContent = '';
     elements['preview-note'].title = '';
   } else {
@@ -326,6 +356,7 @@ function selectCard(card, showCodeChange = true, expand = true) {
 }
 
 async function prepareCard(card, values = card.values, { interactive = true } = {}) {
+  values = card.normalizeValues?.(values) ?? values;
   // A preview must not move its own hit targets or clamp the controls' scroll
   // position. Only a clicked (pinned) choice changes the editor's structure.
   for (const { definition, element } of card.controlElements) {
@@ -334,7 +365,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
   for (const button of card.parameterButtons) button.classList.toggle('previewing', card.interaction.owner === button);
   const request = card.request = (card.request ?? 0) + 1;
   try {
-    for (const control of activeControls(card.controls, values)) {
+    for (const control of activeControls(card.resolveControls?.(values) ?? card.controls, values)) {
       const value = values[control.key];
       if (control.type === 'number' && (!Number.isFinite(value) || value < control.min || value > control.max)) {
         throw new Error(`${control.label} must be between ${control.min} and ${control.max}.`);
@@ -355,17 +386,41 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
       card.prepared = prepared;
       card.preparedSignature = signature;
     }
-    card.error = ''; card.apply.disabled = false;
+    card.error = ''; card.unchanged = false; card.apply.disabled = false;
     card.errorElement.textContent = '';
+    card.errorElement.classList.remove('unchanged');
     renderChart(card.thumbnail, card.prepared.preview, card.title);
   } catch (error) {
     if (request !== card.request || card.base !== state.program || card.view !== state.view) return;
-    card.prepared = null; card.error = error.message;
-    card.errorElement.textContent = error.message; card.apply.disabled = true;
+    card.prepared = null; card.unchanged = error.reason === 'no-change';
+    card.error = card.unchanged ? 'This setting already matches the current chart.' : error.message;
+    card.errorElement.textContent = card.error; card.errorElement.classList.toggle('unchanged', card.unchanged); card.apply.disabled = true;
+    if (card.unchanged) renderChart(card.thumbnail, card.view, card.title);
   }
   if (state.active === card) showPreview(card, {
     showCodeChange: pointerInGallery || card.element.contains(document.activeElement),
   });
+}
+
+function pinValues(card, values, changedKey, rebuild = true) {
+  card.values = card.normalizeValues?.(values, changedKey) ?? values;
+  const controls = card.resolveControls?.(card.values) ?? card.controls;
+  if (rebuild) {
+    const focusKey = document.activeElement?.closest('[data-parameter]')?.dataset.parameter;
+    card.controls = controls; card.controlElements = []; card.parameterButtons = []; card.controlRefreshers = [];
+    card.controlsElement.replaceChildren();
+    for (const definition of controls) addControl(card, definition);
+    card.controlsElement.append(card.errorElement);
+    if (card.noticeElement) card.controlsElement.append(card.noticeElement);
+    if (focusKey) {
+      const field = [...card.controlsElement.querySelectorAll('[data-parameter]')].find(e => e.dataset.parameter === focusKey);
+      (field?.querySelector('[aria-pressed="true"]') ?? field?.querySelector('input, button'))?.focus({ preventScroll: true });
+    }
+  } else {
+    const flatten = list => list.flatMap(c => c.type === 'group' ? flatten(c.controls) : [c]);
+    for (const update of card.controlRefreshers ?? []) update(flatten(controls));
+  }
+  card.interaction.reset();
 }
 
 function addControl(card, definition, parent = card.controlsElement) {
@@ -398,11 +453,15 @@ function addControl(card, definition, parent = card.controlsElement) {
         button.classList.add('color-swatch'); button.style.background = choice.value;
         button.setAttribute('aria-label', `Color ${choice.value}`);
       }
-      button.title = 'Hover to preview. Click to keep this value.';
+      button.title = choice.reason ?? 'Hover to preview. Click to keep this value.';
+      if (choice.reason) button.setAttribute('aria-label', `${choice.label}: ${choice.reason}`);
       if (choice.missing) button.title += ` ${choice.missing} of ${state.rows.length} original rows have a missing value in this column.`;
       buttons.push({ button, value: choice.value }); card.parameterButtons.push(button);
       const draft = () => {
-        if (definition.type !== 'multiselect') return { ...card.values, [definition.key]: choice.value };
+        if (definition.type !== 'multiselect') {
+          const values = { ...card.values, [definition.key]: choice.value };
+          return card.normalizeValues?.(values, definition.key) ?? values;
+        }
         const previous = card.values[definition.key];
         const next = selected(choice.value) ? previous.filter(v => v !== choice.value) : [...previous, choice.value];
         return { ...card.values, [definition.key]: next.length >= definition.minimum ? next : previous };
@@ -411,21 +470,28 @@ function addControl(card, definition, parent = card.controlsElement) {
       button.addEventListener('focus', () => card.interaction.focus(button, draft(), button.matches(':focus-visible')));
       button.addEventListener('blur', () => card.interaction.blur(button));
       button.addEventListener('click', () => {
-        card.values = draft(); refresh(); card.interaction.reset();
+        pinValues(card, draft(), definition.key);
       });
       choices.append(button);
     }
     refresh(); label.append(choices);
+    const reasons = [...new Set(definition.choices.filter(choice => choice.disabled && choice.reason).map(choice => choice.reason))];
+    if (reasons.length) {
+      const help = document.createElement('p'); help.className = 'parameter-help'; help.textContent = reasons.join(' ');
+      label.append(help);
+    }
     if (definition.type === 'color') {
       const input = document.createElement('input'); input.type = 'color'; input.value = card.values[definition.key];
       input.setAttribute('aria-label', `${card.title}: Custom color`);
-      input.addEventListener('input', () => { card.values[definition.key] = input.value; refresh(); card.interaction.reset(); });
+      input.addEventListener('input', () => { pinValues(card, { ...card.values, [definition.key]: input.value }, definition.key, false); refresh(); });
       label.append(input);
     }
   } else if (definition.type === 'number') {
     const inputs = document.createElement('div'); inputs.className = 'number-control';
     const range = document.createElement('input'); range.type = 'range';
-    range.min = definition.min; range.max = definition.max; range.step = definition.step;
+    // Keep an exact default instead of allowing the browser to snap it to a
+    // different value from the native call. Pointer/keyboard steps are explicit.
+    range.min = definition.min; range.max = definition.max; range.step = 'any';
     range.value = card.values[definition.key];
     range.setAttribute('aria-label', `${card.title}: ${definition.label} slider`);
     range.title = 'Move to preview. Click to fix the value; click again to resume. Enter or Space also toggles.';
@@ -439,18 +505,18 @@ function addControl(card, definition, parent = card.controlsElement) {
     };
     const updateValue = value => {
       range.value = value;
-      const next = Number(range.value); // The native range enforces min, max and step.
+      const next = Number(range.value);
       refresh();
       if (card.values[definition.key] === next) return;
-      card.values[definition.key] = next;
-      card.interaction.reset();
+      pinValues(card, { ...card.values, [definition.key]: next }, definition.key, false);
     };
     const followPointer = event => {
       if (locked || event.pointerType === 'touch') return;
       const bounds = range.getBoundingClientRect();
       const thumbRadius = 6;
       const fraction = Math.max(0, Math.min(1, (event.clientX - bounds.left - thumbRadius) / Math.max(1, bounds.width - 2 * thumbRadius)));
-      updateValue(definition.min + fraction * (definition.max - definition.min));
+      const min = Number(range.min), max = Number(range.max), step = definition.step || 1;
+      updateValue(Math.max(min, Math.min(max, Number((min + Math.round(fraction * (max - min) / step) * step).toPrecision(12)))));
     };
     rangeIntents.set(range, followPointer);
     range.addEventListener('pointerdown', event => {
@@ -467,6 +533,11 @@ function addControl(card, definition, parent = card.controlsElement) {
     range.addEventListener('keydown', event => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault(); locked = !locked; refresh();
+      } else if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
+        event.preventDefault(); locked = true;
+        const sign = ['ArrowLeft', 'ArrowDown', 'PageDown'].includes(event.key) ? -1 : 1;
+        updateValue(event.key === 'Home' ? Number(range.min) : event.key === 'End' ? Number(range.max)
+          : Number(range.value) + sign * (definition.step || 1) * (event.key.startsWith('Page') ? 10 : 1));
       }
     });
     range.addEventListener('input', () => {
@@ -474,13 +545,18 @@ function addControl(card, definition, parent = card.controlsElement) {
       locked = true; updateValue(range.value);
     });
     refresh();
+    card.controlRefreshers ??= [];
+    card.controlRefreshers.push(controls => {
+      const next = controls.find(c => c.key === definition.key);
+      if (next) { range.min = next.min; range.max = next.max; range.value = card.values[definition.key]; refresh(); }
+    });
     inputs.append(range); label.append(inputs);
   } else {
     const input = document.createElement('input');
     input.type = definition.type;
     input.value = card.values[definition.key];
     input.setAttribute('aria-label', `${card.title}: ${definition.label}`);
-    input.addEventListener('input', () => { card.values[definition.key] = input.value; card.interaction.reset(); });
+    input.addEventListener('input', () => pinValues(card, { ...card.values, [definition.key]: input.value }, definition.key, false));
     label.append(input);
   }
   parent.append(label); card.controlElements.push({ definition, element: label });
@@ -490,6 +566,8 @@ async function createCard(spec, index) {
   const card = { ...spec, base: state.program, disabled: Boolean(spec.requirement),
     view: state.view, guideCall: state.guideCall,
     values: structuredClone(spec.values ?? valuesFor(spec.controls)), prepared: null, error: '', controls: spec.controls, controlElements: [], parameterButtons: [] };
+  card.values = card.normalizeValues?.(card.values) ?? card.values;
+  card.controls = card.resolveControls?.(card.values) ?? card.controls;
   card.interaction = createPreviewInteraction({ readPinned: () => card.values,
     render: values => { if (!state.committing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
     requestFrame: requestAnimationFrame, cancelFrame: cancelAnimationFrame });
@@ -507,7 +585,7 @@ async function createCard(spec, index) {
       } catch (error) { card.error = error.message; }
     }
     card.controls = card.controls.map(control => ({ ...control, value: structuredClone(card.values[control.key]) }));
-    if (!card.prepared) card.disabled = true;
+    if (!card.prepared && !card.controls.length) card.disabled = true;
   }
   const element = document.createElement('article'); element.className = 'card';
   element.dataset.method = card.method; element.dataset.controlCount = card.controls.length;
@@ -534,10 +612,16 @@ async function createCard(spec, index) {
   const error = document.createElement('p'); error.className = 'card-error'; error.setAttribute('role', 'status'); card.errorElement = error;
   const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'apply-button';
   apply.textContent = 'Apply';
-  apply.setAttribute('aria-label', state.phase === 'initial' ? 'Use this chart' : 'Apply action');
+  apply.setAttribute('aria-label', state.phase === 'initial' ? `Use this chart: ${card.title}` : `Apply action: ${card.title}`);
   card.apply = apply;
   apply.addEventListener('click', () => commit(card));
   card.controlsElement.append(error);
+  if (card.original?.notice || card.notice) {
+    const explanation = document.createElement('p'); explanation.className = 'card-notice';
+    explanation.textContent = card.original?.notice ?? card.notice;
+    card.noticeElement = explanation;
+    card.controlsElement.append(explanation);
+  }
   element.append(button, apply, card.controlsElement);
   if (card.score !== undefined) {
     const score = document.createElement('p'); score.className = 'score-description';
@@ -546,12 +630,16 @@ async function createCard(spec, index) {
   if (!card.disabled) {
     if (card.prepared) renderChart(card.thumbnail, card.prepared.preview, card.title);
     else await prepareCard(card, card.values, { interactive: false });
-    if (!card.prepared) card.disabled = true;
+    if (!card.prepared && !card.controls.length) card.disabled = true;
   }
   if (card.disabled) {
     element.classList.add('disabled'); button.disabled = true; apply.hidden = true;
     thumbnail.className = 'unavailable'; thumbnail.textContent = card.requirement || card.error;
   } else {
+    if (!card.prepared) {
+      card.thumbnail.classList.add('needs-adjustment');
+      card.thumbnail.textContent = card.error || 'Open this card to adjust its parameters.';
+    }
     button.addEventListener('click', () => selectCard(card));
     // Keep the active accordion open across the gaps between cards. Selecting
     // another card or leaving the gallery owns collapse, not moving children.
@@ -619,7 +707,8 @@ function recommendationResponse(program = state.program, view = state.view, guid
   if (!recommendationCache.has(view)) recommendationCache.set(view, new Map());
   const cache = recommendationCache.get(view), key = JSON.stringify([context, group, page, searchQuery]);
   if (!cache.has(key)) {
-    cache.set(key, calculations.recommend(program, view, guideCall, { ...context, ...FOLLOWUP_RECOMMENDATION_OPTIONS }, group, page, searchQuery)
+    cache.set(key, calculations.recommend(program, view, guideCall, { ...context, fieldTypes: datasets.get(state.datasetId)?.imported.fieldTypes,
+      ...FOLLOWUP_RECOMMENDATION_OPTIONS }, group, page, searchQuery)
       .catch(error => { cache.delete(key); throw error; }));
     if (cache.size > 32) cache.delete(cache.keys().next().value);
   }
@@ -629,8 +718,7 @@ function recommendationResponse(program = state.program, view = state.view, guid
 function recommendationSpecs({ result, profile }) {
   return result.recommendations.map((recommendation, i) => ({
     ...recommendationParameters(recommendation, profile), original: recommendation,
-    method: recommendation.method, title: recommendation.method === 'createStatisticalReference' || recommendation.category === 'transform' && ['encodeX', 'encodeY'].includes(recommendation.method)
-      ? recommendation.label : labels[recommendation.sourceMethod ?? recommendation.method] ?? recommendation.label,
+    method: recommendation.method, title: actionTitle(recommendation),
     description: recommendation.args.field ? `Variable: ${recommendation.args.field}` : '',
     rank: String(i + 1).padStart(2, '0'), score: recommendation.score,
   }));
@@ -655,10 +743,10 @@ async function updateCards() {
   elements['options-note'].textContent = state.phase === 'initial' ? 'ggaction plot functions' : '';
   if (state.phase === 'initial') {
     showPreview(null);
-    if (!state.selection.x || !state.selection.y) {
+    if (!state.selection.x) {
       elements.cards.dataset.selectedFields = '[]';
       elements.cards.dataset.queryFieldCount = '0';
-      elements['step-description'].textContent = 'Select X and Y in the data table to see chart options.';
+      elements['step-description'].textContent = 'Select X to see chart options; add Y and Color to compare variables.';
       notice(); return;
     }
     const data = state.program.semanticSpec.datasets.find(dataset => dataset.id === state.plotData);
@@ -683,6 +771,8 @@ async function updateCards() {
       elements.cards.dataset.neighborCount = result.neighbors.length;
       elements.cards.dataset.selectedFields = JSON.stringify(result.selectedFields);
       elements.cards.dataset.queryFieldCount = result.query.fields.length;
+      elements.cards.dataset.chartEligibility = JSON.stringify(result.diagnostics.chartEligibility);
+      elements.cards.dataset.chartPreparationFailures = '[]';
     } else {
       elements.cards.dataset.ranking = 'paper-cooccurrence-with-appearance-revisions';
       state.context = focus(state.program, state.context);
@@ -732,6 +822,9 @@ async function updateCards() {
             const spec = specs[index], card = await createCard(spec, index);
             if (generation !== state.generation) return;
             if (state.phase === 'initial' && card.disabled && !spec.requirement) {
+              const failures = JSON.parse(elements.cards.dataset.chartPreparationFailures || '[]');
+              failures.push({ method: spec.method, reason: card.error || 'No compatible parameters for this dataset.' });
+              elements.cards.dataset.chartPreparationFailures = JSON.stringify(failures);
               spec.requirement = card.error || 'No compatible parameters for this dataset.';
               specs.splice(index, 1); specs.push(spec); index--; continue;
             }
@@ -763,7 +856,7 @@ async function updateCards() {
     if (!state.cards.some(card => !card.disabled)) {
       showPreview(null);
       elements['step-description'].textContent = state.phase === 'initial'
-        ? 'No compatible charts for this selection. Try different X, Y or Color variables.'
+        ? 'These charts need an adjustment. Open a card for its parameters and the specific reason.'
         : emptyActionsMessage();
     }
   } catch (error) { if (generation === state.generation) notice(error.message, true); }
@@ -776,6 +869,7 @@ function emptyActionsMessage() {
 
 async function commit(card) {
   if (state.committing || card.base !== state.program) return;
+  const datasetId = state.datasetId;
   clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
   // Apply always uses the pinned settings, never a queued hover from a control
   // the pointer has already left on its way to this button.
@@ -794,10 +888,14 @@ async function commit(card) {
     const pinned = await calculations.prepare(card.base, card.view, card.guideCall, action, setup);
     const recommendation = pinned.recommendation;
     const prerequisiteCalls = pinned.prerequisiteCalls ?? [];
+    const postActionCalls = pinned.postActionCalls ?? [];
     const previousCount = state.program.trace.children.length;
     const committed = await calculations.materialize(card.base, card.view, card.guideCall, action, setup);
+    if (state.datasetId !== datasetId || state.program !== card.base) {
+      throw new Error('The chart changed before this action finished. Preview it again.');
+    }
     const next = committed.program, view = committed.view;
-    if (next.trace.children.length !== previousCount + 1 + prerequisiteCalls.length ||
+    if (next.trace.children.length !== previousCount + 1 + prerequisiteCalls.length + postActionCalls.length ||
         view.trace.children.length !== next.trace.children.length + 1 || view.trace.children.at(-1).op !== 'createGuides') {
       throw new Error('Expected one selected action followed by one final createGuides call.');
     }
@@ -805,10 +903,14 @@ async function commit(card) {
     state.program = next; state.view = view; state.guideCall = committed.guideCall;
     state.codeCard = null;
     state.calls.push(...prerequisiteCalls.map(call => structuredClone(call)),
-      { method: recommendation.method, args: structuredClone(recommendation.args) });
+      { method: recommendation.method, args: structuredClone(recommendation.args) },
+      ...postActionCalls.map(call => structuredClone(call)));
     state.steps++; state.phase = 'recommendations';
+    state.variableDraft = null;
+    clearSearch();
     state.context = focus(state.program, card.original?.nextContext ?? {});
     history.push(historySnapshot(card.title));
+    scheduleSave();
     const committedProgram = state.program;
     // Invalidate an initial gallery that may still be filling, and remove the
     // entire old set before the chart starts moving. No stale cards remain clickable.
@@ -827,7 +929,7 @@ async function commit(card) {
     await transferChart(elements.preview, elements.current,
       host => renderChart(host, view, card.title));
     if (state.program !== committedProgram) return;
-    elements.current.classList.remove('data-view'); state.tableView = null;
+    elements.current.classList.remove('data-view'); state.tableView?.destroy?.(); state.tableView = null;
     $('selection-controls').hidden = true;
     elements.current.dataset.traceCount = view.trace.children.length;
     elements.current.dataset.steps = state.steps;
@@ -856,55 +958,161 @@ async function refreshSelection() {
   state.codeCard = null; state.active = null;
   state.tableView?.update(state.selection);
   elements.current.dataset.traceCount = state.program.trace.children.length;
-  history.reset(historySnapshot()); updateHistoryButtons();
+  if (!state.variableDraft) history.reset(historySnapshot());
+  updateHistoryButtons();
   showPreview(null);
+  if (!state.variableDraft) scheduleSave();
   await updateCards();
 }
 
-async function loadDataset(rows, name, selection = { x: '', y: '', color: '' }) {
-  if (!Array.isArray(rows) || !rows.length || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
-    throw new Error('Use a non-empty table: an array of row objects.');
-  }
-  cancelChartTransfer();
-  state.generation++; state.rows = rows; state.name = name;
-  state.base = makeBase(); state.program = state.base; state.view = state.base; state.guideCall = null;
-  state.baseCalls = [...state.setupCalls]; state.profile = profileDataset(state.base, 'dataset');
-  state.selection = { ...selection };
-  state.phase = 'initial'; state.steps = 0; state.context = {}; state.calls = [];
-  state.optionGroup = 'encoding';
+function clearSearch() {
   clearTimeout(searchTimer); state.searchQuery = ''; $('action-search').value = '';
-  state.codeCard = null; resetCodeView($('code-content'));
-  elements.current.dataset.steps = 0; elements.current.dataset.traceCount = state.base.trace.children.length;
-  elements.current.dataset.lastMethod = '';
-  mountDataTable();
-  elements['current-note'].textContent = '';
-  elements['current-note'].title = '';
-  $('restart').hidden = true;
-  await refreshSelection();
+  $('clear-search').hidden = true;
+}
+$('clear-search').addEventListener('click', () => {
+  $('action-search').value = ''; searchActions(); $('action-search').focus();
+});
+
+function liveSession() {
+  return { entries: history.entries, index: history.index };
+}
+function rememberDataset() {
+  const record = datasets.get(state.datasetId);
+  if (record && history.entries.length) record.session = liveSession();
+}
+function projectSnapshot() {
+  rememberDataset();
+  return createProject([...datasets.values()], state.datasetId, sourceVersion);
+}
+function flushSave() {
+  if (restoringProject || !state.datasetId || state.variableDraft) return;
+  $('draft-status').textContent = 'Saving draft…';
+  // Start durable writes without a debounce gap: a dataset switch followed by
+  // reload must not restore the previously selected dataset.
+  try {
+    const project = projectSnapshot();
+    savingDraft = drafts.write(project).then(() => {
+      $('draft-status').textContent = 'Draft saved on this device';
+    }).catch(error => { $('draft-status').textContent = 'Draft not saved. Use Save project.'; $('draft-status').title = error.message; });
+  } catch (error) { $('draft-status').textContent = 'Draft not saved. Use Save project.'; $('draft-status').title = error.message; }
+  return savingDraft;
+}
+function scheduleSave() { return flushSave(); }
+addEventListener('pagehide', flushSave);
+function updateDatasetOptions() {
+  const selected = state.datasetId;
+  $('dataset').replaceChildren(...[...datasets.values()].map(record => {
+    const option = document.createElement('option'); option.value = record.id; option.textContent = record.name; return option;
+  }));
+  $('dataset').value = selected;
 }
 
-export function parseCSV(source) {
-  const records = []; let row = [], cell = '', quoted = false;
-  for (let i = 0; i < source.length; i++) {
-    const c = source[i];
-    if (c === '"') {
-      if (quoted && source[i + 1] === '"') { cell += '"'; i++; } else quoted = !quoted;
-    } else if (c === ',' && !quoted) { row.push(cell); cell = ''; }
-    else if ((c === '\n' || c === '\r') && !quoted) {
-      if (c === '\r' && source[i + 1] === '\n') i++;
-      row.push(cell); if (row.some(value => value !== '')) records.push(row); row = []; cell = '';
-    } else cell += c;
+async function showSnapshot(snapshot) {
+  historyView.clear({ restore: false }); historyInspection = null;
+  pointerMotion.reset(); cancelChartTransfer(); saveGallery();
+  state.generation++; state.galleryObserver?.disconnect();
+  const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
+  Object.assign(state, structuredClone(metadata), { program, view, selectionAxes: axes, active: null, codeCard: null });
+  resetCodeView($('code-content'));
+  elements.current.dataset.steps = state.steps;
+  elements.current.dataset.traceCount = view.trace.children.length;
+  elements.current.dataset.lastMethod = state.calls.at(-1)?.method ?? '';
+  elements['current-note'].textContent = currentNote ?? '';
+  elements['current-note'].title = currentNote ?? '';
+  $('restart').hidden = state.phase === 'initial';
+  if (state.phase === 'initial') mountDataTable();
+  else {
+    state.tableView?.destroy?.(); state.tableView = null;
+    elements.current.classList.remove('data-view'); $('selection-controls').hidden = true;
+    renderChart(elements.current, view, 'Current visualization');
   }
-  if (quoted) throw new Error('The CSV contains an unclosed quoted value.');
-  row.push(cell); if (row.some(value => value !== '')) records.push(row);
-  const headers = records.shift()?.map((h, i) => (i ? h : h.replace(/^\uFEFF/, '')).trim());
-  if (!headers?.length || new Set(headers).size !== headers.length || headers.some(h => !h)) throw new Error('Use unique, non-empty column names.');
-  return records.map(record => Object.fromEntries(headers.map((h, i) => {
-    const value = record[i] ?? '';
-    // CSV ingestion infers plain finite numbers and preserves leading-zero identifiers.
-    const parsed = /^[+-]?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(Number(value)) ? Number(value) : value;
-    return [h, parsed === '' ? null : parsed];
-  })));
+  updateHistoryButtons(); showPreview(null); scheduleSave(); await updateCards();
+}
+
+async function activateDataset(record, { selection = { x: '', y: '', color: '' }, restore = true } = {}) {
+  // Do all input/native construction checks before replacing a working session.
+  const rows = record.imported.rows;
+  let cached = datasetBases.get(record.imported);
+  if (!cached) {
+    const base = makeBase(rows);
+    cached = datasetBases.set(record.imported, { base,
+      profile: profileDataset(base.program, 'dataset', record.imported.fieldTypes ?? {}) });
+  }
+  const { base, profile } = cached;
+  if (!profile.fields.some(field => field.usable)) throw new Error('No usable columns. Review data types before loading this table.');
+  const session = restore ? record.session : null;
+  rememberDataset(); cancelChartTransfer(); state.tableView?.destroy?.();
+  datasets.set(record.id, record);
+  state.generation++; state.variableDraft = null;
+  state.datasetId = record.id; state.rows = rows; state.name = record.name;
+  state.base = base.program; state.program = base.program; state.view = base.program; state.guideCall = null;
+  state.baseCalls = base.calls; state.setupCalls = base.calls; state.profile = profile;
+  state.selection = Object.fromEntries(Object.entries(selection).map(([role, name]) =>
+    [role, profile.fields.some(field => field.name === name && field.usable) ? name : '']));
+  state.phase = 'initial'; state.steps = 0; state.context = {}; state.calls = [];
+  state.optionGroup = 'encoding'; clearSearch();
+  state.codeCard = null; resetCodeView($('code-content')); updateDatasetOptions();
+  if (session) {
+    const current = history.restore(session.entries, session.index);
+    await showSnapshot(current);
+  } else {
+    elements.current.dataset.steps = 0; elements.current.dataset.traceCount = state.base.trace.children.length;
+    elements.current.dataset.lastMethod = '';
+    mountDataTable(); elements['current-note'].textContent = ''; elements['current-note'].title = '';
+    $('restart').hidden = true;
+    await refreshSelection();
+  }
+  scheduleSave();
+}
+
+async function beginVariableEdit() {
+  if (state.committing || state.variableDraft || state.phase === 'initial') return;
+  const snapshot = historySnapshot();
+  state.variableDraft = snapshot;
+  saveGallery(); clearSearch();
+  state.phase = 'initial'; state.calls = []; state.context = {}; state.guideCall = null;
+  $('restart').hidden = true; mountDataTable();
+  await refreshSelection();
+}
+async function cancelVariableEdit() {
+  if (state.committing || !state.variableDraft) return;
+  const snapshot = state.variableDraft; state.variableDraft = null;
+  await showSnapshot(snapshot); scheduleSave();
+}
+
+async function editSchema() {
+  if (state.committing) return;
+  const record = datasets.get(state.datasetId); if (!record) return;
+  const imported = await reviewDatasetImport(record.imported, { reuse: true });
+  if (!imported) return;
+  // A new interpretation is a new revision; the original chart/session remains selectable.
+  await activateDataset({ id: crypto.randomUUID(), name: `${record.name} · revised types`, imported }, { selection: state.selection, restore: false });
+}
+function downloadText(source, filename, type = 'application/json') {
+  const url = URL.createObjectURL(new Blob([source], { type }));
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function filename(name) { return name.replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-|-$/g, '') || 'visualization'; }
+
+async function openProject(value) {
+  // Validation and native replay finish before touching the current registry.
+  const project = typeof value === 'string' ? parseProject(value) : validateProject(value);
+  notice('Restoring project…'); await tick();
+  const restored = project.datasets.map(record => ({ ...record,
+    session: restoreSession(record.session, record.imported.rows) }));
+  const active = restored.find(record => record.id === project.activeId);
+  const check = makeBase(active.imported.rows);
+  if (!profileDataset(check.program, 'dataset', active.imported.fieldTypes ?? {}).fields.some(f => f.usable)) throw new Error('The project has no usable data.');
+  restoringProject = true;
+  try {
+    rememberDataset();
+    for (const record of restored) datasets.set(record.id, record);
+    // Never overwrite a freshly restored record with the previous live session.
+    state.datasetId = null;
+    await activateDataset(active);
+  } finally { restoringProject = false; }
+  scheduleSave(); notice();
 }
 
 // One physical-pointer route owns card, parameter and slider hover. In
@@ -987,32 +1195,80 @@ $('code-content').closest('.code-panel').addEventListener('focusout', event => {
 
 $('upload').addEventListener('click', () => $('file').click());
 $('file').addEventListener('change', async event => {
+  if (state.committing) { event.target.value = ''; return; }
   const file = event.target.files[0]; if (!file) return;
   try {
-    const source = await file.text();
-    const rows = file.name.toLowerCase().endsWith('.csv') ? parseCSV(source) : JSON.parse(source);
-    await loadDataset(rows, file.name);
-    let custom = $('dataset').querySelector('[value="custom"]');
-    if (!custom) { custom = document.createElement('option'); custom.value = 'custom'; $('dataset').append(custom); }
-    custom.textContent = file.name; $('dataset').value = 'custom';
+    const imported = await reviewDatasetImport(await file.text(), {
+      name: file.name, format: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json' });
+    if (imported) await activateDataset({ id: crypto.randomUUID(), name: file.name, imported });
   } catch (error) { notice(error.message, true); }
   event.target.value = '';
 });
 $('dataset').addEventListener('change', async event => {
-  if (event.target.value === 'custom') return;
-  try { await loadDataset(event.target.value === 'sales' ? sales : cars, event.target.value === 'sales' ? 'Monthly sales' : 'Cars'); }
-  catch (error) { notice(error.message, true); }
+  if (state.committing) { $('dataset').value = state.datasetId; return; }
+  try { await activateDataset(datasets.get(event.target.value)); }
+  catch (error) { $('dataset').value = state.datasetId; notice(error.message, true); }
 });
-$('restart').addEventListener('click', () => loadDataset(state.rows, state.name, state.selection).catch(error => notice(error.message, true)));
+$('restart').addEventListener('click', () => beginVariableEdit().catch(error => notice(error.message, true)));
+$('cancel-variables').addEventListener('click', () => cancelVariableEdit().catch(error => notice(error.message, true)));
+$('edit-schema').addEventListener('click', () => editSchema().catch(error => notice(error.message, true)));
 $('undo').addEventListener('click', () => restoreHistory('undo'));
 $('redo').addEventListener('click', () => restoreHistory('redo'));
+$('save-project').addEventListener('click', () => {
+  try { downloadText(JSON.stringify(projectSnapshot()), `${filename(state.name)}.visauto.json`); }
+  catch (error) { notice(error.message, true); }
+});
+$('open-project').addEventListener('click', () => $('project-file').click());
+$('project-file').addEventListener('change', async event => {
+  if (state.committing) { event.target.value = ''; return; }
+  const file = event.target.files[0]; if (!file) return;
+  try { await openProject(await file.text()); } catch (error) { notice(error.message, true); }
+  event.target.value = '';
+});
+$('code-export').addEventListener('click', () => {
+  try {
+    const snapshot = state.variableDraft ?? historySnapshot();
+    downloadText(runnableCode(snapshot, datasets.get(state.datasetId), sourceVersion), `${filename(state.name)}-chart.mjs`, 'text/javascript');
+  } catch (error) { notice(error.message, true); }
+});
+function enlarge(host, label) {
+  const svg = host.querySelector('svg');
+  if (!svg) { notice('Create or preview a chart to enlarge it.'); return; }
+  $('chart-dialog-title').textContent = label;
+  const copy = svg.cloneNode(true); copy.removeAttribute('width'); copy.removeAttribute('height');
+  $('enlarged-chart').replaceChildren(copy); $('chart-dialog').showModal();
+}
+$('zoom-preview').addEventListener('click', () => enlarge(elements.preview, elements['preview-name'].textContent || 'Preview'));
+const zoomCurrent = document.createElement('button'); zoomCurrent.type = 'button'; zoomCurrent.id = 'zoom-current';
+zoomCurrent.textContent = 'Expand'; zoomCurrent.title = 'Enlarge current chart'; zoomCurrent.setAttribute('aria-label', 'Enlarge current chart');
+zoomCurrent.addEventListener('click', () => enlarge(elements.current, 'Current visualization'));
+$('chart-exports').append(zoomCurrent);
 
 try {
-  const [initialResponse] = await Promise.all([fetch('/data/initial-model.json'), calculations.ready]);
+  const [initialResponse, sourceResponse] = await Promise.all([fetch('/data/initial-model.json'), fetch('/output/workers/source.json'), calculations.ready]);
   if (!initialResponse.ok) throw new Error('The recommendation models are missing. Run npm run corpus:update.');
   state.initialEngine = createInitialChartRecommender(await initialResponse.json());
-  const carsResponse = await fetch('/web/data/cars.json');
-  if (!carsResponse.ok) throw new Error('The Cars example dataset is missing.');
-  cars = await carsResponse.json();
-  await loadDataset(cars, 'Cars');
+  if (sourceResponse.ok) sourceVersion = await sourceResponse.json();
+  const examples = [
+    ['cars', 'Cars', '/web/data/cars.json'], ['tips', 'Tips', '/web/data/tips.json'],
+    ['iris', 'Iris', '/web/data/iris.json'], ['weather', 'Seattle weather', '/web/data/weather.json'],
+    ['stocks', 'Stocks', '/web/data/stocks.json'], ['gapminder', 'Gapminder', '/web/data/gapminder.json'],
+    ['barley', 'Barley', '/web/data/barley.json'], ['electricity', 'Iowa electricity', '/web/data/electricity.json'],
+  ];
+  for (const [id, name, url] of examples) {
+    const response = await fetch(url); if (!response.ok) throw new Error(`The ${name} example dataset is missing.`);
+    const rawRows = await response.json();
+    const options = { format: 'rows', name,
+      ...(id === 'stocks' ? { fieldOverrides: { date: { type: 'temporal', dateFormat: 'month-name' } } } : {}),
+      ...(id === 'barley' ? { fieldOverrides: { year: { type: 'ordinal' } } } : {}) };
+    datasets.set(id, { id, name, imported: importDataset(rawRows, options) });
+  }
+  datasets.set('sales', { id: 'sales', name: 'Monthly sales', imported: importDataset(sales, { format: 'rows', name: 'Monthly sales' }) });
+  cars = datasets.get('cars').imported.rows;
+  let draft;
+  try { draft = await drafts.read(); } catch { $('draft-status').textContent = 'Use Save project to keep your work.'; }
+  if (draft) {
+    try { await openProject(draft); $('draft-status').textContent = 'Draft restored on this device'; }
+    catch (error) { await activateDataset(datasets.get('cars')); notice(`Could not restore the draft: ${error.message}`, true); }
+  } else await activateDataset(datasets.get('cars'));
 } catch (error) { notice(error.message, true); }

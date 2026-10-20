@@ -25,7 +25,9 @@ function createEndpoint(role, workerFactory) {
   worker.addEventListener('message', ({ data }) => {
     const pending = requests.get(data.id); if (!pending) return;
     requests.delete(data.id);
-    if (data.error) pending.reject(new Error(data.error)); else pending.resolve(data.value);
+    if (data.error) {
+      const error = new Error(data.error); error.reason = data.reason; pending.reject(error);
+    } else pending.resolve(data.value);
   });
   const fail = error => {
     failure = new Error(error.message || 'Calculation worker failed.');

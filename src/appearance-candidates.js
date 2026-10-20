@@ -1,3 +1,4 @@
+import { barGrain } from './mark-grain.js';
 import { hasChartContext } from './chart-context.js';
 import { describeAction } from 'ggaction/inspection';
 import { preferVisualFields } from './profile.js';
@@ -31,7 +32,9 @@ export function appearanceCandidates(program, { layer, profile }) {
     }
     return true;
   };
-  const out = [];
+  const out = [], unavailable = new Map();
+  const cells = mark === 'bar' ? barGrain(program, layer) : null;
+  const unavailableField = (method, field, reason) => { if (!unavailable.has(method)) unavailable.set(method, []); unavailable.get(method).push({ value: field.name, label: field.name, reason, disabled: true }); };
   for (const [method, channel, fixedValues] of recipes) {
     const descriptor = describeAction(program, { action: method, target: inspectionTarget });
     if (!['supported', 'needs-input'].includes(descriptor.applicability)) continue;
@@ -53,6 +56,12 @@ export function appearanceCandidates(program, { layer, profile }) {
         if (mark === 'line' && channel === 'color' && !['nominal', 'ordinal'].includes(field.type)) continue;
       }
       if (mark === 'arc' && channel === 'color' && ![encoding.theta?.field, encoding.color?.field].includes(field.name)) continue;
+      if (mark === 'bar' && ['stroke', 'opacity', 'strokeWidth', 'strokeDash'].includes(channel) && !cells.constant(field.name)) {
+        unavailableField(method, field, 'Needs one value per displayed bar cell. Choose a field constant within the category/series, or Fixed mode.'); continue;
+      }
+      if (mark === 'bar' && channel === 'color' && ['quantitative', 'temporal'].includes(field.type) && (cells.grain !== 'aggregate' || ['nominal', 'ordinal'].includes(encoding.color?.fieldType) || field.type === 'temporal')) {
+        unavailableField(method, field, 'Continuous color needs an aggregate bar without an existing categorical color layout. Remove the current color mapping first.'); continue;
+      }
       const aggregateBar = mark === 'bar' && (encoding.x?.aggregate || encoding.y?.aggregate);
       const args = { target, field: field.name, fieldType: field.type };
       if (mark === 'bar' && channel === 'color' && field.type === 'quantitative' && aggregateBar) args.aggregate = aggregateBar;
@@ -71,5 +80,5 @@ export function appearanceCandidates(program, { layer, profile }) {
         label: `Fixed ${channel}`, inspectionTarget });
     }
   }
-  return out;
+  return out.map(candidate => ({ ...candidate, unavailableFields: unavailable.get(candidate.method) }));
 }

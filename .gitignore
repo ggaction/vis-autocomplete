@@ -1,8 +1,26 @@
+# Dependencies and generated results (keep reports locally).
 node_modules/
 output/
 .cache/
+/coverage/
+/.nyc_output/
+/test-results/
+/playwright-report/
+*.tsbuildinfo
+*.log
+*.cpuprofile
+*.heapprofile
+*.heapsnapshot
+
+# Machine-specific files and credentials.
 .DS_Store
 .env
 .env.*
 !.env.example
-*.log
+
+# User exports, rather than runtime data or regression fixtures.
+/*.visauto.json
+/chart.mjs
+/chart.svg
+/chart.png
+/chart.pdf

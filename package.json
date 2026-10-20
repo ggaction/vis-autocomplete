@@ -25,7 +25,8 @@
     "test:ggaction": "npm --prefix vendor/ggaction run test:unit",
     "demo:initial": "node examples/initial-demo.js",
     "validate:initial": "node scripts/validate-initial.js",
-    "audit:actions": "node scripts/audit-action-availability.js"
+    "audit:actions": "node scripts/audit-action-availability.js",
+    "audit:initial-options": "node scripts/audit-initial-options.js"
   },
   "dependencies": {
     "acorn": "8.19.0",

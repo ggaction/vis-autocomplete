@@ -114,18 +114,25 @@ export function createInitialChartRecommender(model) {
   if (!model?.groups?.length) throw new Error('The initial chart corpus index is empty.');
   return Object.freeze({
     recommend(rows, authoringProfile, options = {}) {
+      const availableProfile = authoringProfile, availableRows = rows;
       const selected = options.selection ? projectSelection(rows, authoringProfile, options.selection) : null;
       if (selected) { rows = selected.rows; authoringProfile = selected.profile; }
-      const profile = describeDataset(rows);
+      const profile = describeDataset(rows, Object.fromEntries(authoringProfile.fields.map(f => [f.name, { type: f.type, ...(f.order ? { order: f.order } : {}) }])));
       const retrieval = retrieveInitialEvidence(model, profile, options);
-      const definitions = selected ? selectedPlotDefinitions(authoringProfile, options.selection, rows) : getPlotDefinitions(authoringProfile);
+      const chartEligibility = [];
+      const definitions = selected ? selectedPlotDefinitions(authoringProfile, options.selection, availableRows, chartEligibility, { availableProfile }) : getPlotDefinitions(authoringProfile);
       const recommendations = definitions.map(definition => {
         const bound = selected ? { values: defaultValues(definition), selection: { ...options.selection }, exemplarChartIds: [] }
           : bindInitialDefaults(definition, profile, retrieval);
         const method = definition.method;
         const controls = definition.controls.map(control => ({ ...structuredClone(control), value: structuredClone(bound.values[control.key]) }));
-        const defaultDecisions = applyParameterDefaults(controls, values => definition.build({ ...bound.values, ...values }),
+        let defaultDecisions = applyParameterDefaults(controls, values => definition.build({ ...bound.values, ...values }),
           { method, defaultEvidence: model.parameterDefaults?.methods?.[method] });
+        for (const [key, value] of Object.entries(definition.semanticDefaults ?? {})) {
+          const control = controls.find(control => control.key === key);
+          if (control) { control.value = value; defaultDecisions = defaultDecisions.filter(decision => decision.control !== key);
+            defaultDecisions.push({ control: key, value, source: 'data-semantics', reason: 'Each observation contributes one event.' }); }
+        }
         for (const control of controls) bound.values[control.key] = structuredClone(control.value);
         const evidence = retrieval.neighbors.filter(n => n.group.distribution[method]).map(n => ({
           dataset: n.group.id, family: n.group.family, distance: n.distance, weight: n.weight,
@@ -140,7 +147,7 @@ export function createInitialChartRecommender(model) {
           evidenceStatus: evidence.length ? 'observed-in-neighbors' : 'no-neighbor-evidence' };
       }).sort((a, b) => Number(Boolean(a.requirement)) - Number(Boolean(b.requirement)) ||
         b.score - a.score || a.method.localeCompare(b.method));
-      return { recommendations, query: profile, selectedFields: selected?.fields,
+      return { recommendations, query: profile, selectedFields: selected?.fields, diagnostics: { chartEligibility },
         model: { method: model.method, provenance: model.provenance },
         neighbors: retrieval.neighbors.map(n => ({ dataset: n.group.id, family: n.group.family,
           distance: n.distance, weight: n.weight, chartIds: n.group.charts.map(c => c.id) })),

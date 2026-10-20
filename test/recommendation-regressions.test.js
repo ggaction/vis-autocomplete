@@ -65,7 +65,10 @@ test('bar candidates include the X category, aggregate measures, styles, labels 
   assert.equal(aggregation.when({ mode: 'variable', field: 'Miles_per_Gallon' }), true);
   assert.ok(editor.controls.find(c => c.key === 'field').choices.some(choice => choice.value === 'Origin'));
   assert.ok(editor.controls.find(c => c.key === 'field').choices.some(choice => choice.value === 'Horsepower'));
-  for (const field of editor.controls.find(c => c.key === 'field').choices) {
+  const fieldChoices = editor.controls.find(c => c.key === 'field').choices;
+  assert.ok(fieldChoices.find(choice => choice.value === 'Year').disabled);
+  assert.match(fieldChoices.find(choice => choice.value === 'Year').reason, /Continuous color/);
+  for (const field of fieldChoices.filter(choice => !choice.disabled)) {
     const call = editor.build({ ...valuesFor(editor.controls), field: field.value });
     assert.equal(call.field, field.value);
     if (profileDataset(b, 'dataset').fields.find(f => f.name === field.value).type === 'quantitative') {

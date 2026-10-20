@@ -69,11 +69,13 @@ test('field and constant assignments stay editable only through explicit appeara
   }
 });
 
-test('continuous mapping ranges reject reversed endpoints and disabled field mode reflects missing field alternatives', () => {
+test('continuous mapping ranges normalize reversed endpoints and disabled field mode reflects missing field alternatives', () => {
   const raw = base(), view = addDefaultGuides(raw);
   const rec = engine.recommend(view, { target: 'plot', limit: 100 }).recommendations.find(r => r.method === 'encodeSize');
   const editor = recommendationParameters(rec, profileDataset(view, 'cars'));
-  assert.throws(() => editor.build({ ...valuesFor(editor.controls), mode: 'variable', min: 200, max: 100 }), /Minimum/);
+  const values = editor.normalizeValues({ ...valuesFor(editor.controls), mode: 'variable', min: 200, max: 100 }, 'min');
+  assert.deepEqual(editor.build(values).scale.range, [200, 200]);
+  assert.throws(() => raw.encodeSize({ target: 'plot', field: 'Weight_in_lbs', scale: { range: [200, 100] } }), /range|ascending|greater|increas/i);
   const fixedOnly = recommendationParameters({ method: 'encodeColor', args: { target: 'plot', value: '#555555' } }, profileDataset(view, 'cars'));
   assert.equal(fixedOnly.controls.find(c => c.key === 'mode').choices.find(c => c.value === 'variable').disabled, true);
 });

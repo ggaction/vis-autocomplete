@@ -7,6 +7,8 @@
   <title>Visualization Autocomplete 1.5</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/web/style.css">
+  <link rel="stylesheet" href="/web/data-table.css">
+  <link rel="stylesheet" href="/web/import-dialog.css">
   <script type="importmap">
     {"imports": {
       "ggaction": "/node_modules/ggaction/src/index.js",
@@ -25,9 +27,16 @@
       <select id="dataset"><option value="cars">Cars</option><option value="sales">Monthly sales</option></select>
       <button id="upload" type="button">Upload dataset</button>
       <input id="file" type="file" accept=".csv,.json,text/csv,application/json" hidden>
+      <details class="project-menu"><summary>Project</summary><div>
+        <button id="save-project" type="button">Save project</button>
+        <button id="open-project" type="button">Open project</button>
+        <button id="edit-schema" type="button">Data types</button>
+        <span id="draft-status" role="status" aria-live="polite"></span>
+      </div></details>
+      <input id="project-file" type="file" accept=".json,.visauto,application/json" hidden>
     </div>
     <div class="header-guidance" aria-label="Usage guidance">
-      <p id="step-description">Select X and Y in the data table to see chart options.</p>
+      <p id="step-description">Select X to see chart options; add Y and Color to compare variables.</p>
       <p id="code-guidance" hidden>Previewed actions show all parameters. Apply to collapse; click applied functions to expand.</p>
       <div id="notice" class="notice" role="status" aria-live="polite">Loading the recommendation model…</div>
     </div>
@@ -36,12 +45,13 @@
     <div class="workspace"><div class="authoring-area">
     <div class="visualizations">
       <section class="panel" aria-labelledby="current-heading">
-        <div class="panel-heading current-panel-heading"><h2 id="current-heading">Current visualization</h2><div id="selection-controls" hidden></div><button id="restart" type="button" hidden>Change variables</button></div>
+        <div class="panel-heading current-panel-heading"><h2 id="current-heading">Current visualization</h2><div id="selection-controls" hidden></div><div class="current-view-tools"><div id="chart-exports" class="chart-exports" role="group" aria-label="Download current visualization" hidden><button type="button" data-format="png" aria-label="Download current visualization as PNG" title="Download PNG (2× resolution)">.png</button><button type="button" data-format="pdf" aria-label="Download current visualization as PDF" title="Download vector PDF">.pdf</button><button type="button" data-format="svg" aria-label="Download current visualization as SVG" title="Download vector SVG">.svg</button></div><button id="restart" type="button" hidden>Change variables</button></div></div>
+        <div class="selection-edit-tools" id="selection-edit-tools" hidden><span>Choose variables, then apply a chart.</span><button type="button" id="cancel-variables">Cancel</button></div>
         <div id="current" class="chart-view" aria-label="Current visualization"></div>
         <p id="current-note" hidden></p>
       </section>
       <section class="panel" aria-labelledby="preview-heading">
-        <div class="panel-heading"><h2 id="preview-heading">Preview</h2><span id="preview-name" class="quiet"></span></div>
+        <div class="panel-heading"><h2 id="preview-heading">Preview</h2><span id="preview-name" class="quiet"></span><button type="button" id="zoom-preview" aria-label="Enlarge preview chart" title="Enlarge preview">Expand</button></div>
         <div id="preview" class="chart-view" aria-label="Preview visualization"></div>
         <p id="preview-note" hidden></p>
       </section>
@@ -59,6 +69,7 @@
             <div id="action-search-control" class="action-search" hidden>
               <label class="sr-only" for="action-search">Search actions</label>
               <input id="action-search" type="search" placeholder="Search actions…" autocomplete="off" spellcheck="false" maxlength="120" aria-controls="cards">
+              <button id="clear-search" type="button" aria-label="Clear action search" hidden>×</button>
             </div>
           </div>
         </div>
@@ -72,10 +83,20 @@
     </section>
     </div>
     <aside class="panel code-panel" aria-labelledby="code-heading">
-      <div class="panel-heading"><h2 id="code-heading">Code view</h2><span id="code-mode" class="quiet">Current</span></div>
+      <div class="panel-heading code-panel-heading">
+        <h2 id="code-heading">Code view</h2><span id="code-mode" class="quiet">Current</span>
+        <div class="code-tools" role="group" aria-label="Code controls">
+          <button id="code-font-decrease" type="button" aria-label="Decrease code font size" title="Decrease code font size">−</button>
+          <button id="code-font-increase" type="button" aria-label="Increase code font size" title="Increase code font size">+</button>
+          <button id="code-copy" type="button" aria-label="Copy code" title="Copy the full code, including collapsed parameters">Copy code</button>
+          <button id="code-export" type="button" aria-label="Download runnable code" title="Download code with this dataset and SVG renderer">.mjs</button>
+        </div>
+      </div>
+      <span id="code-tools-status" class="sr-only" role="status" aria-live="polite"></span>
       <pre id="code-content" aria-label="ggaction code" tabindex="0"></pre>
     </aside>
     </div>
   </main>
+  <dialog id="chart-dialog" class="chart-dialog"><div class="dialog-heading"><h2 id="chart-dialog-title">Chart</h2><form method="dialog"><button aria-label="Close enlarged chart">Close</button></form></div><div id="enlarged-chart"></div></dialog>
 </body>
 </html>

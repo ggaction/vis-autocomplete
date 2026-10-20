@@ -13,8 +13,47 @@ export function createLRU(limit = 64, onEvict = () => {}) {
       }
       return value;
     },
+    delete(key) {
+      if (!entries.has(key)) return false;
+      const value = entries.get(key); entries.delete(key); onEvict(key, value); return true;
+    },
     clear() { entries.clear(); },
     get size() { return entries.size; },
+  };
+}
+
+// Capacity is measured in retained work rather than entry count. Keep the
+// newest oversized result alone so repeating an expensive preview stays cheap.
+export function createWeightedLRU(limit, onEvict = () => {}) {
+  if (!Number.isFinite(limit) || limit <= 0) throw new TypeError('Cache capacity must be positive.');
+  const entries = new Map();
+  let weight = 0;
+  const remove = key => {
+    const entry = entries.get(key);
+    if (!entry) return false;
+    entries.delete(key); weight -= entry.weight; onEvict(key, entry.value);
+    return true;
+  };
+  return {
+    get(key) {
+      const entry = entries.get(key);
+      if (!entry) return undefined;
+      entries.delete(key); entries.set(key, entry);
+      return entry.value;
+    },
+    set(key, value, cost = 1) {
+      if (!Number.isFinite(cost) || cost <= 0) throw new TypeError('Cache weight must be positive.');
+      const previous = entries.get(key);
+      if (previous) { weight -= previous.weight; entries.delete(key); }
+      const entry = { value, weight: Math.min(limit, cost) };
+      entries.set(key, entry); weight += entry.weight;
+      while (weight > limit) remove(entries.keys().next().value);
+      return value;
+    },
+    delete: remove,
+    clear() { for (const key of entries.keys()) remove(key); },
+    get size() { return entries.size; },
+    get weight() { return weight; },
   };
 }
 

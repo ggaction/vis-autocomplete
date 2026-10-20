@@ -4,7 +4,7 @@
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
     "branch": "codex/edit-axes-autocomplete",
-    "commit": "83bebd189dc9dfcba543436c93777c52dfb14d84",
+    "commit": "2076478e807d9ac5c8cf6901529b51f9b8343afe",
     "modified": false
   },
   "policy": "one-existing-public-ggaction-method-per-recommendation",

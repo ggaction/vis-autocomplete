@@ -3,6 +3,13 @@ export function createHistory() {
   let entries = [], index = -1;
   return {
     reset(snapshot) { entries = [snapshot]; index = 0; },
+    restore(snapshots, position) {
+      if (!Array.isArray(snapshots) || !snapshots.length || !Number.isInteger(position) || position < 0 || position >= snapshots.length) {
+        throw new TypeError('Invalid history snapshot or position.');
+      }
+      entries = snapshots.slice(); index = position;
+      return entries[index];
+    },
     push(snapshot) {
       entries.splice(index + 1);
       entries.push(snapshot); index = entries.length - 1;

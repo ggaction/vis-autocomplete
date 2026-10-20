@@ -47,7 +47,8 @@ test('selection projection includes only requested columns while preserving orig
   assert.equal(projected.rows.filter(row => row.Horsepower === null).length, 6);
   assert.ok(projected.rows.every(row => Object.keys(row).length === 3));
   assert.equal(projectSelection(rows, profile, { ...selection, color: selection.x }).fields.length, 2);
-  assert.throws(() => projectSelection(rows, profile, { x: selection.x }), /Select X and Y/);
+  assert.deepEqual(projectSelection(rows, profile, { x: selection.x }).fields, [selection.x]);
+  assert.throws(() => projectSelection(rows, profile, {}), /Select an X/);
   assert.throws(() => projectSelection(rows, profile, { ...selection, y: selection.x }), /different/);
   assert.throws(() => projectSelection(rows, profile, { ...selection, color: 'invented' }), /usable/);
 });
@@ -106,6 +107,17 @@ test('every selected-variable plot renders and Apply matches preview using one n
       assert.deepEqual(committed.graphicSpec, prepared.preview.graphicSpec);
       assert.ok(renderToSVG(committed).startsWith('<svg'));
       assert.equal(args.data, rec.setup(rec.values).at(-1)?.args.id ?? setup.data);
+      if (['createPolarScatterPlot', 'createPolarLinePlot'].includes(rec.method)) {
+        assert.equal(args.theta, chosen.x); assert.equal(args.radius, chosen.y); continue;
+      }
+      if (['createParallelCoordinates', 'createRadarPlot'].includes(rec.method)) {
+        assert.ok((args.dimensions ?? args.wide.fields).includes(chosen.x));
+        assert.ok((args.dimensions ?? args.wide.fields).includes(chosen.y)); continue;
+      }
+      if (['createPiePlot', 'createRosePlot', 'createRadialBarPlot', 'createDumbbellPlot'].includes(rec.method)) {
+        assert.ok([chosen.x, chosen.y].includes(args.category));
+        assert.ok([chosen.x, chosen.y].includes(args.value ?? args.start)); continue;
+      }
       assert.equal(args.x?.field ?? (typeof args.x === 'string' ? args.x : undefined) ??
         (args.orientation === 'horizontal' ? args.value : args.category), rec.binField ?? chosen.x);
       assert.equal(args.y?.field ?? (typeof args.y === 'string' ? args.y : undefined) ??
@@ -139,7 +151,7 @@ test('uploaded-style categorical color groups and temporal color choices only pr
       const args = rec.build(rec.values);
       const prepared = prepareGuidedAction(setup.program, { method: rec.method, args }, setup.program, rec.setup(rec.values));
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);
-      if (chosen.color) assert.equal(args.color.field, chosen.color);
+      if (chosen.color) assert.equal(args.color.field, rec.colorBinField ?? chosen.color);
     }
   }
 });
@@ -164,11 +176,11 @@ test('area and horizon bin nearby distinct X positions and aggregate Y per Color
       for (const aggregate of rec.controls.find(c => c.key === 'aggregate').choices.map(c => c.value)) {
         const values = { ...rec.values, bins: 2, aggregate }, args = rec.build(values), calls = rec.setup(values);
         const prepared = prepareGuidedAction(p, { method, args }, p, calls);
-        const summary = prepared.actionBase.semanticSpec.datasets.find(d => d.id === args.data);
+        const summary = prepared.actionBase.semanticSpec.datasets.find(d => d.id === (method === 'createAreaPlot' && color ? args.data.replace(/-aligned$/, '') : args.data));
         assert.equal(summary.values.length, color ? 4 : 2);
         assert.equal(summary.values.find(row => row[rec.binField] === 2.5 && (!color || row.C === 'A')).Y, expected[aggregate]);
         assert.deepEqual(summary.transform[0].groupBy, color ? [rec.binField, 'C'] : [rec.binField]);
-        assert.deepEqual(calls.map(c => c.method), ['createBinData', 'createComputedData', 'createSummaryData']);
+        assert.deepEqual(calls.map(c => c.method), ['createBinData', 'createComputedData', 'createSummaryData', ...(method === 'createAreaPlot' && color ? ['createCompleteData'] : [])]);
         const line = result.recommendations.find(r => r.method === 'createLinePlot');
         const lineProgram = prepareGuidedAction(p, { method: line.method, args: line.build(values) }).preview;
         const series = deriveLineSeries(data, lineProgram.semanticSpec.layers.find(l => l.id === 'plot'));
@@ -344,14 +356,14 @@ test('numeric-X bars retain native bin intervals and expose all Color layouts th
   }
 });
 
-test('three continuous variables offer seven real plot types with replayable bins and unchanged source data', () => {
+test('three continuous variables offer Cartesian and polar/parallel plot types with replayable bins and unchanged source data', () => {
   const p = base(rows), profile = profileDataset(p, 'dataset'), original = JSON.stringify(p.semanticSpec);
   for (const color of ['Acceleration', 'Weight_in_lbs', 'Displacement']) {
     const chosen = { ...selection, color }, selected = selectionData(p, profile, rows, chosen);
     const result = engine.recommend(rows, { ...profile, id: selected.data }, { selection: chosen });
     assert.deepEqual(result.recommendations.map(r => r.method).sort(), [
       'createScatterPlot', 'createRegressionPlot', 'createTextPlot', 'createLinePlot',
-      'createAreaPlot', 'createBarPlot', 'createHeatmap',
+      'createAreaPlot', 'createBarPlot', 'createHeatmap', 'createPolarScatterPlot', 'createPolarLinePlot', 'createParallelCoordinates',
     ].sort());
     assert.deepEqual(result.selectedFields, [chosen.x, chosen.y, color]);
     for (const rec of result.recommendations) {
@@ -366,8 +378,8 @@ test('three continuous variables offer seven real plot types with replayable bin
       assert.equal(encoding.color.field, rec.colorBinField ?? color);
       if (rec.colorBinField) {
         assert.equal(encoding.color.fieldType, 'ordinal');
-        assert.deepEqual(rec.controls.map(c => c.key), ['bins', 'aggregate', 'colorBins']);
-        const derived = applied.semanticSpec.datasets.find(d => d.id === `${selected.data}-color-binned-rows`);
+        assert.deepEqual(rec.controls.map(c => c.key), rec.method === 'createPolarLinePlot' ? ['colorBins'] : ['bins', 'aggregate', 'colorBins']);
+        const derived = applied.semanticSpec.datasets.find(d => d.id === rec.setup(rec.values).find(c => c.method === 'createComputedData' && c.args.as === rec.colorBinField).args.id);
         assert.ok(derived.values.length > 300);
         assert.ok(new Set(derived.values.map(r => r[rec.colorBinField])).size <= 6);
         assert.ok(derived.values.every(row => row[color] !== undefined && typeof row[rec.colorBinField] === 'string'));
@@ -408,7 +420,7 @@ test('continuous Color bin controls change native groups without losing observat
     for (const colorBins of [2, 6]) {
       const values = { ...rec.values, colorBins }, args = rec.build(values);
       const prepared = prepareGuidedAction(p, { method: rec.method, args }, p, rec.setup(values));
-      const derived = prepared.preview.semanticSpec.datasets.find(d => d.id === 'dataset-color-binned-rows');
+      const derived = prepared.preview.semanticSpec.datasets.find(d => d.transform?.some(t => t.type === 'computed' && t.as === rec.colorBinField));
       assert.equal(derived.values.length, data.length);
       assert.deepEqual(derived.values.map(r => r.C), data.map(r => r.C));
       assert.ok(derived.values.every(r => r['C (color bin)'] === 'original'));

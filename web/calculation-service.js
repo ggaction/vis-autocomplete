@@ -1,4 +1,5 @@
 import { deserializeProgram, serializeProgram } from 'ggaction/persistence';
+import { getDatasetSchema } from 'ggaction/inspection';
 import { renderToSVG } from 'ggaction/svg';
 import { createRecommendationEngine, neighboringParameters } from '../src/engine.js';
 import { addDefaultGuides, prepareGuidedAction } from '../src/prepare.js';
@@ -15,7 +16,7 @@ export function createCalculationService(model) {
   const artifact = prepared => {
     if (artifacts.has(prepared)) return artifacts.get(prepared);
     const value = { recommendation: prepared.recommendation, guideCall: prepared.guideCall,
-      prerequisiteCalls: prepared.prerequisiteCalls,
+      prerequisiteCalls: prepared.prerequisiteCalls, postActionCalls: prepared.postActionCalls,
       preview: { svg: renderToSVG(prepared.preview, { resourceNamespace: 'worker-preview' }),
         semanticSpec: { layers: prepared.preview.semanticSpec.layers, coordinates: prepared.preview.semanticSpec.coordinates } } };
     artifacts.set(prepared, value); return value;
@@ -37,9 +38,10 @@ export function createCalculationService(model) {
       diagnostics.validatedCalls.push({ method: action.method, args: action.args });
       try {
         const prepared = prepareGuidedAction(program, action, view);
-        return { recommendation: { ...choice, method: action.method, args: action.args, call: prepared.recommendation.call,
+        const fittedAction = { method: prepared.recommendation.method, args: prepared.recommendation.args };
+        return { recommendation: { ...choice, ...fittedAction, call: prepared.recommendation.call,
           parameterValues, defaultDecisions: editor.defaultDecisions,
-          validation: prepared.recommendation.validation }, action, prepared: artifact(prepared) };
+          validation: prepared.recommendation.validation }, action: fittedAction, prepared: artifact(prepared) };
       } catch (error) {
         if (error.reason === 'no-change' && allowNeighbors) {
           for (const neighbor of neighboringParameters({ ...choice, args: action.args })) {
@@ -87,11 +89,23 @@ export function createCalculationService(model) {
         let deck = decks.get(key);
         if (!deck) {
           let original = rankings.get(rankingKey);
-          if (!original) original = rankings.set(rankingKey, engine.rank(view, { ...options, group }));
+          if (!original) {
+            // Import hints describe source columns. Aggregation and projection can
+            // remove columns or replace them with native derived fields.
+            const target = options?.target
+              ? view.semanticSpec.layers.find(layer => layer.id === options.target)
+              : view.semanticSpec.layers.length === 1 ? view.semanticSpec.layers[0] : undefined;
+            const data = target?.data ?? options?.data;
+            const names = new Set(getDatasetSchema(view, { ...(data ? { data } : {}) }).schema.fields.map(field => field.name));
+            const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => names.has(name)));
+            original = rankings.set(rankingKey, engine.rank(view, { ...options, fieldTypes, group }));
+          }
           const matches = filterActionRecommendations(original.recommendations, query);
           const ranked = { ...original, recommendations: matches, diagnostics: { ...original.diagnostics,
             search: { query, totalCandidates: original.recommendations.length, matchingCandidates: matches.length } } };
-          deck = decks.set(key, { ranked, profile: profileDataset(view, ranked.state.data), cursor: 0,
+          const available = new Set(getDatasetSchema(view, { data: ranked.state.data }).schema.fields.map(f => f.name));
+          const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => available.has(name)));
+          deck = decks.set(key, { ranked, profile: profileDataset(view, ranked.state.data, fieldTypes), cursor: 0,
             recommendations: [], defaults: [], diagnostics: { validatedCalls: [], rejected: [] } });
         }
         const { ranked, profile, diagnostics } = deck;

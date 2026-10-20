@@ -76,3 +76,23 @@ test('worker filters the whole ranked deck before lazy validation, including alr
   assert.ok(style.result.recommendations.every(r => optionGroup(r) === 'style' && /Legend/.test(r.method)));
   assert.throws(() => request(null), /searchQuery/);
 });
+
+test('title editing is search-only after title creation and follows every ordinary match', () => {
+  const raw = chart().createCanvas(defaultCanvasOptions()).createData({ values:
+    Array.from({ length: 8 }, (_, i) => ({ X: i + 1, Y: i * 2 + 1, Group: i % 2 ? 'A' : 'B' })) })
+    .createScatterPlot({ id: 'plot', x: 'X', y: 'Y', color: 'Group' });
+  const untitled = serviceFor(raw);
+  assert.ok(methods(untitled('title', 'style').result.recommendations).includes('createTitle'));
+  const request = serviceFor(raw.createTitle({ text: 'My chart' }));
+  let deck = request('', 'style');
+  for (let page = 1; page < deck.pagination.pageCount; page++) deck = request('', 'style', page);
+  assert.ok(!methods(deck.result.recommendations).includes('editTitle'), 'absent even on later ordinary pages');
+  assert.ok(!deck.result.diagnostics.validatedCalls.some(call => call.method === 'editTitle'));
+  let matches = request('title', 'style');
+  for (let page = 1; page < matches.pagination.pageCount; page++) matches = request('title', 'style', page);
+  assert.equal(methods(matches.result.recommendations).at(-1), 'editTitle');
+  assert.ok(matches.result.recommendations.at(-1).searchOnly);
+  assert.deepEqual(methods(request('editTitle', 'style').result.recommendations), ['editTitle']);
+  assert.ok(methods(request('titlte', 'style').result.recommendations).includes('editTitle'));
+  assert.ok(!methods(request('   ', 'style').result.recommendations).includes('editTitle'));
+});

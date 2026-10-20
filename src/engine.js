@@ -238,6 +238,10 @@ export function createRecommendationEngine(model) {
         const exclude = reason => { coverage.excluded[reason] = (coverage.excluded[reason] ?? 0) + 1; };
         if (category && candidate.category !== category) { exclude('other-category'); continue; }
         if (group && optionGroup(candidate) !== group) { exclude('other-group'); continue; }
+        // Title creation already offers its editing controls. Keep later title
+        // edits discoverable through search without filling the normal deck.
+        const searchOnly = candidate.method === 'editTitle';
+        if (searchOnly && !deferred) { exclude('search-only'); continue; }
         // Established variable choices do not compete with new encodings. The
         // same native X/Y functions can still supply bin/aggregate transforms.
         if (candidate.category === 'encoding' && establishedChannels.some(channel => candidate.feature === `encoding.${channel}`)) { exclude('established-channel'); continue; }
@@ -291,6 +295,7 @@ export function createRecommendationEngine(model) {
           call: callText(candidate), label: candidate.label, category: candidate.category,
           feature: candidate.feature, kind: revision ? 'revision' : 'addition',
           previouslyApplied,
+          searchOnly: candidate.method === 'editTitle',
           defaultEvidence,
           // An eager issued token already passed native validation. Its editor
           // must preserve those arguments; the paged worker learns additional
@@ -332,7 +337,8 @@ export function createRecommendationEngine(model) {
       }
       // Keep used actions discoverable after unused actions without altering the
       // paper score. This is presentation order, shared by eager and paged UI.
-      ranked.sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) ||
+      ranked.sort((a, b) => Number(a.searchOnly) - Number(b.searchOnly) ||
+        Number(a.previouslyApplied) - Number(b.previouslyApplied) ||
         b.score - a.score || a.id.localeCompare(b.id, 'en'));
       const displayed = hierarchy ? createHierarchyProjection(ranked, options.authoringProgram ?? program).project() : ranked;
       if (hierarchy && !deferred) for (const recommendation of displayed) {

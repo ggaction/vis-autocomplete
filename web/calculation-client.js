@@ -1,4 +1,5 @@
-import { serializeProgram, deserializeProgram } from 'ggaction/persistence';
+import { serializeProgram } from 'ggaction/persistence';
+import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
 import { addDefaultGuides } from '../src/prepare.js';
 import { createLRU, signature } from '../src/cache.js';
 
@@ -47,7 +48,7 @@ function createEndpoint(role, workerFactory) {
 export function createCalculationClient({ workerFactory = () => new Worker('/output/workers/calculation.js', { type: 'module' }) } = {}) {
   const endpoints = { recommendation: createEndpoint('recommendation', workerFactory), preview: createEndpoint('preview', workerFactory) };
   const contexts = new WeakMap(), active = {}; let nextState = 0;
-  const recent = createLRU(8, (_, context) => { context.cache.clear(); delete context.snapshot; });
+  const recent = createLRU(8, (_, context) => { context.cache.clear(); delete context.snapshot; delete context.transition; });
   const contextFor = (program, view, guideCall) => {
     if (!contexts.has(program)) contexts.set(program, new WeakMap());
     const views = contexts.get(program);
@@ -56,11 +57,21 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
   };
   const ensure = async (role, context) => {
     const endpoint = endpoints[role];
-    if (active[role]?.id !== context.id) active[role] = { id: context.id, promise: (async () => {
+    const anchor = active[role]?.context;
+    if (active[role]?.id !== context.id) active[role] = { id: context.id, context, promise: (async () => {
       const { exists } = await endpoint.send({ type: 'activate', stateId: context.id });
       if (!exists) {
-        context.snapshot ??= serializeProgram(context.program);
-        await endpoint.send({ type: 'state', stateId: context.id, snapshot: context.snapshot, guideCall: context.guideCall });
+        const transition = context.transition;
+        const reusable = transition && await endpoint.send({ type: 'activate', stateId: transition.baseStateId });
+        if (reusable?.exists) {
+          await endpoint.send({ type: 'advance', stateId: context.id, ...transition });
+        } else if (anchor && (await endpoint.send({ type: 'activate', stateId: anchor.id })).exists) {
+          await endpoint.send({ type: 'state-update', stateId: context.id, baseStateId: anchor.id,
+            update: packProgramUpdate(anchor.program, context.program), guideCall: context.guideCall });
+        } else {
+          context.snapshot ??= serializeProgram(context.program);
+          await endpoint.send({ type: 'state', stateId: context.id, snapshot: context.snapshot, guideCall: context.guideCall });
+        }
       }
     })().catch(error => { if (active[role]?.id === context.id) delete active[role]; throw error; }) };
     await active[role].promise;
@@ -93,9 +104,15 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       const context = contextFor(program, view, guideCall);
       const role = context.cache.get(signature([action, setupCalls]))?.workerRole ?? 'preview';
       const endpoint = await ensure(role, context);
-      const result = await endpoint.send({ type: 'materialize', stateId: context.id, action, setupCalls });
-      const next = deserializeProgram(result.snapshot);
-      return { program: next, view: addDefaultGuides(next, result.guideCall), guideCall: result.guideCall };
+      const nextId = ++nextState;
+      const result = await endpoint.send({ type: 'materialize', stateId: context.id, nextStateId: nextId, action, setupCalls });
+      const next = unpackProgramUpdate(program, result.update);
+      const nextView = addDefaultGuides(next, result.guideCall);
+      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64),
+        transition: structuredClone({ baseStateId: context.id, action, setupCalls }) };
+      contexts.set(next, new WeakMap([[nextView, nextContext]])); recent.set(nextId, nextContext);
+      active[role] = { id: nextId, context: nextContext, promise: Promise.resolve() };
+      return { program: next, view: nextView, guideCall: result.guideCall };
     },
   };
 }

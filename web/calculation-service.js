@@ -1,4 +1,5 @@
 import { deserializeProgram, serializeProgram } from 'ggaction/persistence';
+import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
 import { getDatasetSchema } from 'ggaction/inspection';
 import { renderToSVG } from 'ggaction/svg';
 import { createRecommendationEngine, neighboringParameters } from '../src/engine.js';
@@ -12,6 +13,7 @@ import { createHierarchyProjection } from '../src/action-hierarchy.js';
 // Both worker roles use the exact public native calls and the shared preparer.
 export function createCalculationService(model) {
   const states = createLRU(12);
+  const retain = (id, program, view) => states.set(id, { program, view, rankings: createLRU(8), decks: createLRU(8) });
   const engine = model ? createRecommendationEngine(model) : null;
   const artifacts = new WeakMap();
   const artifact = prepared => {
@@ -68,18 +70,35 @@ export function createCalculationService(model) {
     return null;
   };
   return {
-    execute({ type, stateId, snapshot, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '' }) {
+    execute({ type, stateId, nextStateId, baseStateId, snapshot, update, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '' }) {
       if (type === 'activate') return { exists: Boolean(states.get(stateId)) };
       if (type === 'state') {
         const program = deserializeProgram(snapshot);
-        states.set(stateId, { program, view: guideCall ? addDefaultGuides(program, guideCall) : program,
-          rankings: createLRU(8), decks: createLRU(8) });
+        retain(stateId, program, guideCall ? addDefaultGuides(program, guideCall) : program);
+        return { exists: true };
+      }
+      if (type === 'state-update') {
+        const program = unpackProgramUpdate(stateFor(baseStateId).program, update);
+        retain(stateId, program, guideCall ? addDefaultGuides(program, guideCall) : program);
+        return { exists: true };
+      }
+      if (type === 'advance') {
+        const base = stateFor(baseStateId);
+        const prepared = prepareGuidedAction(base.program, action, base.view, setupCalls);
+        retain(stateId, prepared.authoringPreview, prepared.preview);
         return { exists: true };
       }
       const { program, view, rankings, decks } = stateFor(stateId);
       if (type === 'prepare' || type === 'materialize') {
         const prepared = prepareGuidedAction(program, action, view, setupCalls);
-        if (type === 'materialize') return { snapshot: serializeProgram(prepared.authoringPreview), guideCall: prepared.guideCall };
+        if (type === 'materialize') {
+          if (nextStateId !== undefined) {
+            const update = packProgramUpdate(program, prepared.authoringPreview);
+            retain(nextStateId, prepared.authoringPreview, prepared.preview);
+            return { update, guideCall: prepared.guideCall };
+          }
+          return { snapshot: serializeProgram(prepared.authoringPreview), guideCall: prepared.guideCall };
+        }
         return artifact(prepared);
       }
       if (type === 'recommend') {

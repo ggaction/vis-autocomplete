@@ -27,6 +27,10 @@ document.querySelector('#run').onclick = async event => {
   const zero = () => $('.history-item[data-history-index="0"]');
   const ready = () => !$('#undo').disabled && !$('#history').matches('[aria-busy="true"]') && !$('#notice').textContent;
   const choose = async method => {
+    if (doc.body.dataset.phase === 'recommendations') {
+      $('#action-search').value = method;
+      $('#action-search').dispatchEvent(new win.Event('input', { bubbles: true }));
+    }
     await wait(() => $(`.card .method-name`) && [...doc.querySelectorAll('.card')].some(card => card.querySelector('.method-name')?.textContent.includes(method)));
     const card = [...doc.querySelectorAll('.card')].find(card => card.querySelector('.method-name')?.textContent.includes(method));
     card.querySelector('.card-top').click();
@@ -47,6 +51,7 @@ document.querySelector('#run').onclick = async event => {
     check(items().length === 0, 'Card selection must not enter history');
     scatter.querySelector('.apply-button').click();
     await wait(() => ready() && items().length === 1);
+    check(items().every(item => item.querySelectorAll('.history-thumbnail svg *').length <= 1), 'History thumbnails must not duplicate each chart mark in the live DOM');
     passed.push('Only Apply creates a history entry, with its native chart thumbnail');
 
     const color = await choose('encodeColor');

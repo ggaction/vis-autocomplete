@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Worker } from 'node:worker_threads';
 import { chart } from 'ggaction';
+import { renderToSVG } from 'ggaction/svg';
 import { serializeProgram } from 'ggaction/persistence';
 import { comparePrograms } from 'ggaction/inspection';
 import { prepareGuidedAction, defaultCanvasOptions } from '../src/prepare.js';
@@ -13,6 +14,8 @@ import { createCalculationService } from '../web/calculation-service.js';
 import { FOLLOWUP_RECOMMENDATION_OPTIONS } from '../web/option-groups.js';
 import { optionGroup } from '../src/recommendation-groups.js';
 import { recommendationParameters, valuesFor } from '../web/parameters.js';
+
+const renderSVG = program => renderToSVG(program, { resourceNamespace: 'worker-preview' });
 
 const model = JSON.parse(readFileSync(new URL('../data/model.json', import.meta.url)));
 const base = () => chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values:
@@ -109,4 +112,44 @@ test('failed workers reject current and future requests instead of leaving Apply
   const raw = scatter(), view = raw.createGuides(), action = { method: 'encodeSize', args: { target: 'plot', value: 50 } };
   await assert.rejects(client.prepare(raw, view, null, action), /Calculation stopped/);
   await assert.rejects(client.prepare(raw, view, null, action), /Calculation stopped/);
+});
+
+test('successive Apply reuses worker states, cross-role advance and exact immutable inputs', async t => {
+  const threads = [], requests = [];
+  const client = createCalculationClient({ workerFactory: role => {
+    const worker = new Worker(new URL('./fixtures/calculation-thread.mjs', import.meta.url)); threads.push(worker);
+    return { addEventListener: (type, callback) => worker.on(type, type === 'message' ? data => callback({ data }) : callback),
+      postMessage: data => { requests.push({ role, ...data.request }); worker.postMessage(data); } };
+  } });
+  t.after(() => Promise.all(threads.map(worker => worker.terminate())));
+  await client.ready;
+  const original = scatter(), originalView = original.createGuides(), guideCall = { method: 'createGuides', args: {} };
+  await client.prepare(original, originalView, guideCall, { method: 'encodeSize', args: { target: 'plot', value: 80 } }, [], { interactive: true });
+  let program = original, view = originalView;
+  for (let i = 0; i < 20; i++) {
+    const action = { method: 'encodeOpacity', args: { target: 'plot', value: i % 2 ? .4 : .8 } };
+    await client.prepare(program, view, guideCall, action);
+    const next = await client.materialize(program, view, guideCall, action);
+    const expected = program.encodeOpacity(action.args);
+    assert.deepEqual(next.program.semanticSpec, expected.semanticSpec);
+    assert.deepEqual(next.program.trace, expected.trace);
+    if (i === 0) {
+      action.args.value = .1;
+      const preview = await client.prepare(next.program, next.view, next.guideCall,
+        { method: 'encodeSize', args: { target: 'plot', value: 90 } }, [], { interactive: true });
+      assert.equal(preview.preview.svg, renderSVG(prepareGuidedAction(next.program, { method: 'encodeSize', args: { target: 'plot', value: 90 } }, next.view).preview));
+    }
+    program = next.program; view = next.view;
+  }
+  assert.equal(requests.filter(r => r.type === 'state' && r.role === 'recommendation').length, 1,
+    'Apply cannot resend or rehydrate a growing complete history');
+  assert.equal(requests.filter(r => r.type === 'advance').length, 1, 'the other worker advances its existing native baseline');
+  const late = await client.prepare(program, view, guideCall,
+    { method: 'encodeSize', args: { target: 'plot', value: 100 } }, [], { interactive: true });
+  assert.equal(late.preview.svg, renderSVG(prepareGuidedAction(program, { method: 'encodeSize', args: { target: 'plot', value: 100 } }, view).preview));
+  assert.ok(requests.some(r => r.type === 'state-update' && r.role === 'preview'), 'an idle worker catches up without all intervening actions or a full historical snapshot');
+  const restored = await client.prepare(original, originalView, guideCall,
+    { method: 'encodeSize', args: { target: 'plot', value: 120 } });
+  assert.equal(restored.preview.svg, renderSVG(prepareGuidedAction(original, { method: 'encodeSize', args: { target: 'plot', value: 120 } }, originalView).preview));
+  assert.equal(requests.filter(r => r.type === 'state').length, 2, 'expired Undo states also transfer against a known baseline');
 });

@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>Code preview retention regression</title><pre id="code"></pre>
+<script type="module">
+import {programCode,renderCode} from '/web/code-view.js';
+const host=document.querySelector('#code');
+const setup={method:'createCanvas',args:{width:600,height:450}};
+const current=programCode([setup]);
+function depart(){
+ renderCode(host,current,programCode([setup,{method:'encodeOpacity',args:{value:.5}}]));
+ window.departedPreview=new WeakRef(host.querySelector('[data-method=encodeOpacity]'));
+ renderCode(host,current,programCode([setup,{method:'encodeSize',args:{value:50}}]));
+}
+depart();
+const applied=programCode([setup,{method:'encodeColor',args:{field:'Origin'}}]);
+renderCode(host,applied);
+if(host.querySelector('[data-method=encodeColor] .code-arguments').childElementCount)throw new Error('Folded arguments allocated hidden DOM');
+host.querySelector('[data-method=encodeColor]').open=true;
+renderCode(host,current);renderCode(host,applied);
+if(!host.querySelector('[data-method=encodeColor]').open)throw new Error('Undo/Redo lost the applied disclosure preference');
+window.ready=true;
+</script>

@@ -348,19 +348,28 @@ ggaction은 불변 리소스의 정확한 구조 비교와 변경되지 않은 �
 
 브라우저는 추천용/실시간 프리뷰용 module Worker를 따로 사용한다. 연속 파라미터 입력은 실행 중 하나와 최신 대기 하나만 유지한다.
 Apply는 호버 중인 값이 아닌 고정된 값을 검증·확정하며, 이동 애니메이션 중 다음 추천을 계산한다.
-프리뷰에는 SVG·실제 호출 인자·메타데이터를 반환하고, 편집 가능한 native snapshot은 상태 변경 시에만 전송한다.
+프리뷰에는 SVG·실제 호출 인자·메타데이터를 반환한다. Apply 후에는 Worker의 확정 상태를 다음 계산에 재사용한다.
+최초 접속 이후의 상태 전달은 현재 native 상태와 기존 액션 트리의 참조·변경분으로 처리하여, 과거 전체 materialization 기록을 매번 복제하지 않는다.
+한동안 쓰지 않은 Worker와 퇴출된 Undo 상태도 알려진 상태가 있으면 같은 변경분 전달을 사용하며, 기준 상태가 없을 때만 전체 snapshot을 복원한다.
+전체 native trace·하위 facet 상태·프로젝트 저장 형식과 최종 `createGuides` 호출은 유지한다.
 복제한 SVG의 리소스 ID는 표시 위치별로 분리한다. 그룹 변경은 카드 DOM과 고정 파라미터를 복원하며 Undo/Redo도 동일한 native 상태를 복원한다.
 클라이언트/카드 캐시는 최근 8개 상태, Worker 상태는 12개로 제한한다. 클라이언트 프리뷰는 상태별 64개,
 공통 준비 결과는 128개로 제한하며 퇴출된 이력은 다시 계산한다.
+Current/Preview의 전체 SVG 템플릿은 최근 8개만 보관한다. 카드·히스토리 섬네일은 같은 native SVG를 벡터 이미지로 표시하여 마크마다 DOM을 누적하지 않는다.
+코드 뷰는 떠난 프리뷰의 인자 DOM·타이머를 해제하고, Undo/Redo용 접기 상태만 최대 128개 보관한다.
+접힌 함수의 인자 DOM은 펼칠 때 생성하며, 프리뷰와 Apply 후 0.7초 유지·접기 애니메이션은 그대로 동작한다.
 
 `npm run dev`는 같은 `vendor/ggaction` 소스로 Worker를 먼저 번들링한다. 소스 수정 후 실행 중인 서버를 유지한다면
 `npm run build:workers` 후 페이지를 새로고침한다. `npm run update`도 라이브러리 갱신 뒤 Worker를 다시 만든다.
 
 `npm run benchmark:recommendations`는 Cars의 새 상태 3개씩에서 기존 전체 검증 경로와 현재 그룹의 첫 5개 준비 경로를 비교해
 `output/performance-lazy.json`을 만든다. 다음 페이지·그룹 전환·반복 페이지와 native 상태 복원 시간도 별도로 측정한다.
-현재 환경의 3개 상태별 중앙값은 기존 전체 검증 580–921ms, Encoding 첫 5개 준비 51–75ms였다(약 11–15배).
-후자는 5개 native 기본값의 검증·가이드·SVG를 포함하며 새 Worker 상태 복원 11–15ms는 별도로 측정했다.
+첫 페이지 준비에는 5개 native 기본값의 검증·가이드·SVG가 포함되며 새 Worker 상태 복원은 별도로 측정한다.
+라이브러리·데이터·실행 환경이 달라지면 보고서를 다시 생성해 비교한다.
 `npm run benchmark:performance`는 기존 저수준 준비/회귀/파라미터 캐시 벤치마크다.
+`npm run benchmark:session`은 같은 Cars facet에서 41회 편집하며 전체 snapshot 경로와 변경분 경로를 비교한다.
+전달량·복원·추천 시간과 최종 semantic/graphic/trace 동등성을 `output/progressive-latency/session-benchmark.json`에 기록한다.
+`/test/fixtures/thumbnail-render.html`, `code-retention.html`, `code-settlement.html`, `history-workflow.html`로 섬네일·프리뷰 DOM 해제·코드 접기·히스토리를 브라우저에서 확인할 수 있다.
 이 수치는 브라우저 DOM/paint와 Worker 메시지 왕복을 제외하며 전체 화면 응답 시간을 의미하지 않는다.
 
 이전의 32개 수동 실행 목록은 제거했다. `catalog:check`가 실제 공개 TypeScript 선언에서

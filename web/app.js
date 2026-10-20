@@ -1,3 +1,4 @@
+import { renderChartThumbnail } from './chart-thumbnail.js';
 import { chart } from 'ggaction';
 import { renderToSVG } from 'ggaction/svg';
 import { createInitialChartRecommender, profileDataset } from '../src/index.js';
@@ -57,7 +58,7 @@ const recentGalleries = createLRU(8, view => { galleryCache.delete(view); recomm
 let mountedGallery = null;
 let svgId = 0;
 const renderedCharts = new WeakMap();
-const chartTemplates = new WeakMap();
+const chartTemplates = createLRU(8);
 const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
   getCurrent: () => state.phase === 'initial' ? null : { program: renderedCharts.get(elements.current)?.program, name: state.name },
   isBusy: () => state.committing, onError: message => notice(message, true) });
@@ -221,13 +222,19 @@ function renderChart(host, program, label) {
     !['polar', 'parallel'].includes(program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type) &&
     (!layer.encoding?.x || !layer.encoding?.y));
   if (pending) return placeholder(host, 'This step is ready. Set both position variables to display the chart.');
-  const namespace = `view-${++svgId}`;
-  if (!chartTemplates.has(program)) {
-    const template = document.createElement('template');
-    template.innerHTML = program.svg ?? renderToSVG(program, { resourceNamespace: 'view-template' });
-    chartTemplates.set(program, template.content);
+  if (host.classList.contains('thumbnail') || host.classList.contains('history-thumbnail')) {
+    renderChartThumbnail(host, program, program.svg ?? renderToSVG(program, { resourceNamespace: 'thumbnail' }), label);
+    renderedCharts.set(host, { program, label });
+    return;
   }
-  host.replaceChildren(chartTemplates.get(program).cloneNode(true));
+  const namespace = `view-${++svgId}`;
+  let template = chartTemplates.get(program);
+  if (!template) {
+    const element = document.createElement('template');
+    element.innerHTML = program.svg ?? renderToSVG(program, { resourceNamespace: 'view-template' });
+    template = element.content; chartTemplates.set(program, template);
+  }
+  host.replaceChildren(template.cloneNode(true));
   {
     // Worker SVGs share geometry; every mounted copy retains unique references.
     const ids = new Map([...host.querySelectorAll('[id]')].map(node => [node.id, `${namespace}-${node.id}`]));

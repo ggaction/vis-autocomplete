@@ -130,12 +130,20 @@ function settleAppliedCall(record) {
 }
 
 export function renderCode(host, current, proposed = null, { setupCallCount = 0, settleApplied = false } = {}) {
-  if (!codeViews.has(host)) codeViews.set(host, { calls: new Map(), header: [], signature: '' });
+  if (!codeViews.has(host)) codeViews.set(host, { calls: new Map(), disclosures: new Map(), header: [], signature: '' });
   const view = codeViews.get(host);
   if (view.current === current && view.proposed === proposed && view.setupCallCount === setupCallCount) return;
   const blocks = codeCallBlocks(current, proposed);
   const visibleKeys = new Set(blocks.calls.map(call => call.key));
-  for (const [key, record] of view.calls) if (!visibleKeys.has(key)) cancelSettlement(record);
+  for (const [key, record] of view.calls) if (!visibleKeys.has(key)) {
+    // A departed preview must not retain its argument DOM for every action
+    // position. Keep only bounded, lightweight disclosure preferences for Redo.
+    if (!record.previewing) {
+      view.disclosures.delete(key); view.disclosures.set(key, record.details.open);
+      if (view.disclosures.size > 128) view.disclosures.delete(view.disclosures.keys().next().value);
+    }
+    cancelSettlement(record); record.details.remove(); view.calls.delete(key);
+  }
   const nodes = blocks.header.map((line, index) => {
     const row = view.header[index] ??= codeLine(line.text, line.line);
     row.querySelector('.code-text').textContent = line.text || ' ';
@@ -148,13 +156,13 @@ export function renderCode(host, current, proposed = null, { setupCallCount = 0,
     let record = view.calls.get(call.key);
     if (!record) {
       const details = document.createElement('details'); details.className = 'code-call';
-      details.dataset.method = call.method;
+      details.dataset.method = call.method; details.open = view.disclosures.get(call.key) ?? false;
       const summary = document.createElement('summary'); summary.className = 'code-call-summary';
       summary.setAttribute('aria-label', `${call.method} parameters`);
       const body = document.createElement('div'); body.className = 'code-arguments';
       details.append(summary, body);
       record = { details, summary, body, call: null, fingerprint: '', previewing: false };
-      details.addEventListener('toggle', () => updateSummary(record));
+      details.addEventListener('toggle', () => { updateArguments(record); updateSummary(record); });
       summary.addEventListener('click', () => cancelSettlement(record));
       view.calls.set(call.key, record);
     }
@@ -173,9 +181,8 @@ export function renderCode(host, current, proposed = null, { setupCallCount = 0,
     if (record.fingerprint !== fingerprint) {
       record.fingerprint = fingerprint;
       record.details.dataset.change = call.change;
-      record.body.replaceChildren(...call.lines.slice(1).map((text, i) => codeLine(text, call.line + i + 1, call.change)));
     }
-    updateSummary(record);
+    updateArguments(record); updateSummary(record);
     if (settling) settleAppliedCall(record);
     // Only the explicit unchanged setup prefix is folded. New prerequisites,
     // previewed actions and user-authored calls remain visible in the chain.
@@ -209,6 +216,18 @@ export function renderCode(host, current, proposed = null, { setupCallCount = 0,
   view.signature = signature;
   view.current = current; view.proposed = proposed;
   view.setupCallCount = setupCallCount;
+}
+
+function updateArguments(record) {
+  if (!record.call) return;
+  if (!record.details.open) {
+    if (record.body.childElementCount) record.body.replaceChildren();
+    record.argumentFingerprint = '';
+  } else if (record.argumentFingerprint !== record.fingerprint) {
+    const call = record.call;
+    record.body.replaceChildren(...call.lines.slice(1).map((text, i) => codeLine(text, call.line + i + 1, call.change)));
+    record.argumentFingerprint = record.fingerprint;
+  }
 }
 
 function updateSummary(record) {

@@ -81,8 +81,9 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
     move(event) { move(event.clientX); },
     update(history, busy = false) {
       entries = history.entries; locked = busy; host.setAttribute('aria-busy', String(busy));
-      for (const [snapshot, button] of nodes) if (!entries.includes(snapshot)) { button.remove(); nodes.delete(snapshot); }
-      for (const snapshot of entries) {
+      const retained = new Set(entries);
+      for (const [snapshot, button] of nodes) if (!retained.has(snapshot)) { button.remove(); nodes.delete(snapshot); }
+      for (const [index, snapshot] of entries.entries()) {
         let button = nodes.get(snapshot);
         if (!button) {
           button = document.createElement('button'); button.type = 'button'; button.className = 'history-item';
@@ -108,7 +109,6 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
           });
           nodes.set(snapshot, button); host.append(button);
         }
-        const index = entries.indexOf(snapshot);
         button.dataset.historyIndex = index; button.disabled = busy;
         if (index === history.index) button.setAttribute('aria-current', 'step');
         else button.removeAttribute('aria-current');

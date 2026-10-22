@@ -517,10 +517,12 @@ Preview와 Current의 서로 다른 표시 배율을 연결하고, 코드 패널
 크기 드래그 중 보이는 옵션 카드의 섬네일도 resize → 해당 옵션의 공개 ggaction 호출 순서로
 갱신한다. Current/code와 별도 worker에서 한 번의 섬네일 순회와 최신 대기 요청만 유지한다.
 크기만 확정할 때는 카드 DOM·페이지·검색·고정한 파라미터를 유지하며 추천 순위를 재계산하지 않는다.
-드래그 위치는 requestAnimationFrame마다 기존 벡터 이미지의 compositor transform으로 즉시
-반영한다. Native 계산을 기다리는 동안의 임시 크기 예측이며, ggaction 결과가 도착하면 축·글자·
-가이드 레이아웃을 보정한다. 포인터를 놓으면 검증된 native 결과로 확정하고 원래 SVG로 돌아간다.
-매 프레임 SVG를 다시 파싱하거나 섬네일 이미지를 새 해상도로 래스터화하지 않는다.
+드래그 위치는 requestAnimationFrame마다 기존 Canvas의 compositor transform으로 즉시
+반영한다. Native 계산을 기다릴 때는 마지막 렌더를 등비 확대·축소해 중앙에 배치하며,
+글자·점·범례를 가로·세로로 다르게 늘리지 않는다. 실제 축 길이와 가이드 배치는 도착한 ggaction
+결과로 갱신한다. 경계선은 현재 표시된 차트와 일치하며, 포인터를 놓으면 검증된 native 결과로
+확정한다. 매 프레임 섬네일 이미지를 새 해상도로 래스터화하지 않는다.
+`test/browser/resize-aspect.py`는 worker를 지연시켜도 Current와 섬네일의 비율이 유지되는지 검증한다.
 실행 중인 앱에서 Playwright Python으로 `test/browser/canvas-resize.py`를 실행하면 드래그 중 코드,
 취소·Undo/Redo·새로고침·SVG 내보내기, facet·파이, 키보드와 창 크기 변경,
 드래그 중 중앙 정렬·자동 확대/축소·넘침 방지를 확인한다.

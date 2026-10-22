@@ -1,12 +1,15 @@
 // Compositor-only feedback while native layout runs in the workers. Keep the
 // Canvas bitmap at its native size and move/scale its layer, rather than
 // re-rasterizing six chart surfaces at a different resolution on every pointermove.
+// The bitmap must stay proportional: only native layout can change axis lengths
+// without also deforming text, symbols, circles and legends. Between completed
+// worker frames, fit the last real render uniformly inside the requested canvas.
 // This temporary projection is never used for code, export or persisted state.
 export function resizeVectorProjection(source, target, canvasOnly = false) {
-  const sx = canvasOnly ? 1 : target.width / source.width;
-  const sy = canvasOnly ? 1 : target.height / source.height;
-  const x = canvasOnly ? target.x - source.x : 0;
-  const y = canvasOnly ? target.y - source.y : 0;
+  const sx = canvasOnly ? 1 : Math.min(target.width / source.width, target.height / source.height);
+  const sy = sx;
+  const x = canvasOnly ? target.x - source.x : (target.width - source.width * sx) / 2;
+  const y = canvasOnly ? target.y - source.y : (target.height - source.height * sy) / 2;
   return { sx, sy, x, y, plot: { x: source.x * sx + x, y: source.y * sy + y,
     width: source.plot.width * sx, height: source.plot.height * sy } };
 }

@@ -5,6 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Build a visualization one ggaction recommendation at a time.">
   <title>Visualization Autocomplete 1.5</title>
+  <script>
+    // Restore view geometry before CSS or the application module can paint.
+    (() => {
+      let mode = 'preview';
+      const layouts = { preview: 'horizontal', transition: 'vertical' };
+      try { if (localStorage.getItem('vis-autocomplete.view-mode') === 'transition') mode = 'transition'; } catch {}
+      try {
+        const saved = JSON.parse(localStorage.getItem('vis-autocomplete.workspace-layout'));
+        for (const key of Object.keys(layouts)) {
+          if (['horizontal', 'vertical'].includes(saved?.[key])) layouts[key] = saved[key];
+        }
+      } catch {}
+      document.documentElement.dataset.viewMode = mode;
+      document.documentElement.dataset.workspaceLayout = layouts[mode];
+    })();
+  </script>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/data-table.css">
@@ -42,6 +58,12 @@
     </div>
     <div id="view-mode" class="view-mode" role="group" aria-label="Visualization mode"><button type="button" data-mode="preview" aria-pressed="true">Preview mode</button><button type="button" data-mode="transition" aria-pressed="false">Transition mode</button></div>
     <div id="workspace-layout" class="view-mode" role="group" aria-label="Workspace layout"><button type="button" data-layout="horizontal" aria-pressed="true" title="Charts above a horizontal row of options">Horizontal</button><button type="button" data-layout="vertical" aria-pressed="false" title="Charts on the left, two rows of options on the right">Vertical</button></div>
+    <script>
+      for (const button of document.querySelectorAll('#view-mode [data-mode], #workspace-layout [data-layout]')) {
+        const selected = button.dataset.mode ? document.documentElement.dataset.viewMode : document.documentElement.dataset.workspaceLayout;
+        button.setAttribute('aria-pressed', String((button.dataset.mode ?? button.dataset.layout) === selected));
+      }
+    </script>
     <div class="header-guidance" aria-label="Usage guidance">
       <p id="step-description">Select X to see chart options; add Y and Color to compare variables.</p>
       <p id="code-guidance" hidden>Previewed actions show all parameters. Apply to collapse; click applied functions to expand.</p>

@@ -783,6 +783,8 @@ rebuilding charts or recommendations. Preview mode defaults to Horizontal;
 Transition mode defaults to Vertical. Each mode remembers an explicit layout
 choice locally. The active Preview/Transition mode is also saved immediately;
 reload restores that mode and its layout together, even before choosing a chart.
+The HTML bootstrap applies these preferences before the first paint, so loading
+the application module cannot briefly expose the default Preview layout.
 These view preferences remain separate from chart history and project data.
 Vertical splits the authoring width 50:50 between charts on the
 left and options on the right,

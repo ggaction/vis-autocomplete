@@ -8,6 +8,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
   let enabled=false,player=null,surface=null,version=0,returning=false;
   try { enabled=localStorage.getItem(storageKey)==='transition'; } catch { /* Optional preference. */ }
   function paintMode() {
+    document.documentElement.dataset.viewMode=enabled?'transition':'preview';
     layout.classList.toggle('transition-mode',enabled);
     for(const button of toggle.querySelectorAll('[data-mode]')) {
       button.setAttribute('aria-pressed',String(button.dataset.mode===(enabled?'transition':'preview')));

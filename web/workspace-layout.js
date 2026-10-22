@@ -12,6 +12,7 @@ export function initializeWorkspaceLayout({ workspace, toggle, header, busy, bef
     }
   } catch { /* Layout works without local storage. */ }
   function paint() {
+    document.documentElement.dataset.workspaceLayout = choices[mode];
     workspace.dataset.layout = choices[mode];
     for (const button of toggle.querySelectorAll('[data-layout]')) {
       button.setAttribute('aria-pressed', String(button.dataset.layout === choices[mode]));

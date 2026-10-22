@@ -692,3 +692,42 @@ ggaction Code의 `.mjs`는 데이터, 전체 공개 호출, native SVG 저장 �
 파일 주석에 기록된 ggaction 소스를 설치한 Node 프로젝트에서 `node 파일명.mjs`로
 실행하면 `chart.svg`를 생성한다. Current/Preview의 `Expand`는 compact layout을
 유지하면서 차트를 크게 읽는 기능이다. 기존 PNG/PDF/SVG 다운로드도 유지한다.
+
+## Preview mode와 Transition mode
+
+상단 토글의 기본값인 **Preview mode**는 Current/Preview 두 뷰와 Apply 시 이동
+애니메이션을 유지한다. **Transition mode**에서는 한 뷰 안에서 카드·파라미터에
+호버한 결과로 전환한다. 호버를 빼면 마지막 확정 상태로 돌아가고 **Apply만**
+차트·코드·히스토리에 반영한다. 빠르게 다른 카드로 이동하면 현재 보이는 중간
+프레임에서 다음 결과로 이어진다. Undo/Redo, History, 크기 조절과 내보내기는
+확정된 ggaction 프로그램을 기준으로 작동한다.
+
+전환은 별도 저장소 [ggaction/transition](https://github.com/ggaction/transition)의
+`@ggaction/transition`을 `vendor/transition` 서브모듈로 사용한다. ggaction의
+`createTransitionScene` (`ggaction/scene`)이 불변 프로그램에서 읽기 전용 장면을
+만들고, 패키지의 `planTransition`과 `createTransitionPlayer`가 대응과 재생을
+담당한다. 새로운 액션이 기존 ggaction 도형을 만들면 액션별 애니메이션 등록은
+필요 없다. 동일 데이터 도형의 위치·크기·색을 보간하며, 대응이 불분명하거나
+도형 구조가 달라지면 해당 도형만 fade한다. 이 분기는 잘못된 점끼리 연결하는
+움직임을 피한다. `prefers-reduced-motion`에서는 즉시 전환한다.
+
+카드 결과 장면은 호버 시에만 worker에서 준비하고, 늦게 도착한 이전 요청은
+화면에 반영하지 않는다. 재생기는 계산된 장면만 사용하며, 제한된 캐시와
+공유 clipping 리소스를 정리해 반복 호버로 SVG 노드가 누적되지 않게 한다.
+npm 배포용 선언과 패키지 구조는 포함하지만 npm 레지스트리에는 아직 발행하지
+않았다. 현재 소스는 서브모듈 또는 패키지 저장소의 GitHub 설치로 사용한다.
+
+브라우저 검증은 dev server 실행 후 Playwright와 Pillow가 설치된 Python에서
+실행한다. 아래 스크립트는 macOS의 Google Chrome을 사용한다.
+
+```sh
+python test/browser/transition-mode.py
+python test/browser/transition-workflows.py
+python test/browser/transition-player.py
+```
+
+`transition-player.py`는 16개 차트 사례의 native SVG와 전환 결과를 픽셀 비교하고,
+각 사례에서 20ms 간격으로 60회 목적지를 바꾼 뒤 최종 도형·리소스 수를 검사한다.
+`transition-workflows.py`는 5개 데이터셋의 실제 카드 호버, 파라미터, Apply와 Undo를
+검사한다. 패키지 자체의 interruption/리소스 정리/reduced-motion 검사는
+`vendor/transition`에서 `npm test`와 `npm run test:browser`로 실행한다.

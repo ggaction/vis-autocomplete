@@ -1,3 +1,4 @@
+import { createTransitionScene } from 'ggaction/scene';
 import { canvasGeometry } from './canvas-geometry.js';
 import { deserializeProgram, serializeProgram } from 'ggaction/persistence';
 import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
@@ -111,6 +112,7 @@ export function createCalculationService(model) {
         return { exists: true };
       }
       const { program, view, rankings, decks } = stateFor(stateId);
+      if (type === 'scene') return createTransitionScene(action ? prepareGuidedAction(program, action, view, setupCalls).preview : view);
       if (type === 'prepare-resized') {
         const resized = prepareGuidedAction(program, resize, view);
         try {

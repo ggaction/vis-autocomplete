@@ -98,8 +98,16 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
     return pending;
   };
   const preview = latestQueue(prepareJob);
+  const sceneJobs = latestQueue(async ({context, action, setupCalls}) => {
+    const prepared=context.cache.get(signature([action,setupCalls]));
+    const endpoint=await ensure(prepared?.workerRole ?? 'preview',context);
+    return endpoint.send({type:'scene',stateId:context.id,action,setupCalls});
+  });
   return {
     ready: Promise.all(Object.values(endpoints).map(endpoint => endpoint.ready)),
+    transitionScene(program,view,guideCall,action,setupCalls=[]) {
+      return sceneJobs({context:contextFor(program,view,guideCall),action,setupCalls});
+    },
     cancelRecommendations() {
       recommendationRequest++;
       return endpoints.recommendation.send({ type: 'cancel-recommendations' });

@@ -15,6 +15,8 @@
       "ggaction/extension": "/node_modules/ggaction/src/extension.js",
       "ggaction/diagnostics": "/node_modules/ggaction/src/diagnostics.js",
       "ggaction/inspection": "/node_modules/ggaction/src/inspection.js",
+      "@ggaction/transition": "/vendor/transition/src/index.js",
+      "ggaction/scene": "/node_modules/ggaction/src/scene.js",
       "ggaction/svg": "/node_modules/ggaction/src/renderers/svg.js"
       ,"ggaction/persistence": "/node_modules/ggaction/src/persistence.js"
     }}
@@ -38,6 +40,7 @@
       </div></details>
       <input id="project-file" type="file" accept=".json,.visauto,application/json" hidden>
     </div>
+    <div id="view-mode" class="view-mode" role="group" aria-label="Visualization mode"><button type="button" data-mode="preview" aria-pressed="true">Preview mode</button><button type="button" data-mode="transition" aria-pressed="false">Transition mode</button></div>
     <div class="header-guidance" aria-label="Usage guidance">
       <p id="step-description">Select X to see chart options; add Y and Color to compare variables.</p>
       <p id="code-guidance" hidden>Previewed actions show all parameters. Apply to collapse; click applied functions to expand.</p>

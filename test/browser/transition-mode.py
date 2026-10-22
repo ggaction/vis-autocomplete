@@ -1,0 +1,38 @@
+"""Real card transitions, interruption, commit, return and mode isolation."""
+from pathlib import Path
+from playwright.sync_api import sync_playwright, expect
+import json
+with sync_playwright() as p:
+ b=p.chromium.launch(headless=True,executable_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
+ page=b.new_page(viewport={'width':1600,'height':1100},reduced_motion='no-preference')
+ errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+ page.goto('http://127.0.0.1:5173/');page.wait_for_load_state('networkidle')
+ for f in ['Horsepower','Miles_per_Gallon','Origin']:page.get_by_role('button',name='Select column '+f,exact=True).click()
+ card=page.locator('.card[data-method=createScatterPlot]');expect(card).to_be_visible(timeout=60000)
+ page.get_by_role('button',name='Transition mode',exact=True).click()
+ card.locator('.card-top').hover(position={'x':40,'y':16});expect(page.locator('.transition-surface circle').first).to_be_visible(timeout=60000)
+ card.locator('.apply-button').click();expect(page.locator('#current')).to_have_attribute('data-steps','1',timeout=60000)
+ page.get_by_role('heading',name='Visualization Autocomplete 1.5').hover()
+ expect(page.locator('.transition-surface')).to_have_count(0,timeout=10000)
+ assert page.locator('#preview').is_hidden()
+ page.locator('#action-search').fill('encodeSize');page.wait_for_timeout(250)
+ card=page.locator('.card[data-method=encodeSize]');expect(card).to_be_visible(timeout=60000)
+ card.locator('.card-top').hover(position={'x':40,'y':16});expect(page.locator('.transition-surface svg')).to_be_visible(timeout=60000)
+ page.wait_for_timeout(500)
+ expect(card).to_have_class(__import__('re').compile(r'.*expanded.*'))
+ expect(page.locator('.transition-surface')).to_be_visible()
+ Path('output/transition-mode').mkdir(parents=True,exist_ok=True)
+ page.screenshot(path='output/transition-mode/hover.png')
+ page.get_by_role('heading',name='Visualization Autocomplete 1.5').hover()
+ expect(page.locator('.transition-surface')).to_have_count(0,timeout=10000)
+ expect(page.locator('#current')).to_have_attribute('data-steps','1')
+ card.locator('.card-top').hover(position={'x':40,'y':16});card.locator('.apply-button').click()
+ expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
+ page.get_by_role('button',name='Preview mode',exact=True).click()
+ assert page.locator('#preview').is_visible()
+ page.locator('#action-search').fill('encodeOpacity');page.wait_for_timeout(250);card=page.locator('.card[data-method=encodeOpacity]')
+ expect(card).to_be_visible(timeout=60000);card.locator('.card-top').hover(position={'x':40,'y':16})
+ expect(page.locator('#preview svg')).to_be_visible(timeout=60000)
+ assert not errors,errors
+ print('PASS initial chart / hover-return / Apply / Preview mode unchanged',flush=True)
+ b.close()

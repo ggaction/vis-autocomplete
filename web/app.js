@@ -1,3 +1,4 @@
+import { createTransitionMode } from './transition-mode.js';
 import { renderChartThumbnail } from './chart-thumbnail.js';
 import { chart } from 'ggaction';
 import { renderToSVG } from 'ggaction/svg';
@@ -85,6 +86,14 @@ function visibleCards() {
   const row = state.galleryRows[currentGalleryPage()];
   return state.cards.filter(card => card.element.parentNode === row && !card.disabled);
 }
+const transitionMode = createTransitionMode({
+  host:elements.current,layout:document.querySelector('.visualizations'),toggle:$('view-mode'),
+  getBaseline:()=>state.phase==='initial'?state.selectionAxes?.program:state.view,
+  getCandidate:card=>calculations.transitionScene(card.base,card.view,card.guideCall,
+    card.prepared.recommendation,card.transitionSetup ?? card.setup?.(card.values) ?? []),
+  busy:()=>state.committing||state.resizing,
+  onChange:()=>{cancelChartTransfer();showPreview(pointerCard);},onError:error=>notice(error.message,true),
+});
 const resizeThumbnails = createResizeThumbnails({
   prepare: (context, resize, card) => calculations.prepareResized(context.base, context.view, context.guideCall,
     resize, buildRecommendationCall(card, card.values), card.setup?.(card.values) ?? []),
@@ -116,7 +125,7 @@ function rebaseCard(card) {
   card.prepared = null; card.preparedSignature = null; card.needsResizeRefresh = true;
 }
 const canvasResize = createCanvasResize(elements.current, {
-  canStart: () => state.phase !== 'initial' && !state.committing && !state.resizing,
+  canStart: () => state.phase !== 'initial' && !state.committing && !state.resizing && !transitionMode.active,
   start(handle) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish();
@@ -262,6 +271,7 @@ $('action-search').addEventListener('keydown', event => {
 });
 
 function mountDataTable() {
+  transitionMode.reset();
   canvasResize.clear();
   state.tableView?.destroy?.();
   renderedCharts.delete(elements.current);
@@ -297,6 +307,7 @@ async function restoreHistory(direction) {
     else {
       elements.current.classList.remove('data-view'); state.tableView?.destroy?.(); state.tableView = null;
       $('selection-controls').hidden = true;
+      transitionMode.reset();
       renderChart(elements.current, view, 'Current visualization');
     }
     showPreview(null);
@@ -312,7 +323,7 @@ function notice(message = '', isError = false) {
 
 function placeholder(host, message) {
   renderedCharts.delete(host);
-  if (host === elements.current) canvasResize.clear();
+  if (host === elements.current) { transitionMode.reset(); canvasResize.clear(); }
   if (host === elements.current) chartDownloads.refresh();
   const wrapper = document.createElement('div'); wrapper.className = 'empty-state';
   const text = document.createElement('p'); text.textContent = message;
@@ -423,6 +434,13 @@ function showCode(card = null, { settleApplied = false } = {}) {
 }
 
 function showPreview(card, { showCodeChange = true } = {}) {
+  if(transitionMode.enabled){
+    if(state.committing)return;
+    if(historyInspection){showCode();transitionMode.show(null,{program:historyPreview(historyInspection)});return;}
+    const focused=card?.element?.contains(document.activeElement)&&document.activeElement.matches(':focus-visible');
+    if(card&&pointerCard!==card&&!focused)card=null;
+    showCode(showCodeChange?card:null);transitionMode.show(card);return;
+  }
   if (historyInspection) {
     renderChart(elements.preview, historyPreview(historyInspection), `History #${historyInspection.steps}`);
     $('preview-heading').textContent = 'History preview';
@@ -522,6 +540,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
       if (request !== card.request || card.base !== state.program || card.view !== state.view) return;
       if (!prepared) { card.element.dataset.previewState = 'idle'; return; }
       card.prepared = prepared;
+      card.transitionSetup = setupCalls;
       card.preparedSignature = signature;
     }
     card.error = ''; card.unchanged = false; card.element.dataset.previewState = 'ready';
@@ -1242,7 +1261,9 @@ async function commit(card, { direct = false } = {}) {
     showCode(null, { settleApplied: true });
     // Compute the complete next recommendation set while the chart flies.
     if (!direct) recommendationResponse().catch(() => {});
-    if (!direct) {
+    if (!direct && transitionMode.enabled) {
+      await transitionMode.show(null, {program:view});
+    } else if (!direct) {
       renderChart(elements.preview, view, card.title);
       await transferChart(elements.preview, elements.current, host => renderChart(host, view, card.title), canvasGeometry(view));
     }
@@ -1253,6 +1274,7 @@ async function commit(card, { direct = false } = {}) {
     elements.current.dataset.traceCount = view.trace.children.length;
     elements.current.dataset.steps = state.steps;
     elements.current.dataset.lastMethod = card.method;
+    transitionMode.reset();
     renderChart(elements.current, view, 'Current visualization');
     elements['current-note'].textContent = card.title;
     elements['current-note'].title = elements['current-note'].textContent;
@@ -1352,6 +1374,7 @@ async function showSnapshot(snapshot) {
   else {
     state.tableView?.destroy?.(); state.tableView = null;
     elements.current.classList.remove('data-view'); $('selection-controls').hidden = true;
+    transitionMode.reset();
     renderChart(elements.current, view, 'Current visualization');
   }
   updateHistoryButtons(); showPreview(null); scheduleSave(); await updateCards();

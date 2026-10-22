@@ -345,3 +345,17 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .resize-handle:hover, .resize-handle:focus-visible { background: #5884ab25; outline: 1px solid #5884ab; }
 .canvas-editor.resizing, .canvas-editor.resizing * { cursor: var(--resize-cursor) !important; user-select: none; }
 @media (prefers-reduced-motion: reduce) { .canvas-resize-overlay { transition: none; } }
+
+.view-mode { display:flex; flex:none; gap:0; }
+.view-mode button { font-size:11px; padding:6px 8px; white-space:nowrap; border-radius:0; }
+.view-mode button:first-child { border-radius:3px 0 0 3px; }
+.view-mode button:last-child { border-radius:0 3px 3px 0; margin-left:-1px; }
+.view-mode button[aria-pressed="true"] { background:#edf1f5; color:#283d53; border-color:#9daab8; z-index:1; }
+.transition-mode { grid-template-columns:minmax(0,1fr); }
+.transition-mode > section[aria-labelledby="preview-heading"] { display:none; }
+.transition-mode #current-heading { display:none; }
+#current { position:relative; }
+.transition-surface { position:absolute; inset:0; padding:12px; background:white; pointer-events:none; z-index:2; }
+.transition-active .canvas-resize-overlay { visibility:hidden; pointer-events:none; }
+.transition-active > :not(.transition-surface) { visibility:hidden; }
+@media(max-width:1200px) { .app-header { flex-wrap:wrap; } .header-guidance { min-width:180px; } }

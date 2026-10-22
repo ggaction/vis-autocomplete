@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><title>Transition scene verification</title>
+<style>body{margin:0;display:flex;background:white}#actual,#expected{width:800px;height:600px}svg{width:100%;height:100%;display:block}</style>
+<div id="actual"></div><div id="expected"></div>
+<script type="module">
+import {chart} from '/vendor/ggaction/src/index.js';
+import {createTransitionScene} from '/vendor/ggaction/src/scene.js';
+import {renderToSVG} from '/vendor/ggaction/src/renderers/svg.js';
+import {createTransitionPlayer} from '/vendor/transition/src/index.js';
+const cars=(await(await fetch('/web/data/cars.json')).json()).filter(r=>Object.values(r).every(v=>v!==null));
+const barley=await(await fetch('/web/data/barley.json')).json();
+const iris=await(await fetch('/web/data/iris.json')).json();
+const tips=await(await fetch('/web/data/tips.json')).json();
+const make=rows=>chart().createCanvas({plot:{width:350,height:350},margin:{left:100,right:180,top:90,bottom:100}}).createData({id:'d',values:rows});
+const cases={};const errors={};
+const guides={axes:{x:{ticksAndLabels:{labels:{maxWidth:45,wrap:'word',overlap:'allow'}}}}};
+async function example(name,file,fn,rows){try{cases[name]=(await import(`/vendor/ggaction/examples/${file}/program.js`))[fn](rows);}catch(e){errors[name]=e.message;}}
+await example('scatter','cars-scatterplot','createCarsScatterplot',cars);
+await example('line','cars-line-chart','createCarsLineChart',cars);
+await example('box','cars-box-plot','createCarsBoxPlot',cars);
+await example('violin','cars-acceleration-violins','createCarsAccelerationViolins',cars);
+await example('donut','cars-origin-donut','createCarsOriginDonut',cars);
+await example('heatmap','cars-binned-heatmap','createCarsBinnedHeatmap',cars);
+await example('gradient','cars-gradient-plot','createCarsGradientPlot',cars);
+await example('parallel','cars-parallel-coordinates','createCarsParallelCoordinates',cars);
+for(const [name,fn] of Object.entries({
+ bar:()=>make(barley).createBarPlot({id:'p',data:'d',x:{field:'variety',fieldType:'nominal'},y:{field:'yield',aggregate:'mean'},color:{field:'year',fieldType:'nominal'},guides}),
+ barleyGradient:()=>make(barley).createGradientPlot({id:'p',data:'d',x:{field:'variety',fieldType:'nominal'},y:{field:'yield'},guides}),
+ iris:()=>make(iris).createScatterPlot({id:'p',data:'d',x:{field:'Sepal.Width'},y:{field:'Petal.Width'},color:{field:'Species',fieldType:'nominal'}}),
+ tips:()=>make(tips).createScatterPlot({id:'p',data:'d',x:{field:'total_bill'},y:{field:'tip'},color:{field:'sex',fieldType:'nominal'}}),
+ area:()=>make([{x:1,y:4},{x:2,y:7},{x:3,y:3}]).createAreaPlot({id:'p',data:'d',x:{field:'x'},y:{field:'y'}}),
+ radar:()=>make([{role:'A',v:1},{role:'B',v:2},{role:'C',v:3}]).createRadarPlot({id:'p',data:'d',category:'role',value:{field:'v'}}),
+ rose:()=>make([{role:'A',v:1},{role:'B',v:2},{role:'C',v:3}]).createRosePlot({id:'p',data:'d',category:{field:'role'},value:'v',aggregate:'sum'}),
+ facet:()=>make(iris).createScatterPlot({id:'p',data:'d',x:{field:'Sepal.Width'},y:{field:'Petal.Width'},color:{field:'Species',fieldType:'nominal'}}).facet({field:'Species',data:'d',columns:3}),
+})){try{cases[name]=fn();}catch(e){errors[name]=e.message;}}
+const scenes=new Map();function scene(p){if(!scenes.has(p))scenes.set(p,createTransitionScene(p));return scenes.get(p);}
+const player=createTransitionPlayer(document.querySelector('#actual'),{duration:300});
+window.audit={cases,errors,player,scene,renderToSVG,variants:{},variantPrograms:{},
+ async show(name){const p=cases[name];await player.set(scene(p));document.querySelector('#expected').innerHTML=renderToSVG(p,{resourceNamespace:'expected'});},
+ async variantsFor(name){const p=cases[name];const variants=[p];const failures=[];
+  const target=p.semanticSpec.layers.find(l=>l.id==='p')?.id??p.semanticSpec.layers[0]?.id;
+  for(const [method,args] of [
+   ['encodeOpacity',{target,value:.35}],['encodeColor',{target,value:'#e45756'}],
+   ['encodeStroke',{target,value:'#000000'}],['editCanvas',{plot:{width:280,height:240}}]
+  ]){try{variants.push(p.compositionSpec?p.editFacetSource({action:{method,options:method==='editCanvas'?args:{...args,target:'p'}}}):p[method](args));}catch(e){failures.push({method,error:e.message});}}
+  this.variantPrograms[name]=variants;this.variants[name]=variants.map(scene);return {count:variants.length,failures};},
+ async showVariant(name,index){const p=this.variantPrograms[name][index];await player.transitionTo(scene(p));document.querySelector('#expected').innerHTML=renderToSVG(p,{resourceNamespace:'expected'});},
+ async exercise(name){const variants=this.variants[name];await player.set(variants[0]);
+  let last;const frames=[];let running=true,previous=performance.now();
+  function tick(t){if(!running)return;frames.push(t-previous);previous=t;requestAnimationFrame(tick);}requestAnimationFrame(tick);
+  const pending=[];for(let i=0;i<60;i++){last=variants[1+i%(variants.length-1)];pending.push(player.transitionTo(last));await new Promise(r=>setTimeout(r,20));}
+  await player.transitionTo(variants[0]);running=false;await Promise.all(pending);
+  frames.sort((a,b)=>a-b);return {...player.stats,p95:frames[Math.floor(frames.length*.95)],settledNodes:variants[0].nodes.length,actualNodes:document.querySelector('#actual svg > g').children.length};
+ }
+};window.ready=true;
+</script>

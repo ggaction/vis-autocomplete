@@ -30,6 +30,7 @@
     "benchmark:session": "node scripts/benchmark-session.js"
   },
   "dependencies": {
+    "@ggaction/transition": "file:vendor/transition",
     "acorn": "8.19.0",
     "ggaction": "file:vendor/ggaction"
   },

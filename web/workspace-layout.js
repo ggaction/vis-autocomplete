@@ -2,9 +2,9 @@ const storageKey = 'vis-autocomplete.workspace-layout';
 
 // Layout is a view preference, independent of chart history and recommendations.
 // Keep the same mounted cards/Canvas surfaces when the workspace changes shape.
-export function initializeWorkspaceLayout({ workspace, toggle, header, busy, beforeChange, afterChange }) {
+export function initializeWorkspaceLayout({ workspace, toggle, header, busy, beforeChange, afterChange, initialMode = 'preview' }) {
   const choices = { preview: 'horizontal', transition: 'vertical' };
-  let mode = 'preview';
+  let mode = initialMode === 'transition' ? 'transition' : 'preview';
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey));
     for (const key of Object.keys(choices)) {

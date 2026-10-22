@@ -781,7 +781,10 @@ screenshots, measurements and test logs remain under ignored `output/`.
 The header's Horizontal / Vertical controls change the workspace without
 rebuilding charts or recommendations. Preview mode defaults to Horizontal;
 Transition mode defaults to Vertical. Each mode remembers an explicit layout
-choice locally. Vertical splits the authoring width 50:50 between charts on the
+choice locally. The active Preview/Transition mode is also saved immediately;
+reload restores that mode and its layout together, even before choosing a chart.
+These view preferences remain separate from chart history and project data.
+Vertical splits the authoring width 50:50 between charts on the
 left and options on the right,
 with a fixed middle divider: ranks 1–2 occupy the upper half and ranks 3–5 the
 lower half. Cards expand vertically within their half without moving neighboring

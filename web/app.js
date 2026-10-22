@@ -1534,6 +1534,7 @@ function afterWorkspaceChange() {
 }
 const workspaceLayout = initializeWorkspaceLayout({
   workspace: document.querySelector('.workspace'), toggle: $('workspace-layout'),
+  initialMode: transitionMode.enabled ? 'transition' : 'preview',
   header: document.querySelector('.app-header'), busy: () => state.committing || state.resizing,
   beforeChange: beforeWorkspaceChange, afterChange: afterWorkspaceChange,
 });

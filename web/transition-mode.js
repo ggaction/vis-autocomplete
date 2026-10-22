@@ -2,8 +2,18 @@ import { createCanvasTransitionPlayer } from '@ggaction/transition';
 import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
 import { createLRU } from '../src/cache.js';
 
+const storageKey = 'vis-autocomplete.view-mode';
+
 export function createTransitionMode({host,layout,toggle,getBaseline,getCandidate,busy,onChange,onError}) {
   let enabled=false,player=null,surface=null,version=0,returning=false;
+  try { enabled=localStorage.getItem(storageKey)==='transition'; } catch { /* Optional preference. */ }
+  function paintMode() {
+    layout.classList.toggle('transition-mode',enabled);
+    for(const button of toggle.querySelectorAll('[data-mode]')) {
+      button.setAttribute('aria-pressed',String(button.dataset.mode===(enabled?'transition':'preview')));
+    }
+  }
+  paintMode();
   const cache=createLRU(16);
   function clear() {
     version++;player?.destroy();player=null;surface?.remove();surface=null;
@@ -48,8 +58,9 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
   }
   toggle.addEventListener('click',event=>{
     const button=event.target.closest('[data-mode]');if(!button||busy())return;
-    clear();enabled=button.dataset.mode==='transition';layout.classList.toggle('transition-mode',enabled);
-    for(const b of toggle.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b===button));
+    if(!['preview','transition'].includes(button.dataset.mode))return;
+    clear();enabled=button.dataset.mode==='transition';paintMode();
+    try { localStorage.setItem(storageKey,enabled?'transition':'preview'); } catch { /* Optional preference. */ }
     onChange();
   });
   return {get enabled(){return enabled;},get active(){return Boolean(surface?.isConnected);},show,clear,

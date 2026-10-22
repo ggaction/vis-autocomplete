@@ -7,6 +7,7 @@ import { primaryChartLayer } from '../src/chart-owner.js';
 import { programCode, renderCode, resetCodeView, displayedCode } from './code-view.js';
 import { initializeCodeToolbar } from './code-toolbar.js';
 import { initializePanelLayout } from './panel-layout.js';
+import { initializeWorkspaceLayout } from './workspace-layout.js';
 import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { createCanvasResize } from './canvas-resize.js';
@@ -89,7 +90,10 @@ const transitionMode = createTransitionMode({
   getCandidate:card=>calculations.transitionScene(card.base,card.view,card.guideCall,
     card.prepared.recommendation,card.transitionSetup ?? card.setup?.(card.values) ?? []),
   busy:()=>state.committing||state.resizing,
-  onChange:()=>{cancelChartTransfer();showPreview(pointerCard);},onError:error=>notice(error.message,true),
+  onChange:()=>{
+    workspaceLayout.setMode(transitionMode.enabled ? 'transition' : 'preview');
+    cancelChartTransfer();showPreview(pointerCard);
+  },onError:error=>notice(error.message,true),
 });
 const resizeThumbnails = createResizeThumbnails({
   prepare: (context, resize, card) => calculations.prepareResized(context.base, context.view, context.guideCall,
@@ -1511,6 +1515,28 @@ $('code-content').closest('.code-panel').addEventListener('focusout', event => {
 });
 
 let layoutGalleryPage = 0;
+function beforeWorkspaceChange() {
+  cardMotion.finish();
+  layoutGalleryPage = currentGalleryPage();
+  leaveGallery();
+  historyView.clear();
+  pointerMotion.reset();
+  cardMotion.finish();
+  cancelChartTransfer();
+}
+function afterWorkspaceChange() {
+  // Preserve the current recommendation page as its width changes.
+  const row = state.galleryRows[layoutGalleryPage];
+  if (row) elements.cards.scrollLeft += row.getBoundingClientRect().left - elements.cards.getBoundingClientRect().left;
+  historyView.refreshLayout();
+  updateGalleryNavigation();
+  updateHeaderGuidance();
+}
+const workspaceLayout = initializeWorkspaceLayout({
+  workspace: document.querySelector('.workspace'), toggle: $('workspace-layout'),
+  header: document.querySelector('.app-header'), busy: () => state.committing || state.resizing,
+  beforeChange: beforeWorkspaceChange, afterChange: afterWorkspaceChange,
+});
 initializePanelLayout({
   workspace: document.querySelector('.workspace'),
   panels: {
@@ -1520,20 +1546,8 @@ initializePanelLayout({
       contents: [$('code-content'), $('code-mode'), document.querySelector('.code-tools')],
       label: 'ggaction Code' },
   },
-  beforeChange() {
-    cardMotion.finish();
-    layoutGalleryPage = currentGalleryPage();
-    historyView.clear();
-    pointerMotion.reset();
-  },
-  afterChange() {
-    // Resize the existing page without jumping to a neighboring recommendation.
-    const row = state.galleryRows[layoutGalleryPage];
-    if (row) elements.cards.scrollLeft += row.getBoundingClientRect().left - elements.cards.getBoundingClientRect().left;
-    historyView.refreshLayout();
-    updateGalleryNavigation();
-    updateHeaderGuidance();
-  },
+  beforeChange: beforeWorkspaceChange,
+  afterChange: afterWorkspaceChange,
 });
 window.addEventListener('resize', () => cardMotion.finish(), { passive: true });
 

@@ -775,3 +775,19 @@ SVG/Canvas comparison. `canvas-resize.py`, `resize-alignment.py`,
 `chart-transfer.py`, `card-motion.py` and `initial-scales.py` cover direct resize,
 Apply flights, option controls, both modes and restored sessions. Generated
 screenshots, measurements and test logs remain under ignored `output/`.
+
+## Workspace orientation
+
+The header's Horizontal / Vertical controls change the workspace without
+rebuilding charts or recommendations. Preview mode defaults to Horizontal;
+Transition mode defaults to Vertical. Each mode remembers an explicit layout
+choice locally. Vertical splits the authoring width 50:50 between charts on the
+left and options on the right,
+with a fixed middle divider: ranks 1–2 occupy the upper half and ranks 3–5 the
+lower half. Cards expand vertically within their half without moving neighboring
+cards or the divider. Short pages retain their empty slots. Preview's two charts
+are stacked in the left column. Code and History remain independently foldable.
+
+Run `python test/browser/workspace-layout.py` against the dev server to check
+both modes, fixed half-height regions, live parameters, Apply, paging, search,
+panel folding and saved preferences at laptop, desktop and narrow window sizes.

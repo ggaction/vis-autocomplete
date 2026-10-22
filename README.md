@@ -511,9 +511,15 @@ npm run validate:corpus  # 전체 차트 통계 재계산 + 각 데이터로 추
 캔버스·축 경계를 드래그하면 반대쪽 경계도 대칭으로 움직인다. Current view는 캔버스 전체를
 가로·세로 중앙에 두고, 공간에 맞춰 같은 비율로 자동 확대·축소한다. 표시 배율과 무관하게
 코드·히스토리·내보내기에는 실제 ggaction 크기가 유지된다.
+크기 드래그 중 보이는 옵션 카드의 섬네일도 resize → 해당 옵션의 공개 ggaction 호출 순서로
+갱신한다. Current/code와 별도 worker에서 한 번의 섬네일 순회와 최신 대기 요청만 유지한다.
+크기만 확정할 때는 카드 DOM·페이지·검색·고정한 파라미터를 유지하며 추천 순위를 재계산하지 않는다.
 실행 중인 앱에서 Playwright Python으로 `test/browser/canvas-resize.py`를 실행하면 드래그 중 코드,
 취소·Undo/Redo·새로고침·SVG 내보내기, facet·파이, 키보드와 창 크기 변경,
 드래그 중 중앙 정렬·자동 확대/축소·넘침 방지를 확인한다.
+`test/browser/resize-card-continuity.py`는 resize 이후 지연 로딩 페이지, 검색과 파라미터 유지,
+기존 카드 Apply 및 Undo를 검증한다. `test/resize-thumbnails.test.js`는 실제 native 썸네일 결과와
+요청 병합·취소 이후 오래된 결과 차단을 검증한다.
 
 `/test/fixtures/history-workflow.html`의 **Run history workflow checks**는 실제 Cars 데이터로
 Apply 기록, 호버/코드 프리뷰, 클릭 복원, Undo/Redo, 분기, 그룹 색상, 가로 스크롤과 높이를 검증한다.

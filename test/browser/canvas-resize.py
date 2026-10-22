@@ -48,6 +48,17 @@ with sync_playwright() as p:
 
     def drag(handle,dx,dy,steps,commit=True):
         expected = ('editCompositionLayout' if handle.startswith('canvas') else 'editFacetSource') if geometry()['label'].startswith('All plots') else 'editCanvas'
+        expect(page.locator('.card-row[data-page="1"]')).to_have_attribute('aria-busy','false',timeout=60000)
+        page.evaluate('''() => {
+          window.resizeCards=[...document.querySelectorAll('#cards .card')];
+          window.resizeImages=resizeCards.map(c=>c.querySelector('.thumbnail image'));
+          window.resizeSources=resizeImages.map(i=>i?.getAttribute('href'));
+          window.removedResizeCards=0;
+          window.resizeObserver?.disconnect();
+          window.resizeObserver=new MutationObserver(records=>{for(const r of records) for(const n of r.removedNodes)
+            if(resizeCards.some(c=>n===c || n.contains?.(c))) removedResizeCards++;});
+          resizeObserver.observe(document.querySelector('#cards'),{childList:true,subtree:true});
+        }''')
         h=page.locator('[data-resize="'+handle+'"]')
         h.hover()
         box=h.bounding_box()
@@ -59,6 +70,9 @@ with sync_playwright() as p:
         expect(page.locator('#current')).to_have_attribute('data-steps',str(steps))
         expect(page.locator('#code-content')).to_have_attribute('data-preview-method',expected)
         assert_fit()
+        if page.evaluate('resizeImages.some(Boolean)'):
+            page.wait_for_function('resizeImages.some((image,i)=>image && image.getAttribute("href")!==resizeSources[i])',timeout=30000)
+        assert page.evaluate('resizeCards.every(c=>c.isConnected) && removedResizeCards===0'), 'Cards must stay mounted during resize'
         if not commit:
             page.keyboard.press('Escape')
             page.mouse.up()
@@ -68,6 +82,9 @@ with sync_playwright() as p:
         expect(page.locator('#current')).not_to_have_class(__import__('re').compile(r'.*resizing.*'),timeout=60000)
         page.locator('h1').hover()
         expect(page.locator('#preview svg')).to_have_count(0)
+        assert page.evaluate('resizeCards.every(c=>c.isConnected) && removedResizeCards===0'), 'Pointer release must not replace the card gallery'
+        assert page.evaluate('resizeImages.every(i=>!i || i.isConnected)'), 'Thumbnail image nodes should be updated in place'
+        page.evaluate('resizeObserver.disconnect()')
 
     assert_fit()
     before=geometry()

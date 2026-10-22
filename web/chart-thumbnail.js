@@ -17,10 +17,12 @@ export function renderChartThumbnail(host, program, source, label) {
     asset = { viewBox, bounds, uri: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}` };
     sources.set(program, asset);
   }
-  const svg = document.createElementNS(SVG_NS, 'svg');
+  const svg = host.querySelector(':scope > svg') ?? document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', asset.viewBox); svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', label); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  const image = document.createElementNS(SVG_NS, 'image');
+  const image = svg.querySelector('image') ?? document.createElementNS(SVG_NS, 'image');
   for (const [i, key] of ['x', 'y', 'width', 'height'].entries()) image.setAttribute(key, asset.bounds[i]);
-  image.setAttribute('href', asset.uri); svg.append(image); host.replaceChildren(svg);
+  image.setAttribute('href', asset.uri);
+  if (!image.parentNode) svg.append(image);
+  if (svg.parentNode !== host) host.replaceChildren(svg);
 }

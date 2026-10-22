@@ -85,7 +85,7 @@ export function createCalculationService(model) {
     return unchanged;
   };
   return {
-    execute({ type, stateId, nextStateId, baseStateId, snapshot, update, viewUpdate, guideCall, action, setupCalls = [], options, group, page = 0, searchQuery = '', batchSize = Infinity }) {
+    execute({ type, stateId, nextStateId, baseStateId, snapshot, update, viewUpdate, guideCall, action, resize, setupCalls = [], options, group, page = 0, searchQuery = '', batchSize = Infinity }) {
       if (type === 'cancel-recommendations') return {};
       if (type === 'activate') return { exists: Boolean(states.get(stateId)) };
       if (type === 'state') {
@@ -111,6 +111,15 @@ export function createCalculationService(model) {
         return { exists: true };
       }
       const { program, view, rankings, decks } = stateFor(stateId);
+      if (type === 'prepare-resized') {
+        const resized = prepareGuidedAction(program, resize, view);
+        try {
+          return artifact(prepareGuidedAction(resized.authoringPreview, action, resized.preview, setupCalls));
+        } catch (error) {
+          if (error.reason === 'no-change') return artifact(resized);
+          throw error;
+        }
+      }
       if (type === 'prepare' || type === 'materialize') {
         const prepared = prepareGuidedAction(program, action, view, setupCalls);
         if (type === 'materialize') {

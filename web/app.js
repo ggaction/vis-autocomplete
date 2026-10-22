@@ -11,6 +11,7 @@ import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { fitChartViewport } from './chart-viewport.js';
 import { createCanvasResize } from './canvas-resize.js';
+import { createResizeThumbnails } from './resize-thumbnails.js';
 import { createPreviewInteraction } from './preview-interaction.js';
 import { createPointerMotion } from './pointer-motion.js';
 import { createCardMotion } from './card-motion.js';
@@ -78,32 +79,68 @@ const cardMotion = createCardMotion();
 let selectedPreviewFrame = null;
 let pointerChoice = null, pointerCard = null, pointerInGallery = false;
 const tick = () => new Promise(resolve => requestAnimationFrame(resolve));
+function visibleCards() {
+  const row = state.galleryRows[currentGalleryPage()];
+  return state.cards.filter(card => card.element.parentNode === row && !card.disabled);
+}
+const resizeThumbnails = createResizeThumbnails({
+  prepare: (context, resize, card) => calculations.prepareResized(context.base, context.view, context.guideCall,
+    resize, buildRecommendationCall(card, card.values), card.setup?.(card.values) ?? []),
+  render: (card, preview) => renderChart(card.thumbnail, preview, card.title),
+});
+function refreshVisibleCards() {
+  if (state.resizing || state.committing) return;
+  for (const card of visibleCards()) if (card.needsResizeRefresh) {
+    card.needsResizeRefresh = false;
+    card.preparePromise = prepareCard(card, card.values, { interactive: false });
+  }
+}
+function rebaseCard(card) {
+  card.request = (card.request ?? 0) + 1;
+  card.base = state.program; card.view = state.view; card.guideCall = state.guideCall;
+  card.prepared = null; card.preparedSignature = null; card.needsResizeRefresh = true;
+}
 const canvasResize = createCanvasResize(elements.current, {
   canStart: () => state.phase !== 'initial' && !state.committing && !state.resizing,
   start(handle) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     state.codeCard = null; state.resizing = true; elements.cards.inert = true;
     updateHistoryButtons(); updateGalleryNavigation();
-    return { base: state.program, view: state.view, guideCall: state.guideCall, resizeTitle: handle.startsWith('canvas') ? 'Resize canvas' : 'Resize plot' };
+    const context = { base: state.program, view: state.view, guideCall: state.guideCall,
+      thumbnails: new Map(state.cards.map(card => [card, renderedCharts.get(card.thumbnail)?.program])),
+      resizeTitle: handle.startsWith('canvas') ? 'Resize canvas' : 'Resize plot' };
+    for (const card of state.cards) {
+      card.request = (card.request ?? 0) + 1;
+      if (card.element.dataset.previewState === 'pending') card.needsResizeRefresh = true;
+    }
+    resizeThumbnails.start(context);
+    return context;
   },
   prepare: (context, action) => calculations.prepare(context.base, context.view, context.guideCall, action, [], { interactive: true }),
   preview(context, prepared) {
     renderChart(elements.current, prepared.preview, 'Resize chart');
+    resizeThumbnails.start(context);
+    resizeThumbnails.update({ method: prepared.recommendation.method, args: prepared.recommendation.args }, visibleCards());
     showCode({ ...context, prepared });
     $('code-mode').textContent = 'Resize chart';
   },
   async commit(context, action) {
+    resizeThumbnails.stop();
     await commit({ ...context, method: action.method, values: {}, build: () => action.args,
       title: context.resizeTitle,
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
   },
   cancel(context, error) {
+    resizeThumbnails.stop();
+    for (const [card, program] of context.thumbnails) if (program && card.element.isConnected) renderChart(card.thumbnail, program, card.title);
     state.codeCard = null;
     renderChart(elements.current, context.view, 'Current visualization'); showCode();
     if (error && error.reason !== 'no-change') notice(error.message, true);
   },
   end() {
+    resizeThumbnails.stop();
     state.resizing = false; elements.cards.inert = state.committing;
+    refreshVisibleCards();
     updateHistoryButtons(); updateGalleryNavigation();
   },
 });
@@ -955,6 +992,7 @@ async function updateCards() {
           for (let index = restored.cards.length; index < available.length; index++) {
             const card = await createCard(available[index], index);
             if (generation !== state.generation) return;
+            if (card.base !== state.program) { rebaseCard(card); await prepareCard(card, card.values, { interactive: false }); }
             restored.cards.push(card); row.children[index].replaceWith(card.element);
           }
           restored.specs = available;
@@ -1003,10 +1041,13 @@ async function updateCards() {
       // pages together. Native-invalid plots move behind all usable choices.
       rendering = rendering.catch(() => {}).then(async () => {
         for (let page = 0; page <= requested; page++) {
-          if (pages.has(page)) continue;
+          if (pages.has(page)) { refreshVisibleCards(); continue; }
           if (generation !== state.generation) return;
           if (deck.phase === 'recommendations' && page > 0) {
-            const response = await recommendationResponse(deck.program, deck.view, deck.guideCall, deck.context, deck.group, page, deck.searchQuery);
+            // A size-only edit preserves this gallery's ranking and page
+            // boundaries; new cards still prepare against the current program.
+            const source = deck.rankingSource ?? deck;
+            const response = await recommendationResponse(source.program, source.view, source.guideCall, deck.context, deck.group, page, deck.searchQuery);
             if (generation !== state.generation) return;
             specs = deck.specs = recommendationSpecs(response);
             deck.pagination = response.pagination;
@@ -1030,6 +1071,7 @@ async function updateCards() {
             if (generation !== state.generation) return;
             const spec = specs[index], card = await createCard(spec, index);
             if (generation !== state.generation) return;
+            if (card.base !== state.program) { rebaseCard(card); await prepareCard(card, card.values, { interactive: false }); }
             if (state.phase === 'initial' && card.disabled && !spec.requirement) {
               const failures = JSON.parse(elements.cards.dataset.chartPreparationFailures || '[]');
               failures.push({ method: spec.method, reason: card.error || 'No compatible parameters for this dataset.' });
@@ -1126,31 +1168,41 @@ async function commit(card, { direct = false } = {}) {
         view.trace.children.length !== next.trace.children.length + 1 || view.trace.children.at(-1).op !== 'createGuides') {
       throw new Error('Expected one selected action followed by one final createGuides call.');
     }
-    saveGallery();
+    if (!direct) saveGallery();
+    else if (mountedGallery) {
+      // This deck is about to be rebased in place. Never let Undo retrieve it
+      // through the previous immutable chart state's gallery cache.
+      galleryCache.delete(mountedGallery.view);
+      mountedGallery.rankingSource ??= { program: mountedGallery.program, view: mountedGallery.view, guideCall: mountedGallery.guideCall };
+    }
     state.program = next; state.view = view; state.guideCall = committed.guideCall;
     state.codeCard = null;
     state.calls.push(...prerequisiteCalls.map(call => structuredClone(call)),
       { method: recommendation.method, args: structuredClone(recommendation.args) },
       ...postActionCalls.map(call => structuredClone(call)));
     state.steps++; state.phase = 'recommendations';
-    clearSearch();
-    state.context = focus(state.program, card.original?.nextContext ?? {});
+    if (!direct) clearSearch();
+    state.context = focus(state.program, direct ? state.context : card.original?.nextContext ?? {});
     history.push(historySnapshot(card.title));
     scheduleSave();
     const committedProgram = state.program;
     // Invalidate an initial gallery that may still be filling, and remove the
     // entire old set before the chart starts moving. No stale cards remain clickable.
-    state.generation++;
-    state.galleryObserver?.disconnect();
-    state.active = null; state.cards = [];
-    elements.cards.replaceChildren();
-    elements.cards.scrollTop = 0; elements.cards.scrollLeft = 0;
-    elements['options-note'].textContent = '';
-    elements['step-description'].textContent = 'Preparing next actions…';
+    if (!direct) {
+      state.generation++;
+      state.galleryObserver?.disconnect();
+      state.active = null; state.cards = [];
+      elements.cards.replaceChildren();
+      elements.cards.scrollTop = 0; elements.cards.scrollLeft = 0;
+      elements['options-note'].textContent = '';
+      elements['step-description'].textContent = 'Preparing next actions…';
+    } else {
+      if (mountedGallery) Object.assign(mountedGallery, { program: next, view, guideCall: committed.guideCall });
+      for (const item of state.cards) rebaseCard(item);
+    }
     showCode(null, { settleApplied: true });
     // Compute the complete next recommendation set while the chart flies.
-    const warming = recommendationResponse();
-    warming.catch(() => {});
+    if (!direct) recommendationResponse().catch(() => {});
     if (!direct) {
       renderChart(elements.preview, view, card.title);
       await transferChart(elements.preview, elements.current, host => renderChart(host, view, card.title));
@@ -1168,15 +1220,17 @@ async function commit(card, { direct = false } = {}) {
     // The chart is committed. Background recommendation thumbnails must not
     // lock Undo, groups, search, or already validated cards behind the slowest.
     release();
-    if (direct) updateCards().catch(error => notice(error.message, true));
-    else await updateCards();
+    if (!direct || !mountedGallery) await updateCards();
   } catch (error) {
     const unchanged = error.reason === 'no-change';
     const message = unchanged ? 'These settings are already applied.' : error.message;
     card.errorElement.textContent = message;
     card.errorElement.classList.toggle('unchanged', unchanged);
     notice(message, !unchanged);
-    if (direct) { state.codeCard = null; renderChart(elements.current, state.view, 'Current visualization'); showCode(); }
+    if (direct) {
+      for (const item of state.cards) item.needsResizeRefresh = true;
+      state.codeCard = null; renderChart(elements.current, state.view, 'Current visualization'); showCode();
+    }
   }
   finally {
     release();

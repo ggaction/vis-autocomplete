@@ -128,6 +128,13 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       if (cached) { if (interactive) preview.cancelPending(); return Promise.resolve(cached); }
       return interactive ? preview(job) : prepareJob(job);
     },
+    async prepareResized(program, view, guideCall, resize, action, setupCalls = []) {
+      const context = contextFor(program, view, guideCall);
+      // Thumbnail work uses the other worker so native Current/code previews
+      // never wait behind five option renders. The caller bounds the queue.
+      const endpoint = await ensure('recommendation', context);
+      return endpoint.send({ type: 'prepare-resized', stateId: context.id, resize, action, setupCalls });
+    },
     async materialize(program, view, guideCall, action, setupCalls = []) {
       preview.cancelPending();
       const context = contextFor(program, view, guideCall);

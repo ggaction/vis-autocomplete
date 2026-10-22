@@ -5,14 +5,38 @@ import { presentResizeVector } from './resize-vector.js';
 // Pointer capture belongs to the stable host, not to a handle replaced by a new
 // worker-rendered Canvas. One in-flight preview plus one latest intent bounds work.
 export function createCanvasResize(host, callbacks) {
-  let geometry, viewport, gesture = null, stage, mountedProgram;
+  let geometry, viewport, gesture = null, stage, mountedProgram, settling;
+  function stopFit() {
+    settling?.cancel(); settling = null;
+    delete host.dataset.resizeSettling;
+  }
+  function animateFit(from) {
+    if (!from || !stage?.isConnected || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const to = stage.getBoundingClientRect();
+    if (!to.width || !to.height) return;
+    const scale = from.width / to.width;
+    if (Math.abs(scale - 1) < .0001 && Math.abs(from.left - to.left) + Math.abs(from.top - to.top) < .1) return;
+    // Fit once, then animate just the stage layer. Glyphs and overlay share the
+    // same uniform transform; no new chart render or layout on animation frames.
+    const animation = stage.animate([
+      { transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${scale})` },
+      { transform: 'none' },
+    ], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    settling = animation; host.dataset.resizeSettling = 'true';
+    const done = () => { if (settling === animation) { settling = null; delete host.dataset.resizeSettling; } };
+    animation.finished.then(done, done);
+  }
   function mount(program, canvas) {
+    stopFit();
     mountedProgram = program;
     geometry = canvasGeometry(program);
     if (!geometry) return;
     host.classList.add('canvas-editor');
     const display = gesture?.action && !gesture.ended ? projectCanvasGeometry(gesture.geometry, gesture.action) : geometry;
-    viewport = fitCanvasViewport(display, host.clientWidth, host.clientHeight);
+    viewport = gesture ? { scale: gesture.viewport.scale,
+      left: (host.clientWidth - display.width * gesture.viewport.scale) / 2,
+      top: (host.clientHeight - display.height * gesture.viewport.scale) / 2,
+    } : fitCanvasViewport(display, host.clientWidth, host.clientHeight);
     const { scale, left, top } = viewport;
     const focusedHandle = gesture && gesture.pointerId === undefined ? gesture.handle
       : host.contains(document.activeElement) ? document.activeElement.dataset.resize : null;
@@ -57,9 +81,10 @@ export function createCanvasResize(host, callbacks) {
   }
   function start(handle, event) {
     if (gesture || !callbacks.canStart() || !geometry || !viewport?.scale) return false;
+    stopFit();
     const context = callbacks.start(handle);
-    // Freeze only the pointer-to-native conversion, not the rendered viewport.
-    // Re-fitting must never feed back into accumulated pointer displacement.
+    // Hold the display scale as well as pointer conversion until release.
+    // The canvas can extend beyond the clipped view during the gesture.
     gesture = { handle, context, geometry, viewport: { ...viewport }, pointerId: event.pointerId,
       baseKey: JSON.stringify(resizeCanvasAction(geometry, handle, 0, 0)),
       x: event.clientX, y: event.clientY, dx: 0, dy: 0, pending: null, running: false, ended: false, changed: false };
@@ -140,7 +165,13 @@ export function createCanvasResize(host, callbacks) {
     try {
       if (g.changed && g.final && !g.error) await callbacks.commit(g.context, g.final);
       else callbacks.cancel(g.context, g.error);
-    } finally { if (gesture === g) { gesture = null; host.classList.remove('resizing'); callbacks.end(g.context); } }
+    } finally {
+      if (gesture === g) {
+        const from = stage?.getBoundingClientRect();
+        gesture = null; host.classList.remove('resizing'); callbacks.end(g.context);
+        if (g.changed && g.final && !g.error) animateFit(from);
+      }
+    }
   }
   function cancel() {
     if (!gesture || gesture.finishing) return;
@@ -192,6 +223,6 @@ export function createCanvasResize(host, callbacks) {
     if (canvas && mountedProgram) mount(mountedProgram, canvas);
   }).observe(host);
   return { mount, cancel,
-    clear() { host.classList.remove('canvas-editor'); },
+    clear() { stopFit(); host.classList.remove('canvas-editor'); },
   };
 }

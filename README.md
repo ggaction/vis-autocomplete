@@ -512,7 +512,9 @@ Apply로 확정하면 Preview의 차트가 560ms 동안 Current로 이동해 새
 Preview와 Current의 서로 다른 표시 배율을 연결하고, 코드 패널의 자동 스크롤은 전환을 취소하지 않는다.
 `test/browser/chart-transfer.py`는 최초/후속 Apply, 착지 좌표, 내부 스크롤 및 동작 줄이기 설정을 검증한다.
 캔버스·축 경계를 드래그하면 반대쪽 경계도 대칭으로 움직인다. Current view는 캔버스 전체를
-가로·세로 중앙에 두고, 공간에 맞춰 같은 비율로 자동 확대·축소한다. 표시 배율과 무관하게
+가로·세로 중앙에 두되, 드래그 중에는 시작 시 표시 배율을 유지한다. 놓은 뒤에만 280ms 동안
+공간에 맞춰 같은 비율로 확대·축소한다(동작 줄이기 설정에서는 즉시 적용). 드래그 중 뷰를
+넘는 부분은 잘라 표시하며 페이지 크기를 늘리지 않는다. 표시 배율과 무관하게
 코드·히스토리·내보내기에는 실제 ggaction 크기가 유지된다.
 크기 드래그 중 보이는 옵션 카드의 섬네일도 resize → 해당 옵션의 공개 ggaction 호출 순서로
 갱신한다. Current/code와 별도 worker에서 한 번의 섬네일 순회와 최신 대기 요청만 유지한다.
@@ -529,7 +531,8 @@ Preview와 Current의 서로 다른 표시 배율을 연결하고, 코드 패널
 `test/browser/resize-aspect.py`는 worker를 지연시켜도 Current와 섬네일의 비율이 유지되는지 검증한다.
 실행 중인 앱에서 Playwright Python으로 `test/browser/canvas-resize.py`를 실행하면 드래그 중 코드,
 취소·Undo/Redo·새로고침·SVG 내보내기, facet·파이, 키보드와 창 크기 변경,
-드래그 중 중앙 정렬·자동 확대/축소·넘침 방지를 확인한다.
+드래그 중 중앙 정렬과 종료 후 자동 확대·축소를 확인한다.
+`test/browser/resize-release-fit.py`는 드래그 중 배율 고정, 종료 후 등비 애니메이션, 동작 줄이기를 검증한다.
 `test/browser/resize-card-continuity.py`는 resize 이후 지연 로딩 페이지, 검색과 파라미터 유지,
 기존 카드 Apply 및 Undo를 검증한다. `test/resize-thumbnails.test.js`는 실제 native 썸네일 결과와
 요청 병합·취소 이후 오래된 결과 차단을 검증한다.

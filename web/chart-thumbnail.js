@@ -21,10 +21,12 @@ export function renderChartThumbnail(host, program, source, label) {
   svg.style.cssText = '';
   svg.setAttribute('viewBox', asset.viewBox); svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', label); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  const image = svg.querySelector('image') ?? document.createElementNS(SVG_NS, 'image');
+  const image = svg.querySelector(':scope > image') ?? document.createElementNS(SVG_NS, 'image');
   image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   for (const [i, key] of ['x', 'y', 'width', 'height'].entries()) image.setAttribute(key, asset.bounds[i]);
   image.setAttribute('href', asset.uri);
-  if (!image.parentNode) svg.append(image);
+  // Current switches from native mark nodes to this vector surface on drag.
+  // Reusing its outer SVG must replace those nodes, not paint over a second chart.
+  if (svg.childNodes.length !== 1 || svg.firstChild !== image) svg.replaceChildren(image);
   if (svg.parentNode !== host) host.replaceChildren(svg);
 }

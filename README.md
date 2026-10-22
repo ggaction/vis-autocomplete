@@ -526,6 +526,9 @@ npm run validate:corpus  # 전체 차트 통계 재계산 + 각 데이터로 추
 요청 병합·취소 이후 오래된 결과 차단을 검증한다.
 `test/browser/resize-performance.py`는 같은 산점도/facet 드래그에서 실제 화면 갱신 프레임,
 섬네일 갱신 프레임, 프레임 간격과 worker 지연을 측정한다. 결과 JSON/스크린샷은 `output/`에 저장한다.
+`test/browser/resize-alignment.py`는 worker를 지연시킨 상태로 가로·세로 압축과 캔버스 드래그를
+검사한다. 임시 SVG에는 이미지 하나만 남아야 하고, 이미지 속 실제 축의 화면 좌표와 조절 박스가
+일치해야 한다. 박스는 예상 native 배치가 아니라 현재 이미지와 동일한 변환행렬을 따른다.
 
 `/test/fixtures/history-workflow.html`의 **Run history workflow checks**는 실제 Cars 데이터로
 Apply 기록, 호버/코드 프리뷰, 클릭 복원, Undo/Redo, 분기, 그룹 색상, 가로 스크롤과 높이를 검증한다.

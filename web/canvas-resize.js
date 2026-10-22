@@ -21,16 +21,17 @@ export function createCanvasResize(host, callbacks) {
     svg.setAttribute('viewBox', `0 0 ${geometry.width} ${geometry.height}`);
     if (svg.parentNode !== stage) stage.prepend(svg);
     if (stage.parentNode !== host) host.replaceChildren(stage);
-    if (display !== geometry) presentResizeVector(svg, geometry, display, gesture.handle.startsWith('canvas'), { scale });
+    const projection = display !== geometry
+      ? presentResizeVector(svg, geometry, display, gesture.handle.startsWith('canvas'), { scale }) : null;
     let overlay = stage.querySelector('.canvas-resize-overlay');
     if (!overlay) { overlay = document.createElement('div'); overlay.className = 'canvas-resize-overlay'; stage.append(overlay); }
-    function frame(kind, x, y, width, height) {
+    function frame(kind, x, y, width, height, dimensions = { width, height }) {
       let box = overlay.querySelector(`.${kind}-boundary`);
       const exists = Boolean(box);
       if (!box) { box = document.createElement('div'); box.className = `resize-boundary ${kind}-boundary`; }
       Object.assign(box.style, { left: `${x * scale}px`, top: `${y * scale}px`, width: `${width * scale}px`, height: `${height * scale}px` });
       const label = box.querySelector('.resize-label') ?? document.createElement('span'); label.className = 'resize-label';
-      label.textContent = `${kind === 'canvas' ? 'Canvas' : display.facet ? 'All plots' : 'Plot'} ${Math.round(width)} × ${Math.round(height)}`;
+      label.textContent = `${kind === 'canvas' ? 'Canvas' : display.facet ? 'All plots' : 'Plot'} ${Math.round(dimensions.width)} × ${Math.round(dimensions.height)}`;
       if (exists) return;
       box.append(label);
       const edges = kind === 'canvas' ? ['e', 's', 'se'] : ['e', 's', 'w', 'se'];
@@ -44,7 +45,12 @@ export function createCanvasResize(host, callbacks) {
       overlay.append(box);
     }
     frame('canvas', 0, 0, display.width, display.height);
-    if (!display.composition || display.facet) frame('plot', display.x, display.y, display.plot.width, display.plot.height);
+    if (!display.composition || display.facet) {
+      // Native layout can lag behind the pointer. Follow the actually painted
+      // axis rectangle, using the exact same projection as the image layer.
+      const plot = projection?.plot ?? { x: display.x, y: display.y, ...display.plot };
+      frame('plot', plot.x, plot.y, plot.width, plot.height, display.plot);
+    }
     if (focusedHandle) stage.querySelector(`[data-resize="${focusedHandle}"]`)?.focus({ preventScroll: true });
   }
   function start(handle, event) {

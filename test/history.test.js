@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { chart } from 'ggaction';
 import { createHistory, historyLabel, historyPreview } from '../web/history.js';
 import { defaultCanvasOptions, prepareGuidedAction, addDefaultGuides } from '../web/plot-setup.js';
-import { applyRecommendation } from '../src/index.js';
 
 test('history restores immutable native chart states, final guides and original data across undo/redo', () => {
   const rows = [{ X: 1, Y: 2, C: 'A' }, { X: 2, Y: 4, C: 'B' }];
@@ -11,12 +10,12 @@ test('history restores immutable native chart states, final guides and original 
   const starting = prepareGuidedAction(base, { method: 'createScatterPlot', args: {
     id: 'plot', data: 'data', x: 'X', y: 'Y',
   } });
-  const plot = applyRecommendation(starting.actionBase, starting.recommendation);
+  const plot = starting.authoringPreview;
   const colored = prepareGuidedAction(plot, { method: 'encodeColor', args: { target: 'plot', field: 'C' } }, starting.preview);
   const history = createHistory();
   const initial = { program: base, view: base, phase: 'initial' };
   const first = { program: plot, view: starting.preview, phase: 'recommendations' };
-  const second = { program: applyRecommendation(colored.actionBase, colored.recommendation), view: colored.preview, phase: 'recommendations' };
+  const second = { program: colored.authoringPreview, view: colored.preview, phase: 'recommendations' };
   history.reset(initial);
   assert.equal(history.undo(), null);
   assert.equal(history.redo(), null);

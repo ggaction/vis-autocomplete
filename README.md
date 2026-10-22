@@ -525,6 +525,11 @@ Facet은 바깥 padding뿐 아니라 source Canvas의 margin도 조절하므로,
 크기 드래그 중 보이는 옵션 카드의 섬네일도 resize → 해당 옵션의 공개 ggaction 호출 순서로
 갱신한다. Current/code와 별도 worker에서 한 번의 섬네일 순회와 최신 대기 요청만 유지한다.
 크기만 확정할 때는 카드 DOM·페이지·검색·고정한 파라미터를 유지하며 추천 순위를 재계산하지 않는다.
+연속한 Canvas/Plot resize는 하나의 히스토리 셀을 갱신한다. 코드와 native 실행 기록도
+그룹 시작 전 상태에 최종 크기만 적용해 길이가 누적되지 않는다. Facet의 source 여백과
+composition padding도 함께 보존한다. 다른 액션 적용, 히스토리 이동, 새로고침은 그룹을 끝낸다.
+Undo는 연속 resize 이전 크기로, Redo는 마지막 크기로 돌아간다.
+`test/browser/resize-history.py`는 연속 드래그, 코드 길이, 취소, 복원과 새 분기를 검증한다.
 드래그 위치는 requestAnimationFrame마다 기존 Canvas의 compositor transform으로 즉시
 반영한다. Native 계산을 기다릴 때는 마지막 렌더를 등비 확대·축소해 중앙에 배치하며,
 글자·점·범례를 가로·세로로 다르게 늘리지 않는다. 실제 축 길이와 가이드 배치는 도착한 ggaction

@@ -62,7 +62,7 @@ with sync_playwright() as p:
             assert abs(during[part]['right']-before[part]['right']-dx)<2,(handle,before,during)
             assert abs(during[part]['bottom']-before[part]['bottom']-dy)<2,(handle,before,during)
             expect(page.locator('#current canvas')).to_have_count(1)
-            page.mouse.up();steps+=1
+            page.mouse.up();steps=3
             expect(page.locator('#current')).to_have_attribute('data-steps',str(steps),timeout=60000);settled()
             after=page.evaluate('geo()');assert after['drift']<1.2,after
             assert after['canvas']['width']<=after['host']['width']-23

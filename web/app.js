@@ -12,6 +12,7 @@ import { initializeWorkspaceLayout } from './workspace-layout.js';
 import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { createCanvasResize } from './canvas-resize.js';
+import { createResizeHistory, rebaseResizeAction } from './resize-history.js';
 import { createResizeThumbnails } from './resize-thumbnails.js';
 import { canvasGeometry, projectCanvasGeometry } from './canvas-geometry.js';
 import { presentResizeVector } from './resize-vector.js';
@@ -57,6 +58,7 @@ const datasetBases = createLRU(4);
 const drafts = createDraftStore();
 let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = false;
 const history = createHistory();
+const resizeHistory = createResizeHistory(history);
 const recommendationCache = new WeakMap();
 const calculations = createCalculationClient();
 let activeRecommendation = null;
@@ -139,6 +141,7 @@ const canvasResize = createCanvasResize(elements.current, {
     state.codeCard = null; state.resizing = true; elements.cards.inert = true;
     updateHistoryButtons(); updateGalleryNavigation();
     const context = { base: state.program, view: state.view, guideCall: state.guideCall,
+      resizeBefore: resizeHistory.begin(),
       thumbnails: new Map(state.cards.map(card => [card, renderedCharts.get(card.thumbnail)?.program])),
       thumbnailSizes: new Map(visibleCards().map(card => [card, { width: card.thumbnail.clientWidth, height: card.thumbnail.clientHeight - 6 }])),
       handle, liveCards: visibleCards(), resizeTitle: handle.startsWith('canvas') ? 'Resize canvas' : 'Resize plot' };
@@ -159,7 +162,11 @@ const canvasResize = createCanvasResize(elements.current, {
     context.motionAction = action;
     for (const card of context.liveCards) projectThumbnail(context, card);
   },
-  prepare: (context, action) => calculations.prepare(context.base, context.view, context.guideCall, action, action.setupCalls ?? [], { interactive: true }),
+  prepare(context, action) {
+    const before = context.resizeBefore;
+    const rebased = rebaseResizeAction(action, canvasGeometry(context.view), canvasGeometry(before.view));
+    return calculations.prepare(before.program, before.view, before.guideCall, rebased, rebased.setupCalls ?? [], { interactive: true });
+  },
   preview(context, prepared) {
     renderChart(elements.current, prepared.preview, 'Resize chart');
     resizeThumbnails.start(context);
@@ -170,6 +177,7 @@ const canvasResize = createCanvasResize(elements.current, {
   },
   async commit(context, action) {
     resizeThumbnails.stop();
+    action = rebaseResizeAction(action, canvasGeometry(context.view), canvasGeometry(context.resizeBefore.view));
     await commit({ ...context, method: action.method, values: {}, build: () => action.args, setup: () => action.setupCalls ?? [],
       title: context.resizeTitle,
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
@@ -298,6 +306,7 @@ function mountDataTable() {
 
 async function restoreHistory(direction) {
   if (state.committing || state.resizing) return;
+  resizeHistory.reset();
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
   const snapshot = typeof direction === 'number' ? history.jump(direction) : history[direction]();
@@ -405,7 +414,7 @@ function showCode(card = null, { settleApplied = false } = {}) {
     ...(state.guideCall ? [state.guideCall] : [])], state.name, state.rows.length);
   const call = card?.prepared?.recommendation;
   if (call) state.codeCard = card;
-  const proposed = call ? programCode([...state.setupCalls, ...state.calls,
+  const proposed = call ? programCode([...state.setupCalls, ...(card.resizeBefore?.calls ?? state.calls),
     ...(card.prepared.prerequisiteCalls ?? []),
     { method: call.method, args: call.args }, ...(card.prepared.postActionCalls ?? []),
     card.prepared.guideCall], state.name, state.rows.length) : null;
@@ -1200,12 +1209,15 @@ async function commit(card, { direct = false } = {}) {
   try {
     const action = buildRecommendationCall(card, card.values);
     const setup = card.setup?.(card.values) ?? [];
-    const pinned = await calculations.prepare(card.base, card.view, card.guideCall, action, setup);
+    const before = direct ? card.resizeBefore : null;
+    if (before) action.allowUnchanged = true;
+    const base = before?.program ?? card.base, baseView = before?.view ?? card.view, guide = before?.guideCall ?? card.guideCall;
+    const pinned = await calculations.prepare(base, baseView, guide, action, setup);
     const recommendation = pinned.recommendation;
     const prerequisiteCalls = pinned.prerequisiteCalls ?? [];
     const postActionCalls = pinned.postActionCalls ?? [];
-    const previousCount = state.program.trace.children.length;
-    const committed = await calculations.materialize(card.base, card.view, card.guideCall, action, setup);
+    const previousCount = base.trace.children.length;
+    const committed = await calculations.materialize(base, baseView, guide, action, setup);
     if (state.datasetId !== datasetId || state.program !== card.base) {
       throw new Error('The chart changed before this action finished. Preview it again.');
     }
@@ -1223,13 +1235,15 @@ async function commit(card, { direct = false } = {}) {
     }
     state.program = next; state.view = view; state.guideCall = committed.guideCall;
     state.codeCard = null;
+    if (before) state.calls = [...before.calls];
     state.calls.push(...prerequisiteCalls.map(call => structuredClone(call)),
       { method: recommendation.method, args: structuredClone(recommendation.args) },
       ...postActionCalls.map(call => structuredClone(call)));
-    state.steps++; state.phase = 'recommendations';
+    state.steps = (before?.steps ?? state.steps) + 1; state.phase = 'recommendations';
     if (!direct) clearSearch();
     state.context = focus(state.program, direct ? state.context : card.original?.nextContext ?? {});
-    history.push(historySnapshot(card.title));
+    if (before) resizeHistory.commit(before, historySnapshot(card.title));
+    else { resizeHistory.reset(); history.push(historySnapshot(card.title)); }
     scheduleSave();
     const committedProgram = state.program;
     // Invalidate an initial gallery that may still be filling, and remove the
@@ -1287,6 +1301,7 @@ async function commit(card, { direct = false } = {}) {
 }
 
 async function refreshSelection() {
+  resizeHistory.reset();
   historyView.clear({ restore: false }); historyInspection = null;
   const setup = selectionData(state.base, state.profile, state.rows, state.selection);
   state.program = setup.program; state.view = setup.program; state.plotData = setup.data;
@@ -1369,6 +1384,7 @@ async function showSnapshot(snapshot) {
 }
 
 async function activateDataset(record, { selection = { x: '', y: '', color: '' }, restore = true } = {}) {
+  resizeHistory.reset();
   // Do all input/native construction checks before replacing a working session.
   const rows = record.imported.rows;
   let cached = datasetBases.get(record.imported);

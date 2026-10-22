@@ -78,7 +78,7 @@ function invokeSingle(program, call) {
 export function validateCandidate(program, candidate) {
   recentValidations.set(program, true);
   if (!validations.has(program)) validations.set(program, createProgramResultCache());
-  const cache = validations.get(program), key = signature([candidate.method, candidate.args, candidate.inspectionTarget]);
+  const cache = validations.get(program), key = signature([candidate.method, candidate.args, candidate.inspectionTarget, candidate.allowUnchanged]);
   const cached = cache.get(key);
   if (cached) return cached;
   return cache.set(key, freezeResult(validateUncached(program, candidate)));
@@ -93,8 +93,8 @@ function validateUncached(program, candidate) {
     }
     const next = invokeSingle(program, candidate);
     const comparison = comparePrograms(program, next);
-    if (comparison.equivalence === 'equal') return { ok: false, reason: 'no-change' };
-    if (comparison.equivalence !== 'different') return { ok: false, reason: 'comparison-unknown' };
+    if (comparison.equivalence === 'equal' && !candidate.allowUnchanged) return { ok: false, reason: 'no-change' };
+    if (!['different', 'equal'].includes(comparison.equivalence)) return { ok: false, reason: 'comparison-unknown' };
     const inspection = inspectProgram(next);
     if (inspection.findings.some(f => f.severity === 'error') ||
         inspection.checks.some(c => c.status === 'failed') ||
@@ -116,7 +116,7 @@ function validateUncached(program, candidate) {
     }
     return { ok: true, next, comparison, inspection,
       validation: { preflight: 'supported', executed: true, topLevelActions: 1,
-        changed: true, svgSerialized: !pending,
+        changed: comparison.equivalence === 'different', svgSerialized: !pending,
         renderStatus: pending ? 'pending-position-encoding' : 'svg-serialized',
         pixelVisibilityChecked: false } };
   } catch (error) {
@@ -375,9 +375,11 @@ export function applyRecommendation(program, recommendation, { alternative = 0 }
 
 // The gallery and card parameter editor use the same preflight/execution checks.
 // No new ggaction actions are defined or registered here.
-export function prepareAction(program, { method, args }) {
+export function prepareAction(program, { method, args, allowUnchanged = false }) {
+  // Direct manipulation may return to its original baseline while replacing
+  // an earlier resize. Ordinary recommendations still reject equivalent edits.
   if (!allowed.has(method)) throw new TypeError(`Not a supported public ggaction method: ${method}`);
-  const candidate = { method, args: structuredClone(args),
+  const candidate = { method, args: structuredClone(args), ...(allowUnchanged ? { allowUnchanged: true } : {}),
     ...(args.target && program.semanticSpec.layers.some(l => l.id === args.target) && !/^edit(?:[XY]|Theta|Radial|Parallel)Axis/.test(method)
       ? { inspectionTarget: { kind: 'mark', id: args.target } } : {}) };
   const check = validateCandidate(program, candidate);

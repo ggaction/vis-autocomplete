@@ -29,7 +29,7 @@ with sync_playwright() as p:
         page.mouse.move(x,y);page.mouse.down();page.mouse.move(x,y+18,steps=8)
         expect(page.locator('#code-mode')).to_have_text('Resize chart',timeout=30000)
         page.mouse.up()
-        expect(page.locator('#current')).to_have_attribute('data-steps',str(steps+1),timeout=60000)
+        expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
         expect(page.locator('#current')).not_to_have_class(re.compile('.*resizing.*'),timeout=60000)
         assert page.evaluate('beforeNodes.every(n=>n.isConnected)')
         assert page.evaluate('rankRequests===beforeRank'),'Size-only edits must not rerank the gallery'
@@ -59,12 +59,12 @@ with sync_playwright() as p:
     card.locator('.card-top').hover()
     expect(card).to_have_attribute('data-preview-state','ready',timeout=30000)
     card.locator('.apply-button').click()
-    expect(page.locator('#current')).to_have_attribute('data-steps','5',timeout=60000)
+    expect(page.locator('#current')).to_have_attribute('data-steps','3',timeout=60000)
     expect(page.locator('#current')).to_have_attribute('data-last-method','createTitle')
     expect(page.locator('#current .plot-boundary .resize-label')).to_have_text(native)
     canvas_text(page,'#current canvas','',font_size='29')
     page.locator('#undo').click()
-    expect(page.locator('#current')).to_have_attribute('data-steps','4',timeout=60000)
+    expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
     assert not errors,errors
     print('PASS no reranking, lazy pages, page/search/pinned parameter preservation, rebased Apply and Undo')
     browser.close()

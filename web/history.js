@@ -39,6 +39,10 @@ export function createHistory() {
       entries.splice(index + 1);
       entries.push(snapshot); index = entries.length - 1;
     },
+    replace(snapshot) {
+      if (index < 0) throw new Error('Cannot replace empty history.');
+      entries.splice(index, entries.length - index, snapshot);
+    },
     undo() {
       if (index <= 0) return null;
       return entries[--index];

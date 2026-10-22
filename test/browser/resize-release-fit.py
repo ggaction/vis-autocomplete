@@ -41,7 +41,7 @@ with sync_playwright() as p:
             during=page.evaluate('measureResize()')
             assert abs(during['scale']-before['scale'])<.002,(before,during)
             assert page.evaluate('fitFrames.length')==0
-            page.mouse.up();steps+=1
+            page.mouse.up();steps=2
             expect(page.locator('#current')).to_have_attribute('data-steps',str(steps),timeout=60000)
             page.wait_for_function('!document.querySelector("#current").classList.contains("resizing") && !document.querySelector("#current").dataset.resizeSettling')
             after=page.evaluate('measureResize()');r=after['rect'];host=after['host']
@@ -56,7 +56,7 @@ with sync_playwright() as p:
         page.emulate_media(reduced_motion='reduce');page.evaluate('fitFrames=[]')
         h=page.locator('[data-resize=plot-s]');h.hover();b=h.bounding_box()
         x,y=b['x']+b['width']/2,b['y']+b['height']/2
-        page.mouse.move(x,y);page.mouse.down();page.mouse.move(x,y-20,steps=5);page.mouse.up();steps+=1
+        page.mouse.move(x,y);page.mouse.down();page.mouse.move(x,y-20,steps=5);page.mouse.up();steps=2
         expect(page.locator('#current')).to_have_attribute('data-steps',str(steps),timeout=60000)
         expect(page.locator('#current')).not_to_have_class(re.compile('resizing'))
         assert page.evaluate('fitFrames.length')==0

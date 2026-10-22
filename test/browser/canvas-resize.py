@@ -50,7 +50,7 @@ with sync_playwright() as p:
             assert abs(r['height']/g['native'][3]-g['scale'])<0.001,g
         assert g['scroll']==g['client'],g
 
-    def drag(handle,dx,dy,steps,commit=True):
+    def drag(handle,dx,dy,steps,commit=True,merge=False,check_thumbnails=True):
         expected = 'editFacetSource' if geometry()['label'].startswith('All plots') else 'editCanvas'
         expect(page.locator('.card-row[data-page="1"]')).to_have_attribute('aria-busy','false',timeout=60000)
         page.evaluate('''() => {
@@ -74,7 +74,7 @@ with sync_playwright() as p:
         expect(page.locator('#current')).to_have_attribute('data-steps',str(steps))
         expect(page.locator('#code-content')).to_have_attribute('data-preview-method',expected)
         assert_fit()
-        if page.evaluate('resizeImages.some(Boolean)'):
+        if check_thumbnails and page.evaluate('resizeImages.some(Boolean)'):
             page.wait_for_function('resizeImages.some((image,i)=>image && image.getAttribute("data-paint")!==resizeSources[i])',timeout=30000)
         assert page.evaluate('resizeCards.every(c=>c.isConnected) && removedResizeCards===0'), 'Cards must stay mounted during resize'
         if not commit:
@@ -82,7 +82,7 @@ with sync_playwright() as p:
             page.mouse.up()
         else:
             page.mouse.up()
-            expect(page.locator('#current')).to_have_attribute('data-steps',str(steps+1),timeout=60000)
+            expect(page.locator('#current')).to_have_attribute('data-steps',str(steps if merge else steps+1),timeout=60000)
         expect(page.locator('#current')).not_to_have_class(__import__('re').compile(r'.*resizing.*'),timeout=60000)
         page.wait_for_function('!document.querySelector("#current").dataset.resizeSettling')
         page.locator('h1').hover()
@@ -99,23 +99,23 @@ with sync_playwright() as p:
     assert after['lengths'][0]==before['lengths'][0]
     assert_fit()
     expect(page.locator('#current')).to_have_attribute('data-last-method','editCanvas')
-    drag('canvas-e',30,0,2)
+    drag('canvas-e',30,0,2,merge=True)
     canvas=geometry()
     assert canvas['native'][2]-after['native'][2] == 2*round(30/after['scale']),(after,canvas)
     assert canvas['lengths']==after['lengths']
     assert_fit()
-    drag('plot-e',25,0,3,commit=False)
+    drag('plot-e',25,0,2,commit=False)
     assert geometry()['box']==canvas['box']
     page.locator('#undo').click()
-    expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
-    assert geometry()['box']==after['box']
+    expect(page.locator('#current')).to_have_attribute('data-steps','1',timeout=60000)
+    assert geometry()['box']==before['box']
     page.locator('#redo').click()
-    expect(page.locator('#current')).to_have_attribute('data-steps','3',timeout=60000)
+    expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
     assert geometry()['box']==canvas['box']
     # A refreshed draft must replay the real native edits.
     page.wait_for_timeout(800)
     page.reload()
-    expect(page.locator('#current')).to_have_attribute('data-steps','3',timeout=60000)
+    expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
     assert geometry()['box']==canvas['box']
     with page.expect_download() as downloaded:
         page.get_by_role('button',name='Download current visualization as SVG',exact=True).click()
@@ -137,18 +137,20 @@ with sync_playwright() as p:
     drag('canvas-s',0,180,step)
     large=geometry(); assert_fit()
     assert large['scale'] < small['scale'],(small,large)
-    drag('canvas-s',0,-65,step+1)
+    drag('canvas-s',0,-65,step+1,merge=True)
     smaller=geometry(); assert_fit()
     assert smaller['scale'] > large['scale'],(large,smaller)
     assert smaller['lengths']==large['lengths']==small['lengths']
     print('PASS centered drag and uniformly fitted bounds after release',flush=True)
     # Native label constraints clamp an overshoot instead of leaving a broken chart.
     step = int(page.locator('#current').get_attribute('data-steps'))
-    drag('plot-e',-500,0,step)
+    # An overshoot can make every option thumbnail invalid at the minimum size.
+    drag('plot-e',-500,0,step,merge=True,check_thumbnails=False)
     expect(page.locator('#current canvas')).to_have_count(1)
     assert int(geometry()['label'].split('×')[0].split()[-1]) >= 32, 'Overshoot must preserve a positive plot and native guide validation'
     page.locator('#undo').click()
-    expect(page.locator('#current')).to_have_attribute('data-steps',str(step),timeout=60000)
+    expect(page.locator('#current')).to_have_attribute('data-steps',str(step-1),timeout=60000)
+    step-=1
     expect(page.locator('#undo')).to_be_enabled(timeout=60000)
     # Keyboard resizing, including repeated keys after the SVG has been replaced.
     handle = page.locator('[data-resize="plot-e"]')
@@ -157,7 +159,7 @@ with sync_playwright() as p:
     expect(page.locator('#current')).to_have_attribute('data-steps',str(step+1),timeout=60000)
     expect(page.locator('#undo')).to_be_enabled(timeout=60000)
     page.keyboard.press('Shift+ArrowRight')
-    expect(page.locator('#current')).to_have_attribute('data-steps',str(step+2),timeout=60000)
+    expect(page.locator('#current')).to_have_attribute('data-steps',str(step+1),timeout=60000)
     expect(page.locator('#undo')).to_be_enabled(timeout=60000)
     # Returning to the starting position is a cancellation, not a new history step.
     h=page.locator('[data-resize="plot-e"]')
@@ -167,7 +169,7 @@ with sync_playwright() as p:
     expect(page.locator('#code-mode')).to_have_text('Resize chart',timeout=30000)
     page.mouse.move(x,y,steps=5); page.mouse.up()
     expect(page.locator('#current')).not_to_have_class(__import__('re').compile(r'.*resizing.*'),timeout=60000)
-    expect(page.locator('#current')).to_have_attribute('data-steps',str(step+2))
+    expect(page.locator('#current')).to_have_attribute('data-steps',str(step+1))
     assert geometry()['box']==before['box']
     page.locator('#action-search').fill('encodeOpacity')
     expect(page.locator('#cards')).to_have_attribute('data-search-query','encodeopacity',timeout=60000)
@@ -175,7 +177,7 @@ with sync_playwright() as p:
     expect(card).to_be_visible(timeout=60000)
     expect(page.locator('.card-row').first).to_have_attribute('aria-busy','false',timeout=60000)
     card.locator('.card-top').hover(position={'x':40,'y':16}); card.locator('.apply-button').click()
-    expect(page.locator('#current')).to_have_attribute('data-steps',str(step+3),timeout=60000)
+    expect(page.locator('#current')).to_have_attribute('data-steps',str(step+2),timeout=60000)
     assert abs(geometry()['plot']['width']-before['plot']['width'])<1
     assert abs(geometry()['plot']['height']-before['plot']['height'])<1
     print('PASS native minimum-size clamp, keyboard resize, return-to-origin and subsequent action preserving size',flush=True)
@@ -212,8 +214,8 @@ with sync_playwright() as p:
             steps=2
         drag('plot-s',0,12,steps)
         expect(page.locator('#current')).to_have_attribute('data-last-method','editFacetSource' if facet else 'editCanvas')
-        drag('canvas-e',12,0,steps+1)
-        expect(page.locator('#current')).to_have_attribute('data-last-method','editCompositionLayout' if facet else 'editCanvas')
+        drag('canvas-e',12,0,steps+1,merge=True)
+        expect(page.locator('#current')).to_have_attribute('data-last-method','editFacetSource' if facet else 'editCanvas')
         page.set_viewport_size({'width':1200,'height':800})
         page.wait_for_timeout(300)
         host=page.locator('#current').bounding_box()

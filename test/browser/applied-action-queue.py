@@ -69,7 +69,7 @@ with sync_playwright() as p:
     apply(page, search(page, "encodeShape"), 2)
     card = tail(page, "encodeShape")
     expect(card).to_have_attribute("data-preview-state", "unchanged")
-    expect(card.locator(".thumbnail svg")).to_have_count(1)
+    expect(card.locator(".thumbnail canvas")).to_have_count(1)
     assert card.locator(".needs-adjustment").count() == 0
     card.locator(".apply-button").click()
     expect(page.locator("#notice")).to_have_text("These settings are already applied.", timeout=30000)
@@ -89,7 +89,9 @@ with sync_playwright() as p:
     value = slider.input_value()
     expect(card).to_have_attribute("data-preview-state", "ready", timeout=30000)
     apply(page, card, 4)
-    assert page.locator(f'#current svg [opacity="{value}"]').count() > 0
+    assert page.locator('#current canvas').count()==1
+    source = page.evaluate("async () => (await import('/web/code-view.js')).displayedCode(document.querySelector('#code-content'))")
+    assert 'encodeOpacity' in source and f'"value": {value}' in source
     tail(page, "encodeOpacity")
     page.locator("#undo").click()
     expect(page.locator("#current")).to_have_attribute("data-steps", "3", timeout=60000)

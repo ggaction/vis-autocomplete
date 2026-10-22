@@ -1,5 +1,5 @@
-import { createTransitionPlayer } from '@ggaction/transition';
-import { createTransitionScene } from 'ggaction/scene';
+import { createCanvasTransitionPlayer } from '@ggaction/transition';
+import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
 import { createLRU } from '../src/cache.js';
 
 export function createTransitionMode({host,layout,toggle,getBaseline,getCandidate,busy,onChange,onError}) {
@@ -18,8 +18,8 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     const current=getBaseline();if(!current)return false;
     if(!player){
       surface=document.createElement('div');surface.className='transition-surface';host.append(surface);
-      player=createTransitionPlayer(surface,{duration:300});
-      player.set(createTransitionScene(current));
+      player=createCanvasTransitionPlayer(surface,{duration:300,render:renderTransitionScene});
+      player.set(createTransitionScene(current,{format:'canvas'}));
     }else if(!surface.isConnected)host.append(surface);
     host.classList.add('transition-active');return true;
   }
@@ -30,14 +30,14 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     returning=!card&&!program;
     try{
       let scene;
-      if(program)scene=createTransitionScene(program);
+      if(program)scene=createTransitionScene(program,{format:'canvas'});
       else if(card?.prepared){
         const artifact=card.prepared;
         const pending=cache.get(artifact)??cache.set(artifact,getCandidate(card));
         scene=await pending;
         if(!scene)cache.delete(artifact);
       }else if(card)return; // Keep the current picture while a preview prepares.
-      else scene=createTransitionScene(getBaseline());
+      else scene=createTransitionScene(getBaseline(),{format:'canvas'});
       if(request!==version||!enabled||!scene)return;
       player.element.setAttribute('aria-label',card?.title??'Visualization');
       surface.dataset.method=card?.prepared?.recommendation?.method??'';

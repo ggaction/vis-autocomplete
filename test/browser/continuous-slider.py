@@ -1,3 +1,4 @@
+from canvas_testing import observe_canvas, canvas_text
 """Continuous thumb motion with discrete parameters and unchanged Apply semantics."""
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
@@ -7,6 +8,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(
         headless=True, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
     page = browser.new_page(viewport={"width": 1600, "height": 1100})
+    observe_canvas(page)
     page.add_init_script("""{
       const NativeWorker = window.Worker;
       window.preparationRequests = 0;
@@ -107,7 +109,7 @@ with sync_playwright() as p:
     card.screenshot(path="output/applied-actions/continuous-slider.png")
     card.locator(".apply-button").click()
     expect(page.locator("#current")).to_have_attribute("data-steps", "2", timeout=60000)
-    assert page.locator('#current svg text[font-size="20"]').count() > 0
+    canvas_text(page,'#current canvas','',font_size='20')
     assert not errors, errors
     print("PASS continuous sub-step thumb motion without recomputation; pin/resume, keyboard, touch and Apply")
     browser.close()

@@ -13,25 +13,25 @@ with sync_playwright() as p:
         page.get_by_role('button',name='Select column '+field,exact=True).click()
     card=page.locator('.card[data-method=createScatterPlot]')
     expect(card).to_be_visible(timeout=60000)
-    expect(page.locator('#preview svg')).to_have_count(0)
-    card.locator('.card-top').hover()
-    expect(page.locator('#preview svg')).to_have_count(1,timeout=30000)
+    expect(page.locator('#preview canvas')).to_have_count(0)
+    card.locator('.card-top').hover(position={'x':40,'y':16})
+    expect(page.locator('#preview canvas')).to_have_count(1,timeout=30000)
     page.locator('h1').hover()
-    expect(page.locator('#preview svg')).to_have_count(0)
+    expect(page.locator('#preview canvas')).to_have_count(0)
     page.wait_for_timeout(500)
-    expect(page.locator('#preview svg')).to_have_count(0)
-    card.locator('.card-top').hover()
+    expect(page.locator('#preview canvas')).to_have_count(0)
+    card.locator('.card-top').hover(position={'x':40,'y':16})
     card.locator('.apply-button').click()
     expect(page.locator('#current')).to_have_attribute('data-steps','1',timeout=60000)
     page.locator('h1').hover()
-    expect(page.locator('#preview svg')).to_have_count(0)
+    expect(page.locator('#preview canvas')).to_have_count(0)
     expect(page.locator('#current .canvas-stage')).to_have_count(1)
 
     def geometry():
         return page.locator('#current').evaluate('''e=>{
-            const svg=e.querySelector('svg'),plot=e.querySelector('.plot-boundary'),canvas=e.querySelector('.canvas-boundary');
-            const native=svg.getAttribute('viewBox').split(' ').map(Number),r=canvas.getBoundingClientRect();
-            return {box:svg.getAttribute('viewBox'),native,scale:r.width/native[2],host:e.getBoundingClientRect().toJSON(),
+            const svg=e.querySelector('canvas'),plot=e.querySelector('.plot-boundary'),canvas=e.querySelector('.canvas-boundary');
+            const native=[0,0,+svg.dataset.logicalWidth,+svg.dataset.logicalHeight],r=canvas.getBoundingClientRect();
+            return {box:native.join(' '),native,scale:r.width/native[2],host:e.getBoundingClientRect().toJSON(),
               client:[e.clientWidth,e.clientHeight],scroll:[e.scrollWidth,e.scrollHeight],
               plot:plot.getBoundingClientRect().toJSON(),canvas:r.toJSON(),label:plot.textContent,
               lengths:plot.textContent.match(/[0-9]+/g).map(Number)};
@@ -52,8 +52,8 @@ with sync_playwright() as p:
         expect(page.locator('.card-row[data-page="1"]')).to_have_attribute('aria-busy','false',timeout=60000)
         page.evaluate('''() => {
           window.resizeCards=[...document.querySelectorAll('#cards .card')];
-          window.resizeImages=resizeCards.map(c=>c.querySelector('.thumbnail image'));
-          window.resizeSources=resizeImages.map(i=>i?.getAttribute('href'));
+          window.resizeImages=resizeCards.map(c=>c.querySelector('.thumbnail canvas'));
+          window.resizeSources=resizeImages.map(i=>i?.getAttribute('data-paint'));
           window.removedResizeCards=0;
           window.resizeObserver?.disconnect();
           window.resizeObserver=new MutationObserver(records=>{for(const r of records) for(const n of r.removedNodes)
@@ -72,7 +72,7 @@ with sync_playwright() as p:
         expect(page.locator('#code-content')).to_have_attribute('data-preview-method',expected)
         assert_fit()
         if page.evaluate('resizeImages.some(Boolean)'):
-            page.wait_for_function('resizeImages.some((image,i)=>image && image.getAttribute("href")!==resizeSources[i])',timeout=30000)
+            page.wait_for_function('resizeImages.some((image,i)=>image && image.getAttribute("data-paint")!==resizeSources[i])',timeout=30000)
         assert page.evaluate('resizeCards.every(c=>c.isConnected) && removedResizeCards===0'), 'Cards must stay mounted during resize'
         if not commit:
             page.keyboard.press('Escape')
@@ -82,7 +82,7 @@ with sync_playwright() as p:
             expect(page.locator('#current')).to_have_attribute('data-steps',str(steps+1),timeout=60000)
         expect(page.locator('#current')).not_to_have_class(__import__('re').compile(r'.*resizing.*'),timeout=60000)
         page.locator('h1').hover()
-        expect(page.locator('#preview svg')).to_have_count(0)
+        expect(page.locator('#preview canvas')).to_have_count(0)
         assert page.evaluate('resizeCards.every(c=>c.isConnected) && removedResizeCards===0'), 'Pointer release must not replace the card gallery'
         assert page.evaluate('resizeImages.every(i=>!i || i.isConnected)'), 'Thumbnail image nodes should be updated in place'
         page.evaluate('resizeObserver.disconnect()')
@@ -141,7 +141,7 @@ with sync_playwright() as p:
     # Native label constraints clamp an overshoot instead of leaving a broken chart.
     step = int(page.locator('#current').get_attribute('data-steps'))
     drag('plot-e',-500,0,step)
-    expect(page.locator('#current svg')).to_have_count(1)
+    expect(page.locator('#current canvas')).to_have_count(1)
     assert int(geometry()['label'].split('×')[0].split()[-1]) >= 32, 'Overshoot must preserve a positive plot and native guide validation'
     page.locator('#undo').click()
     expect(page.locator('#current')).to_have_attribute('data-steps',str(step),timeout=60000)
@@ -166,9 +166,11 @@ with sync_playwright() as p:
     expect(page.locator('#current')).to_have_attribute('data-steps',str(step+2))
     assert geometry()['box']==before['box']
     page.locator('#action-search').fill('encodeOpacity')
+    expect(page.locator('#cards')).to_have_attribute('data-search-query','encodeopacity',timeout=60000)
     card=page.locator('.card[data-method=encodeOpacity]')
     expect(card).to_be_visible(timeout=60000)
-    card.locator('.card-top').hover(); card.locator('.apply-button').click()
+    expect(page.locator('.card-row').first).to_have_attribute('aria-busy','false',timeout=60000)
+    card.locator('.card-top').hover(position={'x':40,'y':16}); card.locator('.apply-button').click()
     expect(page.locator('#current')).to_have_attribute('data-steps',str(step+3),timeout=60000)
     assert abs(geometry()['plot']['width']-before['plot']['width'])<1
     assert abs(geometry()['plot']['height']-before['plot']['height'])<1
@@ -191,15 +193,16 @@ with sync_playwright() as p:
             expect(page.locator('#cards-page')).to_have_text(__import__('re').compile(rf'^{number+1} /'),timeout=60000)
         expect(card).to_be_visible(timeout=60000)
         card.scroll_into_view_if_needed()
-        card.locator('.card-top').hover()
+        card.locator('.card-top').hover(position={'x':40,'y':16})
         card.locator('.apply-button').click()
         expect(page.locator('#current')).to_have_attribute('data-steps','1',timeout=60000)
         steps=1
         if facet:
             page.locator('#action-search').fill('facet')
+            expect(page.locator('#cards')).to_have_attribute('data-search-query','facet',timeout=60000)
             card = page.locator('.card[data-method=facet]')
             expect(card).to_be_visible(timeout=60000)
-            card.locator('.card-top').hover()
+            card.locator('.card-top').hover(position={'x':40,'y':16})
             card.locator('.apply-button').click()
             expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
             steps=2

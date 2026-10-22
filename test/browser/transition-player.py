@@ -11,7 +11,7 @@ with sync_playwright() as p:
  page.goto('http://127.0.0.1:5173/test/fixtures/transition-player.html');page.wait_for_function('window.ready',timeout=60000)
  print('SETUP',page.evaluate('audit.errors'),flush=True)
  assert not page.evaluate('Object.keys(audit.errors).length'),page.evaluate('audit.errors')
- results=[];Path('output/transition-player').mkdir(parents=True,exist_ok=True)
+ results=[];Path('output/canvas-migration/player').mkdir(parents=True,exist_ok=True)
  for name in page.evaluate('Object.keys(audit.cases)'):
   page.evaluate('name=>audit.show(name)',name)
   a=Image.open(BytesIO(page.locator('#actual').screenshot())).convert('RGB');b=Image.open(BytesIO(page.locator('#expected').screenshot())).convert('RGB')
@@ -31,5 +31,5 @@ with sync_playwright() as p:
   result={'chart':name,'pixelDifference':changed,'variants':variants,**perf};results.append(result)
   print(json.dumps(result),flush=True)
  assert not errors,errors
- Path('output/transition-player/results.json').write_text(json.dumps(results,indent=2))
+ Path('output/canvas-migration/player/results.json').write_text(json.dumps(results,indent=2))
  browser.close()

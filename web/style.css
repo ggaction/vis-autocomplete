@@ -45,7 +45,6 @@ main { padding: 14px 16px 16px; }
 .panel-heading button { padding: 3px 6px; font-size: 10px; color: #7b8189; }
 .quiet { font-size: 10px; color: #91969d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chart-view { min-height: 0; flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 0; }
-.chart-view svg { display: block; max-width: 100%; max-height: 100%; width: 100%; height: 100%; overflow: visible; }
 .chart-view.data-view { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; }
 .current-panel-heading { justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; padding-bottom: 8px; }
 .current-panel-heading h2 { flex: none; white-space: nowrap; }
@@ -88,7 +87,6 @@ main { padding: 14px 16px 16px; }
 .column-roles:not(:empty) { padding: 1px 3px; border-radius: 2px; background: #c7d8eb; color: #2f547e; }
 .chart-transfer { position: fixed; z-index: 20; margin: 0; background: #fff; pointer-events: none; transform-origin: top left; will-change: transform; }
 .chart-transfer-source > * { visibility: hidden; }
-.chart-view svg text, .thumbnail svg text { font-family: Arial, sans-serif !important; }
 .empty-state { max-width: 290px; padding: 20px; color: #9299a2; text-align: center; font-size: 12px; line-height: 1.6; }
 .options-section { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
 .options-heading { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
@@ -147,7 +145,6 @@ main { padding: 14px 16px 16px; }
 .rank { flex: none; font-size: 9px; font-weight: 400; color: #969da6; }
 .method-name { height: 11px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; line-height: 11px; color: #a0a6ad; }
 .thumbnail { position: relative; height: 86px; padding: 4px 0 2px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-.thumbnail svg { max-width: 100%; max-height: 100%; width: 100%; height: 100%; display: block; }
 body[data-phase="initial"] .card[data-control-count="0"].expanded .card-top { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 body[data-phase="initial"] .card[data-control-count="0"].expanded .method-name { flex: none; }
 body[data-phase="initial"] .card[data-control-count="0"].expanded .thumbnail { height: auto; flex: 1; min-height: 0; width: 100%; }
@@ -200,7 +197,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .history-item { --history-accent: #0a6fc2; --history-rgb: 10, 111, 194; flex: 0 0 150px; width: 150px; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 5px; text-align: left; border: 1px solid rgba(var(--history-rgb), .4); border-radius: 3px; background: #fff; transition: border-color 140ms ease, box-shadow 140ms ease; }
 .history-item + .history-item { margin-left: -1px; }
 .history-thumbnail { display: flex; align-items: center; justify-content: center; min-height: 0; flex: 1; width: 100%; overflow: hidden; border: 1px solid rgba(var(--history-rgb), .45); border-radius: 2px; background: #fff; }
-.history-thumbnail svg { display: block; width: 100%; height: 100%; max-height: 100%; }
 .history-caption { flex: none; font-size: 10px; line-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #53616f; }
 .history-item[aria-current="step"] { border-color: var(--history-accent); box-shadow: inset 0 0 0 2px rgba(var(--history-rgb), .3); }
 .history-item.future { background: #fafbfc; }
@@ -305,7 +301,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .chart-dialog::backdrop { background: #10182066; }
 .dialog-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
 #enlarged-chart { height: min(75dvh, 780px); display: flex; }
-#enlarged-chart svg { width: 100%; height: 100%; object-fit: contain; }
 @media (pointer: coarse) {
   button, select, .column-select { min-height: 40px; }
   .parameter-choice { padding: 8px; }
@@ -328,7 +323,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
    Overlay controls never enter the exported SVG or change panel dimensions. */
 .chart-view.canvas-editor { display: block; overflow: hidden; }
 .canvas-stage { position: relative; flex: none; }
-.chart-view .canvas-stage > svg { width: 100%; height: 100%; max-width: none; max-height: none; }
 .canvas-resize-overlay { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 120ms; }
 .canvas-editor:hover .canvas-resize-overlay,
 .canvas-editor:focus-within .canvas-resize-overlay,
@@ -359,3 +353,7 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .transition-active .canvas-resize-overlay { visibility:hidden; pointer-events:none; }
 .transition-active > :not(.transition-surface) { visibility:hidden; }
 @media(max-width:1200px) { .app-header { flex-wrap:wrap; } .header-guidance { min-width:180px; } }
+
+/* Native Canvas charts keep logical sizing separate from display fitting. */
+.chart-view canvas, .thumbnail canvas, .history-thumbnail canvas, #enlarged-chart canvas { display:block; width:100%; height:100%; object-fit:contain; min-width:0; min-height:0; }
+.chart-view .canvas-stage > canvas { width:100%; height:100%; max-width:none; max-height:none; }

@@ -1,11 +1,12 @@
+import { refreshChartCanvas } from './chart-canvas.js';
 import { canvasGeometry, resizeCanvasAction, fitCanvasViewport, projectCanvasGeometry } from './canvas-geometry.js';
 import { presentResizeVector } from './resize-vector.js';
 
 // Pointer capture belongs to the stable host, not to a handle replaced by a new
-// worker-rendered SVG. One in-flight preview plus one latest intent bounds work.
+// worker-rendered Canvas. One in-flight preview plus one latest intent bounds work.
 export function createCanvasResize(host, callbacks) {
   let geometry, viewport, gesture = null, stage, mountedProgram;
-  function mount(program, svg) {
+  function mount(program, canvas) {
     mountedProgram = program;
     geometry = canvasGeometry(program);
     if (!geometry) return;
@@ -18,11 +19,12 @@ export function createCanvasResize(host, callbacks) {
     if (!stage?.isConnected) { stage = document.createElement('div'); stage.className = 'canvas-stage'; }
     Object.assign(stage.style, { width: `${display.width * scale}px`, height: `${display.height * scale}px`,
       marginLeft: `${left}px`, marginTop: `${top}px` });
-    svg.setAttribute('viewBox', `0 0 ${geometry.width} ${geometry.height}`);
-    if (svg.parentNode !== stage) stage.prepend(svg);
+    canvas.dataset.logicalWidth = geometry.width; canvas.dataset.logicalHeight = geometry.height;
+    if (canvas.parentNode !== stage) stage.prepend(canvas);
     if (stage.parentNode !== host) host.replaceChildren(stage);
     const projection = display !== geometry
-      ? presentResizeVector(svg, geometry, display, gesture.handle.startsWith('canvas'), { scale }) : null;
+      ? presentResizeVector(canvas, geometry, display, gesture.handle.startsWith('canvas'), { scale }) : null;
+    refreshChartCanvas(canvas);
     let overlay = stage.querySelector('.canvas-resize-overlay');
     if (!overlay) { overlay = document.createElement('div'); overlay.className = 'canvas-resize-overlay'; stage.append(overlay); }
     function frame(kind, x, y, width, height, dimensions = { width, height }) {
@@ -76,8 +78,8 @@ export function createCanvasResize(host, callbacks) {
     if (!g.frame) g.frame = requestAnimationFrame(() => {
       g.frame = null;
       if (g !== gesture || g.ended) return;
-      const svg = stage?.querySelector(':scope > svg');
-      if (svg) mount(mountedProgram, svg);
+      const canvas = stage?.querySelector(':scope > canvas');
+      if (canvas) mount(mountedProgram, canvas);
       callbacks.motion?.(g.context, g.action);
     });
     pump(g);
@@ -186,8 +188,8 @@ export function createCanvasResize(host, callbacks) {
     lastSize = size;
     if (!host.classList.contains('canvas-editor')) return;
     cancel();
-    const svg = host.querySelector('.canvas-stage > svg');
-    if (svg && mountedProgram) mount(mountedProgram, svg);
+    const canvas = host.querySelector('.canvas-stage > canvas');
+    if (canvas && mountedProgram) mount(mountedProgram, canvas);
   }).observe(host);
   return { mount, cancel,
     clear() { host.classList.remove('canvas-editor'); },

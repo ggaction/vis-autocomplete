@@ -36,5 +36,5 @@ test('Jitter points offers X, Y and Both with one native action and two paramete
   service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(raw), guideCall: { method: 'createGuides', args: {} } });
   const remote = service.execute({ type: 'prepare', stateId: 1, action: { method: 'jitterPoints', args: prepared.both.recommendation.args } });
   assert.equal(remote.recommendation.validation.topLevelActions, 1);
-  assert.ok(remote.preview.svg.startsWith('<svg'));
+  assert.deepEqual(remote.preview.graphicSpec, prepared.both.preview.graphicSpec);
 });

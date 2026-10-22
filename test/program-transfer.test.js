@@ -36,8 +36,8 @@ test('worker updates retain exact native state and every nested trace without re
   restoredWorker.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(base) });
   restoredWorker.execute({ type: 'state-update', stateId: 2, baseStateId: 1, update: packProgramUpdate(base, undo) });
   const action = { method: 'editFacetSource', args: { action: { method: 'encodeOpacity', options: { target: 'plot', value: .9 } } } };
-  assert.equal(restoredWorker.execute({ type: 'prepare', stateId: 2, action }).preview.svg,
-    renderToSVG(addDefaultGuides(undo.editFacetSource(action.args)), { resourceNamespace: 'worker-preview' }));
+  assert.deepEqual(restoredWorker.execute({ type: 'prepare', stateId: 2, action }).preview.graphicSpec,
+    addDefaultGuides(undo.editFacetSource(action.args)).graphicSpec);
 });
 
 test('worker retention and cross-worker advance match public replay including guides, edits and branches', () => {
@@ -55,7 +55,7 @@ test('worker retention and cross-worker advance match public replay including gu
       assert.equal(service.execute({ type: 'activate', stateId: i + 1 }).exists, true);
       const follow = { method: 'encodeSize', args: { target: 'plot', value: 81 } };
       const preview = service.execute({ type: 'prepare', stateId: i + 1, action: follow });
-      assert.equal(preview.preview.svg, renderToSVG(addDefaultGuides(current.encodeSize(follow.args)), { resourceNamespace: 'worker-preview' }));
+      assert.deepEqual(preview.preview.graphicSpec, addDefaultGuides(current.encodeSize(follow.args)).graphicSpec);
     }
   }
   assert.equal(primary.execute({ type: 'activate', stateId: 1 }).exists, false);

@@ -1,31 +1,21 @@
-const fittedBounds = new WeakMap();
-const SVG_NS = 'http://www.w3.org/2000/svg';
-
-// Fit display panels to painted chart content, rather than the canvas's large
-// reserved guide margins. The recorded ggaction canvas and its aspect stay intact.
-export function fitChartViewport(svg, program) {
-  const cached = fittedBounds.get(program);
-  if (cached) { svg.setAttribute('viewBox', cached); return; }
-  if (!svg.isConnected) return;
-  const original = svg.viewBox.baseVal;
-  const content = svg.ownerDocument.createElementNS(SVG_NS, 'g');
-  content.setAttribute('data-chart-content', '');
-  let backgroundFound = false;
-  for (const child of [...svg.children]) {
-    if (['defs', 'title', 'desc', 'style', 'metadata'].includes(child.localName)) continue;
-    const background = !backgroundFound && child.localName === 'rect' &&
-      Number(child.getAttribute('x') ?? 0) === original.x && Number(child.getAttribute('y') ?? 0) === original.y &&
-      Number(child.getAttribute('width')) === original.width && Number(child.getAttribute('height')) === original.height;
-    if (background) { backgroundFound = true; continue; }
-    content.append(child);
+import { render } from 'ggaction';
+const boundsCache=new WeakMap();
+let measurement;
+// Measure painted pixels once per immutable candidate. This retains the tight
+// Preview framing without SVG DOM/getBBox or a second layout implementation.
+export function chartViewport(program) {
+  if(boundsCache.has(program))return boundsCache.get(program);
+  const spec=program.graphicSpec,root=spec.objects.canvas,geometry=root.properties;
+  measurement??=document.createElement('canvas');
+  const ratio=Math.min(1,1200/geometry.width,1200/geometry.height);
+  const transparent={graphicSpec:{...spec,objects:{...spec.objects,canvas:{...root,properties:{...geometry,background:'transparent'}}}}};
+  render(transparent,measurement.getContext('2d'),{pixelRatio:ratio});
+  const {width,height}=measurement,data=measurement.getContext('2d').getImageData(0,0,width,height).data;
+  let left=width,top=height,right=-1,bottom=-1;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(data[(y*width+x)*4+3]){
+    if(x<left)left=x;if(x>right)right=x;if(y<top)top=y;if(y>bottom)bottom=y;
   }
-  svg.append(content);
-  const bounds = content.getBBox({ stroke: true, clipped: true });
-  if (![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite) || !bounds.width || !bounds.height) return;
-  const strokeWidth = Math.max(0, ...[...content.querySelectorAll('[stroke-width]')]
-    .map(node => Number(node.getAttribute('stroke-width')) || 0));
-  const padding = Math.max(6, strokeWidth / 2 + 2);
-  const viewBox = `${bounds.x - padding} ${bounds.y - padding} ${bounds.width + padding * 2} ${bounds.height + padding * 2}`;
-  fittedBounds.set(program, viewBox);
-  svg.setAttribute('viewBox', viewBox);
+  const bounds=right<left?{x:0,y:0,width:geometry.width,height:geometry.height}:
+    {x:left/ratio-6,y:top/ratio-6,width:(right-left+1)/ratio+12,height:(bottom-top+1)/ratio+12};
+  boundsCache.set(program,bounds);return bounds;
 }

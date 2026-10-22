@@ -19,11 +19,11 @@ pre { white-space: pre-wrap; margin-top: 16px; font: 12px/1.5 monospace; }
 <pre id="report" role="status">Loading Cars…</pre>
 <script type="module">
 import { chart } from 'ggaction';
-import { renderToSVG } from 'ggaction/svg';
+import { renderChartCanvas } from '/web/chart-canvas.js';
 import { profileDataset } from '/src/index.js';
 import { selectionAxes } from '/web/selection-setup.js';
 import { defaultCanvasOptions, addDefaultGuides, prepareGuidedAction } from '/web/plot-setup.js';
-import { fitChartViewport } from '/web/chart-viewport.js';
+import { chartViewport } from '/web/chart-viewport.js';
 const $ = selector => document.querySelector(selector), report = $('#report');
 const rows = await (await fetch('/web/data/cars.json')).json();
 const base = chart().createCanvas(defaultCanvasOptions()).applyTheme({ theme: { base: 'light', tokens: { fontFamily: 'Arial' } } })
@@ -41,11 +41,10 @@ const cases = [
 ];
 for (const [index, [name]] of cases.entries()) { const option = document.createElement('option'); option.value = index; option.textContent = name; $('#case').append(option); }
 function show(index) {
-  const program = cases[index][1], source = renderToSVG(program, { resourceNamespace: `fit-${index}` });
-  $('#before').innerHTML = source; $('#after').innerHTML = source;
-  const svg = $('#after svg');
-  fitChartViewport(svg, program);
-  return { svg, program };
+  const program=cases[index][1];
+  renderChartCanvas($('#before'),program,'Full canvas');
+  const canvas=renderChartCanvas($('#after'),program,'Fitted chart',{fit:true});
+  return {canvas,program};
 }
 $('#case').onchange = event => show(Number(event.target.value));
 $('#run').disabled = false; report.textContent = 'Ready'; show(1); $('#case').value = 1;
@@ -54,24 +53,15 @@ $('#run').onclick = () => {
   try {
     for (const [index, [name]] of cases.entries()) {
       const program = cases[index][1], before = JSON.stringify(program);
-      const { svg } = show(index), view = svg.viewBox.baseVal;
-      const content = svg.querySelector('[data-chart-content]');
-      // The first display computes bounds; another mounted copy reuses them.
-      const baseline = $('#before svg').getScreenCTM(), fitted = svg.getScreenCTM();
-      if (Math.abs(fitted.a - fitted.d) > .0001) throw Error(`${name}: nonuniform scaling`);
-      if (fitted.a < baseline.a) throw Error(`${name}: chart became smaller`);
-      if (content) {
-        const box = content.getBBox();
-        if (view.x > box.x || view.y > box.y || view.x + view.width < box.x + box.width || view.y + view.height < box.y + box.height) throw Error(`${name}: clipped content`);
-      }
-      const copy = svg.cloneNode(true); $('#after').append(copy); fitChartViewport(copy, program);
-      if (copy.getAttribute('viewBox') !== svg.getAttribute('viewBox')) throw Error(`${name}: cached fit differs`);
-      copy.remove();
-      if (JSON.stringify(program) !== before) throw Error(`${name}: mutated ggaction state`);
-      results.push({ name, enlargement: `${((fitted.a / baseline.a - 1) * 100).toFixed(1)}%`, viewBox: svg.getAttribute('viewBox') });
+      const {canvas}=show(index),view=chartViewport(program);
+      if(![view.x,view.y,view.width,view.height].every(Number.isFinite)||view.width<=0||view.height<=0)throw Error(`${name}: invalid framing`);
+      if(canvas.dataset.viewBox!==[view.x,view.y,view.width,view.height].join(' '))throw Error(`${name}: displayed framing differs`);
+      if(chartViewport(program)!==view)throw Error(`${name}: missing viewport cache`);
+      if(JSON.stringify(program)!==before)throw Error(`${name}: mutated native program`);
+      results.push({name,viewBox:canvas.dataset.viewBox});
     }
     report.dataset.result = 'passed';
-    report.textContent = `PASS ${results.length} native charts: larger display, full guides, equal X/Y scaling, immutable canvas and cached fit.\n${JSON.stringify(results, null, 2)}`;
+    report.textContent = `PASS ${results.length} native charts: Canvas display, painted bounds, immutable native geometry and cached fit.\n${JSON.stringify(results, null, 2)}`;
     show(2); $('#case').value = 2;
   } catch (error) { report.dataset.result = 'failed'; report.textContent = `FAIL ${error.stack}`; }
 };

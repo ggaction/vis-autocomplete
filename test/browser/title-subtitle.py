@@ -1,3 +1,4 @@
+from canvas_testing import observe_canvas, canvas_text
 """Title/subtitle controls, preview, Apply and editing against the running app."""
 from playwright.sync_api import sync_playwright, expect
 
@@ -15,6 +16,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(
         headless=True, executable_path="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
     page = browser.new_page(viewport={"width": 1600, "height": 1100})
+    observe_canvas(page)
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.goto("http://127.0.0.1:5173/")
@@ -36,22 +38,21 @@ with sync_playwright() as p:
     slider.click(position={"x": 70, "y": 8})
     expect(slider).to_have_attribute("data-locked", "true")
     size = slider.input_value()
-    expect(page.locator("#preview svg")).to_contain_text("Fuel economy by horsepower", timeout=30000)
+    canvas_text(page,"#preview canvas","Fuel economy by horsepower")
     expect(page.locator("#code-content")).to_contain_text('"subtitle": "Fuel economy by horsepower"')
     expect(page.locator("#current")).to_have_attribute("data-steps", "1")
     card.locator(".apply-button").click()
     expect(page.locator("#current")).to_have_attribute("data-steps", "2", timeout=60000)
-    expect(page.locator("#current svg")).to_contain_text("Fuel economy by horsepower")
-    subtitle = page.locator("#current svg text").filter(has_text="Fuel economy by horsepower")
-    expect(subtitle).to_have_attribute("font-size", size)
+    canvas_text(page,"#current canvas","Fuel economy by horsepower")
+    canvas_text(page,"#current canvas","Fuel economy by horsepower",font_size=size)
     card = search(page, "editTitle")
     expect(card.locator('[data-parameter="subtitle"] input')).to_have_value("Fuel economy by horsepower")
     expect(card.locator('[data-parameter="subtitleSize"] input')).to_have_value(size)
     card.locator('[data-parameter="subtitle"] input').fill("")
-    expect(page.locator("#preview svg")).not_to_contain_text("Fuel economy by horsepower")
+    canvas_text(page,"#preview canvas","Fuel economy by horsepower",present=False)
     card.locator(".apply-button").click()
     expect(page.locator("#current")).to_have_attribute("data-steps", "3", timeout=60000)
-    expect(page.locator("#current svg")).not_to_contain_text("Fuel economy by horsepower")
+    canvas_text(page,"#current canvas","Fuel economy by horsepower",present=False)
     assert not errors, errors
     print("PASS subtitle text/size preview, code, Apply, edit defaults and clearing; no weight controls")
     browser.close()

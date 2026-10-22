@@ -1,5 +1,5 @@
 // Lay out the destination once, then move the already painted cards. Animating
-// flex-grow/height instead invalidates every sibling (and its SVG) each frame.
+// flex-grow/height instead invalidates every sibling (and its chart) each frame.
 // Counter-transforms keep text, controls and thumbnails at their natural size.
 export function createCardMotion() {
   const running = new Map();
@@ -13,8 +13,8 @@ export function createCardMotion() {
     row, element, rect: element.getBoundingClientRect(),
     expanded: element.classList.contains('expanded'),
     children: [...element.children].map(child => ({ element: child, rect: child.getBoundingClientRect() })),
-    thumbnail: element.querySelector('.thumbnail svg'),
-    thumbnailRect: element.querySelector('.thumbnail svg')?.getBoundingClientRect(),
+    thumbnail: element.querySelector('.thumbnail canvas'),
+    thumbnailRect: element.querySelector('.thumbnail canvas')?.getBoundingClientRect(),
   })));
   return {
     finish() { for (const row of running.keys()) finish(row); },
@@ -65,7 +65,7 @@ export function createCardMotion() {
         // along with the card, including when an in-flight hover is interrupted.
         if (a.thumbnailRect?.width && b.thumbnailRect?.width) {
           const oldTop = a.children[0].rect, nextTop = b.children[0].rect;
-          const viewBox = b.thumbnail.viewBox.baseVal;
+          const viewBox = { width: Number(b.thumbnail.dataset.logicalWidth), height: Number(b.thumbnail.dataset.logicalHeight) };
           const oldScale = Math.min(a.thumbnailRect.width / viewBox.width, a.thumbnailRect.height / viewBox.height);
           const nextScale = Math.min(b.thumbnailRect.width / viewBox.width, b.thumbnailRect.height / viewBox.height);
           const x = a.thumbnailRect.x + a.thumbnailRect.width / 2 - oldTop.x -

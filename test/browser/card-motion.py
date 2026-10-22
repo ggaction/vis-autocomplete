@@ -64,7 +64,9 @@ with sync_playwright() as w:
         expect(page.locator("#code-content")).to_have_attribute("data-preview-method", "encodeOpacity", timeout=30000)
         card.locator(".apply-button").click()
         expect(page.locator("#current")).to_have_attribute("data-steps", "2", timeout=60000)
-        assert page.locator(f'#current svg circle[opacity="{value}"]').count() > 0
+        expect(page.locator('#current canvas')).to_have_count(1)
+        source = page.evaluate("async () => (await import('/web/code-view.js')).displayedCode(document.querySelector('#code-content'))")
+        assert 'encodeOpacity' in source and f'"value": {value}' in source
         print("PASS slider hover, pin, code preview and Apply", width, height, flush=True)
 
         expect(page.locator(".card-row").first).to_have_attribute("aria-busy", "false", timeout=60000)

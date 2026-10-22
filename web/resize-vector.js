@@ -1,6 +1,6 @@
 // Compositor-only feedback while native layout runs in the workers. Keep the
-// rasterized SVG image at its native size and move/scale its layer, rather than
-// re-rasterizing six SVG images at a different resolution on every pointermove.
+// Canvas bitmap at its native size and move/scale its layer, rather than
+// re-rasterizing six chart surfaces at a different resolution on every pointermove.
 // This temporary projection is never used for code, export or persisted state.
 export function resizeVectorProjection(source, target, canvasOnly = false) {
   const sx = canvasOnly ? 1 : target.width / source.width;
@@ -11,15 +11,14 @@ export function resizeVectorProjection(source, target, canvasOnly = false) {
     width: source.plot.width * sx, height: source.plot.height * sy } };
 }
 
-export function presentResizeVector(svg, source, target, canvasOnly = false, viewport) {
-  if (!svg?.querySelector(':scope > image') || !source || !target || !viewport) return;
+export function presentResizeVector(canvas, source, target, canvasOnly = false, viewport) {
+  if (canvas?.localName !== 'canvas' || !source || !target || !viewport) return;
   const scale = viewport.scale;
   const projection = resizeVectorProjection(source, target, canvasOnly);
   const { sx, sy } = projection;
   const x = (viewport.left ?? 0) + projection.x * scale;
   const y = (viewport.top ?? 0) + projection.y * scale;
-  svg.setAttribute('viewBox', `0 0 ${source.width} ${source.height}`);
-  Object.assign(svg.style, { position: 'absolute', left: '0', top: '0',
+  Object.assign(canvas.style, { position: 'absolute', left: '0', top: '0',
     width: `${source.width}px`, height: `${source.height}px`, maxWidth: 'none', maxHeight: 'none',
     transformOrigin: '0 0', willChange: 'transform',
     transform: `matrix(${sx * scale},0,0,${sy * scale},${x},${y})` });

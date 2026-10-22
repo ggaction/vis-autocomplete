@@ -3,7 +3,6 @@ import { canvasGeometry } from './canvas-geometry.js';
 import { deserializeProgram, serializeProgram } from 'ggaction/persistence';
 import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
 import { getDatasetSchema } from 'ggaction/inspection';
-import { renderToSVG } from 'ggaction/svg';
 import { createRecommendationEngine, neighboringParameters } from '../src/engine.js';
 import { addDefaultGuides, prepareGuidedAction, rememberDisplayedGuides } from '../src/prepare.js';
 import { createLRU, signature } from '../src/cache.js';
@@ -22,7 +21,7 @@ export function createCalculationService(model) {
     if (artifacts.has(prepared)) return artifacts.get(prepared);
     const value = { recommendation: prepared.recommendation, guideCall: prepared.guideCall,
       prerequisiteCalls: prepared.prerequisiteCalls, postActionCalls: prepared.postActionCalls,
-      preview: { canvasGeometry: canvasGeometry(prepared.preview), svg: renderToSVG(prepared.preview, { resourceNamespace: 'worker-preview' }),
+      preview: { canvasGeometry: canvasGeometry(prepared.preview), graphicSpec: prepared.preview.graphicSpec,
         semanticSpec: { layers: prepared.preview.semanticSpec.layers, coordinates: prepared.preview.semanticSpec.coordinates } } };
     artifacts.set(prepared, value); return value;
   };
@@ -112,7 +111,7 @@ export function createCalculationService(model) {
         return { exists: true };
       }
       const { program, view, rankings, decks } = stateFor(stateId);
-      if (type === 'scene') return createTransitionScene(action ? prepareGuidedAction(program, action, view, setupCalls).preview : view);
+      if (type === 'scene') return createTransitionScene(action ? prepareGuidedAction(program, action, view, setupCalls).preview : view, { format: 'canvas' });
       if (type === 'prepare-resized') {
         const resized = prepareGuidedAction(program, resize, view);
         try {

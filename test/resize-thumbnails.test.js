@@ -42,7 +42,7 @@ test('resized option thumbnails execute resize then the actual option, including
     const result=service.execute({type:'prepare-resized',stateId:1,resize,action});
     const resized=prepareGuidedAction(program,resize,view);
     const reference=prepareGuidedAction(resized.authoringPreview,action,resized.preview);
-    assert.equal(result.preview.svg,renderToSVG(reference.preview,{resourceNamespace:'worker-preview'}));
+    assert.deepEqual(result.preview.graphicSpec, reference.preview.graphicSpec);
     assert.deepEqual(result.preview.canvasGeometry,canvasGeometry(reference.preview));
     assert.equal(service.execute({type:'prepare',stateId:1,action}).preview.canvasGeometry.plot.height,canvasGeometry(view).plot.height,
       'Transient thumbnails must not mutate the original state');

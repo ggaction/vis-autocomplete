@@ -23,7 +23,8 @@ with sync_playwright() as p:
             }}
           });transferObserver.observe(document.body,{childList:true});
         }''')
-    observe();card.locator('.card-top').hover();card.locator('.apply-button').click()
+    expect(page.locator('.card-row').first).to_have_attribute('aria-busy','false',timeout=60000)
+    observe();card.locator('.card-top').hover(position={'x':40,'y':16});card.locator('.apply-button').click()
     page.wait_for_timeout(150)
     Path('output/chart-transfer').mkdir(parents=True,exist_ok=True)
     page.screenshot(path='output/chart-transfer/mid-flight.png')
@@ -36,29 +37,34 @@ with sync_playwright() as p:
     assert len(first[0]['frames'])>=15,first
     assert first[0]['frames'][-1]['x']<first[0]['frames'][0]['x']-300,first
     expect(page.locator('.chart-transfer')).to_have_count(0)
-    expect(page.locator('#preview svg')).to_have_count(0)
+    expect(page.locator('#preview canvas')).to_have_count(0)
     page.locator('#action-search').fill('encodeOpacity')
+    expect(page.locator('#cards')).to_have_attribute('data-search-query','encodeopacity',timeout=60000)
     card=page.locator('.card[data-method=encodeOpacity]');expect(card).to_be_visible(timeout=60000)
-    observe();card.locator('.card-top').hover();card.locator('.apply-button').click()
+    expect(page.locator('.card-row').first).to_have_attribute('aria-busy','false',timeout=60000)
+    observe();card.locator('.card-top').hover(position={'x':40,'y':16});card.locator('.apply-button').click()
     expect(page.locator('#current')).to_have_attribute('data-steps','2',timeout=60000)
     page.wait_for_timeout(100)
     second=page.evaluate('flights');print('followup',[(round(f['end']-f['start']),len(f['frames'])) for f in second],flush=True)
     landing=page.evaluate('''() => {
       const d=new DOMMatrix(flights[0].destination);
-      const r=document.querySelector('#current .canvas-stage > svg').getBoundingClientRect();
-      const vb=document.querySelector('#current .canvas-stage > svg').viewBox.baseVal;
+      const r=document.querySelector('#current .canvas-stage > canvas').getBoundingClientRect();
+      const image=document.querySelector('#current .canvas-stage > canvas'); const vb={width:+image.dataset.logicalWidth,height:+image.dataset.logicalHeight};
       return {x:Math.abs(r.x-d.e),y:Math.abs(r.y-d.f),width:Math.abs(r.width-vb.width*d.a),height:Math.abs(r.height-vb.height*d.d)};
     }''')
     assert max(landing.values())<1,landing
     page.screenshot(path='output/chart-transfer/landed.png')
     assert len(second)==1 and second[0]['end']-second[0]['start']>=400,second
     expect(page.locator('#current')).to_have_attribute('data-last-method','encodeOpacity')
-    expect(page.locator('#current .canvas-stage > svg')).to_have_count(1)
+    expect(page.locator('#current .canvas-stage > canvas')).to_have_count(1)
     expect(page.locator('.chart-transfer')).to_have_count(0)
     page.emulate_media(reduced_motion='reduce')
-    page.locator('#action-search').fill('encodeSize');card=page.locator('.card[data-method=encodeSize]')
+    page.locator('#action-search').fill('encodeSize')
+    expect(page.locator('#cards')).to_have_attribute('data-search-query','encodesize',timeout=60000)
+    card=page.locator('.card[data-method=encodeSize]')
     expect(card).to_be_visible(timeout=60000)
-    observe();card.locator('.card-top').hover();card.locator('.apply-button').click()
+    expect(page.locator('.card-row').first).to_have_attribute('aria-busy','false',timeout=60000)
+    observe();card.locator('.card-top').hover(position={'x':40,'y':16});card.locator('.apply-button').click()
     expect(page.locator('#current')).to_have_attribute('data-steps','3',timeout=60000)
     assert page.evaluate('flights.length')==0
     print('PASS initial/followup Apply flights, code scrolling, landing and reduced motion')

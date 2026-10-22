@@ -1,3 +1,4 @@
+import { refreshChartCanvas } from './chart-canvas.js';
 import { fitCanvasViewport } from './canvas-geometry.js';
 
 let activeTransfer = null;
@@ -6,11 +7,11 @@ export function cancelChartTransfer() {
   activeTransfer?.finish();
 }
 
-// Move an independently rendered copy so SVG resource IDs remain unique.
+// Move an independently painted Canvas; never clone an empty Canvas element.
 export async function transferChart(source, target, draw, geometry) {
   cancelChartTransfer();
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  if (reducedMotion.matches || !source.querySelector('svg') || !source.animate) return;
+  if (reducedMotion.matches || !source.querySelector('canvas') || !source.animate) return;
   const from = source.getBoundingClientRect(), to = target.getBoundingClientRect();
   if (!from.width || !from.height || !to.width || !to.height) return;
 
@@ -24,16 +25,17 @@ export async function transferChart(source, target, draw, geometry) {
   let endTransform = `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width}, ${to.height / from.height})`;
   let startClip = 'inset(0px 0px 0px 0px)';
   if (geometry) {
-    // Preview crops its reserved margins; Current fits the whole native canvas.
+    // Preview and Current share the native logical canvas.
     // Animate the same native coordinate system between those two viewports,
     // so the picture neither jumps at departure nor changes size on landing.
-    const box = source.querySelector('svg').viewBox.baseVal;
+    const image = source.querySelector('canvas');
+    const [x0,y0,width,height] = image.dataset.viewBox.split(' ').map(Number);
+    const box = { x:x0, y:y0, width, height };
     const scale = Math.min(from.width / box.width, from.height / box.height);
     const x = from.left + (from.width - box.width * scale) / 2 - box.x * scale;
     const y = from.top + (from.height - box.height * scale) / 2 - box.y * scale;
     const destination = fitCanvasViewport(geometry, target.clientWidth, target.clientHeight);
     Object.assign(flight.style, { left: '0px', top: '0px', width: `${geometry.width}px`, height: `${geometry.height}px` });
-    flight.querySelector('svg').setAttribute('viewBox', `0 0 ${geometry.width} ${geometry.height}`);
     startTransform = `translate(${x}px, ${y}px) scale(${scale})`;
     endTransform = `translate(${to.left + destination.left}px, ${to.top + destination.top}px) scale(${destination.scale})`;
     startClip = `inset(${Math.max(0, (from.top - y) / scale)}px ${Math.max(0, geometry.width - (from.right - x) / scale)}px ${Math.max(0, geometry.height - (from.bottom - y) / scale)}px ${Math.max(0, (from.left - x) / scale)}px)`;
@@ -41,6 +43,7 @@ export async function transferChart(source, target, draw, geometry) {
   flight.style.transform = startTransform;
   flight.style.clipPath = startClip;
   document.body.append(flight);
+  refreshChartCanvas(flight.querySelector('canvas'));
   source.classList.add('chart-transfer-source');
   const movement = flight.animate([
     { transform: startTransform, clipPath: startClip },

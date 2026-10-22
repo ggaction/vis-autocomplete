@@ -26,7 +26,7 @@ test('worker transports post-action guide calls and materializes the same public
   const materialized = service.execute({ ...request, type: 'materialize' });
   const restored = deserializeProgram(materialized.snapshot).createGuides(materialized.guideCall.args);
   assert.equal(renderToSVG(restored), renderToSVG(replay));
-  assert.equal(prepared.preview.svg, renderToSVG(replay, { resourceNamespace: 'worker-preview' }));
+  assert.deepEqual(prepared.preview.graphicSpec, replay.graphicSpec);
 });
 
 test('measured radius changes fit crowded polar ticks through replayable public guide calls', () => {
@@ -46,6 +46,22 @@ test('measured radius changes fit crowded polar ticks through replayable public 
   const materialized = service.execute({ ...request, type: 'materialize' });
   const restored = deserializeProgram(materialized.snapshot).createGuides(materialized.guideCall.args);
   assert.equal(renderToSVG(restored), renderToSVG(replay));
-  assert.equal(prepared.preview.svg, renderToSVG(replay, { resourceNamespace: 'worker-preview' }));
+  assert.deepEqual(prepared.preview.graphicSpec, replay.graphicSpec);
   assert.equal(restored.semanticSpec.guides.axis.radius.title, 'count');
+});
+
+
+test('worker display artifacts and transition scenes contain concrete graphics without SVG', () => {
+  const program = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: [{x:1,y:2},{x:2,y:3}] })
+    .createScatterPlot({id:'plot',data:'data',x:'x',y:'y'});
+  const service = createCalculationService();
+  service.execute({type:'state',stateId:'canvas',snapshot:serializeProgram(program)});
+  const action = {method:'encodeOpacity',args:{target:'plot',value:.4}};
+  const artifact = service.execute({type:'prepare',stateId:'canvas',action});
+  assert.ok(artifact.preview.graphicSpec.objects.canvas);
+  assert.equal('svg' in artifact.preview, false);
+  const scene = service.execute({type:'scene',stateId:'canvas',action});
+  assert.equal(scene.version,2);
+  assert.ok(scene.nodes.every(node => node.properties && !('svg' in node)));
+  assert.ok(scene.nodes.some(node => node.type==='circle' && node.properties.opacity===.4));
 });

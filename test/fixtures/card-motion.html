@@ -17,12 +17,12 @@ for (let i = 0; i < 5; i++) {
   const card = document.createElement('article');
   card.className = `card ${i === 0 ? 'primary' : i === 1 ? 'secondary' : ''}`;
   card.innerHTML = `<button class="card-top"><div class="card-title"><h3>Option ${i + 1}</h3></div>
-    <p class="method-name">encodeSize(…)</p><div class="thumbnail"><svg viewBox="0 0 100 80">
-    <circle cx="50" cy="40" r="25" fill="#4c78a8"/></svg></div></button>
+    <p class="method-name">encodeSize(…)</p><div class="thumbnail"><canvas width="100" height="80" data-logical-width="100" data-logical-height="80"></canvas></div></button>
     <button class="apply-button">Apply</button><div class="card-controls">
     <div class="control"><span>Parameter</span><div class="parameter-options"><button>One</button><button>Two</button></div></div>
     </div><p class="score-description">Co-occurrence score</p>`;
   row.append(card);
+  const context=card.querySelector('canvas').getContext('2d');context.fillStyle='#4c78a8';context.beginPath();context.arc(50,40,25,0,Math.PI*2);context.fill();
 }
 const cards = [...row.children], wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const frame = () => new Promise(requestAnimationFrame);
@@ -55,8 +55,8 @@ document.querySelector('#run').onclick = async () => {
         cards.forEach((card, i) => check(card.offsetWidth === dimensions[i][0] && card.offsetHeight === dimensions[i][1], 'Animation relaid out a card'));
         const height = cards[0].querySelector('h3').getBoundingClientRect().height;
         check(Math.abs(height / textHeight - 1) < .015, 'Card animation stretched text');
-        const dot = cards[0].querySelector('circle').getBoundingClientRect();
-        check(Math.abs(dot.width / dot.height - 1) < .015, 'Card animation stretched its chart');
+        const dot = cards[0].querySelector('canvas').getBoundingClientRect();
+        const style=getComputedStyle(cards[0].querySelector('canvas'));check(style.objectFit==='contain','Canvas must retain the chart aspect');
       }
       check(samples > 1, 'No intermediate animation frames were tested');
       passed.push('Intermediate frames preserve layout dimensions, text size and chart aspect');

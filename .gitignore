@@ -6,6 +6,8 @@ output/
 /.nyc_output/
 /test-results/
 /playwright-report/
+__pycache__/
+*.py[cod]
 *.tsbuildinfo
 *.log
 *.cpuprofile

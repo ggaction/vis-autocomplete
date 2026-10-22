@@ -1,3 +1,4 @@
+from canvas_testing import observe_canvas, canvas_text
 """Preserve page/search/parameters and rebase Apply after direct manipulation."""
 import re
 from playwright.sync_api import sync_playwright, expect
@@ -5,6 +6,7 @@ from playwright.sync_api import sync_playwright, expect
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True,executable_path='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
     page=browser.new_page(viewport={'width':1600,'height':1100})
+    observe_canvas(page)
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     page.add_init_script('''{
@@ -60,7 +62,7 @@ with sync_playwright() as p:
     expect(page.locator('#current')).to_have_attribute('data-steps','5',timeout=60000)
     expect(page.locator('#current')).to_have_attribute('data-last-method','createTitle')
     expect(page.locator('#current .plot-boundary .resize-label')).to_have_text(native)
-    assert page.locator('#current svg text[font-size="29"]').count()>0
+    canvas_text(page,'#current canvas','',font_size='29')
     page.locator('#undo').click()
     expect(page.locator('#current')).to_have_attribute('data-steps','4',timeout=60000)
     assert not errors,errors

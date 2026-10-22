@@ -39,8 +39,8 @@ with sync_playwright() as p:
           window.measure=true;window.jobs=[];window.frames=[];window.visualFrames=0;window.thumbnailFrames=0;window.dirtyChart=false;window.dirtyThumb=false;window.updates=[];window.thumbs=0;window.longTasks=[];
           let last=performance.now();function frame(t){if(!measure)return;frames.push(t-last);last=t;if(dirtyChart)visualFrames++;if(dirtyThumb)thumbnailFrames++;dirtyChart=false;dirtyThumb=false;requestAnimationFrame(frame);}requestAnimationFrame(frame);
           window.currentObserver=new MutationObserver(()=>{updates.push(performance.now());dirtyChart=true;});
-          currentObserver.observe(document.querySelector('#current'),{subtree:true,childList:true,attributes:true,attributeFilter:['style','viewBox']});
-          window.thumbObserver=new MutationObserver(()=>{thumbs++;dirtyThumb=true;});thumbObserver.observe(document.querySelector('#cards'),{subtree:true,attributes:true,attributeFilter:['href','viewBox','transform','style']});
+          currentObserver.observe(document.querySelector('#current'),{subtree:true,childList:true,attributes:true,attributeFilter:['style','data-logical-width','data-logical-height','data-paint']});
+          window.thumbObserver=new MutationObserver(()=>{thumbs++;dirtyThumb=true;});thumbObserver.observe(document.querySelector('#cards'),{subtree:true,attributes:true,attributeFilter:['data-paint','transform','style']});
           window.longObserver=new PerformanceObserver(list=>longTasks.push(...list.getEntries().map(e=>e.duration)));longObserver.observe({type:'longtask'});
           window.started=performance.now();
         }''')

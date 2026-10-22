@@ -110,7 +110,7 @@ test('worker transfers completed facet guides exactly, including replayable lege
   assert.equal(serializeProgram(hydrated.preview), serializeProgram(original.preview),
     'guide editing after transfer must promote the same exact native legend call');
   const handedOff = await client.prepare(next.program, next.view, next.guideCall, legend, [], { interactive: true });
-  assert.equal(handedOff.preview.svg, renderSVG(original.preview), 'the second worker receives the same completed guide state');
+  assert.equal(renderSVG(handedOff.preview), renderSVG(original.preview), 'the second worker receives the same completed guide state');
 });
 
 test('worker recommendation and materialization preserve rankings, parameters, SVG and native output', async t => {
@@ -131,7 +131,7 @@ test('worker recommendation and materialization preserve rankings, parameters, S
   const editor = recommendationParameters(rec, response.profile), action = { method: rec.method, args: editor.build(valuesFor(editor.controls)) };
   const preview = await client.prepare(raw, view, { method: 'createGuides', args: {} }, action);
   assert.equal(await client.prepare(raw, view, { method: 'createGuides', args: {} }, action), preview);
-  assert.ok(preview.preview.svg.startsWith('<svg'));
+  assert.ok(preview.preview.graphicSpec.objects.canvas);
   const committed = await client.materialize(raw, view, { method: 'createGuides', args: {} }, action);
   const reference = prepareGuidedAction(raw, action, view);
   assert.deepEqual(committed.program.semanticSpec, reference.authoringPreview.semanticSpec);
@@ -148,7 +148,7 @@ test('worker recommendation and materialization preserve rankings, parameters, S
     await client.prepare(other, otherView, { method: 'createGuides', args: {} }, action);
   }
   const restored = await client.prepare(raw, view, { method: 'createGuides', args: {} }, action);
-  assert.equal(restored.preview.svg, preview.preview.svg);
+  assert.equal(renderSVG(restored.preview), renderSVG(preview.preview));
 });
 
 test('service state eviction never changes committed graphs and rejects unknown state references', () => {
@@ -193,7 +193,7 @@ test('unchanged recommendation defaults never poison the preview cache or block 
   const next = { method: 'encodeShape', args: { target: 'plot', field: 'Group',
     fieldType: 'nominal', scale: { range: ['square', 'diamond'] } } };
   const prepared = await client.prepare(raw, view, guideCall, next);
-  assert.ok(prepared.preview.svg.startsWith('<svg'));
+  assert.ok(prepared.preview.graphicSpec.objects.canvas);
   const applied = await client.materialize(raw, view, guideCall, next);
   assert.equal(applied.program.trace.children.length, raw.trace.children.length + 1);
   assert.deepEqual(applied.program.semanticSpec, raw.encodeShape(next.args).semanticSpec);
@@ -223,7 +223,7 @@ test('successive Apply reuses worker states, cross-role advance and exact immuta
       action.args.value = .1;
       const preview = await client.prepare(next.program, next.view, next.guideCall,
         { method: 'encodeSize', args: { target: 'plot', value: 90 } }, [], { interactive: true });
-      assert.equal(preview.preview.svg, renderSVG(prepareGuidedAction(next.program, { method: 'encodeSize', args: { target: 'plot', value: 90 } }, next.view).preview));
+      assert.equal(renderSVG(preview.preview), renderSVG(prepareGuidedAction(next.program, { method: 'encodeSize', args: { target: 'plot', value: 90 } }, next.view).preview));
     }
     program = next.program; view = next.view;
   }
@@ -235,10 +235,10 @@ test('successive Apply reuses worker states, cross-role advance and exact immuta
   assert.equal(advance.action, undefined, 'the other worker must not repeat an already completed action');
   const late = await client.prepare(program, view, guideCall,
     { method: 'encodeSize', args: { target: 'plot', value: 100 } }, [], { interactive: true });
-  assert.equal(late.preview.svg, renderSVG(prepareGuidedAction(program, { method: 'encodeSize', args: { target: 'plot', value: 100 } }, view).preview));
+  assert.equal(renderSVG(late.preview), renderSVG(prepareGuidedAction(program, { method: 'encodeSize', args: { target: 'plot', value: 100 } }, view).preview));
   assert.ok(requests.some(r => r.type === 'state-update' && r.role === 'preview'), 'an idle worker catches up without all intervening actions or a full historical snapshot');
   const restored = await client.prepare(original, originalView, guideCall,
     { method: 'encodeSize', args: { target: 'plot', value: 120 } });
-  assert.equal(restored.preview.svg, renderSVG(prepareGuidedAction(original, { method: 'encodeSize', args: { target: 'plot', value: 120 } }, originalView).preview));
+  assert.equal(renderSVG(restored.preview), renderSVG(prepareGuidedAction(original, { method: 'encodeSize', args: { target: 'plot', value: 120 } }, originalView).preview));
   assert.equal(requests.filter(r => r.type === 'state').length, 2, 'expired Undo states also transfer against a known baseline');
 });

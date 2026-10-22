@@ -1,7 +1,6 @@
 import { createTransitionMode } from './transition-mode.js';
-import { renderChartThumbnail } from './chart-thumbnail.js';
+import { renderChartCanvas, copyChartCanvas } from './chart-canvas.js';
 import { chart } from 'ggaction';
-import { renderToSVG } from 'ggaction/svg';
 import { createInitialChartRecommender, profileDataset } from '../src/index.js';
 import { recommendationParameters, initialParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
 import { primaryChartLayer } from '../src/chart-owner.js';
@@ -10,7 +9,6 @@ import { initializeCodeToolbar } from './code-toolbar.js';
 import { initializePanelLayout } from './panel-layout.js';
 import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
-import { fitChartViewport } from './chart-viewport.js';
 import { createCanvasResize } from './canvas-resize.js';
 import { createResizeThumbnails } from './resize-thumbnails.js';
 import { canvasGeometry, projectCanvasGeometry } from './canvas-geometry.js';
@@ -63,9 +61,8 @@ let activeRecommendation = null;
 const galleryCache = new WeakMap();
 const recentGalleries = createLRU(8, view => { galleryCache.delete(view); recommendationCache.delete(view); });
 let mountedGallery = null;
-let svgId = 0;
 const renderedCharts = new WeakMap();
-const chartTemplates = createLRU(8);
+let lastPreview = null;
 const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
   getCurrent: () => state.phase === 'initial' ? null : { program: state.resizing ? state.view : renderedCharts.get(elements.current)?.program, name: state.name },
   isBusy: () => state.committing || state.resizing, onError: message => notice(message, true) });
@@ -109,7 +106,7 @@ function projectThumbnail(context, card) {
   const box = context.thumbnailSizes.get(card);
   if (!box) return;
   const scale = Math.min(box.width / target.width, box.height / target.height);
-  presentResizeVector(card.thumbnail.querySelector('svg'), canvasGeometry(latest), target, context.handle.startsWith('canvas'),
+  presentResizeVector(card.thumbnail.querySelector('canvas'), canvasGeometry(latest), target, context.handle.startsWith('canvas'),
     { scale, left: (box.width - target.width * scale) / 2, top: 4 + (box.height - target.height * scale) / 2 });
 }
 function refreshVisibleCards() {
@@ -140,7 +137,7 @@ const canvasResize = createCanvasResize(elements.current, {
       if (card.element.dataset.previewState === 'pending') card.needsResizeRefresh = true;
     }
     resizeThumbnails.start(context);
-    // Keep one vector image and the resize handles mounted throughout the drag.
+    // Keep one Canvas surface and the resize handles mounted throughout the drag.
     renderedCharts.delete(elements.current);
     renderChart(elements.current, context.view, 'Resize chart');
     return context;
@@ -328,7 +325,7 @@ function notice(message = '', isError = false) {
 
 function placeholder(host, message) {
   renderedCharts.delete(host);
-  if (host === elements.current) { transitionMode.reset(); canvasResize.clear(); }
+  if (host === elements.current) { lastPreview = null; transitionMode.reset(); canvasResize.clear(); }
   if (host === elements.current) chartDownloads.refresh();
   const wrapper = document.createElement('div'); wrapper.className = 'empty-state';
   const text = document.createElement('p'); text.textContent = message;
@@ -339,52 +336,17 @@ function renderChart(host, program, label) {
   const previous = renderedCharts.get(host);
   if (previous?.program === program && previous.label === label && host.firstChild) return;
   if (!program) return placeholder(host, label);
-  if (host === elements.current && state.resizing) {
-    const surface = host.querySelector('.canvas-stage') ?? host;
-    renderChartThumbnail(surface, program, program.svg ?? renderToSVG(program, { resourceNamespace: 'resize-preview' }), label);
-    canvasResize.mount(program, surface.querySelector(':scope > svg'));
-    renderedCharts.set(host, { program, label });
-    return;
-  }
   const pending = program.semanticSpec.layers.some(layer => ['point', 'line', 'bar', 'area'].includes(layer.mark?.type) &&
     !['polar', 'parallel'].includes(program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type) &&
     (!layer.encoding?.x || !layer.encoding?.y));
   if (pending) return placeholder(host, 'This step is ready. Set both position variables to display the chart.');
-  if (host.classList.contains('thumbnail') || host.classList.contains('history-thumbnail')) {
-    renderChartThumbnail(host, program, program.svg ?? renderToSVG(program, { resourceNamespace: 'thumbnail' }), label);
-    renderedCharts.set(host, { program, label });
-    return;
-  }
-  const namespace = `view-${++svgId}`;
-  let template = chartTemplates.get(program);
-  if (!template) {
-    const element = document.createElement('template');
-    element.innerHTML = program.svg ?? renderToSVG(program, { resourceNamespace: 'view-template' });
-    template = element.content; chartTemplates.set(program, template);
-  }
-  host.replaceChildren(template.cloneNode(true));
-  {
-    // Worker SVGs share geometry; every mounted copy retains unique references.
-    const ids = new Map([...host.querySelectorAll('[id]')].map(node => [node.id, `${namespace}-${node.id}`]));
-    for (const node of host.querySelectorAll('[id], [clip-path], [mask], [filter], [fill^="url("], [stroke^="url("], [href]')) for (const attribute of [...node.attributes]) {
-      let value = attribute.value;
-      if (attribute.name === 'id') value = ids.get(value) ?? value;
-      else {
-        if ((attribute.name === 'href' || attribute.name === 'xlink:href') && ids.has(value.slice(1))) value = `#${ids.get(value.slice(1))}`;
-        value = value.replace(/url\(#([^)]*)\)/g, (match, id) => ids.has(id) ? `url(#${ids.get(id)})` : match);
-      }
-      if (value !== attribute.value) node.setAttribute(attribute.name, value);
-    }
-  }
+  const surface = host === elements.current && state.resizing ? host.querySelector('.canvas-stage') ?? host : host;
+  const canvas = renderChartCanvas(surface, program, label, { fit: host.classList.contains('chart-view') && !host.classList.contains('chart-transfer') && (host !== elements.current || state.phase === 'initial') });
   renderedCharts.set(host, { program, label });
-  if (host === elements.current) chartDownloads.refresh();
-  const svg = host.querySelector('svg');
-  if (svg) {
-    if (!svg.hasAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${svg.getAttribute('width')} ${svg.getAttribute('height')}`);
-    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', label);
-    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    if (host === elements.current && state.phase !== 'initial') canvasResize.mount(program, svg);
-    else if (host.classList.contains('chart-view')) fitChartViewport(svg, program);
+  if (host === elements.preview) lastPreview = { program, label, generation: state.generation };
+  if (host === elements.current) {
+    chartDownloads.refresh();
+    if (state.phase !== 'initial') canvasResize.mount(program, canvas);
   }
 }
 
@@ -559,7 +521,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
     card.errorElement.textContent = card.error; card.errorElement.classList.toggle('unchanged', card.unchanged);
     card.element.dataset.previewState = card.unchanged ? 'unchanged' : 'invalid';
     if (card.unchanged) renderChart(card.thumbnail, card.view, card.title);
-    else if (!state.resizing) card.thumbnail.querySelector('svg')?.removeAttribute('style');
+    else if (!state.resizing) card.thumbnail.querySelector('canvas')?.removeAttribute('style');
   }
   if (state.active === card) showPreview(card, {
     showCodeChange: pointerInGallery || card.element.contains(document.activeElement),
@@ -1613,11 +1575,13 @@ $('code-export').addEventListener('click', () => {
   } catch (error) { notice(error.message, true); }
 });
 function enlarge(host, label) {
-  const svg = host.querySelector('svg');
-  if (!svg) { notice('Create or preview a chart to enlarge it.'); return; }
+  const canvas = host.querySelector('canvas');
+  const recent = host === elements.preview && lastPreview?.generation === state.generation ? lastPreview : null;
+  if (!canvas && !recent) { notice('Create or preview a chart to enlarge it.'); return; }
   $('chart-dialog-title').textContent = label;
-  const copy = svg.cloneNode(true); copy.removeAttribute('width'); copy.removeAttribute('height');
-  $('enlarged-chart').replaceChildren(copy); $('chart-dialog').showModal();
+  $('chart-dialog').showModal();
+  if (canvas) copyChartCanvas(canvas, $('enlarged-chart'));
+  else renderChartCanvas($('enlarged-chart'), recent.program, recent.label, { fit: true });
 }
 $('zoom-preview').addEventListener('click', () => enlarge(elements.preview, elements['preview-name'].textContent || 'Preview'));
 const zoomCurrent = document.createElement('button'); zoomCurrent.type = 'button'; zoomCurrent.id = 'zoom-current';

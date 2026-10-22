@@ -749,3 +749,29 @@ python test/browser/transition-hover.py
 `vendor/transition`에서 `npm test`와 `npm run test:browser`로 실행한다.
 
 `transition-hover.py`는 2560×1440, 2배 픽셀 밀도에서 Iris의 색·테두리·크기·불투명도·모양·Facet을 연속 적용한 뒤, 세 차례 반복 호버의 프레임 간격과 DOM 수를 기록한다. 시간 수치는 실행 장비에 따라 달라지므로 고정 성능 합격선으로 쓰지 않는다.
+
+
+## Canvas display and transitions
+
+Current, Preview, option/history thumbnails, enlarged views and Apply flights
+use native Canvas surfaces. Ordinary charts call ggaction `render`; Transition
+mode uses version-2 `createTransitionScene(..., {format: 'canvas'})` and
+`renderTransitionScene` through `@ggaction/transition`'s Canvas player. The worker
+transfers concrete graphics rather than serialized SVG. Native SVG/PDF/PNG
+exports and editable project/code formats remain available.
+
+Display fitting preserves logical geometry and follows display density. Preview
+framing measures painted Canvas bounds once per candidate. Resize thumbnails
+retain their Canvas elements and compositor feedback while workers compute the
+exact chart. Detached galleries release resize observation. Transitions retarget
+from the visible frame; dense scenes blend bounded Canvas snapshots. SVG playback
+remains available in the transition package for other consumers.
+
+Run `test/browser/transition-player.py` for native endpoint comparisons across
+16 chart families and rapid retargets, `canvas-surfaces.py` for fitted views,
+enlargement and downloads, `transition-hover.py` for repeated real
+option hover at 2x DPI, and `canvas-performance.py` for an identical-scene
+SVG/Canvas comparison. `canvas-resize.py`, `resize-alignment.py`,
+`chart-transfer.py`, `card-motion.py` and `initial-scales.py` cover direct resize,
+Apply flights, option controls, both modes and restored sessions. Generated
+screenshots, measurements and test logs remain under ignored `output/`.

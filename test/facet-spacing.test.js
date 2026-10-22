@@ -83,7 +83,9 @@ test('wrapping and grid facets reserve only the minimum space required by native
     const result = prepareGuidedAction(raw, requested), gap = result.recommendation.args.gap;
     assert.ok(gap >= 0 && gap < 80, `${requested.method}: ${gap}`);
     if (gap > 0) assert.throws(() => raw[requested.method]({ ...result.recommendation.args, gap: gap - 1 }), /Plot spacing gap is too small/);
-    assert.deepEqual(raw[requested.method](result.recommendation.args).graphicSpec, result.authoringPreview.graphicSpec);
+    let replay=raw[requested.method](result.recommendation.args);
+    for(const call of result.postActionCalls) replay=replay[call.method](call.args);
+    assert.deepEqual(replay.graphicSpec,result.authoringPreview.graphicSpec);
     assert.ok(renderToSVG(result.preview).startsWith('<svg'));
   }
 });

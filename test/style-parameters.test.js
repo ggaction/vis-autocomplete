@@ -28,8 +28,10 @@ test('axis cards expose line width alongside labels and preserve category tick p
       assert.ok(control, action);
       const values = { ...valuesFor(editor.controls), [control.key]: 3 };
       const args = editor.build(values);
-      const next = prepareGuidedAction(program, { method: action, args }).authoringPreview;
-      assert.equal(next.trace.children.at(-1).op, action);
+      const prepared = prepareGuidedAction(program, { method: action, args });
+      const next = prepared.authoringPreview;
+      assert.equal(next.trace.children.at(-1 - prepared.postActionCalls.length).op, action);
+      assert.equal(prepared.recommendation.validation.topLevelActions, 1);
       for (const channel of action === 'editAxes' ? ['x', 'y'] : [action === 'editXAxis' ? 'x' : 'y']) {
         assert.equal(next.guideConfigs.axis[channel].line.lineWidth, 3);
       }

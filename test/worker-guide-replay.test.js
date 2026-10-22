@@ -18,7 +18,7 @@ test('worker transports post-action guide calls and materializes the same public
   const request = { stateId: 'line', action: { method: 'encodeStrokeDash', args: { target: 'plot', field: 'g', fieldType: 'nominal' } } };
   const prepared = service.execute({ ...request, type: 'prepare' });
   assert.equal(prepared.recommendation.validation.topLevelActions, 1);
-  assert.deepEqual(prepared.postActionCalls.map(call => call.method), ['editLegend']);
+  assert.deepEqual(prepared.postActionCalls.map(call => call.method).filter(method=>method!=='editCanvas'), ['editLegend']);
   let replay = program;
   for (const call of [...prepared.prerequisiteCalls, prepared.recommendation, ...prepared.postActionCalls, prepared.guideCall]) {
     replay = replay[call.method](call.args);
@@ -39,7 +39,7 @@ test('measured radius changes fit crowded polar ticks through replayable public 
   const prepared = service.execute({ ...request, type: 'prepare' });
   assert.equal(prepared.recommendation.validation.topLevelActions, 1);
   assert.deepEqual(prepared.prerequisiteCalls.map(c => c.method), ['removeRadialAxis']);
-  assert.deepEqual(prepared.postActionCalls.map(c => c.method), ['createRadialAxis']);
+  assert.deepEqual(prepared.postActionCalls.map(c => c.method).filter(method=>method!=='editCanvas'), ['createRadialAxis']);
   assert.ok(prepared.postActionCalls[0].args.ticksAndLabels.count <= 4);
   let replay = plot.authoringPreview;
   for (const call of [...prepared.prerequisiteCalls, prepared.recommendation, ...prepared.postActionCalls, prepared.guideCall]) replay = replay[call.method](call.args);

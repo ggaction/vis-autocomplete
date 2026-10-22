@@ -51,7 +51,7 @@ with sync_playwright() as p:
         assert g['scroll']==g['client'],g
 
     def drag(handle,dx,dy,steps,commit=True):
-        expected = ('editCompositionLayout' if handle.startswith('canvas') else 'editFacetSource') if geometry()['label'].startswith('All plots') else 'editCanvas'
+        expected = 'editFacetSource' if geometry()['label'].startswith('All plots') else 'editCanvas'
         expect(page.locator('.card-row[data-page="1"]')).to_have_attribute('aria-busy','false',timeout=60000)
         page.evaluate('''() => {
           window.resizeCards=[...document.querySelectorAll('#cards .card')];

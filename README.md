@@ -516,6 +516,12 @@ Preview와 Current의 서로 다른 표시 배율을 연결하고, 코드 패널
 공간에 맞춰 같은 비율로 확대·축소한다(동작 줄이기 설정에서는 즉시 적용). 드래그 중 뷰를
 넘는 부분은 잘라 표시하며 페이지 크기를 늘리지 않는다. 표시 배율과 무관하게
 코드·히스토리·내보내기에는 실제 ggaction 크기가 유지된다.
+Canvas 내부에서는 차트·축·범례의 실제 경계 바깥에 남는 여백을 양쪽에 균등하게 배분한다.
+Facet은 바깥 padding뿐 아니라 source Canvas의 margin도 조절하므로, 위 여백이 작아도
+아래에 남는 공간을 줄일 수 있다. 정렬은 공개 `editCanvas`/`editFacetSource`/
+`editCompositionLayout` 호출로 기록하며, 저장된 이전 세션도 같은 방식으로 정렬한다.
+명시적으로 배치한 가이드와 충돌하는 재배치는 적용하지 않는다.
+`test/browser/canvas-centering.py`는 불균등한 facet 여백 복원·축소·Undo/Redo·새로고침을 검사한다.
 크기 드래그 중 보이는 옵션 카드의 섬네일도 resize → 해당 옵션의 공개 ggaction 호출 순서로
 갱신한다. Current/code와 별도 worker에서 한 번의 섬네일 순회와 최신 대기 요청만 유지한다.
 크기만 확정할 때는 카드 DOM·페이지·검색·고정한 파라미터를 유지하며 추천 순위를 재계산하지 않는다.
@@ -726,6 +732,10 @@ ggaction Code의 `.mjs`는 데이터, 전체 공개 호출, native SVG 저장 �
 차트·코드·히스토리에 반영한다. 빠르게 다른 카드로 이동하면 현재 보이는 중간
 프레임에서 다음 결과로 이어진다. Undo/Redo, History, 크기 조절과 내보내기는
 확정된 ggaction 프로그램을 기준으로 작동한다.
+크기·불투명도·선 굵기·간격 등 연속 슬라이더는 80ms의 짧은 보간으로 포인터를 따라간다.
+Facet 열 개수·bin 개수 등 구조를 바꾸는 슬라이더와 카드 간 이동은 300ms를 유지한다.
+정수 step만으로 구분하지 않으므로 글꼴 크기도 짧게 전환한다. `test/browser/parameter-motion.py`는
+키보드·빠른 호버·구조 변경 및 Preview mode 유지 여부를 검사한다.
 
 전환은 별도 저장소 [ggaction/transition](https://github.com/ggaction/transition)의
 `@ggaction/transition`을 `vendor/transition` 서브모듈로 사용한다. ggaction의

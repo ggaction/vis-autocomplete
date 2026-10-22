@@ -1,3 +1,4 @@
+import { centerCanvasContent } from './canvas-centering.js';
 import { prepareAction } from './engine.js';
 import { createLRU, signature, freezeResult } from './cache.js';
 import { createProgramResultCache } from './program-cache.js';
@@ -88,7 +89,7 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   for (const setup of setupCalls) {
     // Explicit native data preparation, replayed in the code view and on Apply.
     // The recommendation below still executes exactly one public chart method.
-    if (!['createBinData', 'createComputedData', 'createSummaryData', 'createTimeUnitData', 'createCompleteData', 'filterData'].includes(setup.method)) {
+    if (!['createBinData', 'createComputedData', 'createSummaryData', 'createTimeUnitData', 'createCompleteData', 'filterData', 'editCompositionLayout'].includes(setup.method)) {
       throw new Error(`Unsupported plot setup: ${setup.method}`);
     }
     const call = structuredClone(setup);
@@ -175,7 +176,11 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
       postActionCalls.push(call);
     }
     const call = defaultGuideCall(authoringPreview);
-    return { ...prepared, authoringPreview, postActionCalls, preview: addDefaultGuides(authoringPreview, call), guideCall: call };
+    let preview = addDefaultGuides(authoringPreview, call);
+    const centered = centerCanvasContent(authoringPreview, preview, call);
+    authoringPreview = centered.program; preview = rememberDisplayedGuides(centered.view, call);
+    postActionCalls.push(...centered.calls);
+    return { ...prepared, authoringPreview, postActionCalls, preview, guideCall: call };
   };
   let prepared;
   try { prepared = prepareFittedPlot(actionBase, action, finish); } catch (error) {

@@ -1,3 +1,4 @@
+import { CARD_TRANSITION_MS } from './parameter-motion.js';
 import { createCanvasTransitionPlayer } from '@ggaction/transition';
 import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
 import { createLRU } from '../src/cache.js';
@@ -29,12 +30,12 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     const current=getBaseline();if(!current)return false;
     if(!player){
       surface=document.createElement('div');surface.className='transition-surface';host.append(surface);
-      player=createCanvasTransitionPlayer(surface,{duration:300,render:renderTransitionScene});
+      player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,render:renderTransitionScene});
       player.set(createTransitionScene(current,{format:'canvas'}));
     }else if(!surface.isConnected)host.append(surface);
     host.classList.add('transition-active');return true;
   }
-  async function show(card,{program}={}) {
+  async function show(card,{program,duration=CARD_TRANSITION_MS}={}) {
     const request=++version;if(!enabled)return;
     if(!card&&!program&&!surface?.isConnected)return;
     if(!ensure())return;
@@ -52,7 +53,8 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
       if(request!==version||!enabled||!scene)return;
       player.element.setAttribute('aria-label',card?.title??'Visualization');
       surface.dataset.method=card?.prepared?.recommendation?.method??'';
-      await player.transitionTo(scene);
+      surface.dataset.duration = String(duration);
+      await player.transitionTo(scene, { duration });
       if(request!==version||!enabled)return;
       if(returning)rest();
     }catch(error){if(request===version){if(card?.prepared)cache.delete(card.prepared);clear();onError(error);}}

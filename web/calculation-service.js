@@ -113,7 +113,7 @@ export function createCalculationService(model) {
       const { program, view, rankings, decks } = stateFor(stateId);
       if (type === 'scene') return createTransitionScene(action ? prepareGuidedAction(program, action, view, setupCalls).preview : view, { format: 'canvas' });
       if (type === 'prepare-resized') {
-        const resized = prepareGuidedAction(program, resize, view);
+        const resized = prepareGuidedAction(program, resize, view, resize.setupCalls ?? []);
         try {
           return artifact(prepareGuidedAction(resized.authoringPreview, action, resized.preview, setupCalls));
         } catch (error) {

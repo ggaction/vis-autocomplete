@@ -1,3 +1,4 @@
+import { parameterTransitionDuration } from './parameter-motion.js';
 import { createTransitionMode } from './transition-mode.js';
 import { renderChartCanvas, copyChartCanvas, holdChartCanvasDensity } from './chart-canvas.js';
 import { chart } from 'ggaction';
@@ -158,17 +159,18 @@ const canvasResize = createCanvasResize(elements.current, {
     context.motionAction = action;
     for (const card of context.liveCards) projectThumbnail(context, card);
   },
-  prepare: (context, action) => calculations.prepare(context.base, context.view, context.guideCall, action, [], { interactive: true }),
+  prepare: (context, action) => calculations.prepare(context.base, context.view, context.guideCall, action, action.setupCalls ?? [], { interactive: true }),
   preview(context, prepared) {
     renderChart(elements.current, prepared.preview, 'Resize chart');
     resizeThumbnails.start(context);
-    resizeThumbnails.update({ method: prepared.recommendation.method, args: prepared.recommendation.args }, context.liveCards);
+    resizeThumbnails.update({ method: prepared.recommendation.method, args: prepared.recommendation.args,
+      setupCalls: prepared.prerequisiteCalls }, context.liveCards);
     showCode({ ...context, prepared });
     $('code-mode').textContent = 'Resize chart';
   },
   async commit(context, action) {
     resizeThumbnails.stop();
-    await commit({ ...context, method: action.method, values: {}, build: () => action.args,
+    await commit({ ...context, method: action.method, values: {}, build: () => action.args, setup: () => action.setupCalls ?? [],
       title: context.resizeTitle,
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
   },
@@ -413,13 +415,13 @@ function showCode(card = null, { settleApplied = false } = {}) {
   $('code-content').dataset.previewMethod = call?.method ?? '';
 }
 
-function showPreview(card, { showCodeChange = true } = {}) {
+function showPreview(card, { showCodeChange = true, duration } = {}) {
   if(transitionMode.enabled){
     if(state.committing)return;
     if(historyInspection){showCode();transitionMode.show(null,{program:historyPreview(historyInspection)});return;}
     const focused=card?.element?.contains(document.activeElement)&&document.activeElement.matches(':focus-visible');
     if(card&&pointerCard!==card&&!focused)card=null;
-    showCode(showCodeChange?card:null);transitionMode.show(card);return;
+    showCode(showCodeChange?card:null);transitionMode.show(card, { duration });return;
   }
   if (historyInspection) {
     renderChart(elements.preview, historyPreview(historyInspection), `History #${historyInspection.steps}`);
@@ -489,6 +491,8 @@ function selectCard(card) {
 }
 
 async function prepareCard(card, values = card.values, { interactive = true } = {}) {
+  const duration = card.nextTransitionDuration;
+  card.nextTransitionDuration = undefined;
   values = card.normalizeValues?.(values) ?? values;
   // A preview must not move its own hit targets or clamp the controls' scroll
   // position. Only a clicked (pinned) choice changes the editor's structure.
@@ -538,11 +542,13 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
     else if (!state.resizing) card.thumbnail.querySelector('canvas')?.removeAttribute('style');
   }
   if (state.active === card) showPreview(card, {
-    showCodeChange: pointerInGallery || card.element.contains(document.activeElement),
+    showCodeChange: pointerInGallery || card.element.contains(document.activeElement), duration,
   });
 }
 
 function pinValues(card, values, changedKey, rebuild = true) {
+  const flatten = list => list.flatMap(c => c.type === 'group' ? flatten(c.controls) : [c]);
+  card.nextTransitionDuration = parameterTransitionDuration(flatten(card.controls).find(c => c.key === changedKey));
   card.values = card.normalizeValues?.(values, changedKey) ?? values;
   const controls = card.resolveControls?.(card.values) ?? card.controls;
   if (rebuild) {

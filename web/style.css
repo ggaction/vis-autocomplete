@@ -384,9 +384,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .workspace[data-layout="vertical"] .card-row > :nth-child(4) { grid-area: 2 / 3 / 3 / 5; }
 .workspace[data-layout="vertical"] .card-row > :nth-child(5) { grid-area: 2 / 5 / 3 / 7; }
 .workspace[data-layout="vertical"] .card.expanded { height: 100%; }
-.workspace[data-layout="vertical"] .card.expanded .card-title { padding-right: 0; }
-.workspace[data-layout="vertical"] .card.expanded .method-name { padding-right: 48px; }
-.workspace[data-layout="vertical"] .card .apply-button { top: 29px; }
 @media (max-width: 1000px) {
   /* Keep both authoring columns usable on laptops and narrow windows. Code
      remains available below, or as its existing narrow collapsed rail. */

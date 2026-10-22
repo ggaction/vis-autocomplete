@@ -714,6 +714,10 @@ ggaction Code의 `.mjs`는 데이터, 전체 공개 호출, native SVG 저장 �
 카드 결과 장면은 호버 시에만 worker에서 준비하고, 늦게 도착한 이전 요청은
 화면에 반영하지 않는다. 재생기는 계산된 장면만 사용하며, 제한된 캐시와
 공유 clipping 리소스를 정리해 반복 호버로 SVG 노드가 누적되지 않게 한다.
+일반 호버 종료에서는 완성된 재생기를 잠시 분리해 보관하고 다시 사용하며,
+Apply·Undo·데이터 변경·모드 전환에서는 초기화한다. 복잡한 SVG가 프레임을 반복해서
+놓치면 차트 갱신만 일시적으로 약 30fps로 조절해 카드 애니메이션과 포인터에
+여유를 준다. 전환 시간과 최종 차트는 유지하며 여유가 생기면 원래 갱신 빈도로 돌아간다.
 npm 배포용 선언과 패키지 구조는 포함하지만 npm 레지스트리에는 아직 발행하지
 않았다. 현재 소스는 서브모듈 또는 패키지 저장소의 GitHub 설치로 사용한다.
 
@@ -724,6 +728,7 @@ npm 배포용 선언과 패키지 구조는 포함하지만 npm 레지스트리�
 python test/browser/transition-mode.py
 python test/browser/transition-workflows.py
 python test/browser/transition-player.py
+python test/browser/transition-hover.py
 ```
 
 `transition-player.py`는 16개 차트 사례의 native SVG와 전환 결과를 픽셀 비교하고,
@@ -731,3 +736,5 @@ python test/browser/transition-player.py
 `transition-workflows.py`는 5개 데이터셋의 실제 카드 호버, 파라미터, Apply와 Undo를
 검사한다. 패키지 자체의 interruption/리소스 정리/reduced-motion 검사는
 `vendor/transition`에서 `npm test`와 `npm run test:browser`로 실행한다.
+
+`transition-hover.py`는 2560×1440, 2배 픽셀 밀도에서 Iris의 색·테두리·크기·불투명도·모양·Facet을 연속 적용한 뒤, 세 차례 반복 호버의 프레임 간격과 DOM 수를 기록한다. 시간 수치는 실행 장비에 따라 달라지므로 고정 성능 합격선으로 쓰지 않는다.

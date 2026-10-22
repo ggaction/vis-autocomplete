@@ -9,6 +9,11 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     version++;player?.destroy();player=null;surface?.remove();surface=null;
     host.classList.remove('transition-active');
   }
+  function rest() {
+    // Keep one settled player and its bounded compiled-scene cache. Re-entering
+    // the gallery should not parse and mount the entire committed chart again.
+    surface?.remove();host.classList.remove('transition-active');
+  }
   function ensure() {
     const current=getBaseline();if(!current)return false;
     if(!player){
@@ -20,7 +25,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
   }
   async function show(card,{program}={}) {
     const request=++version;if(!enabled)return;
-    if(!card&&!program&&!player)return;
+    if(!card&&!program&&!surface?.isConnected)return;
     if(!ensure())return;
     returning=!card&&!program;
     try{
@@ -38,7 +43,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
       surface.dataset.method=card?.prepared?.recommendation?.method??'';
       await player.transitionTo(scene);
       if(request!==version||!enabled)return;
-      if(returning)clear();
+      if(returning)rest();
     }catch(error){if(request===version){if(card?.prepared)cache.delete(card.prepared);clear();onError(error);}}
   }
   toggle.addEventListener('click',event=>{
@@ -47,7 +52,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     for(const b of toggle.querySelectorAll('button'))b.setAttribute('aria-pressed',String(b===button));
     onChange();
   });
-  return {get enabled(){return enabled;},get active(){return Boolean(player);},show,clear,
+  return {get enabled(){return enabled;},get active(){return Boolean(surface?.isConnected);},show,clear,
     // Current's native renderer may replace its subtree on Apply/Undo/resize.
     reset(){clear();},get stats(){return player?.stats??null;}};
 }

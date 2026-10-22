@@ -355,7 +355,7 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .transition-mode > section[aria-labelledby="preview-heading"] { display:none; }
 .transition-mode #current-heading { display:none; }
 #current { position:relative; }
-.transition-surface { position:absolute; inset:0; padding:12px; background:white; pointer-events:none; z-index:2; }
+.transition-surface { position:absolute; inset:0; padding:12px; background:white; pointer-events:none; z-index:2; contain:strict; }
 .transition-active .canvas-resize-overlay { visibility:hidden; pointer-events:none; }
 .transition-active > :not(.transition-surface) { visibility:hidden; }
 @media(max-width:1200px) { .app-header { flex-wrap:wrap; } .header-guidance { min-width:180px; } }

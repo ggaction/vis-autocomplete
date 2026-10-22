@@ -79,6 +79,11 @@ const rangeIntents = new WeakMap();
 const cardMotion = createCardMotion();
 let selectedPreviewFrame = null;
 let pointerChoice = null, pointerCard = null, pointerInGallery = false;
+let galleryLeaveTimer = null;
+function cancelGalleryLeave() {
+  clearTimeout(galleryLeaveTimer);
+  galleryLeaveTimer = null;
+}
 const tick = () => new Promise(resolve => requestAnimationFrame(resolve));
 function visibleCards() {
   const row = state.galleryRows[currentGalleryPage()];
@@ -463,6 +468,7 @@ function cancelSelectedPreview() {
 
 function selectCard(card) {
   if (state.resizing || state.committing || card.disabled || card.base !== state.program) return;
+  cancelGalleryLeave();
   historyView.release();
   state.active = card;
   for (const item of state.cards) item.element.classList.toggle('selected', item === card);
@@ -813,8 +819,8 @@ async function createCard(spec, index) {
       card.thumbnail.textContent = card.error || 'Open this card to adjust its parameters.';
     }
     button.addEventListener('click', () => selectCard(card));
-    // Keep the active accordion open across the gaps between cards. Selecting
-    // another card or leaving the gallery owns collapse, not moving children.
+    // Physical pointer routing owns collapse in card gaps; moving descendants
+    // during the expansion animation must not synthesize hover changes.
     element.addEventListener('focusin', event => {
       if (event.target.matches(':focus-visible') && (state.active !== card || !card.element.classList.contains('expanded'))) selectCard(card);
     });
@@ -942,6 +948,7 @@ function recommendationSpecs({ result, profile }) {
 }
 
 async function updateCards() {
+  cancelGalleryLeave();
   saveGallery();
   if (state.phase === 'recommendations') recentGalleries.set(state.view, true);
   pointerMotion.reset();
@@ -1447,12 +1454,20 @@ function routePointer(event) {
     if (pointerInGallery) leaveGallery();
     return;
   }
-  pointerInGallery = true;
   const card = cardElements.get(event.target.closest('.card'));
-  if (card && !card.disabled && (pointerCard !== card || !card.element.classList.contains('expanded'))) selectCard(card);
-  pointerCard = card ?? null;
-  if (!card) showPreview(null, { showCodeChange: false });
-  card?.interaction.movePointer();
+  if (!card || card.disabled) {
+    // Cross narrow gaps without collapsing, but release on sustained blank
+    // space. Further moves through blank space must not restart this timer.
+    if (pointerInGallery && galleryLeaveTimer === null) {
+      galleryLeaveTimer = setTimeout(() => leaveGallery(), 180);
+    }
+    return;
+  }
+  cancelGalleryLeave();
+  pointerInGallery = true;
+  if (pointerCard !== card || !card.element.classList.contains('expanded')) selectCard(card);
+  pointerCard = card;
+  card.interaction.movePointer();
   const button = event.target.closest('.parameter-choice');
   const intent = parameterIntents.get(button);
   if (pointerChoice?.button !== button) {
@@ -1464,6 +1479,7 @@ function routePointer(event) {
 }
 
 function leaveGallery() {
+  cancelGalleryLeave();
   cancelSelectedPreview();
   pointerChoice = null; pointerCard = null; pointerInGallery = false;
   const collapsed = [];

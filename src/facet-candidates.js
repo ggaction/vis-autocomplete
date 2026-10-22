@@ -33,7 +33,7 @@ export function facetCandidates(program, { layer, profile }) {
     add('editFacetGuides', 'style', cartesian ? { axes } : { legend: legend === false ? 'shared' : false },
       [...(cartesian ? [select('axes', 'Axes', axes, ['each', 'outer'])] : []),
         { path: 'legend', label: 'Legend', type: 'select', value: legend,
-          choices: [{ value: false, label: 'None' }, { value: 'shared', label: 'Shared · right' },
+          choices: [{ value: false, label: 'Per facet' }, { value: 'shared', label: 'Shared · right' },
             { value: { position: 'bottom' }, label: 'Shared · bottom' },
             { value: { position: 'top' }, label: 'Shared · top' }] }], 'Facet guides');
     return out;

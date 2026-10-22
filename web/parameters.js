@@ -187,8 +187,9 @@ export function recommendationParameters(recommendation, profile) {
       numeric('gap', 'Minimum gap', args.gap ?? 12, 0, Math.max(40, args.gap ?? 12))];
     build = v => {
       const variants = alternatives.filter(a => a.args.field === v.field);
-      const selected = v.field !== args.field ? variants.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') ?? variants[0] : undefined;
-      return { ...(selected ? structuredClone(selected.args) : forField(v.field)), data: recommendation.facetFields?.[v.field] ?? variants[0]?.args.data ?? args.data,
+      // Partition edits do not change guide ownership or scale resolution.
+      // In particular legend:false means child-local legends, not no legends.
+      return { ...clone(), data: recommendation.facetFields?.[v.field] ?? variants[0]?.args.data ?? args.data,
         field: v.field, columns: v.columns, gap: v.gap };
     };
   } else if (recommendation.parameterMode === 'presets') {
@@ -204,9 +205,7 @@ export function recommendationParameters(recommendation, profile) {
       ...(parameter.path === 'gap' && parameter.type === 'number' ? { max: Math.max(parameter.max, at(args, 'gap') ?? 0) } : {}) },
     path => `p${recommendation.parameters.findIndex(p => p.path === path)}`));
     build = values => {
-      const changedPartition = method === 'facetGrid' && recommendation.parameters.some((parameter, i) => ['rows.field', 'columns.field'].includes(parameter.path) && values[`p${i}`] !== at(args, parameter.path));
-      const fallback = changedPartition ? alternatives.find(a => a.args.guides?.legend === false && a.args.scales?.color === 'independent') : undefined;
-      const out = fallback ? structuredClone(fallback.args) : clone();
+      const out = clone();
       for (const [i, parameter] of recommendation.parameters.entries()) {
         if (controls[i].when && !controls[i].when(values)) {
           delete out[parameter.path]; continue;

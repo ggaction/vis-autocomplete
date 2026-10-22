@@ -800,3 +800,9 @@ polar, offset and parallel scales, including facet source edits and bundled
 encodings. Explicit scale edits resolve actual scale consumers, so editing a
 different mark does not advance this mark's queue unless they share that scale.
 Cards remain searchable and editable; co-occurrence scores are unchanged.
+
+Changing a facet partition field (including either facet-grid dimension) preserves
+the chosen guide ownership and scale resolution. It does not silently switch
+shared legends to per-cell legends or assign independent color scales. The Facet
+guides control labels the native `legend: false` policy as **Per facet**: it
+disables parent promotion, rather than removing the children's legend recipes.

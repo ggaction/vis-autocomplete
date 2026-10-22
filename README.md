@@ -521,7 +521,11 @@ Preview와 Current의 서로 다른 표시 배율을 연결하고, 코드 패널
 반영한다. Native 계산을 기다릴 때는 마지막 렌더를 등비 확대·축소해 중앙에 배치하며,
 글자·점·범례를 가로·세로로 다르게 늘리지 않는다. 실제 축 길이와 가이드 배치는 도착한 ggaction
 결과로 갱신한다. 경계선은 현재 표시된 차트와 일치하며, 포인터를 놓으면 검증된 native 결과로
-확정한다. 매 프레임 섬네일 이미지를 새 해상도로 래스터화하지 않는다.
+확정한다. 드래그 세션 동안 Current와 섬네일의 래스터 배율을 고정해 같은 장면을
+크기 변화만으로 다시 그리지 않는다. 새 native 결과는 계속 반영하고, 완료·취소 시 표시 크기에
+맞는 해상도로 다시 맞춘다.
+`test/browser/resize-raster-budget.py`는 고해상도 화면의 두 모드에서 worker가 늦어도
+불필요한 재그리기가 0회인지, worker 재개 후 Current와 모든 섬네일이 갱신되는지 검사한다.
 `test/browser/resize-aspect.py`는 worker를 지연시켜도 Current와 섬네일의 비율이 유지되는지 검증한다.
 실행 중인 앱에서 Playwright Python으로 `test/browser/canvas-resize.py`를 실행하면 드래그 중 코드,
 취소·Undo/Redo·새로고침·SVG 내보내기, facet·파이, 키보드와 창 크기 변경,

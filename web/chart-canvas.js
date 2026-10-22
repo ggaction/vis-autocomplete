@@ -2,14 +2,21 @@ import { render } from 'ggaction';
 import { chartViewport } from './chart-viewport.js';
 
 const records=new WeakMap();
+const heldDensities=new WeakMap();
 const queued=new Set();
 let frame=0,scratch;
 function paint(canvas){
   const record=records.get(canvas);if(!record||!canvas.isConnected)return;
   const {program,geometry,viewport}=record,host=canvas.parentElement;
-  const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;
-  const scale=Math.min(w/viewport.width,h/viewport.height);
-  const ratio=Math.max(.001,Math.min(scale*(devicePixelRatio||1),4096/geometry.width,4096/geometry.height,Math.sqrt(16000000/(geometry.width*geometry.height))));
+  // Pointer feedback only transforms the existing layer. Hold raster density
+  // across native updates as well: reading/resizing each changing stage forces
+  // layout and redraws an unchanged scene between worker results.
+  let density=heldDensities.get(canvas);
+  if(density===undefined){
+    const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;
+    density=Math.min(w/viewport.width,h/viewport.height)*(devicePixelRatio||1);
+  }
+  const ratio=Math.max(.001,Math.min(density,4096/geometry.width,4096/geometry.height,Math.sqrt(16000000/(geometry.width*geometry.height))));
   const key=`${Math.round(geometry.width*ratio)}:${Math.round(geometry.height*ratio)}`;
   if(record.painted===key)return;
   const style=canvas.style.cssText;
@@ -18,7 +25,7 @@ function paint(canvas){
     canvas.width=Math.max(1,Math.round(viewport.width*ratio));canvas.height=Math.max(1,Math.round(viewport.height*ratio));
     canvas.getContext('2d').drawImage(scratch,-viewport.x*ratio,-viewport.y*ratio);
   }else render(program,canvas.getContext('2d'),{pixelRatio:ratio});
-  record.painted=key;
+  record.painted=key;record.ratio=ratio;
   canvas.style.cssText=style;
   canvas.dataset.paint=String((Number(canvas.dataset.paint)||0)+1);
 }
@@ -59,6 +66,11 @@ export function renderChartCanvas(host,program,label,{fit=false}={}){
   return canvas;
 }
 export function refreshChartCanvas(canvas){paint(canvas);}
+export function holdChartCanvasDensity(canvas,hold=true){
+  if(!canvas)return;
+  if(hold){const ratio=records.get(canvas)?.ratio;if(ratio!==undefined)heldDensities.set(canvas,ratio);}
+  else {heldDensities.delete(canvas);schedule(canvas);}
+}
 export function copyChartCanvas(source,host){
   const record=records.get(source);
   if(record)return renderChartCanvas(host,record.program,source.getAttribute('aria-label'),{fit:record.fit});

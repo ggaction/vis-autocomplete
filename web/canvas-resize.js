@@ -140,14 +140,14 @@ export function createCanvasResize(host, callbacks) {
     try {
       if (g.changed && g.final && !g.error) await callbacks.commit(g.context, g.final);
       else callbacks.cancel(g.context, g.error);
-    } finally { if (gesture === g) { gesture = null; host.classList.remove('resizing'); callbacks.end(); } }
+    } finally { if (gesture === g) { gesture = null; host.classList.remove('resizing'); callbacks.end(g.context); } }
   }
   function cancel() {
     if (!gesture || gesture.finishing) return;
     const g = gesture; gesture = null;
     cancelAnimationFrame(g.frame);
     if (g.pointerId !== undefined && host.hasPointerCapture(g.pointerId)) host.releasePointerCapture(g.pointerId);
-    host.classList.remove('resizing'); callbacks.cancel(g.context); callbacks.end();
+    host.classList.remove('resizing'); callbacks.cancel(g.context); callbacks.end(g.context);
   }
   host.addEventListener('pointerdown', event => {
     const button = event.target.closest('[data-resize]');

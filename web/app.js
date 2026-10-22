@@ -1,5 +1,5 @@
 import { createTransitionMode } from './transition-mode.js';
-import { renderChartCanvas, copyChartCanvas } from './chart-canvas.js';
+import { renderChartCanvas, copyChartCanvas, holdChartCanvasDensity } from './chart-canvas.js';
 import { chart } from 'ggaction';
 import { createInitialChartRecommender, profileDataset } from '../src/index.js';
 import { recommendationParameters, initialParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
@@ -145,6 +145,9 @@ const canvasResize = createCanvasResize(elements.current, {
       card.request = (card.request ?? 0) + 1;
       if (card.element.dataset.previewState === 'pending') card.needsResizeRefresh = true;
     }
+    context.heldCanvases = [elements.current.querySelector('canvas'),
+      ...context.liveCards.map(card => card.thumbnail.querySelector('canvas'))].filter(Boolean);
+    context.heldCanvases.forEach(canvas => holdChartCanvasDensity(canvas));
     resizeThumbnails.start(context);
     // Keep one Canvas surface and the resize handles mounted throughout the drag.
     renderedCharts.delete(elements.current);
@@ -179,8 +182,9 @@ const canvasResize = createCanvasResize(elements.current, {
     renderChart(elements.current, context.view, 'Current visualization'); showCode();
     if (error && error.reason !== 'no-change') notice(error.message, true);
   },
-  end() {
+  end(context) {
     resizeThumbnails.stop();
+    context.heldCanvases.forEach(canvas => holdChartCanvasDensity(canvas, false));
     state.resizing = false; elements.cards.inert = state.committing;
     const focusedHandle = elements.current.contains(document.activeElement) ? document.activeElement.dataset.resize : null;
     renderedCharts.delete(elements.current);

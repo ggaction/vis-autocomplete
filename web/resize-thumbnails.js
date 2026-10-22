@@ -12,7 +12,7 @@ export function createResizeThumbnails({ prepare, render, onError = () => {} }) 
           if (session !== current) break;
           try {
             const prepared = await prepare(current.context, resize, card);
-            if (session === current) render(card, prepared.preview);
+            if (session === current) render(card, prepared.preview, current.context);
           } catch (error) { if (session === current) onError(card, error); }
         }
       }

@@ -12,6 +12,8 @@ import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { fitChartViewport } from './chart-viewport.js';
 import { createCanvasResize } from './canvas-resize.js';
 import { createResizeThumbnails } from './resize-thumbnails.js';
+import { canvasGeometry, projectCanvasGeometry } from './canvas-geometry.js';
+import { presentResizeVector } from './resize-vector.js';
 import { createPreviewInteraction } from './preview-interaction.js';
 import { createPointerMotion } from './pointer-motion.js';
 import { createCardMotion } from './card-motion.js';
@@ -86,8 +88,21 @@ function visibleCards() {
 const resizeThumbnails = createResizeThumbnails({
   prepare: (context, resize, card) => calculations.prepareResized(context.base, context.view, context.guideCall,
     resize, buildRecommendationCall(card, card.values), card.setup?.(card.values) ?? []),
-  render: (card, preview) => renderChart(card.thumbnail, preview, card.title),
+  render: (card, preview, context) => {
+    renderChart(card.thumbnail, preview, card.title);
+    projectThumbnail(context, card);
+  },
 });
+function projectThumbnail(context, card) {
+  const original = context.thumbnails.get(card), latest = renderedCharts.get(card.thumbnail)?.program;
+  if (!context.motionAction || !original || !latest) return;
+  const target = projectCanvasGeometry(canvasGeometry(original), context.motionAction);
+  const box = context.thumbnailSizes.get(card);
+  if (!box) return;
+  const scale = Math.min(box.width / target.width, box.height / target.height);
+  presentResizeVector(card.thumbnail.querySelector('svg'), canvasGeometry(latest), target, context.handle.startsWith('canvas'),
+    { scale, left: (box.width - target.width * scale) / 2, top: 4 + (box.height - target.height * scale) / 2 });
+}
 function refreshVisibleCards() {
   if (state.resizing || state.committing) return;
   for (const card of visibleCards()) if (card.needsResizeRefresh) {
@@ -104,23 +119,32 @@ const canvasResize = createCanvasResize(elements.current, {
   canStart: () => state.phase !== 'initial' && !state.committing && !state.resizing,
   start(handle) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
+    cardMotion.finish();
     state.codeCard = null; state.resizing = true; elements.cards.inert = true;
     updateHistoryButtons(); updateGalleryNavigation();
     const context = { base: state.program, view: state.view, guideCall: state.guideCall,
       thumbnails: new Map(state.cards.map(card => [card, renderedCharts.get(card.thumbnail)?.program])),
-      resizeTitle: handle.startsWith('canvas') ? 'Resize canvas' : 'Resize plot' };
+      thumbnailSizes: new Map(visibleCards().map(card => [card, { width: card.thumbnail.clientWidth, height: card.thumbnail.clientHeight - 6 }])),
+      handle, liveCards: visibleCards(), resizeTitle: handle.startsWith('canvas') ? 'Resize canvas' : 'Resize plot' };
     for (const card of state.cards) {
       card.request = (card.request ?? 0) + 1;
       if (card.element.dataset.previewState === 'pending') card.needsResizeRefresh = true;
     }
     resizeThumbnails.start(context);
+    // Keep one vector image and the resize handles mounted throughout the drag.
+    renderedCharts.delete(elements.current);
+    renderChart(elements.current, context.view, 'Resize chart');
     return context;
+  },
+  motion(context, action) {
+    context.motionAction = action;
+    for (const card of context.liveCards) projectThumbnail(context, card);
   },
   prepare: (context, action) => calculations.prepare(context.base, context.view, context.guideCall, action, [], { interactive: true }),
   preview(context, prepared) {
     renderChart(elements.current, prepared.preview, 'Resize chart');
     resizeThumbnails.start(context);
-    resizeThumbnails.update({ method: prepared.recommendation.method, args: prepared.recommendation.args }, visibleCards());
+    resizeThumbnails.update({ method: prepared.recommendation.method, args: prepared.recommendation.args }, context.liveCards);
     showCode({ ...context, prepared });
     $('code-mode').textContent = 'Resize chart';
   },
@@ -132,7 +156,10 @@ const canvasResize = createCanvasResize(elements.current, {
   },
   cancel(context, error) {
     resizeThumbnails.stop();
-    for (const [card, program] of context.thumbnails) if (program && card.element.isConnected) renderChart(card.thumbnail, program, card.title);
+    context.motionAction = null;
+    for (const [card, program] of context.thumbnails) if (program && card.element.isConnected) {
+      renderedCharts.delete(card.thumbnail); renderChart(card.thumbnail, program, card.title);
+    }
     state.codeCard = null;
     renderChart(elements.current, context.view, 'Current visualization'); showCode();
     if (error && error.reason !== 'no-change') notice(error.message, true);
@@ -140,6 +167,10 @@ const canvasResize = createCanvasResize(elements.current, {
   end() {
     resizeThumbnails.stop();
     state.resizing = false; elements.cards.inert = state.committing;
+    const focusedHandle = elements.current.contains(document.activeElement) ? document.activeElement.dataset.resize : null;
+    renderedCharts.delete(elements.current);
+    renderChart(elements.current, state.view, 'Current visualization');
+    if (focusedHandle) elements.current.querySelector(`[data-resize="${focusedHandle}"]`)?.focus({ preventScroll: true });
     refreshVisibleCards();
     updateHistoryButtons(); updateGalleryNavigation();
   },
@@ -292,6 +323,13 @@ function renderChart(host, program, label) {
   const previous = renderedCharts.get(host);
   if (previous?.program === program && previous.label === label && host.firstChild) return;
   if (!program) return placeholder(host, label);
+  if (host === elements.current && state.resizing) {
+    const surface = host.querySelector('.canvas-stage') ?? host;
+    renderChartThumbnail(surface, program, program.svg ?? renderToSVG(program, { resourceNamespace: 'resize-preview' }), label);
+    canvasResize.mount(program, surface.querySelector(':scope > svg'));
+    renderedCharts.set(host, { program, label });
+    return;
+  }
   const pending = program.semanticSpec.layers.some(layer => ['point', 'line', 'bar', 'area'].includes(layer.mark?.type) &&
     !['polar', 'parallel'].includes(program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type) &&
     (!layer.encoding?.x || !layer.encoding?.y));
@@ -497,6 +535,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
     card.errorElement.textContent = card.error; card.errorElement.classList.toggle('unchanged', card.unchanged);
     card.element.dataset.previewState = card.unchanged ? 'unchanged' : 'invalid';
     if (card.unchanged) renderChart(card.thumbnail, card.view, card.title);
+    else if (!state.resizing) card.thumbnail.querySelector('svg')?.removeAttribute('style');
   }
   if (state.active === card) showPreview(card, {
     showCodeChange: pointerInGallery || card.element.contains(document.activeElement),

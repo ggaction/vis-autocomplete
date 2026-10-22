@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chart } from 'ggaction';
-import { canvasGeometry, resizeCanvasAction, fitCanvasViewport } from '../web/canvas-geometry.js';
+import { canvasGeometry, resizeCanvasAction, fitCanvasViewport, projectCanvasGeometry } from '../web/canvas-geometry.js';
 import { prepareGuidedAction, addDefaultGuides, defaultCanvasOptions } from '../src/prepare.js';
 
 const base = () => chart().createCanvas(defaultCanvasOptions()).createData({id:'d', values:[
@@ -88,5 +88,25 @@ test('uniform fit centers every canvas, shrinks oversized content and enlarges s
       assert.ok(Math.min(Math.abs(g.width*v.scale-width+24),Math.abs(g.height*v.scale-height+24))<1e-9);
       assert.ok(fitCanvasViewport({width:g.width/2,height:g.height/2},width,height).scale > v.scale);
     }
+  }
+});
+
+
+test('gesture projection retains immutable native inputs and accounts for facet rows and columns', () => {
+  for (const facet of [false,true]) {
+    const p = facet ? base().facet({field:'c',data:'d',columns:2}) : base();
+    const g = canvasGeometry(addDefaultGuides(p));
+    const before = structuredClone(g);
+    const action = resizeCanvasAction(g,'plot-se',20,30);
+    const projected = projectCanvasGeometry(g,action);
+    assert.equal(projected.width,g.width+40*g.columns);
+    assert.equal(projected.height,g.height+60*g.rows);
+    assert.equal(projected.plot.width,g.plot.width+40);
+    assert.equal(projected.plot.height,g.plot.height+60);
+    const canvas = projectCanvasGeometry(g,resizeCanvasAction(g,'canvas-se',20,30));
+    assert.equal(canvas.width,g.width+40);
+    assert.equal(canvas.height,g.height+60);
+    assert.deepEqual(canvas.plot,g.plot);
+    assert.deepEqual(g,before);
   }
 });

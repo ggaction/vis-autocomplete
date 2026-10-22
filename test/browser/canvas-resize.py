@@ -43,7 +43,8 @@ with sync_playwright() as p:
         assert abs(r['y']+r['height']/2-h['y']-h['height']/2)<1,g
         assert r['width'] <= g['client'][0]-23 and r['height'] <= g['client'][1]-23,g
         assert min(abs(r['width']-g['client'][0]+24),abs(r['height']-g['client'][1]+24))<1,g
-        assert abs(r['height']/g['native'][3]-g['scale'])<0.001,g
+        if 'resizing' not in page.locator('#current').get_attribute('class'):
+            assert abs(r['height']/g['native'][3]-g['scale'])<0.001,g
         assert g['scroll']==g['client'],g
 
     def drag(handle,dx,dy,steps,commit=True):

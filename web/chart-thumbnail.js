@@ -18,9 +18,11 @@ export function renderChartThumbnail(host, program, source, label) {
     sources.set(program, asset);
   }
   const svg = host.querySelector(':scope > svg') ?? document.createElementNS(SVG_NS, 'svg');
+  svg.style.cssText = '';
   svg.setAttribute('viewBox', asset.viewBox); svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', label); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   const image = svg.querySelector('image') ?? document.createElementNS(SVG_NS, 'image');
+  image.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   for (const [i, key] of ['x', 'y', 'width', 'height'].entries()) image.setAttribute(key, asset.bounds[i]);
   image.setAttribute('href', asset.uri);
   if (!image.parentNode) svg.append(image);

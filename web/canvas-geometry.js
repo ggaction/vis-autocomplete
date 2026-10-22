@@ -16,7 +16,26 @@ export function canvasGeometry(program) {
     x: (placed?.x ?? 0) + margin.left, y: (placed?.y ?? 0) + margin.top,
     facet: Boolean(composition?.facet), composition: Boolean(composition),
     padding: composition ? { ...composition.padding } : null,
+    columns: composition ? Math.min(composition.columns ?? 1, composition.children.length) : 1,
+    rows: composition ? Math.ceil(composition.children.length / (composition.columns ?? 1)) : 1,
   };
+}
+
+// A cheap gesture-only estimate between authoritative native renders. Text
+// fitting and guide repairs still come from ggaction before Apply/history.
+export function projectCanvasGeometry(start, action) {
+  if (action.method === 'editCompositionLayout') {
+    const padding = action.args.padding, before = start.padding ?? {};
+    const delta = side => (padding[side] ?? 0) - (before[side] ?? 0);
+    return { ...start, padding, width: start.width + delta('left') + delta('right'),
+      height: start.height + delta('top') + delta('bottom'), x: start.x + delta('left'), y: start.y + delta('top') };
+  }
+  const { plot, margin } = action.method === 'editFacetSource' ? action.args.action.options : action.args;
+  const dw = plot.width - start.plot.width + margin.left + margin.right - start.margin.left - start.margin.right;
+  const dh = plot.height - start.plot.height + margin.top + margin.bottom - start.margin.top - start.margin.bottom;
+  return { ...start, plot, margin, width: Math.max(1, start.width + dw * (start.columns ?? 1)),
+    height: Math.max(1, start.height + dh * (start.rows ?? 1)),
+    x: start.x + margin.left - start.margin.left, y: start.y + margin.top - start.margin.top };
 }
 
 const clamp = (value, min, max = 4096) => Math.round(Math.max(min, Math.min(max, value)));

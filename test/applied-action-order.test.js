@@ -88,7 +88,11 @@ test('unchanged Shape mapping remains on the final page and in search, including
     assert.ok(!deck.result.diagnostics.validatedCalls.some(call =>
       (call.args.action?.method ?? call.method) === 'encodeShape'), 'used pages remain lazy');
     for (let page = 1; page < deck.pagination.pageCount; page++) deck = request(page);
-    const shape = deck.result.recommendations.at(-1);
+    const shape = deck.result.recommendations.find(r => (r.sourceMethod ?? r.method) === 'encodeShape');
+    const tail = deck.result.recommendations.slice(-2);
+    assert.deepEqual(new Set(tail.map(r => r.sourceMethod ?? r.method)), new Set(['encodeShape', 'editShapeScale']));
+    assert.ok(tail.every(r => r.previouslyApplied && r.appliedOrder === shape.appliedOrder),
+      'mapping and its scale share the latest channel-authoring position');
     assert.equal(shape.sourceMethod ?? shape.method, 'encodeShape');
     assert.equal(shape.previouslyApplied, true);
     assert.equal(shape.validation.status, 'unchanged');

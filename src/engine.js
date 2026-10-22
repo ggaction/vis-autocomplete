@@ -4,7 +4,7 @@ import { describeAction, comparePrograms, inspectProgram } from 'ggaction/inspec
 import { getErrorDetails } from 'ggaction/diagnostics';
 import { renderToSVG } from 'ggaction/svg';
 import { ACTION_METHODS, generateCandidates } from './catalog.js';
-import { CHANNELS, extractFeatures, canonicalChannel, encodingChannel } from './semantics.js';
+import { CHANNELS, extractFeatures, encodingChannel } from './semantics.js';
 import { profileDataset } from './profile.js';
 import { scoreCandidate } from './model.js';
 import { INITIAL_PLOT_METHODS } from './plot-catalog.js';
@@ -15,6 +15,7 @@ import { prepareGuidedAction } from './prepare.js';
 import { optionGroup } from './recommendation-groups.js';
 import { variantPreference } from './parameter-defaults.js';
 import { createHierarchyProjection } from './action-hierarchy.js';
+import { createEncodingUsage, scaleEditorChannel } from './encoding-usage.js';
 
 const validations = new WeakMap();
 const recentValidations = createLRU(12, program => validations.delete(program));
@@ -154,27 +155,13 @@ function resolveContext(program, options) {
   return { layer, profile, positionScaleContext: positionScaleContext(program, layer, profile), regressionContext: regressionContext(program, layer, profile) };
 }
 
-function establishedEncodingChannels(program, layer) {
-  if (!layer) return [];
-  const channels = new Set();
-  // Fixed appearance calls remove the semantic field mapping and store their
-  // value in the mark config. Count explicit authoring, not native defaults.
-  for (const { op, args } of program.trace.children) {
-    const action = op === 'editFacetSource' ? args.action : { method: op, options: args };
-    if (action?.options?.target !== layer.id) continue;
-    const channel = encodingChannel(action.method);
-    if (channel) channels.add(channel);
-    if (action.method === 'removeEncoding') channels.delete(canonicalChannel(action.options.channel));
-  }
-  for (const channel of Object.keys(layer.encoding ?? {})) channels.add(canonicalChannel(channel));
-  return [...channels].sort();
-}
-
 function appliedActionMethods(program, layer) {
   const methods = new Map();
   for (const [index, { op, args }] of program.trace.children.entries()) {
     const action = op === 'editFacetSource' ? args.action : { method: op, options: args };
     if (!action) continue;
+    // These use channel/resource ownership, not a method-name-only history map.
+    if (scaleEditorChannel(action.method) || action.method === 'editScale') continue;
     const target = action.options?.target;
     if (target && layer && target !== layer.id && program.semanticSpec.layers.some(mark => mark.id === target)) continue;
     const method = action.method === 'encodePointRadius' ? 'encodeSize' : action.method;
@@ -217,8 +204,8 @@ export function createRecommendationEngine(model) {
       const context = { ...resolveContext(program, options), actionEvidence: model.actionEvidence };
       const establishedChannels = excludeMappedChannels.filter(channel =>
         context.layer?.encoding?.[channel === 'r' ? 'radius' : channel]?.field);
-      const appliedChannels = excludeAppliedEncodings ? establishedEncodingChannels(program, context.layer) : [];
-      const existingChannels = deprioritizeAppliedActions ? establishedEncodingChannels(program, context.layer) : [];
+      const encodingUsage = createEncodingUsage(program, context.layer);
+      const appliedChannels = excludeAppliedEncodings ? encodingUsage.channels : [];
       const appliedMethods = deprioritizeAppliedActions ? appliedActionMethods(program, context.layer) : new Map();
       const features = extractFeatures(program, { target: context.layer?.id, data: context.profile.id,
         datasetType: options.datasetType ?? context.profile.datasetType });
@@ -247,13 +234,10 @@ export function createRecommendationEngine(model) {
         // same native X/Y functions can still supply bin/aggregate transforms.
         if (candidate.category === 'encoding' && establishedChannels.some(channel => candidate.feature === `encoding.${channel}`)) { exclude('established-channel'); continue; }
         if (candidate.category === 'encoding' && appliedChannels.includes(encodingChannel(candidate.method))) { exclude('applied-channel'); continue; }
-        // Choosing a mapped channel also establishes its scale. Keep these
-        // editors available in the used queue, including native plot defaults.
-        const initialScaleChannel = { editXScale: 'x', editYScale: 'y', editColorScale: 'color' }[candidate.method];
-        const previouslyApplied = appliedMethods.has(candidate.method) ||
-          (initialScaleChannel && existingChannels.includes(initialScaleChannel) && Boolean(context.layer?.encoding?.[initialScaleChannel]?.scale)) ||
-          (candidate.category === 'encoding' && existingChannels.includes(encodingChannel(candidate.method)));
-        const appliedOrder = previouslyApplied ? appliedMethods.get(candidate.method) ?? -1 : null;
+        const channelOrder = deprioritizeAppliedActions ? encodingUsage.order(candidate) : undefined;
+        const methodOrder = appliedMethods.get(candidate.method);
+        const previouslyApplied = methodOrder !== undefined || channelOrder !== undefined;
+        const appliedOrder = previouslyApplied ? Math.max(methodOrder ?? -1, channelOrder ?? -1) : null;
         if (program.compositionSpec?.facet && !candidate.compositionAction &&
             !['createTitle', 'editTitle'].includes(candidate.method) && !/^editLegend/.test(candidate.method)) {
           candidate = { ...candidate, sourceMethod: candidate.method, sourceTarget: candidate.args.target,

@@ -791,3 +791,12 @@ are stacked in the left column. Code and History remain independently foldable.
 Run `python test/browser/workspace-layout.py` against the dev server to check
 both modes, fixed half-height regions, live parameters, Apply, paging, search,
 panel folding and saved preferences at laptop, desktop and narrow window sizes.
+
+Used-action ordering follows the encoding channel and its bound scale together.
+Applying `encodeSize`, for example, moves both the size mapping and
+`editSizeScale` behind unused actions, using that Apply's position in history.
+The same policy covers color, stroke, opacity, shape, width/dash, Cartesian,
+polar, offset and parallel scales, including facet source edits and bundled
+encodings. Explicit scale edits resolve actual scale consumers, so editing a
+different mark does not advance this mark's queue unless they share that scale.
+Cards remain searchable and editable; co-occurrence scores are unchanged.

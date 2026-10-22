@@ -41,9 +41,13 @@ def tail(page, method):
     else:
         raise AssertionError("Pagination did not terminate")
     assert "…" not in page.locator("#cards-page").inner_text()
-    expect(row.locator(".card").last).to_have_attribute("data-method", method)
+    all_cards = page.locator('.card-row .card')
+    scale = 'edit' + method[len('encode'):] + 'Scale' if method.startswith('encode') else None
+    family = [method] + ([scale] if scale and page.locator(f'.card[data-method={scale}]').count() else [])
+    assert set(all_cards.evaluate_all('cards => cards.map(c => c.dataset.method)')[-len(family):]) == set(family)
     assert page.locator(f".card[data-method={method}]").count() == 1
-    card = row.locator(f".card[data-method={method}]")
+    card = page.locator(f".card[data-method={method}]")
+    card.locator('.card-top').scroll_into_view_if_needed()
     card.locator(".card-top").hover()
     expect(card.locator(".apply-button")).to_be_enabled()
     return card

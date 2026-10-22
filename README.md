@@ -508,6 +508,9 @@ npm run validate:corpus  # 전체 차트 통계 재계산 + 각 데이터로 추
 ```
 
 `node --test test/canvas-resize.test.js`는 캔버스·축 길이의 독립 조절과 facet의 공개 호출을 검증한다.
+Apply로 확정하면 Preview의 차트가 560ms 동안 Current로 이동해 새 시각화가 된다.
+Preview와 Current의 서로 다른 표시 배율을 연결하고, 코드 패널의 자동 스크롤은 전환을 취소하지 않는다.
+`test/browser/chart-transfer.py`는 최초/후속 Apply, 착지 좌표, 내부 스크롤 및 동작 줄이기 설정을 검증한다.
 캔버스·축 경계를 드래그하면 반대쪽 경계도 대칭으로 움직인다. Current view는 캔버스 전체를
 가로·세로 중앙에 두고, 공간에 맞춰 같은 비율로 자동 확대·축소한다. 표시 배율과 무관하게
 코드·히스토리·내보내기에는 실제 ggaction 크기가 유지된다.

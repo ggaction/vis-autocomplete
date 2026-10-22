@@ -1244,7 +1244,7 @@ async function commit(card, { direct = false } = {}) {
     if (!direct) recommendationResponse().catch(() => {});
     if (!direct) {
       renderChart(elements.preview, view, card.title);
-      await transferChart(elements.preview, elements.current, host => renderChart(host, view, card.title));
+      await transferChart(elements.preview, elements.current, host => renderChart(host, view, card.title), canvasGeometry(view));
     }
     showPreview(null, { showCodeChange: false });
     if (state.program !== committedProgram) return;

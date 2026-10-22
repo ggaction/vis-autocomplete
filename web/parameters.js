@@ -308,15 +308,22 @@ export function recommendationParameters(recommendation, profile) {
     controls = [select('field', 'Variable', fieldOptions, args.field)];
     build = v => ({ ...clone(), field: v.field });
   } else if (method === 'createRegression') {
+    const context = recommendation.regressionContext;
+    const groups = context ? Object.keys(context.groups).filter(Boolean) : categories;
+    const group = Object.hasOwn(args, 'groupBy') ? args.groupBy || '' : context?.defaultGroup ?? '';
+    const canEstimateInterval = v => !context || context.groups[v.group || '']?.minRows >= (v.method === 'polynomial' ? (args.degree ?? 2) + 2 : 3);
     controls = [select('method', 'Model', ['linear', 'polynomial', 'loess', 'exp'], args.method ?? 'linear'),
-      { ...numeric('level', 'Confidence level', 0.95, 0.5, 0.99, 0.01), when: v => ['linear', 'polynomial'].includes(v.method) },
-      select('group', 'Group', [{ value: '', label: 'All observations' }, ...categories.map(value => ({ value, label: value }))], '')];
+      { ...numeric('level', 'Confidence level', 0.95, 0.5, 0.99, 0.01), when: v => ['linear', 'polynomial'].includes(v.method) && canEstimateInterval(v) },
+      { ...select('group', 'Group', [{ value: '', label: 'All observations' }, ...groups.map(value => ({ value, label: value }))], group), defaultPolicy: 'context' }];
     build = v => {
       const out = { ...clone(), method: v.method, groupBy: v.group || false };
       delete out.level; delete out.interval; delete out.confidence; delete out.confidenceMethod; delete out.band;
       if (v.method !== 'polynomial') delete out.degree;
       if (v.method !== 'loess') { delete out.span; delete out.robustIterations; }
-      if (['linear', 'polynomial'].includes(v.method)) { out.level = v.level; }
+      if (['linear', 'polynomial'].includes(v.method)) {
+        if (canEstimateInterval(v)) out.level = v.level;
+        else out.interval = false;
+      }
       else if (v.method === 'exp') out.interval = false;
       return out;
     };

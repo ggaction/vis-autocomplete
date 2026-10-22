@@ -8,13 +8,26 @@ export function regressionContext(program, layer, profile) {
   if (x?.fieldType !== 'quantitative' || y?.fieldType !== 'quantitative') return undefined;
   const rows = (program.semanticSpec.datasets.find(d => d.id === layer.data)?.values ?? [])
     .filter(row => Number.isFinite(row[x.field]) && Number.isFinite(row[y.field]));
-  const fields = ['', ...profile.fields.filter(f => f.usable && ['nominal', 'ordinal'].includes(f.type)).map(f => f.name)];
-  return { workLimit: MAX_WORK_ITEMS, currentGroup: program.markConfigs[layer.id]?.regression?.groupBy ?? '', groups: Object.fromEntries(fields.map(field => {
-    const groups = new Map();
+  const facet = program.compositionSpec?.facet;
+  const facetFields = [facet?.field, facet?.grid?.rows?.field, facet?.grid?.columns?.field].filter(Boolean);
+  const visualGroups = [layer.encoding.color, layer.encoding.shape]
+    .filter(encoding => ['nominal', 'ordinal'].includes(encoding?.fieldType)).map(encoding => encoding.field);
+  const currentGroup = program.markConfigs[layer.id]?.regression?.groupBy ?? '';
+  const fields = ['', ...new Set([...profile.fields.filter(f => f.usable && ['nominal', 'ordinal'].includes(f.type)).map(f => f.name),
+    ...visualGroups, ...facetFields, ...(currentGroup ? [currentGroup] : [])])];
+  const groups = Object.fromEntries(fields.map(field => {
+    const groups = new Map(), sourceGroups = new Map();
+    const partitionFields = [...new Set([...facetFields, ...(field ? [field] : [])])];
     for (const row of rows) {
-      const key = field ? row[field] : '';
+      // A facet fits each panel separately, even when Group is All observations.
+      const key = JSON.stringify(partitionFields.map(name => row[name]));
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(row);
+      if (facetFields.length) {
+        const sourceKey = field ? row[field] : '';
+        if (!sourceGroups.has(sourceKey)) sourceGroups.set(sourceKey, { count: 0, x: new Set() });
+        const source = sourceGroups.get(sourceKey); source.count++; source.x.add(row[x.field]);
+      }
     }
     let minDistinctX = Infinity, minRows = Infinity, loessWork = 0;
     for (const group of groups.values()) {
@@ -23,8 +36,18 @@ export function regressionContext(program, layer, profile) {
       minRows = Math.min(minRows, group.length);
       loessWork += group.length * distinct * Math.ceil(Math.log2(group.length + 1));
     }
-    return [field, { minDistinctX, minRows, loessWork, positiveY: rows.length > 0 && rows.every(row => row[y.field] > 0) }];
-  })) };
+    // editFacetSource also fits the complete source before deriving panels.
+    // Keep its work bound while using panel minima for statistical adequacy.
+    loessWork = Math.max(loessWork, [...sourceGroups.values()].reduce((work, group) =>
+      work + group.count * group.x.size * Math.ceil(Math.log2(group.count + 1)), 0));
+    return [field, { minDistinctX: groups.size ? minDistinctX : 0, minRows: groups.size ? minRows : 0,
+      loessWork, positiveY: rows.length > 0 && rows.every(row => row[y.field] > 0) }];
+  }));
+  // Bind to this chart, never to corpus field names or an arbitrary categorical
+  // column. Color wins a color/shape conflict; one facet field is a fallback.
+  const defaultGroup = [...new Set([...visualGroups, ...(facetFields.length === 1 ? facetFields : [])])]
+    .find(field => groups[field]?.minDistinctX >= 2) ?? '';
+  return { workLimit: MAX_WORK_ITEMS, currentGroup, defaultGroup, groups };
 }
 
 // A source-filter slider must leave enough distinct X observations for every

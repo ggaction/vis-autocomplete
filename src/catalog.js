@@ -9,15 +9,16 @@ import { facetCandidates } from './facet-candidates.js';
 import { corpusCandidates } from './corpus-candidates.js';
 import { DEFAULT_TITLE_FONT_SIZE } from './parameter-defaults.js';
 import { recommendationCategory } from './recommendation-groups.js';
+import { regressionContext as inspectRegressionContext } from './regression-context.js';
 export const ACTION_METHODS = PUBLIC_ACTION_METHODS;
 
-export function generateCandidates(program, { layer, profile, actionEvidence }) {
-  return candidateRecipes(program, { layer, profile, actionEvidence }).map(candidate => ({
+export function generateCandidates(program, { layer, profile, actionEvidence, regressionContext }) {
+  return candidateRecipes(program, { layer, profile, actionEvidence, regressionContext }).map(candidate => ({
     ...candidate, category: recommendationCategory(candidate),
   }));
 }
 
-function candidateRecipes(program, { layer, profile, actionEvidence }) {
+function candidateRecipes(program, { layer, profile, actionEvidence, regressionContext }) {
   const candidates = [...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile })];
   // Corpus defaults already feed the parameter editors. A second opaque preset
   // card must not bypass the same mark's coordinate/grain-aware editor.
@@ -145,8 +146,10 @@ function candidateRecipes(program, { layer, profile, actionEvidence }) {
   // First establish the positional context; do not suggest statistics on a blank mark.
   if (!encoding.x || !encoding.y) return candidates;
   if (mark === 'point' && encoding.x.fieldType === 'quantitative' && encoding.y.fieldType === 'quantitative' && !program.markConfigs[target]?.regression) {
+    const context = regressionContext ?? inspectRegressionContext(program, layer, profile);
+    const groupBy = context?.defaultGroup || false;
     add('createRegression', 'transform.regression', 'transform', '선형 회귀선과 95% 신뢰구간 추가',
-      { target, groupBy: false, method: 'linear' }, inspectionTarget);
+      { target, groupBy, method: 'linear', ...(context?.groups[groupBy || '']?.minRows < 3 ? { interval: false } : {}) }, inspectionTarget);
   }
   addCommon();
   return candidates;

@@ -1,6 +1,7 @@
 import { refreshChartCanvas } from './chart-canvas.js';
 import { canvasGeometry, resizeCanvasAction, fitCanvasViewport, projectCanvasGeometry } from './canvas-geometry.js';
 import { presentResizeVector } from './resize-vector.js';
+import { facetSpacingCollision } from '../src/facet-spacing.js';
 
 // Pointer capture belongs to the stable host, not to a handle replaced by a new
 // worker-rendered Canvas. One in-flight preview plus one latest intent bounds work.
@@ -57,7 +58,7 @@ export function createCanvasResize(host, callbacks) {
       if (!box) { box = document.createElement('div'); box.className = `resize-boundary ${kind}-boundary`; }
       Object.assign(box.style, { left: `${x * scale}px`, top: `${y * scale}px`, width: `${width * scale}px`, height: `${height * scale}px` });
       const label = box.querySelector('.resize-label') ?? document.createElement('span'); label.className = 'resize-label';
-      label.textContent = `${kind === 'canvas' ? 'Canvas' : display.facet ? 'All plots' : 'Plot'} ${Math.round(dimensions.width)} × ${Math.round(dimensions.height)}`;
+      label.textContent = `${kind === 'canvas' ? 'Canvas' : display.facet ? 'All plots · each' : 'Plot'} ${Math.round(dimensions.width)} × ${Math.round(dimensions.height)}`;
       if (exists) return;
       box.append(label);
       const edges = kind === 'canvas' ? ['e', 's', 'se'] : ['e', 's', 'w', 'se'];
@@ -74,7 +75,7 @@ export function createCanvasResize(host, callbacks) {
     if (!display.composition || display.facet) {
       // Native layout can lag behind the pointer. Follow the actually painted
       // axis rectangle, using the exact same projection as the image layer.
-      const plot = projection?.plot ?? { x: display.x, y: display.y, ...display.plot };
+      const plot = projection?.plot ?? display.plotBounds ?? { x: display.x, y: display.y, ...display.plot };
       frame('plot', plot.x, plot.y, plot.width, plot.height, display.plot);
     }
     if (focusedHandle) stage.querySelector(`[data-resize="${focusedHandle}"]`)?.focus({ preventScroll: true });
@@ -132,7 +133,7 @@ export function createCanvasResize(host, callbacks) {
         if (g !== gesture || g.pending) continue;
         if (error.reason === 'no-change') {
           g.final = null; g.error = null; g.valid = { dx: 0, dy: 0 }; callbacks.cancel(g.context);
-        } else if (/overlap|space|margin|bounds|fit/i.test(error.message)) {
+        } else if (facetSpacingCollision(error) || /overlap|space|margin|bounds|fit/i.test(error.message)) {
           // Respect native text/guide constraints. Find the closest valid point
           // toward this intent instead of losing the entire drag on overshoot.
           const from = g.valid ?? { dx: 0, dy: 0 };

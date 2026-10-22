@@ -99,14 +99,66 @@ test('gesture projection retains immutable native inputs and accounts for facet 
     const before = structuredClone(g);
     const action = resizeCanvasAction(g,'plot-se',20,30);
     const projected = projectCanvasGeometry(g,action);
-    assert.equal(projected.width,g.width+40*g.columns);
-    assert.equal(projected.height,g.height+60*g.rows);
-    assert.equal(projected.plot.width,g.plot.width+40);
-    assert.equal(projected.plot.height,g.plot.height+60);
+    assert.equal(projected.width,g.width+40);
+    assert.equal(projected.height,g.height+60);
+    assert.equal(projected.plot.width,g.plot.width+40/g.columns);
+    assert.equal(projected.plot.height,g.plot.height+60/g.rows);
     const canvas = projectCanvasGeometry(g,resizeCanvasAction(g,'canvas-se',20,30));
     assert.equal(canvas.width,g.width+40);
     assert.equal(canvas.height,g.height+60);
     assert.deepEqual(canvas.plot,g.plot);
     assert.deepEqual(g,before);
+  }
+});
+
+test('facet handles enclose all native panels and distribute drag distance across the grid', () => {
+  const values = Array.from({length:24},(_,i)=>({x:i,y:i*2,c:String(i%6),r:String(i%3)}));
+  const source = chart().createCanvas(defaultCanvasOptions()).createData({id:'d',values})
+    .createScatterPlot({id:'plot',data:'d',x:'x',y:'y',color:'c'});
+  for (const spacing of ['plot','canvas']) for (const columns of [1,2,3,6]) {
+    const prepared = prepareGuidedAction(source,{method:'facet',args:{field:'c',data:'d',columns,spacing,gap:24,
+      guides:{axes:'outer',legend:'shared'}}});
+    const p=prepared.authoringPreview,v=prepared.preview,g=canvasGeometry(v);
+    const roots=v.graphicSpec.objects.canvas.children.filter(id=>v.graphicSpec.objects[id].type==='canvas').slice(0,6);
+    for (const [i,id] of roots.entries()) {
+      const child=canvasGeometry(v.children[v.compositionSpec.children[i]]),placed=v.graphicSpec.objects[id].properties;
+      assert.ok(placed.x+child.x>=g.plotBounds.x);
+      assert.ok(placed.x+child.x+child.plot.width<=g.plotBounds.x+g.plotBounds.width);
+      assert.ok(placed.y+child.y+child.plot.height<=g.plotBounds.y+g.plotBounds.height);
+    }
+    for (const [handle,dx,dy] of [['plot-e',30,0],['plot-w',-30,0],['plot-s',0,30],['plot-se',30,-30]]) {
+      const action=resizeCanvasAction(g,handle,dx,dy);
+      const next=canvasGeometry(prepareGuidedAction(p,action,v).preview);
+      const estimated=projectCanvasGeometry(g,action);
+      assert.deepEqual(estimated.plotBounds,next.plotBounds,`${spacing} ${columns} ${handle}`);
+      // At fixed display scale, the whole-grid edge follows the pointer;
+      // the opposite edge moves equally. Allow one native pixel per cell.
+      const xDelta=(next.plotBounds.width-g.plotBounds.width)/2;
+      const yDelta=(next.plotBounds.height-g.plotBounds.height)/2;
+      assert.ok(Math.abs(xDelta-Math.abs(dx))<=columns/2);
+      assert.ok(Math.abs(yDelta-dy)<=g.rows/2);
+    }
+    const padded=canvasGeometry(prepareGuidedAction(p,resizeCanvasAction(g,'canvas-se',20,30),v).preview);
+    assert.equal(padded.plotBounds.width,g.plotBounds.width);
+    assert.equal(padded.plotBounds.height,g.plotBounds.height);
+    assert.equal(padded.plotBounds.x-g.plotBounds.x,20);
+    assert.equal(padded.plotBounds.y-g.plotBounds.y,30);
+  }
+});
+
+test('sparse facetGrid uses domain rows, not occupied cell count, when resizing', () => {
+  const values=[{x:1,y:2,r:'A',c:'a'},{x:2,y:3,r:'B',c:'b'},{x:3,y:4,r:'C',c:'c'}];
+  const source=chart().createCanvas(defaultCanvasOptions()).createData({id:'d',values})
+    .createScatterPlot({id:'plot',data:'d',x:'x',y:'y'});
+  const prepared=prepareGuidedAction(source,{method:'facetGrid',args:{data:'d',rows:{field:'r'},columns:{field:'c'},
+    combinations:'observed',spacing:'plot',gap:30,guides:{axes:'outer',legend:false}}});
+  const g=canvasGeometry(prepared.preview);
+  assert.equal(g.columns,3);assert.equal(g.rows,3);
+  for (const handle of ['plot-s','plot-e','plot-se']) {
+    const action=resizeCanvasAction(g,handle,30,30);
+    const next=canvasGeometry(prepareGuidedAction(prepared.authoringPreview,action,prepared.preview).preview);
+    const estimated=projectCanvasGeometry(g,action);
+    assert.equal(estimated.width,next.width);assert.equal(estimated.height,next.height);
+    assert.deepEqual(estimated.plotBounds,next.plotBounds);
   }
 });

@@ -34,15 +34,14 @@ with sync_playwright() as p:
           const host=document.querySelector('#current'), canvas=host.querySelector('.canvas-stage > canvas');
           const extra=host.querySelectorAll('.canvas-stage > canvas').length-1;
           const axes=(canvas.__drawings??[]).filter(l=>l.type==='line'&&['#334155','#475569'].includes(l.stroke));
-          const h=axes.find(l=>l.points[0].y===l.points[1].y&&Math.abs(l.points[0].x-l.points[1].x)>10);
-          const v=axes.find(l=>l.points[0].x===l.points[1].x&&Math.abs(l.points[0].y-l.points[1].y)>10);
-          if(!h||!v)return {error:'Axes missing',extra};
+          const edges=axes.filter(l=>Math.hypot(l.points[0].x-l.points[1].x,l.points[0].y-l.points[1].y)>10*canvas.width/(+canvas.dataset.logicalWidth));
+          if(!edges.length)return {error:'Axes missing',extra};
           const box=canvas.getBoundingClientRect();
-          const point=(l,i)=>({x:box.left+l.points[i].x*box.width/canvas.width,y:box.top+l.points[i].y*box.height/canvas.height});
-          const a=point(h,0),b=point(h,1),c=point(v,0),d=point(v,1);
+          const points=edges.flatMap(l=>l.points.map(p=>({x:box.left+p.x*box.width/canvas.width,y:box.top+p.y*box.height/canvas.height})));
           const rect=host.querySelector('.plot-boundary').getBoundingClientRect();
-          return {extra,drift:Math.max(Math.abs(rect.left-Math.min(a.x,b.x)),Math.abs(rect.right-Math.max(a.x,b.x)),
-            Math.abs(rect.bottom-a.y),Math.abs(rect.top-Math.min(c.y,d.y))),axes:[a,b,c,d],rect:rect.toJSON()};
+          return {extra,drift:Math.max(Math.abs(rect.left-Math.min(...points.map(p=>p.x))),
+            Math.abs(rect.right-Math.max(...points.map(p=>p.x))),Math.abs(rect.top-Math.min(...points.map(p=>p.y))),
+            Math.abs(rect.bottom-Math.max(...points.map(p=>p.y)))),axes:points,rect:rect.toJSON()};
         }''')
         for handle,dx,dy in [('plot-s',0,-65),('plot-e',-75,0),('canvas-s',0,40)]:
             page.evaluate('slowResize=true')

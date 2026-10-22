@@ -10,8 +10,9 @@ export function resizeVectorProjection(source, target, canvasOnly = false) {
   const sy = sx;
   const x = canvasOnly ? target.x - source.x : (target.width - source.width * sx) / 2;
   const y = canvasOnly ? target.y - source.y : (target.height - source.height * sy) / 2;
-  return { sx, sy, x, y, plot: { x: source.x * sx + x, y: source.y * sy + y,
-    width: source.plot.width * sx, height: source.plot.height * sy } };
+  const bounds = source.plotBounds ?? { x: source.x, y: source.y, ...source.plot };
+  return { sx, sy, x, y, plot: { x: bounds.x * sx + x, y: bounds.y * sy + y,
+    width: bounds.width * sx, height: bounds.height * sy } };
 }
 
 export function presentResizeVector(canvas, source, target, canvasOnly = false, viewport) {

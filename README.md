@@ -533,13 +533,18 @@ Preview와 Current의 서로 다른 표시 배율을 연결하고, 코드 패널
 취소·Undo/Redo·새로고침·SVG 내보내기, facet·파이, 키보드와 창 크기 변경,
 드래그 중 중앙 정렬과 종료 후 자동 확대·축소를 확인한다.
 `test/browser/resize-release-fit.py`는 드래그 중 배율 고정, 종료 후 등비 애니메이션, 동작 줄이기를 검증한다.
+Facet의 All plots 경계는 범례를 제외한 모든 셀의 plot 영역을 감싼다. 각 셀의 크기는
+행·열 수에 맞춰 나누어 바뀌므로, 셀이 많아져도 전체 경계가 포인터 이동량만큼 움직인다.
+빈 조합을 생략한 facetGrid도 실제 행·열 도메인으로 계산한다. `test/browser/facet-resize.py`는
+CSV 업로드로 만든 여러 행의 산점도·막대·박스 facet에서 축/경계 정렬, 드래그 이동량,
+종료 후 맞춤, 최소 크기, 취소·Undo/Redo를 검증한다.
 `test/browser/resize-card-continuity.py`는 resize 이후 지연 로딩 페이지, 검색과 파라미터 유지,
 기존 카드 Apply 및 Undo를 검증한다. `test/resize-thumbnails.test.js`는 실제 native 썸네일 결과와
 요청 병합·취소 이후 오래된 결과 차단을 검증한다.
 `test/browser/resize-performance.py`는 같은 산점도/facet 드래그에서 실제 화면 갱신 프레임,
 섬네일 갱신 프레임, 프레임 간격과 worker 지연을 측정한다. 결과 JSON/스크린샷은 `output/`에 저장한다.
 `test/browser/resize-alignment.py`는 worker를 지연시킨 상태로 가로·세로 압축과 캔버스 드래그를
-검사한다. 임시 SVG에는 이미지 하나만 남아야 하고, 이미지 속 실제 축의 화면 좌표와 조절 박스가
+검사한다. Current에는 Canvas 표면 하나만 남아야 하고, 실제 축의 화면 좌표와 조절 박스가
 일치해야 한다. 박스는 예상 native 배치가 아니라 현재 이미지와 동일한 변환행렬을 따른다.
 
 `/test/fixtures/history-workflow.html`의 **Run history workflow checks**는 실제 Cars 데이터로

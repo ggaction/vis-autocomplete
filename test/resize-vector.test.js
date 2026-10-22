@@ -36,3 +36,16 @@ test('canvas-only resizing translates the axis rectangle without scaling plot le
   assert.deepEqual(p.plot,{x:210,y:82,width:314,height:314});
   assert.equal(p.sx,1);assert.equal(p.sy,1);
 });
+
+test('facet projection follows the whole grid rather than the first panel', () => {
+  const facet={...source,width:1500,height:950,plotBounds:{x:170,y:64,width:1000,height:700}};
+  for(const canvasOnly of [false,true]) {
+    const target={...facet,width:1580,height:1030,x:210,y:82};
+    const p=resizeVectorProjection(facet,target,canvasOnly);
+    assert.equal(p.plot.x,facet.plotBounds.x*p.sx+p.x);
+    assert.equal(p.plot.y,facet.plotBounds.y*p.sy+p.y);
+    assert.equal(p.plot.width,facet.plotBounds.width*p.sx);
+    assert.equal(p.plot.height,facet.plotBounds.height*p.sy);
+    assert.equal(p.sx,p.sy);
+  }
+});

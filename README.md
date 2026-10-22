@@ -624,6 +624,17 @@ Color를 조합한 32개 선택에서 모든 후보를 native 호출로 검증�
 `diagnostics.chartEligibility`와 갤러리의 `data-chart-eligibility`에는 29개 plot의 포함·제외 사유를,
 `data-chart-preparation-failures`에는 실제 프리뷰 검증 실패를 기록한다.
 
+초기 차트 카드의 `Scales & palette` 그룹에서 수치 X/Y의 Linear·Log·Sqrt·Symlog와
+Color palette를 설정한다. 날짜축은 native Time scale을 유지하고, 범주축에는 수치 scale을
+제안하지 않는다. 0 기준선이 필요한 막대/영역 또는 0 이하 값·bin 경계가 있는 축에서는
+Log를 비활성화한다. 기존 bin·집계·회귀 파라미터는 그대로 유지한다. Palette는 타입에 맞는
+대표 5개와 More 목록을 제공하며 호버 프리뷰와 Apply에 같은 값을 사용한다.
+설정은 `createScatterPlot({ x: { scale: … }, … })` 등 해당 공개 생성 함수의 인자로 기록한다.
+이미 매핑된 X/Y/Color의 scale 편집 카드는 사용한 카드로 간주하여 미사용 카드 뒤로 보낸다.
+공출현 점수를 바꾸거나 카드를 제거하지 않으며, 검색·페이지 이동·히스토리 복원에서도 유지한다.
+`python test/browser/initial-scales.py`는 두 모드에서 파라미터 호버·고정·Apply,
+scale 카드 검색과 Undo/Redo·새로고침 후 코드 복원을 검사한다.
+
 ## 코퍼스 기반 파라미터 기본값
 
 `npm run corpus:train` / `npm run corpus:update`는 전체 차트의 명시적 설정을

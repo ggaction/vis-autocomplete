@@ -35,7 +35,8 @@ test('Miles_per_Gallon × Horsepower × Year offers ten native chart types with 
     assert.equal(prepared.recommendation.validation.topLevelActions, 1);
     assert.ok(renderToSVG(applied).startsWith('<svg'));
     const editor = initialParameters(rec), values = editor.normalizeValues(rec.values);
-    assert.ok(activeControls(editor.resolveControls(values), values).length <= 4, rec.method);
+    assert.ok(activeControls(editor.resolveControls(values), values).filter(c => c.section !== 'scales').length <= 4, rec.method);
+    assert.ok(editor.resolveControls(values).filter(c => c.key === 'scales').length <= 1, 'initial scales share one compact group');
     assert.deepEqual(applied.semanticSpec.datasets.find(d => d.id === 'dataset').values, rows);
     if (rec.colorBinField) {
       assert.ok(rec.setup(rec.values).some(c => c.method === 'createComputedData' && c.args.expression.op === 'parseTime'));

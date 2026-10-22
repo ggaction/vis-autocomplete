@@ -21,7 +21,7 @@ export function rolePlotDefinitions(profile, selection, rows, { availableProfile
       if(method==='createDensityPlot')controls.push(
         {key:'kernel',label:'Kernel',type:'select',value:'gaussian',choices:['gaussian','epanechnikov','uniform','triangular'].map(value=>({value,label:value}))},
         {key:'normalization',label:'Density',type:'select',value:'unit',choices:[{value:'unit',label:'Normalized density'},{value:'count',label:'Count weighted density'}]});
-      add(method,controls,v=>({ ...d.build({...defaults,...v}), ...(method === 'createDensityPlot' ? { steps: Math.max(2, Math.min(100, Math.floor(10000 / (color?.distinct || 1)))) } : {}), ...(method === 'createECDFPlot' ? { guides: { axes: { x: { title: { text: x.name } }, y: { title: { text: 'Cumulative probability' } } } } } : {}) }));
+      add(method,controls,v=>({ ...d.build({...defaults,...v}), ...(method === 'createDensityPlot' ? { steps: Math.max(2, Math.min(100, Math.floor(10000 / (color?.distinct || 1)))), ...(color ? { color: pos(color) } : {}) } : {}), ...(method === 'createECDFPlot' ? { guides: { axes: { x: { title: { text: x.name } }, y: { title: { text: 'Cumulative probability' } } } } } : {}) }));
     }
     if(cat(x)) {
       const setup=()=>[{method:'createSummaryData',args:{id:`${profile.id}-counts`,source:profile.id,groupBy:[...new Set([x.name,color?.name].filter(Boolean))],aggregates:[{op:'count',as:countField}]}}];

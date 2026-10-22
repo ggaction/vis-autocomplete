@@ -90,7 +90,7 @@ test('Initial controls cover aggregation, zero jitter, radar color/names, ECDF g
  const radar=defs({x:'x',y:'y',color:'g'}).find(d=>d.method==='createRadarPlot');assert.ok(radar);const radarArgs=radar.build(valuesFor(radar.controls));assert.equal(radarArgs.color.field,'g');assert.match(renderToSVG(base().createRadarPlot(radarArgs)),/<svg/);
  const ecdf=defs({x:'y'}).find(d=>d.method==='createECDFPlot');assert.ok(ecdf.controls.some(c=>c.key==='group'));assert.ok(ecdf.controls.some(c=>c.key==='weight'));assert.ok(!ecdf.controls.find(c=>c.key==='weight').choices.some(c=>c.value==='y'));
  const reg=initialParameters(defs({x:'x',y:'y',color:'g'}).find(d=>d.method==='createRegressionPlot'));
- for(const method of ['linear','polynomial','loess']){const v={...valuesFor(reg.controls),method};assert.ok(activeControls(reg.controls,v).length<=4);assert.match(renderToSVG(base().createRegressionPlot(reg.build(v))),/<svg/)}
+ for(const method of ['linear','polynomial','loess']){const v={...valuesFor(reg.controls),method};assert.ok(activeControls(reg.controls,v).filter(c=>c.section!=='scales').length<=4);assert.match(renderToSVG(base().createRegressionPlot(reg.build(v))),/<svg/)}
 });
 
 test('Parallel dimension changes update native scale choices and domain independently',()=>{
@@ -140,7 +140,7 @@ test('Initial interval bounds exclude the center and normalize overlapping bound
  const data=[{title:'A',pointEstimate:3,lower:1,upper:4},{title:'B',pointEstimate:4,lower:2,upper:5}];
  const p=chart().createCanvas(defaultCanvasOptions()).createData({id:'data',values:data}),profile=profileDataset(p,'data');
  const editor=initialParameters(selectedPlotDefinitions(profile,{x:'title',y:'pointEstimate'},data,[],{availableProfile:profile}).find(d=>d.method==='createIntervalPlot'));
- assert.ok(editor.controls.every(c=>!c.choices.some(choice=>choice.value==='pointEstimate')));
+ assert.ok(activeControls(editor.controls,valuesFor(editor.controls)).filter(c=>['lower','upper'].includes(c.key)).every(c=>!c.choices.some(choice=>choice.value==='pointEstimate')));
  const values=editor.normalizeValues({...valuesFor(editor.controls),lower:'upper'},'lower');
  assert.notEqual(values.lower,values.upper);
  assert.ok(editor.resolveControls(values).find(c=>c.key==='upper').choices.find(c=>c.value===values.lower).disabled);

@@ -1,4 +1,5 @@
 import { rolePlotDefinitions } from './role-plots.js';
+import { withInitialScales } from './initial-scales.js';
 import { getPlotDefinitions, defaultValues } from './plot-catalog.js';
 import { xBinControl, binnedSummarySetup, binnedFieldSetup, continuousFieldSetup, isContinuousField } from './plot-aggregation.js';
 
@@ -46,7 +47,8 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
   const fields = new Map(profile.fields.map(field => [field.name, field]));
   const x = fields.get(selection.x), y = fields.get(selection.y), color = fields.get(selection.color);
   const ySelected = fields.get(selection.y);
-  if (!ySelected) return rolePlotDefinitions(profile, selection, complete, options);
+  if (!ySelected) return rolePlotDefinitions(profile, selection, complete, options)
+    .map(definition => withInitialScales(definition, profile, complete));
   const grouped = categorical(x) && y.type === 'quantitative' || categorical(y) && x.type === 'quantitative';
   const aggregateBar = barCategory(x) && y.type === 'quantitative' || barCategory(y) && x.type === 'quantitative';
   const category = categorical(x) ? x : y, measure = categorical(x) ? y : x;
@@ -301,5 +303,6 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
     if (existing) Object.assign(existing, { eligible: true, reason: undefined });
     else eligibility.push({ method: definition.method, eligible: true });
   }
-  return [...definitions.filter(d => !extraDefinitions.some(e => e.method === d.method)), ...extraDefinitions];
+  return [...definitions.filter(d => !extraDefinitions.some(e => e.method === d.method)), ...extraDefinitions]
+    .map(definition => withInitialScales(definition, profile, complete));
 }

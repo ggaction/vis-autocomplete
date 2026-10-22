@@ -19,7 +19,9 @@ const conditional = (control, keyForPath) => control.whenPath ? {
 // actions, without serializing functions through corpus/worker data.
 export function initialParameters(spec) {
   const controls = spec.controls.map(c => conditional(c, path => path));
-  const resolveControls = values => controls.map(c => ({ ...c, ...(c.distinctFrom ? {
+  const resolveFlatControls = values => {
+    const scales = spec.resolveScaleControls?.(values) ?? [];
+    return controls.map(c => ({ ...c, ...(scales.find(control => control.key === c.key) ?? {}), ...(c.distinctFrom ? {
     choices: c.choices.map(choice => ({ ...choice,
       disabled: Boolean(choice.disabled || choice.value === values[c.distinctFrom]),
       reason: choice.value === values[c.distinctFrom] ? 'These roles must use different fields.' : choice.reason })),
@@ -40,7 +42,15 @@ export function initialParameters(spec) {
           disabled: true, reason: 'Exponential regression requires strictly positive Y values.',
         } : {}) })),
     } : {}),
-  }));
+    }));
+  };
+  const groupScales = controls => {
+    const scales = controls.filter(c => c.section === 'scales');
+    return [...controls.filter(c => c.section !== 'scales'), ...(scales.length ? [
+      { key: 'scales', label: 'Scales & palette', type: 'group', controls: scales },
+    ] : [])];
+  };
+  const resolveControls = values => groupScales(resolveFlatControls(values));
   const normalizeValues = (input, changedKey) => {
     const values = { ...input };
     for (const c of controls) {
@@ -48,7 +58,7 @@ export function initialParameters(spec) {
       const replace = changedKey === c.key ? controls.find(other => other.key === c.distinctFrom) : c;
       values[replace.key] = replace.choices.find(choice => !choice.disabled && choice.value !== values[c.key])?.value;
     }
-    for (const c of resolveControls(values)) {
+    for (const c of resolveFlatControls(values)) {
       if (c.type === 'select' && c.choices.some(choice => sameValue(choice.value, values[c.key]) && choice.disabled)) {
         values[c.key] = c.choices.find(choice => !choice.disabled)?.value;
       }
@@ -56,7 +66,7 @@ export function initialParameters(spec) {
     }
     return values;
   };
-  return { ...spec, controls, resolveControls, normalizeValues,
+  return { ...spec, controls: groupScales(controls), resolveControls, normalizeValues,
     build: values => spec.build(normalizeValues(values)),
     ...(spec.setup ? { setup: values => spec.setup(normalizeValues(values)) } : {}) };
 }

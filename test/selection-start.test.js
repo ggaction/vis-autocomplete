@@ -66,7 +66,7 @@ test('unselected columns cannot affect initial chart ranking, neighbors or fixed
     assert.deepEqual(a.query.fields.map(field => field.name).sort(), a.selectedFields.toSorted());
     assert.deepEqual(a.recommendations.map(r => [r.method, r.score, r.build(r.values)]),
       b.recommendations.map(r => [r.method, r.score, r.build(r.values)]));
-    assert.ok(a.recommendations.every(r => activeControls(initialParameters(r).controls, r.values).length <= 4 &&
+    assert.ok(a.recommendations.every(r => activeControls(initialParameters(r).controls, r.values).filter(c => c.section !== 'scales').length <= 4 &&
       !r.controls.some(control => ['x', 'y', 'category', 'value', 'color'].includes(control.key))));
     assert.deepEqual(a.recommendations.map(r => r.setup(r.values)), b.recommendations.map(r => r.setup(r.values)));
     for (const r of a.recommendations) if (color) assert.equal(r.build(r.values).color.field, r.colorBinField ?? color);
@@ -117,12 +117,12 @@ test('every selected-variable plot renders and Apply matches preview using one n
       }
       if (['createPiePlot', 'createRosePlot', 'createRadialBarPlot', 'createDumbbellPlot'].includes(rec.method)) {
         assert.ok([chosen.x, chosen.y].includes(args.category));
-        assert.ok([chosen.x, chosen.y].includes(args.value ?? args.start)); continue;
+        assert.ok([chosen.x, chosen.y].includes(args.value?.field ?? args.start?.field ?? args.value ?? args.start)); continue;
       }
       assert.equal(args.x?.field ?? (typeof args.x === 'string' ? args.x : undefined) ??
-        (args.orientation === 'horizontal' ? args.value : args.category), rec.binField ?? chosen.x);
+        (args.orientation === 'horizontal' ? args.value?.field ?? args.value : args.category), rec.binField ?? chosen.x);
       assert.equal(args.y?.field ?? (typeof args.y === 'string' ? args.y : undefined) ??
-        (args.orientation === 'horizontal' ? args.category : args.value), rec.yBinField ?? chosen.y);
+        (args.orientation === 'horizontal' ? args.category : args.value?.field ?? args.value), rec.yBinField ?? chosen.y);
     }
   }
 });
@@ -171,7 +171,7 @@ test('area and horizon bin nearby distinct X positions and aggregate Y per Color
       assert.equal(rec.values.aggregate, 'mean');
       assert.equal(rec.values.bins, 10);
       assert.ok(rec.controls.some(c => c.key === 'bins'));
-      assert.ok(rec.controls.length <= 3);
+      assert.ok(rec.controls.filter(c => c.section !== 'scales').length <= 3);
       const expected = color ? { mean: 8, median: 6, sum: 24, min: 2, max: 16 }
         : { mean: 9.6, median: 10, sum: 48, min: 2, max: 16 };
       for (const aggregate of rec.controls.find(c => c.key === 'aggregate').choices.map(c => c.value)) {
@@ -235,7 +235,7 @@ test('numeric-X line uses native X bins and Y aggregation, including separate Co
   const p = base(data), profile = profileDataset(p, 'dataset'), before = JSON.stringify(p);
   const rec = engine.recommend(data, profile, { selection: { x: 'X', y: 'Y', color: 'C' } })
     .recommendations.find(r => r.method === 'createLinePlot');
-  assert.deepEqual(rec.controls.map(c => c.key), ['bins', 'aggregate']);
+  assert.deepEqual(rec.controls.filter(c => c.section !== 'scales').map(c => c.key), ['bins', 'aggregate']);
   assert.equal(rec.values.bins, 10);
   assert.equal(rec.values.aggregate, 'mean');
   assert.deepEqual(rec.setup(rec.values), []);
@@ -300,7 +300,7 @@ test('regression switches between actual Color-group models and one pooled model
   const p = base(rows), profile = profileDataset(p, 'dataset'), chosen = { ...selection, color: 'Origin' };
   const setup = selectionData(p, profile, rows, chosen);
   const rec = engine.recommend(rows, { ...profile, id: setup.data }, { selection: chosen }).recommendations.find(r => r.method === 'createRegressionPlot');
-  assert.deepEqual(activeControls(initialParameters(rec).controls, rec.values).map(c => c.key), ['method', 'fit', 'interval']);
+  assert.deepEqual(activeControls(initialParameters(rec).controls, rec.values).filter(c => c.section !== 'scales').map(c => c.key), ['method', 'fit', 'interval']);
   assert.ok(rec.controls.some(c => c.key === 'degree'));
   assert.ok(rec.controls.some(c => c.key === 'span'));
   assert.equal(rec.values.fit, 'group');
@@ -327,7 +327,7 @@ test('numeric-X bars retain native bin intervals and expose all Color layouts th
   for (const color of ['', 'C']) {
     const rec = engine.recommend(data, profile, { selection: { x: 'X', y: 'Y', color } })
       .recommendations.find(r => r.method === 'createBarPlot');
-    assert.deepEqual(rec.controls.map(c => c.key), color ? ['bins', 'aggregate', 'layout'] : ['bins', 'aggregate']);
+    assert.deepEqual(rec.controls.filter(c => c.section !== 'scales').map(c => c.key), color ? ['bins', 'aggregate', 'layout'] : ['bins', 'aggregate']);
     assert.deepEqual(rec.setup(rec.values), []);
     for (const aggregate of ['mean', 'median', 'sum', 'min', 'max']) {
       for (const layout of color ? ['overlay', 'stack', 'fill', 'group'] : ['overlay']) {
@@ -370,7 +370,7 @@ test('three continuous variables offer Cartesian and polar/parallel plot types w
     ].sort());
     assert.deepEqual(result.selectedFields, [chosen.x, chosen.y, color]);
     for (const rec of result.recommendations) {
-      assert.ok(activeControls(initialParameters(rec).controls, rec.values).length <= 4, rec.method);
+      assert.ok(activeControls(initialParameters(rec).controls, rec.values).filter(c => c.section !== 'scales').length <= 4, rec.method);
       const args = rec.build(rec.values), calls = rec.setup(rec.values);
       const prepared = prepareGuidedAction(selected.program, { method: rec.method, args }, selected.program, calls);
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);
@@ -381,7 +381,7 @@ test('three continuous variables offer Cartesian and polar/parallel plot types w
       assert.equal(encoding.color.field, rec.colorBinField ?? color);
       if (rec.colorBinField) {
         assert.equal(encoding.color.fieldType, 'ordinal');
-        assert.deepEqual(rec.controls.map(c => c.key), rec.method === 'createPolarLinePlot' ? ['colorBins'] : ['bins', 'aggregate', 'colorBins']);
+        assert.deepEqual(rec.controls.filter(c => c.section !== 'scales').map(c => c.key), rec.method === 'createPolarLinePlot' ? ['colorBins'] : ['bins', 'aggregate', 'colorBins']);
         const derived = applied.semanticSpec.datasets.find(d => d.id === rec.setup(rec.values).find(c => c.method === 'createComputedData' && c.args.as === rec.colorBinField).args.id);
         assert.ok(derived.values.length > 300);
         assert.ok(new Set(derived.values.map(r => r[rec.colorBinField])).size <= 6);

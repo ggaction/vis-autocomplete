@@ -35,7 +35,7 @@ test('categorical count heatmap preserves row counts and supplied interval uses 
   assert.deepEqual(r.actionBase.semanticSpec.datasets.at(-1).values.map(row => row.__count), [2, 1]);
   const fixture = options(corpus('vl_0024'), { x: 'Year', y: 'center' });
   const interval = fixture.definitions.find(d => d.method === 'createIntervalPlot');
-  assert.deepEqual(interval.build(defaultValues(interval)).y, { center: 'center', lower: 'ci0', upper: 'ci1' });
+  assert.deepEqual(interval.build(defaultValues(interval)).y, { center: 'center', lower: 'ci0', upper: 'ci1', scale: { type: 'linear' } });
   assert.equal(prepare(fixture.p, interval).preview.semanticSpec.datasets.at(-1).values.length, 4);
 });
 

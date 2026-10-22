@@ -158,7 +158,8 @@ test('pie pages pack the whole queue while keeping the most recently applied col
   const request = (stateId, page = 0, searchQuery = '') => service.execute({
     type: 'recommend', stateId, options, group: 'encoding', page, searchQuery });
   const original = request(1), first = request(2);
-  assert.ok(original.result.recommendations.some(r => r.method === 'editColorScale' && !r.previouslyApplied));
+  assert.ok(request(1, 0, 'editColorScale').result.recommendations[0].previouslyApplied,
+    'plot creation already establishes its color scale');
   assert.equal(first.result.recommendations.length, 5);
   assertUnusedFirst(first.result.recommendations);
   assert.deepEqual(first.pagination.pageRanges, [{ start: 0, end: 5 }]);
@@ -177,5 +178,5 @@ test('pie pages pack the whole queue while keeping the most recently applied col
   assert.deepEqual(searched.result.recommendations.map(r => r.method), ['editColorScale']);
   assert.equal(searched.result.recommendations[0].score, scale.score);
   assert.deepEqual(request(1).result.recommendations, original.result.recommendations,
-    'Undo returns the color-scale action to its unused position');
+    'Undo restores the earlier used-action order');
 });

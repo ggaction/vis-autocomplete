@@ -313,7 +313,12 @@ async function restoreHistory(direction) {
     showPreview(null);
     await updateCards();
   } catch (error) { notice(error.message, true); }
-  finally { state.committing = false; updateHistoryButtons(); updateGalleryNavigation(); scheduleSave(); }
+  finally {
+    state.committing = false;
+    // Transition mode suppresses hover updates during restoration. Rebuild the
+    // committed code after that guard is released, even if the pointer is idle.
+    showCode(); updateHistoryButtons(); updateGalleryNavigation(); scheduleSave();
+  }
 }
 
 function notice(message = '', isError = false) {

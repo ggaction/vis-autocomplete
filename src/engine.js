@@ -247,7 +247,11 @@ export function createRecommendationEngine(model) {
         // same native X/Y functions can still supply bin/aggregate transforms.
         if (candidate.category === 'encoding' && establishedChannels.some(channel => candidate.feature === `encoding.${channel}`)) { exclude('established-channel'); continue; }
         if (candidate.category === 'encoding' && appliedChannels.includes(encodingChannel(candidate.method))) { exclude('applied-channel'); continue; }
+        // Choosing a mapped channel also establishes its scale. Keep these
+        // editors available in the used queue, including native plot defaults.
+        const initialScaleChannel = { editXScale: 'x', editYScale: 'y', editColorScale: 'color' }[candidate.method];
         const previouslyApplied = appliedMethods.has(candidate.method) ||
+          (initialScaleChannel && existingChannels.includes(initialScaleChannel) && Boolean(context.layer?.encoding?.[initialScaleChannel]?.scale)) ||
           (candidate.category === 'encoding' && existingChannels.includes(encodingChannel(candidate.method)));
         const appliedOrder = previouslyApplied ? appliedMethods.get(candidate.method) ?? -1 : null;
         if (program.compositionSpec?.facet && !candidate.compositionAction &&

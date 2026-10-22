@@ -92,10 +92,10 @@ const canvasResize = createCanvasResize(elements.current, {
     showCode({ ...context, prepared });
     $('code-mode').textContent = 'Resize chart';
   },
-  async commit(context, action, retainViewport) {
+  async commit(context, action) {
     await commit({ ...context, method: action.method, values: {}, build: () => action.args,
       title: context.resizeTitle,
-      interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true, retainViewport });
+      interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
   },
   cancel(context, error) {
     state.codeCard = null;
@@ -1087,7 +1087,7 @@ function emptyActionsMessage() {
     : `No applicable ${state.optionGroup} actions for this chart yet.`;
 }
 
-async function commit(card, { direct = false, retainViewport = () => {} } = {}) {
+async function commit(card, { direct = false } = {}) {
   if (state.committing || card.base !== state.program) return;
   const datasetId = state.datasetId;
   clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
@@ -1152,10 +1152,9 @@ async function commit(card, { direct = false, retainViewport = () => {} } = {}) 
     const warming = recommendationResponse();
     warming.catch(() => {});
     if (!direct) {
-      canvasResize.inherit(card.view, view);
       renderChart(elements.preview, view, card.title);
       await transferChart(elements.preview, elements.current, host => renderChart(host, view, card.title));
-    } else retainViewport(view);
+    }
     showPreview(null, { showCodeChange: false });
     if (state.program !== committedProgram) return;
     elements.current.classList.remove('data-view'); state.tableView?.destroy?.(); state.tableView = null;

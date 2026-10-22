@@ -30,8 +30,21 @@ with sync_playwright() as p:
     def geometry():
         return page.locator('#current').evaluate('''e=>{
             const svg=e.querySelector('svg'),plot=e.querySelector('.plot-boundary'),canvas=e.querySelector('.canvas-boundary');
-            return {box:svg.getAttribute('viewBox'),plot:plot.getBoundingClientRect().toJSON(),canvas:canvas.getBoundingClientRect().toJSON(),label:plot.textContent};
+            const native=svg.getAttribute('viewBox').split(' ').map(Number),r=canvas.getBoundingClientRect();
+            return {box:svg.getAttribute('viewBox'),native,scale:r.width/native[2],host:e.getBoundingClientRect().toJSON(),
+              client:[e.clientWidth,e.clientHeight],scroll:[e.scrollWidth,e.scrollHeight],
+              plot:plot.getBoundingClientRect().toJSON(),canvas:r.toJSON(),label:plot.textContent,
+              lengths:plot.textContent.match(/[0-9]+/g).map(Number)};
         }''')
+
+    def assert_fit():
+        g=geometry(); r=g['canvas']; h=g['host']
+        assert abs(r['x']+r['width']/2-h['x']-h['width']/2)<1,g
+        assert abs(r['y']+r['height']/2-h['y']-h['height']/2)<1,g
+        assert r['width'] <= g['client'][0]-23 and r['height'] <= g['client'][1]-23,g
+        assert min(abs(r['width']-g['client'][0]+24),abs(r['height']-g['client'][1]+24))<1,g
+        assert abs(r['height']/g['native'][3]-g['scale'])<0.001,g
+        assert g['scroll']==g['client'],g
 
     def drag(handle,dx,dy,steps,commit=True):
         expected = ('editCompositionLayout' if handle.startswith('canvas') else 'editFacetSource') if geometry()['label'].startswith('All plots') else 'editCanvas'
@@ -45,6 +58,7 @@ with sync_playwright() as p:
         expect(page.locator('#code-mode')).to_have_text('Resize chart',timeout=30000)
         expect(page.locator('#current')).to_have_attribute('data-steps',str(steps))
         expect(page.locator('#code-content')).to_have_attribute('data-preview-method',expected)
+        assert_fit()
         if not commit:
             page.keyboard.press('Escape')
             page.mouse.up()
@@ -55,16 +69,19 @@ with sync_playwright() as p:
         page.locator('h1').hover()
         expect(page.locator('#preview svg')).to_have_count(0)
 
+    assert_fit()
     before=geometry()
     drag('plot-s',0,20,1)
     after=geometry()
-    assert abs(after['plot']['height']-before['plot']['height']-20)<2,(before,after)
-    assert abs(after['plot']['width']-before['plot']['width'])<1
+    assert after['lengths'][1]-before['lengths'][1] == 2*round(20/before['scale']),(before,after)
+    assert after['lengths'][0]==before['lengths'][0]
+    assert_fit()
     expect(page.locator('#current')).to_have_attribute('data-last-method','editCanvas')
     drag('canvas-e',30,0,2)
     canvas=geometry()
-    assert abs(canvas['canvas']['width']-after['canvas']['width']-30)<2
-    assert abs(canvas['plot']['width']-after['plot']['width'])<1
+    assert canvas['native'][2]-after['native'][2] == 2*round(30/after['scale']),(after,canvas)
+    assert canvas['lengths']==after['lengths']
+    assert_fit()
     drag('plot-e',25,0,3,commit=False)
     assert geometry()['box']==canvas['box']
     page.locator('#undo').click()
@@ -92,6 +109,17 @@ with sync_playwright() as p:
     page.screenshot(path='output/direct-resize/current.png')
     assert not errors,errors
     print('PASS hover-only Preview, live axis/canvas/code, one history step, Esc, Undo/Redo and draft replay')
+    # Large vertical growth shrinks the entire display; shrinking enlarges it again.
+    step = int(page.locator('#current').get_attribute('data-steps'))
+    small=geometry()
+    drag('canvas-s',0,180,step)
+    large=geometry(); assert_fit()
+    assert large['scale'] < small['scale'],(small,large)
+    drag('canvas-s',0,-65,step+1)
+    smaller=geometry(); assert_fit()
+    assert smaller['scale'] > large['scale'],(large,smaller)
+    assert smaller['lengths']==large['lengths']==small['lengths']
+    print('PASS centered uniform shrink/enlarge with no overflow during and after drag',flush=True)
     # Native label constraints clamp an overshoot instead of leaving a broken chart.
     step = int(page.locator('#current').get_attribute('data-steps'))
     drag('plot-e',-500,0,step)
@@ -166,6 +194,10 @@ with sync_playwright() as p:
         host=page.locator('#current').bounding_box()
         rect=geometry()['canvas']
         assert rect['width'] < host['width'] and rect['height'] < host['height']
+        assert_fit()
+        page.set_viewport_size({'width':1800,'height':1200})
+        page.wait_for_timeout(300)
+        assert_fit()
         print('PASS',method,'facet' if facet else 'polar','plot + canvas resize and responsive fit',flush=True)
         page.close()
     assert not errors,errors

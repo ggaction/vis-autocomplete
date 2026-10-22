@@ -21,6 +21,20 @@ export function canvasGeometry(program) {
 
 const clamp = (value, min, max = 4096) => Math.round(Math.max(min, Math.min(max, value)));
 
+// Both edges move equally, retaining any intentional asymmetry for guides.
+function growPair(values, first, second, delta, min) {
+  const a = values[first] ?? 0, b = values[second] ?? 0;
+  const change = Math.max(min - Math.min(a, b), Math.min(4096 - Math.max(a, b), delta));
+  values[first] = a + change; values[second] = b + change;
+}
+
+// Always refit, even when shrinking: native dimensions and exported code remain
+// independent of the uniform display scale. Reserve space for resize handles.
+export function fitCanvasViewport(geometry, width, height) {
+  const scale = Math.min(Math.max(0, width - 24) / geometry.width, Math.max(0, height - 24) / geometry.height);
+  return { scale, left: (width - geometry.width * scale) / 2, top: (height - geometry.height * scale) / 2 };
+}
+
 // Every gesture is relative to its original state, never to its last preview.
 export function resizeCanvasAction(start, handle, dx, dy) {
   dx = Math.round(dx); dy = Math.round(dy);
@@ -30,27 +44,17 @@ export function resizeCanvasAction(start, handle, dx, dy) {
   if (handle.startsWith('canvas')) {
     if (start.composition) {
       const padding = { ...start.padding };
-      if (horizontal) padding.right = clamp((padding.right ?? 0) + dx, 0);
-      if (vertical) padding.bottom = clamp((padding.bottom ?? 0) + dy, 0);
+      if (horizontal) growPair(padding, 'left', 'right', dx, 0);
+      if (vertical) growPair(padding, 'top', 'bottom', dy, 0);
       return { method: 'editCompositionLayout', args: { padding } };
     }
-    if (horizontal) margin.right = Math.max(12, Math.min(4096, margin.right + dx));
-    if (vertical) margin.bottom = Math.max(12, Math.min(4096, margin.bottom + dy));
+    if (horizontal) growPair(margin, 'left', 'right', dx, 12);
+    if (vertical) growPair(margin, 'top', 'bottom', dy, 12);
   } else {
-    if (horizontal) {
-      plot.width = clamp(start.plot.width + dx, 32);
-      margin.right = Math.max(12, margin.right + start.plot.width - plot.width);
-    }
-    if (vertical) {
-      plot.height = clamp(start.plot.height + dy, 32);
-      margin.bottom = Math.max(12, margin.bottom + start.plot.height - plot.height);
-    }
-    // Drag the vertical (Y) axis to the left to lengthen X, keeping its far end.
-    if (handle.endsWith('w')) {
-      const delta = Math.min(dx, start.plot.width - 32, 4096 - margin.left);
-      margin.left = clamp(start.margin.left + delta, 12);
-      plot.width = clamp(start.plot.width + start.margin.left - margin.left, 32);
-    }
+    // Keep guide space while growing the plot symmetrically around its center.
+    if (horizontal) plot.width = clamp(start.plot.width + 2 * dx, 32);
+    if (vertical) plot.height = clamp(start.plot.height + 2 * dy, 32);
+    if (handle.endsWith('w')) plot.width = clamp(start.plot.width - 2 * dx, 32);
   }
   const options = { plot, margin };
   return start.facet

@@ -508,8 +508,12 @@ npm run validate:corpus  # 전체 차트 통계 재계산 + 각 데이터로 추
 ```
 
 `node --test test/canvas-resize.test.js`는 캔버스·축 길이의 독립 조절과 facet의 공개 호출을 검증한다.
+캔버스·축 경계를 드래그하면 반대쪽 경계도 대칭으로 움직인다. Current view는 캔버스 전체를
+가로·세로 중앙에 두고, 공간에 맞춰 같은 비율로 자동 확대·축소한다. 표시 배율과 무관하게
+코드·히스토리·내보내기에는 실제 ggaction 크기가 유지된다.
 실행 중인 앱에서 Playwright Python으로 `test/browser/canvas-resize.py`를 실행하면 드래그 중 코드,
-취소·Undo/Redo·새로고침·SVG 내보내기, facet·파이, 키보드와 창 크기 변경을 확인한다.
+취소·Undo/Redo·새로고침·SVG 내보내기, facet·파이, 키보드와 창 크기 변경,
+드래그 중 중앙 정렬·자동 확대/축소·넘침 방지를 확인한다.
 
 `/test/fixtures/history-workflow.html`의 **Run history workflow checks**는 실제 Cars 데이터로
 Apply 기록, 호버/코드 프리뷰, 클릭 복원, Undo/Redo, 분기, 그룹 색상, 가로 스크롤과 높이를 검증한다.

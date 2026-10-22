@@ -1,17 +1,15 @@
-import { canvasGeometry, resizeCanvasAction } from './canvas-geometry.js';
+import { canvasGeometry, resizeCanvasAction, fitCanvasViewport } from './canvas-geometry.js';
 
 // Pointer capture belongs to the stable host, not to a handle replaced by a new
 // worker-rendered SVG. One in-flight preview plus one latest intent bounds work.
 export function createCanvasResize(host, callbacks) {
   let geometry, viewport, gesture = null, stage, mountedProgram;
-  const viewports = new WeakMap();
   function mount(program, svg) {
     mountedProgram = program;
     geometry = canvasGeometry(program);
     if (!geometry) return;
     host.classList.add('canvas-editor');
-    viewport = gesture?.viewport ?? viewports.get(program) ?? fit(geometry);
-    viewports.set(program, viewport);
+    viewport = fitCanvasViewport(geometry, host.clientWidth, host.clientHeight);
     const { scale, left, top } = viewport;
     const focusedHandle = gesture && gesture.pointerId === undefined ? gesture.handle
       : host.contains(document.activeElement) ? document.activeElement.dataset.resize : null;
@@ -41,13 +39,11 @@ export function createCanvasResize(host, callbacks) {
     if (!geometry.composition || geometry.facet) frame('plot', geometry.x, geometry.y, geometry.plot.width, geometry.plot.height);
     if (focusedHandle) stage.querySelector(`[data-resize="${focusedHandle}"]`)?.focus({ preventScroll: true });
   }
-  function fit(g) {
-    const scale = Math.min((host.clientWidth - 24) / g.width, (host.clientHeight - 24) / g.height);
-    return { scale: Math.max(0.05, scale), left: Math.max(12, (host.clientWidth - g.width * scale) / 2), top: 12 };
-  }
   function start(handle, event) {
-    if (gesture || !callbacks.canStart() || !geometry) return false;
+    if (gesture || !callbacks.canStart() || !geometry || !viewport?.scale) return false;
     const context = callbacks.start(handle);
+    // Freeze only the pointer-to-native conversion, not the rendered viewport.
+    // Re-fitting must never feed back into accumulated pointer displacement.
     gesture = { handle, context, geometry, viewport: { ...viewport }, pointerId: event.pointerId,
       baseKey: JSON.stringify(resizeCanvasAction(geometry, handle, 0, 0)),
       x: event.clientX, y: event.clientY, dx: 0, dy: 0, pending: null, running: false, ended: false, changed: false };
@@ -117,7 +113,7 @@ export function createCanvasResize(host, callbacks) {
     if (g.finishing || g !== gesture) return;
     g.finishing = true;
     try {
-      if (g.changed && g.final && !g.error) await callbacks.commit(g.context, g.final, program => viewports.set(program, g.viewport));
+      if (g.changed && g.final && !g.error) await callbacks.commit(g.context, g.final);
       else callbacks.cancel(g.context, g.error);
     } finally { if (gesture === g) { gesture = null; host.classList.remove('resizing'); callbacks.end(); } }
   }
@@ -167,13 +163,9 @@ export function createCanvasResize(host, callbacks) {
     if (!host.classList.contains('canvas-editor')) return;
     cancel();
     const svg = host.querySelector('.canvas-stage > svg');
-    if (svg && mountedProgram) { viewports.delete(mountedProgram); mount(mountedProgram, svg); }
+    if (svg && mountedProgram) mount(mountedProgram, svg);
   }).observe(host);
   return { mount, cancel,
-    inherit(from, to) {
-      const previous = viewports.get(from);
-      if (previous && canvasGeometry(from)?.composition === canvasGeometry(to)?.composition) viewports.set(to, previous);
-    },
     clear() { host.classList.remove('canvas-editor'); },
   };
 }

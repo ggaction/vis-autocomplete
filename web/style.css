@@ -34,7 +34,7 @@ main { padding: 14px 16px 16px; }
 .notice { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; font: inherit; color: inherit; }
 .notice:empty { display: none; }
 .notice.error { color: #a13333; }
-.workspace { height: var(--workspace-height); min-height: 600px; display: grid; grid-template-columns: minmax(0, 2.23fr) minmax(261.8px, .77fr); gap: 14px; }
+.workspace { height: var(--workspace-height); min-height: 600px; display: grid; grid-template-columns: minmax(0, 2.384fr) minmax(209.44px, .616fr); gap: 14px; }
 .workspace.code-collapsed { grid-template-columns: minmax(0, 1fr) var(--collapsed-panel-size); }
 .authoring-area { --history-height: clamp(120px, 18dvh, 158px); --history-row-height: var(--history-height); --history-reclaimed: 0px; min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(190px, calc((100% - 14px) * .342 + var(--history-reclaimed) / 2)) minmax(220px, 1fr) var(--history-row-height); gap: 12px; }
 .history-collapsed .authoring-area { --history-row-height: var(--collapsed-panel-size); --history-reclaimed: calc(var(--history-height) - var(--history-row-height)); }
@@ -361,7 +361,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 /* Vertical authoring has two independent, equal-height bands. Neither band's
    boundary moves on hover. Fixed columns also preserve slots on short pages. */
 .workspace[data-layout="vertical"] .authoring-area {
-  --history-height: clamp(100px, 14dvh, 140px);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: minmax(430px, 1fr) var(--history-row-height);
 }

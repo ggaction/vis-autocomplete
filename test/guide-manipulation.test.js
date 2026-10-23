@@ -110,3 +110,17 @@ test('symbol representation of a continuous color legend resizes its symbols ins
  assert.ok(next.guideConfigs.legend.gradient.itemGap>target.config.itemGap);
  assert.ok(next.guideConfigs.legend.gradient.labels.fontSize>target.config.labels.fontSize);
 });
+
+test('a move rebased to its run baseline retains the current legend title placement',()=>{
+ const baseline=base().editLegend({target:'plot',channel:'color',position:'bottom',titlePosition:'left'});
+ const before=editableGuides(baseline).find(t=>t.kind==='legend');
+ const geom=canvasGeometry(baseline), p={x:geom.x,y:geom.y,...geom.plot};
+ const side=prepareGuidedAction(baseline,moveGuide(baseline,before,p.x+p.width+100,p.y+p.height/2),baseline).preview;
+ assert.equal(side.guideConfigs.legend.color.titlePosition,'top');
+ const target=editableGuides(side).find(t=>t.kind==='legend');
+ const g=canvasGeometry(side), r={x:g.x,y:g.y,...g.plot};
+ const action=moveGuide(side,target,r.x+r.width/2,r.y-100);
+ const result=prepareGuidedAction(baseline,action,baseline).preview;
+ assert.equal(result.guideConfigs.legend.color.blockOverrides['["color"]'].position,'top');
+ assert.equal(result.guideConfigs.legend.color.titlePosition,'top');
+});

@@ -1,17 +1,18 @@
-// A resize run owns one history entry. Only successful commits advance it;
+// A direct-edit run owns one history entry. Keys separate moved guide owners
+// from the canvas/plot resize run. Only successful commits advance it;
 // previews and cancelled gestures leave both its baseline and history intact.
 export function createResizeHistory(history) {
   let run = null;
   return {
-    begin() {
+    begin(key = 'canvas') {
       const current = history.entries[history.index];
-      return run?.last === current ? run.before : current;
+      return run?.last === current && run.key === key ? run.before : current;
     },
-    commit(before, snapshot) {
+    commit(before, snapshot, key = 'canvas') {
       const current = history.entries[history.index];
-      if (run?.last === current && run.before === before) history.replace(snapshot);
+      if (run?.last === current && run.before === before && run.key === key) history.replace(snapshot);
       else history.push(snapshot);
-      run = { before, last: snapshot };
+      run = { before, last: snapshot, key };
     },
     reset() { run = null; },
   };

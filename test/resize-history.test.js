@@ -57,3 +57,26 @@ for (const facet of [false, true]) test(`compacted mixed resize geometry matches
     ({ program, view } = compact);
   }
 });
+
+test('guide move runs coalesce only the same owner and preserve cancelled/interleaved edits',()=>{
+ const history=createHistory(), runs=createResizeHistory(history);
+ const initial={}, first={}, second={}, title={}, titleAgain={}, legendAgain={}, canvas={};
+ history.reset(initial);
+ const legend='move:legend:color', heading='move:title';
+ runs.commit(runs.begin(legend),first,legend);
+ assert.equal(runs.begin(legend),initial);
+ // Beginning then cancelling an unrelated gesture does not split the run.
+ assert.equal(runs.begin(heading),first);
+ runs.commit(runs.begin(legend),second,legend);
+ assert.deepEqual(history.entries,[initial,second]);
+ runs.commit(runs.begin(heading),title,heading);
+ runs.commit(runs.begin(heading),titleAgain,heading);
+ runs.commit(runs.begin(legend),legendAgain,legend);
+ runs.commit(runs.begin(),canvas);
+ assert.deepEqual(history.entries,[initial,second,titleAgain,legendAgain,canvas]);
+ runs.reset();history.undo();
+ assert.equal(runs.begin(legend),legendAgain);
+ runs.commit(runs.begin(legend),first,legend);
+ assert.deepEqual(history.entries,[initial,second,titleAgain,legendAgain,first]);
+ assert.equal(history.canRedo,false);
+});

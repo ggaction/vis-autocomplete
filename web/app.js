@@ -212,14 +212,22 @@ const guideEditor = createGuideEditor(elements.current, {
   canStart: () => !state.committing && !state.resizing,
   start(target, operation) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
-    resizeHistory.reset(); cardMotion.finish();
+    cardMotion.finish();
     state.resizing = true; elements.cards.inert = true;
     updateHistoryButtons(); updateGalleryNavigation();
     for (const card of state.cards) card.request = (card.request ?? 0) + 1;
+    // Title and subtitle move one shared native title block. Different legends
+    // and other edit operations must never overwrite one another's history.
+    const historyKey = operation === 'move' ? `move:${target.kind === 'title' ? 'title' : target.key}` : null;
     return { base: state.program, view: state.view, guideCall: state.guideCall,
+      ...(historyKey ? { historyKey, resizeBefore: resizeHistory.begin(historyKey) } : {}),
       title: `${operation === 'resize' ? 'Resize' : 'Move'} ${target.label}` };
   },
-  prepare(context, action) { return calculations.prepare(context.base, context.view, context.guideCall, action, [], { interactive: true }); },
+  prepare(context, action) {
+    const before = context.resizeBefore;
+    return calculations.prepare(before?.program ?? context.base, before?.view ?? context.view,
+      before?.guideCall ?? context.guideCall, before ? { ...action, allowUnchanged: true } : action, [], { interactive: true });
+  },
   preview(context, prepared) {
     renderChart(elements.current, prepared.preview, context.title);
     showCode({ ...context, prepared }); $('code-mode').textContent = context.title;
@@ -1269,7 +1277,7 @@ async function commit(card, { direct = false } = {}) {
     state.steps = (before?.steps ?? state.steps) + 1; state.phase = 'recommendations';
     if (!direct) clearSearch();
     state.context = focus(state.program, direct ? state.context : card.original?.nextContext ?? {});
-    if (before) resizeHistory.commit(before, historySnapshot(card.title));
+    if (before) resizeHistory.commit(before, historySnapshot(card.title), card.historyKey);
     else { resizeHistory.reset(); history.push(historySnapshot(card.title)); }
     scheduleSave();
     const committedProgram = state.program;

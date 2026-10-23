@@ -109,7 +109,8 @@ export function moveGuide(program, target, x, y) {
   const align = along < .33 ? 'left' : along > .67 ? 'right' : 'center';
   if (target.kind === 'title') return { method: 'editTitle', args: { position, align, offset: 0, alongOffset: 0 } };
   const args = { target: target.config.target, channel: target.channels[0], position,
-    align: ['left','right'].includes(position) ? 'center' : align };
+    align: ['left','right'].includes(position) ? 'center' : align,
+    ...(target.config.titlePosition === undefined ? {} : { titlePosition: target.config.titlePosition }) };
   // Moving an inline horizontal title to a side requires native top placement.
   if (target.config.titlePosition === 'left' && ['left','right'].includes(position)) args.titlePosition = 'top';
   return { method: 'editLegend', args };

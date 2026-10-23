@@ -876,3 +876,10 @@ preservation; `test/browser/guide-editor.py` exercises actual mouse drags in bot
 
 `test/browser/legend-resize.py` checks actual grow/shrink drags for categorical,
 continuous color/stroke and symbol legends, in both modes with and without facets.
+
+Consecutive moves of the same title block or legend update one history cell and
+one move call in ggaction Code, including the live preview. Undo returns to the
+state before that move run. Moving another element, applying a different action,
+or navigating history starts a new run; cancelling a drag leaves the run intact.
+`test/browser/guide-move-history.py` checks code/history compaction, cancellation,
+Undo/Redo, resource changes, branching and saved-project restoration in both modes.

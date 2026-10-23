@@ -13,6 +13,7 @@ import { initializeWorkspaceResize } from './workspace-resize.js';
 import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { createCanvasResize } from './canvas-resize.js';
+import { createGuideEditor } from './guide-editor.js';
 import { createResizeHistory, rebaseResizeAction } from './resize-history.js';
 import { createResizeThumbnails } from './resize-thumbnails.js';
 import { canvasGeometry, projectCanvasGeometry } from './canvas-geometry.js';
@@ -205,6 +206,38 @@ const canvasResize = createCanvasResize(elements.current, {
   },
 });
 
+const guideEditor = createGuideEditor(elements.current, {
+  program: () => state.view,
+  available: () => state.phase !== 'initial' && !transitionMode.active,
+  canStart: () => !state.committing && !state.resizing,
+  start(target, operation) {
+    leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
+    resizeHistory.reset(); cardMotion.finish();
+    state.resizing = true; elements.cards.inert = true;
+    updateHistoryButtons(); updateGalleryNavigation();
+    for (const card of state.cards) card.request = (card.request ?? 0) + 1;
+    return { base: state.program, view: state.view, guideCall: state.guideCall,
+      title: `${operation === 'resize' ? 'Resize' : 'Move'} ${target.label}` };
+  },
+  prepare(context, action) { return calculations.prepare(context.base, context.view, context.guideCall, action, [], { interactive: true }); },
+  preview(context, prepared) {
+    renderChart(elements.current, prepared.preview, context.title);
+    showCode({ ...context, prepared }); $('code-mode').textContent = context.title;
+    notice();
+  },
+  async commit(context, action) {
+    await commit({ ...context, method: action.method, values: {}, build: () => action.args,
+      interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
+  },
+  restore(context) { renderedCharts.delete(elements.current); renderChart(elements.current, context.view, 'Current visualization'); showCode(); },
+  feedback(message) { notice(message, true); },
+  end() {
+    state.resizing = false; elements.cards.inert = state.committing;
+    renderedCharts.delete(elements.current); renderChart(elements.current, state.view, 'Current visualization');
+    refreshVisibleCards(); updateHistoryButtons(); updateGalleryNavigation(); notice();
+  },
+});
+
 function historySnapshot(currentNote = elements['current-note'].textContent) {
   const snapshot = captureHistorySnapshot(state, currentNote);
   state.calls = [...snapshot.calls]; state.setupCalls = snapshot.setupCalls;
@@ -349,7 +382,7 @@ function notice(message = '', isError = false) {
 
 function placeholder(host, message) {
   renderedCharts.delete(host);
-  if (host === elements.current) { lastPreview = null; transitionMode.reset(); canvasResize.clear(); }
+  if (host === elements.current) { lastPreview = null; transitionMode.reset(); canvasResize.clear(); guideEditor.clear(); }
   if (host === elements.current) chartDownloads.refresh();
   const wrapper = document.createElement('div'); wrapper.className = 'empty-state';
   const text = document.createElement('p'); text.textContent = message;
@@ -370,7 +403,7 @@ function renderChart(host, program, label) {
   if (host === elements.preview) lastPreview = { program, label, generation: state.generation };
   if (host === elements.current) {
     chartDownloads.refresh();
-    if (state.phase !== 'initial') canvasResize.mount(program, canvas);
+    if (state.phase !== 'initial') { canvasResize.mount(program, canvas); guideEditor.mount(program); }
   }
 }
 

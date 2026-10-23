@@ -1,0 +1,151 @@
+import { editableGuides, guideBounds, resizeGuide, moveGuide } from '../src/guide-manipulation.js';
+import { canvasGeometry } from './canvas-geometry.js';
+
+export function createGuideEditor(host, callbacks) {
+  let display, targets = [], active, overlay, gesture, stage;
+  function select(key) {
+    active = targets.find(target => target.key === key);
+    if (active) host.dataset.guideHover = active.key; else delete host.dataset.guideHover;
+    for (const node of overlay?.querySelectorAll('.guide-control') ?? []) node.classList.toggle('active', node.dataset.guideKey === active?.key);
+  }
+  function mount(program) {
+    display = program; stage = host.querySelector('.canvas-stage');
+    if (!stage || !callbacks.available()) { clear(); return; }
+    const source = gesture?.source ?? callbacks.program();
+    targets = editableGuides(source);
+    const old = active?.key;
+    overlay = stage.querySelector('.guide-editor');
+    if (!overlay) { overlay = document.createElement('div'); overlay.className = 'guide-editor'; stage.append(overlay); }
+    const scale = stage.clientWidth / canvasGeometry(program).width;
+    overlay.replaceChildren();
+    for (const target of targets) {
+      const bounds = guideBounds(program, target.ids); if (!bounds) continue;
+      const pad = target.key === 'title-group' ? 10 : 3;
+      const node = document.createElement('div'); node.className = 'guide-control'; node.dataset.guideKey = target.key;
+      node.style.zIndex = target.key === 'title-group' ? '1' : '2';
+      Object.assign(node.style, { left: `${bounds.left*scale-pad}px`, top: `${bounds.top*scale-pad}px`,
+        width: `${(bounds.right-bounds.left)*scale+pad*2}px`, height: `${(bounds.bottom-bounds.top)*scale+pad*2}px` });
+      const hit = document.createElement('button'); hit.type = 'button'; hit.className = 'guide-hit';
+      hit.dataset.guide = target.key; hit.setAttribute('aria-label', target.movable ? `Move ${target.label}` : `Select ${target.label}`);
+      hit.style.cursor = target.movable ? 'move' : 'default';
+      const label = document.createElement('span'); label.className = 'guide-label'; label.textContent = target.label;
+      const size = document.createElement('button'); size.type = 'button'; size.className = 'guide-size';
+      size.dataset.guide = target.key; size.dataset.guideOperation = 'resize';
+      size.setAttribute('aria-label', `Resize ${target.label}`); size.title = 'Drag to resize · arrow keys · Esc to cancel';
+      node.append(hit, label, size);
+      if (target.kind === 'title' && target.part && targets.some(t => t.key === 'title-group')) {
+        const together = document.createElement('button'); together.className = 'guide-together'; together.type = 'button';
+        together.textContent = 'Together'; together.title = 'Resize title and subtitle together';
+        together.addEventListener('click', event => { event.stopPropagation(); select('title-group'); overlay.querySelector('[data-guide="title-group"][data-guide-operation="resize"]')?.focus({preventScroll:true}); });
+        node.append(together);
+      }
+      overlay.append(node);
+    }
+    select(gesture?.target.key ?? old);
+  }
+  function pointer(event) {
+    if (gesture || !callbacks.available()) return;
+    const button = event.target.closest('[data-guide]');
+    if (button) select(button.dataset.guide);
+    else if (!event.target.closest('.guide-control')) select(null);
+  }
+  host.addEventListener('pointermove', pointer);
+  host.addEventListener('pointerleave', () => { if (!gesture) select(null); });
+  host.addEventListener('focusin', event => { if (event.target.dataset.guide) select(event.target.dataset.guide); });
+  host.addEventListener('focusout', event => { if (!gesture && !overlay?.contains(event.relatedTarget)) select(null); });
+  function start(target, operation, event) {
+    if (gesture || !callbacks.available() || !callbacks.canStart() || operation === 'move' && !target.movable) return;
+    const rect = stage.getBoundingClientRect(), source = callbacks.program();
+    const g = { target, operation, source, rect, scale: rect.width/canvasGeometry(display).width,
+      startX: event.clientX, startY: event.clientY, pointer: event.pointerId,
+      pending: null, running: false, ended: false, final: null, key: null };
+    gesture = g; g.context = callbacks.start(target, operation); host.classList.add('editing-guide');
+    select(target.key); return g;
+  }
+  function update(g, x, y) {
+    if (gesture !== g || g.ended) return;
+    const dx = (x-g.startX)/g.scale, dy = (y-g.startY)/g.scale;
+    if (Math.abs(dx)+Math.abs(dy)<2 && !g.final) return;
+    const b = g.target.bounds, w=b.right-b.left, h=b.bottom-b.top;
+    const factor = (w*(w+dx)+h*(h+dy))/Math.max(1,w*w+h*h);
+    const action = g.operation === 'resize' ? resizeGuide(g.target, factor)
+      : moveGuide(g.source,g.target,(x-g.rect.left)/g.scale,(y-g.rect.top)/g.scale);
+    const key = JSON.stringify(action); if (g.key === key) return;
+    g.key = key; g.pending = { action, factor }; pump(g);
+  }
+  async function pump(g) {
+    if (g.running) return; g.running = true;
+    while (gesture === g && g.pending) {
+      const { action, factor } = g.pending; g.pending = null;
+      const accept = (prepared, accepted, ratio) => {
+        g.final = accepted; g.validFactor = ratio; g.error = null; callbacks.preview(g.context,prepared);
+      };
+      try {
+        const prepared = await callbacks.prepare(g.context,action);
+        if (gesture !== g) break;
+        if (prepared) accept(prepared, action, factor);
+      } catch(error) {
+        if (gesture !== g) break;
+        if (error.reason === 'no-change') { g.final = null; g.validFactor = 1; callbacks.restore(g.context); }
+        else if (g.operation === 'resize' && /overlap|space|margin|bounds|fit|outside/i.test(error.message)) {
+          const from = g.validFactor ?? 1;
+          let low = 0, high = 1, best;
+          for (let attempt = 0; attempt < 6 && gesture === g && !g.pending; attempt++) {
+            const fraction = (low + high) / 2, ratio = from + (factor - from) * fraction;
+            const candidate = resizeGuide(g.target, ratio);
+            try {
+              const prepared = await callbacks.prepare(g.context, candidate);
+              if (prepared) best = { prepared, candidate, ratio };
+              low = fraction;
+            } catch { high = fraction; }
+          }
+          if (gesture === g && !g.pending && best) accept(best.prepared, best.candidate, best.ratio);
+        } else { g.error = error; callbacks.feedback?.(error.message); }
+      }
+    }
+    g.running = false;
+    if (gesture === g && g.ended) await finish(g);
+  }
+  async function finish(g) {
+    if (g.finishing) return; g.finishing = true;
+    try {
+      if (g.final) await callbacks.commit(g.context,g.final);
+      else callbacks.restore(g.context);
+    } finally {
+      if (gesture === g) { gesture = null; host.classList.remove('editing-guide'); callbacks.end(g.context); select(null); }
+    }
+  }
+  function cancel() {
+    if (!gesture || gesture.finishing) return;
+    const g = gesture; gesture = null;
+    if (g.pointer !== undefined && host.hasPointerCapture(g.pointer)) host.releasePointerCapture(g.pointer);
+    host.classList.remove('editing-guide'); callbacks.restore(g.context); callbacks.end(g.context); select(null);
+  }
+  host.addEventListener('pointerdown', event => {
+    const button = event.target.closest('[data-guide]');
+    if (!button || event.button!==0) return;
+    const target=targets.find(t=>t.key===button.dataset.guide); if(!target)return;
+    const g=start(target,button.dataset.guideOperation??'move',event); if(!g)return;
+    event.preventDefault();event.stopPropagation();host.setPointerCapture(event.pointerId);
+  });
+  host.addEventListener('pointermove', event => { if(gesture&&!gesture.ended&&gesture.pointer===event.pointerId)update(gesture,event.clientX,event.clientY); });
+  host.addEventListener('pointerup', event => {
+    const g=gesture;if(!g||g.pointer!==event.pointerId)return;
+    update(g,event.clientX,event.clientY);g.ended=true;host.releasePointerCapture(event.pointerId);if(!g.running)finish(g);
+  });
+  host.addEventListener('pointercancel',cancel);
+  host.addEventListener('lostpointercapture',()=>{if(gesture&&!gesture.ended)cancel();});
+  window.addEventListener('blur',cancel);
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&gesture){event.preventDefault();cancel();}});
+  host.addEventListener('keydown',event=>{
+    const button=event.target.closest('[data-guide-operation="resize"]');
+    if(!button||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+    const target=targets.find(t=>t.key===button.dataset.guide),rect=button.getBoundingClientRect();
+    const g=start(target,'resize',{clientX:rect.x,clientY:rect.y});if(!g)return;
+    event.preventDefault();const amount=(event.shiftKey?20:6)*g.scale;
+    update(g,g.startX+(['ArrowRight','ArrowDown'].includes(event.key)?amount:-amount),g.startY);g.ended=true;if(!g.running)finish(g);
+  });
+  new ResizeObserver(()=>{if(!gesture&&display&&host.classList.contains('canvas-editor'))mount(display);}).observe(host);
+  function clear(){ overlay?.remove();overlay=null;targets=[];active=null;delete host.dataset.guideHover; }
+  return { mount,clear,cancel };
+}

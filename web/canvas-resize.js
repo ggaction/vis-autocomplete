@@ -181,6 +181,21 @@ export function createCanvasResize(host, callbacks) {
     if (g.pointerId !== undefined && host.hasPointerCapture(g.pointerId)) host.releasePointerCapture(g.pointerId);
     host.classList.remove('resizing'); callbacks.cancel(g.context); callbacks.end(g.context);
   }
+  host.addEventListener('pointermove', event => {
+    if (gesture) return;
+    const boundary = event.target.closest('.resize-boundary');
+    if (boundary) { host.dataset.resizeFocus = boundary.classList.contains('plot-boundary') ? 'plot' : 'canvas'; return; }
+    let found;
+    for (const kind of ['plot', 'canvas']) {
+      const b = stage?.querySelector(`.${kind}-boundary`)?.getBoundingClientRect();
+      if (!b) continue;
+      const x = event.clientX, y = event.clientY;
+      if (x >= b.left-8 && x <= b.right+8 && y >= b.top-8 && y <= b.bottom+8 &&
+        Math.min(Math.abs(x-b.left),Math.abs(x-b.right),Math.abs(y-b.top),Math.abs(y-b.bottom)) < 8) { found=kind; break; }
+    }
+    if (found) host.dataset.resizeFocus=found; else delete host.dataset.resizeFocus;
+  });
+  host.addEventListener('pointerleave', () => { if (!gesture) delete host.dataset.resizeFocus; });
   host.addEventListener('pointerdown', event => {
     const button = event.target.closest('[data-resize]');
     if (!button || event.button !== 0 || !start(button.dataset.resize, event)) return;

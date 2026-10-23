@@ -855,3 +855,19 @@ the chosen guide ownership and scale resolution. It does not silently switch
 shared legends to per-cell legends or assign independent color scales. The Facet
 guides control labels the native `legend: false` policy as **Per facet**: it
 disables parent promotion, rather than removing the children's legend recipes.
+
+
+### Direct guide editing
+
+Hover a chart title, subtitle, legend or Cartesian, polar or parallel axis title to reveal only its
+bounding box. Drag the corner to resize its typography; categorical legend symbols
+and spacing scale together. Data-scaled size/stroke samples retain their encoding.
+Use **Together** to resize title and subtitle as one block. Drag title or legend
+text to a plot edge to choose its position and alignment; the normal ggaction
+preparer fits margins and guides. Faceted titles support all four edges as well.
+
+Both Preview and Transition modes update the chart and ggaction Code during the
+drag. Release commits one native edit/history step; Escape cancels, and Undo/Redo
+restores the result. Chart/canvas resize boxes appear only near their own edges.
+`test/guide-manipulation.test.js` covers native edits, facet replay and encoding
+preservation; `test/browser/guide-editor.py` exercises actual mouse drags in both modes.

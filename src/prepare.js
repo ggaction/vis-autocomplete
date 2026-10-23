@@ -129,13 +129,20 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
     // Promote the native creation call into visible setup before editing;
     // the recommendation itself still executes exactly one public edit method.
     const missing = Object.keys(view.semanticSpec.guides[family] ?? {})
-      .some(key => !program.semanticSpec.guides[family]?.[key]);
+      .some(key => !program.semanticSpec.guides[family]?.[key] &&
+        !(family === 'legend' && program.compositionSpec?.facet && program.guideConfigs.legend?.[key]));
     if (missing && last?.op === 'createGuides') {
       const children = nodes => nodes.flatMap(node => [node, ...children(node.children ?? [])]);
       if (children(last.children).some(node => node.op === createMethod)) {
         const suffix = displayedGuideCalls.get(view);
         const option = { axis: 'axes', grid: 'grid', legend: 'legend' }[family];
-        const call = sourceCall(createMethod, structuredClone(suffix?.args[option] ?? {}));
+        // A facet owns its shared legend; createLegend is unit-only.
+        const call = family === 'legend' && actionBase.compositionSpec?.facet
+          ? { method: 'editFacetGuides', args: { legend: structuredClone(suffix?.args.legend ?? {
+            ...sourceAction.args.target ? { target: sourceAction.args.target } : {},
+            ...sourceAction.args.channel ? { channels: [sourceAction.args.channel] } : {}
+          }) } }
+          : sourceCall(createMethod, structuredClone(suffix?.args[option] ?? {}));
         // Trace arguments summarize arrays as counts and cannot be replayed.
         // Keep the actual public suffix options rather than reading node.args.
         actionBase = actionBase[call.method](call.args);

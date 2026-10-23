@@ -861,7 +861,9 @@ disables parent promotion, rather than removing the children's legend recipes.
 
 Hover a chart title, subtitle, legend or Cartesian, polar or parallel axis title to reveal only its
 bounding box. Drag the corner to resize its typography; categorical legend symbols
-and spacing scale together. Data-scaled size/stroke samples retain their encoding.
+and spacing scale together. Gradient legends resize their strip length/thickness
+and typography, while continuous legends displayed as symbols use symbol spacing.
+Data-scaled size/stroke samples retain their encoding.
 Use **Together** to resize title and subtitle as one block. Drag title or legend
 text to a plot edge to choose its position and alignment; the normal ggaction
 preparer fits margins and guides. Faceted titles support all four edges as well.
@@ -871,3 +873,6 @@ drag. Release commits one native edit/history step; Escape cancels, and Undo/Red
 restores the result. Chart/canvas resize boxes appear only near their own edges.
 `test/guide-manipulation.test.js` covers native edits, facet replay and encoding
 preservation; `test/browser/guide-editor.py` exercises actual mouse drags in both modes.
+
+`test/browser/legend-resize.py` checks actual grow/shrink drags for categorical,
+continuous color/stroke and symbol legends, in both modes with and without facets.

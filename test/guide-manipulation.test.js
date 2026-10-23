@@ -76,3 +76,37 @@ test('polar and parallel axis titles use native per-axis editors',()=>{
   }
  }
 });
+
+for (const channel of ['color', 'stroke']) for (const faceted of [false, true]) {
+ test(`${channel} gradient resizing changes the strip and typography${faceted ? ' in facets' : ''}`, () => {
+  let program = chart().createCanvas({plot:{width:314,height:314},margin:170})
+   .createData({id:'dataset',values:rows}).createScatterPlot({id:'plot',x:'x',y:'y'})
+   [`encode${channel[0].toUpperCase()+channel.slice(1)}`]({target:'plot',field:'x',fieldType:'quantitative'});
+  if (faceted) program = program.facet({field:'g',columns:3,guides:{legend:'shared'}});
+  const view = addDefaultGuides(program), target = editableGuides(view).find(t=>t.kind==='legend');
+  assert.equal(target.representation, 'gradient');
+  for (const factor of [.7, 1.5]) {
+   const action = resizeGuide(target,factor);
+   assert.equal('itemGap' in action.args,false);
+   const result = prepareGuidedAction(program,action,view), config = result.preview.guideConfigs.legend[target.family];
+   assert.equal(config.gradient.length,target.config.gradient.length*factor);
+   assert.equal(config.gradient.thickness,Math.round(target.config.gradient.thickness*factor*4)/4);
+   assert.ok(factor<1 ? config.labels.fontSize<target.config.labels.fontSize : config.labels.fontSize>target.config.labels.fontSize);
+   const bounds=guideBounds(result.preview,target.ids);
+   assert.ok(factor<1 ? bounds.bottom-bounds.top<target.bounds.bottom-target.bounds.top : bounds.bottom-bounds.top>target.bounds.bottom-target.bounds.top);
+   assert.deepEqual(result.authoringPreview.semanticSpec.layers.find(l=>l.id==='plot').encoding,program.semanticSpec.layers.find(l=>l.id==='plot').encoding);
+  }
+ });
+}
+
+test('symbol representation of a continuous color legend resizes its symbols instead of a gradient',()=>{
+ const program=chart().createCanvas({plot:{width:314,height:314},margin:170})
+  .createData({id:'dataset',values:rows}).createScatterPlot({id:'plot',x:'x',y:'y',color:{field:'x',fieldType:'quantitative'}})
+  .createGuides().editLegend({target:'plot',channel:'color',representation:'symbols'});
+ const target=editableGuides(program).find(t=>t.kind==='legend');
+ assert.equal(target.representation,'sampled');
+ const action=resizeGuide(target,1.5), next=prepareGuidedAction(program,action,program).preview;
+ assert.ok(!('gradient' in action.args));
+ assert.ok(next.guideConfigs.legend.gradient.itemGap>target.config.itemGap);
+ assert.ok(next.guideConfigs.legend.gradient.labels.fontSize>target.config.labels.fontSize);
+});

@@ -2,7 +2,7 @@ import { findGraphic } from '../vendor/ggaction/src/grammar/schemas/graphicTree.
 import { resolveConcreteGraphicBounds } from '../vendor/ggaction/src/grammar/schemas/graphicBounds.js';
 import { axisGraphicIds, legendGraphicIds } from '../vendor/ggaction/src/materialization/guides/resources.js';
 import { cartesianAxisOwners, axisTargetArgs } from '../vendor/ggaction/src/selectors/axes.js';
-import { legendBlockChannels } from '../vendor/ggaction/src/grammar/legendBlocks.js';
+import { legendBlockChannels, describeLegendBlock } from '../vendor/ggaction/src/grammar/legendBlocks.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -58,7 +58,7 @@ export function editableGuides(program) {
     const ids = findIds(legendGraphicIds(kind));
     if (!ids.length) continue;
     add({ key: `legend:${kind}`, label: `${config.title || 'Legend'} legend`, kind: 'legend', family: kind,
-      config, ids, movable: true, channels: legendBlockChannels(kind, config) });
+      config, ids, movable: true, representation: describeLegendBlock(program, kind, config).family, channels: legendBlockChannels(kind, config) });
   }
   return targets;
 }
@@ -81,7 +81,9 @@ export function resizeGuide(target, factor) {
     return target.facet ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
   }
   const args = { target: config.target, channel: target.channels[0], labels: font(config.labels), titleStyle: font(config.titleStyle) };
-  if (Number.isFinite(config.itemGap)) args.itemGap = round(config.itemGap * factor);
+  // Normalized gradient configs retain itemGap for layout bookkeeping, but
+  // the public edit contract only accepts it for legends made of discrete items.
+  if (target.representation !== 'gradient' && Number.isFinite(config.itemGap)) args.itemGap = round(config.itemGap * factor);
   if (config.labels.offset !== undefined) args.labels.offset = round(config.labels.offset * factor);
   const scaleDimensions = value => {
     const result = structuredClone(value);
@@ -89,9 +91,10 @@ export function resizeGuide(target, factor) {
       if (Number.isFinite(result[key])) result[key] = Math.max(.1, round(result[key] * factor));
     return result;
   };
-  if (config.symbol?.layers && !config.sizeAreas) args.symbol = { layers: config.symbol.layers.map(scaleDimensions) };
+  if (target.representation === 'gradient') {
+    args.gradient = scaleDimensions(config.gradient);
+  } else if (config.symbol?.layers && !config.sizeAreas) args.symbol = { layers: config.symbol.layers.map(scaleDimensions) };
   else if (config.symbol && !['size','strokeWidth','colorSize'].includes(target.family)) args.symbol = scaleDimensions(config.symbol);
-  if (config.gradient) args.gradient = scaleDimensions(config.gradient);
   if (config.border && typeof config.border === 'object') args.border = { ...config.border, padding: round(config.border.padding * factor) };
   return { method: 'editLegend', args };
 }

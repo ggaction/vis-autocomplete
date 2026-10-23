@@ -9,6 +9,7 @@ import { programCode, renderCode, resetCodeView, displayedCode } from './code-vi
 import { initializeCodeToolbar } from './code-toolbar.js';
 import { initializePanelLayout } from './panel-layout.js';
 import { initializeWorkspaceLayout } from './workspace-layout.js';
+import { initializeWorkspaceResize } from './workspace-resize.js';
 import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { createCanvasResize } from './canvas-resize.js';
@@ -1575,6 +1576,9 @@ initializePanelLayout({
   beforeChange: beforeWorkspaceChange,
   afterChange: afterWorkspaceChange,
 });
+initializeWorkspaceResize({ workspace: document.querySelector('.workspace'), reset: $('reset-view-sizes'),
+  busy: () => state.committing || state.resizing,
+  beforeChange: beforeWorkspaceChange, afterChange: afterWorkspaceChange });
 window.addEventListener('resize', () => cardMotion.finish(), { passive: true });
 
 $('upload').addEventListener('click', () => $('file').click());

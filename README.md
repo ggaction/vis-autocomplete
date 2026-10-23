@@ -828,6 +828,15 @@ lower half. Cards expand vertically within their half without moving neighboring
 cards or the divider. Short pages retain their empty slots. Preview's two charts
 are stacked in the left column. Code and History remain independently foldable.
 
+Panel boundaries can be dragged to resize visualization/options, Current/Preview,
+History, and ggaction Code. Sizes are stored separately for each mode and layout.
+`Reset sizes` in the header restores all default panel proportions; it does not
+change the chart, history, layout orientation, or panel folding. Divider arrow
+keys resize by 12px (Shift: 40px), double-click resets that divider, and Escape
+cancels an active drag. Responsive stacked Code uses a horizontal divider.
+`test/browser/workspace-resize.py` checks live panel resizing, mounted Canvas/card
+identity, folding, persistence, reset and keyboard/cancel behavior.
+
 Run `python test/browser/workspace-layout.py` against the dev server to check
 both modes, fixed half-height regions, live parameters, Apply, paging, search,
 panel folding and saved preferences at laptop, desktop and narrow window sizes.

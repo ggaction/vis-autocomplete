@@ -393,3 +393,18 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
   :where(html[data-workspace-layout="vertical"]) .workspace:not(.code-collapsed) .authoring-area { height: max(660px, var(--workspace-height)); }
   :where(html[data-workspace-layout="vertical"]) .workspace:not(.code-collapsed) .code-panel { height: 280px; }
 }
+
+/* Dividers occupy only existing panel gaps; charts and cards stay mounted. */
+.workspace { position: relative; }
+.workspace-divider { position: absolute; z-index: 25; touch-action: none; outline: none; border-radius: 3px; }
+.workspace-divider::after { content: ''; position: absolute; background: #c3cad2; border-radius: 2px; opacity: .45; transition: opacity 120ms; }
+.workspace-divider[data-axis="x"] { cursor: col-resize; }
+.workspace-divider[data-axis="y"] { cursor: row-resize; }
+.workspace-divider[data-axis="x"]::after { width: 2px; height: 28px; left: 4px; top: calc(50% - 14px); }
+.workspace-divider[data-axis="y"]::after { height: 2px; width: 28px; top: 4px; left: calc(50% - 14px); }
+.workspace-divider:hover, .workspace-divider:focus-visible { background: #edf0f4; }
+.workspace-divider:hover::after, .workspace-divider:focus-visible::after { opacity: 1; background: #7d8997; }
+.workspace.resizing-panels, .workspace.resizing-panels * { user-select: none !important; }
+.workspace.resizing-panels[data-resize-axis="x"], .workspace.resizing-panels[data-resize-axis="x"] * { cursor: col-resize !important; }
+.workspace.resizing-panels[data-resize-axis="y"], .workspace.resizing-panels[data-resize-axis="y"] * { cursor: row-resize !important; }
+#reset-view-sizes { white-space: nowrap; }

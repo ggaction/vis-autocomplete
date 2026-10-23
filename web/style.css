@@ -420,4 +420,18 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .guide-label { position: absolute; bottom: 100%; left: 0; padding: 1px 4px; background: #fff; color: #40698d; font: 10px Arial; white-space: nowrap; }
 .guide-together { position: absolute; bottom: 100%; right: 0; padding: 0 3px; font: 9px Arial; background: white; pointer-events: auto; }
 .guide-size { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; min-width: 0; min-height: 0; padding: 0; border: 1px solid #5884ab; border-radius: 0; background: white; pointer-events: auto; touch-action: none; cursor: nwse-resize; }
+.guide-edge { position: absolute; visibility: hidden; pointer-events: auto; touch-action: none; min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.guide-control.active .guide-edge { visibility: visible; }
+.guide-edge-n, .guide-edge-s { left: 7px; right: 7px; height: 12px; cursor: ns-resize; }
+.guide-edge-n { top: -9px; }
+.guide-edge-s { bottom: -9px; }
+.guide-edge-e, .guide-edge-w { top: 7px; bottom: 7px; width: 12px; cursor: ew-resize; }
+.guide-edge-e { right: -9px; }
+.guide-edge-w { left: -9px; }
+.guide-edge-ne, .guide-edge-nw, .guide-edge-sw { width: 14px; height: 14px; }
+.guide-edge-ne { top: -7px; right: -7px; cursor: nesw-resize; }
+.guide-edge-nw { top: -7px; left: -7px; cursor: nwse-resize; }
+.guide-edge-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.guide-edge:hover { background: #5884ab25; }
+.guide-size::after { content: ''; position: absolute; inset: -4px; }
 .editing-guide, .editing-guide * { user-select: none !important; }

@@ -860,7 +860,10 @@ disables parent promotion, rather than removing the children's legend recipes.
 ### Direct guide editing
 
 Hover a chart title, subtitle, legend or Cartesian, polar or parallel axis title to reveal only its
-bounding box. Drag the corner to resize its typography; categorical legend symbols
+bounding box. Drag the corner to resize its typography; legend boxes also accept
+all four edges and corners, with a larger handle hit area. Short-axis drags on wide
+or tall legends control the scale directly instead of being diluted by the other dimension.
+Categorical legend symbols
 and spacing scale together. Gradient legends resize their strip length/thickness
 and typography, while continuous legends displayed as symbols use symbol spacing.
 Data-scaled size/stroke samples retain their encoding.
@@ -876,6 +879,8 @@ preservation; `test/browser/guide-editor.py` exercises actual mouse drags in bot
 
 `test/browser/legend-resize.py` checks actual grow/shrink drags for categorical,
 continuous color/stroke and symbol legends, in both modes with and without facets.
+`test/browser/legend-resize-edges.py` covers all eight resize directions on bottom
+color and combined color/shape legends, with live code updates and Undo restoration.
 
 Consecutive moves of the same title block or legend update one history cell and
 one move call in ggaction Code, including the live preview. Undo returns to the

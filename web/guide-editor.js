@@ -1,6 +1,16 @@
 import { editableGuides, guideBounds, resizeGuide, moveGuide } from '../src/guide-manipulation.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
+// Resize along the edge being dragged, not a projection onto the box diagonal.
+// A wide horizontal legend must respond to a vertical drag just as a tall one does.
+export function guideResizeFactor(bounds, dx, dy, edge = 'se') {
+  const horizontal = edge.includes('e') ? dx : edge.includes('w') ? -dx : null;
+  const vertical = edge.includes('s') ? dy : edge.includes('n') ? -dy : null;
+  const x = horizontal === null ? null : horizontal / Math.max(1, bounds.right - bounds.left);
+  const y = vertical === null ? null : vertical / Math.max(1, bounds.bottom - bounds.top);
+  return 1 + (x === null ? y : y === null ? x : Math.abs(x) > Math.abs(y) ? x : y);
+}
+
 export function createGuideEditor(host, callbacks) {
   let display, targets = [], active, overlay, gesture, stage;
   function select(key) {
@@ -31,8 +41,16 @@ export function createGuideEditor(host, callbacks) {
       const label = document.createElement('span'); label.className = 'guide-label'; label.textContent = target.label;
       const size = document.createElement('button'); size.type = 'button'; size.className = 'guide-size';
       size.dataset.guide = target.key; size.dataset.guideOperation = 'resize';
+      size.dataset.guideEdge = 'se';
       size.setAttribute('aria-label', `Resize ${target.label}`); size.title = 'Drag to resize · arrow keys · Esc to cancel';
       node.append(hit, label, size);
+      if (target.kind === 'legend') for (const edge of ['n', 'e', 's', 'w', 'ne', 'nw', 'sw']) {
+        const handle = document.createElement('button'); handle.type = 'button';
+        handle.className = `guide-edge guide-edge-${edge}`;
+        handle.dataset.guide = target.key; handle.dataset.guideOperation = 'resize'; handle.dataset.guideEdge = edge;
+        handle.setAttribute('aria-label', `Resize ${target.label} (${edge})`);
+        handle.title = size.title; node.append(handle);
+      }
       if (target.kind === 'title' && target.part && targets.some(t => t.key === 'title-group')) {
         const together = document.createElement('button'); together.className = 'guide-together'; together.type = 'button';
         together.textContent = 'Together'; together.title = 'Resize title and subtitle together';
@@ -53,10 +71,10 @@ export function createGuideEditor(host, callbacks) {
   host.addEventListener('pointerleave', () => { if (!gesture) select(null); });
   host.addEventListener('focusin', event => { if (event.target.dataset.guide) select(event.target.dataset.guide); });
   host.addEventListener('focusout', event => { if (!gesture && !overlay?.contains(event.relatedTarget)) select(null); });
-  function start(target, operation, event) {
+  function start(target, operation, event, edge = 'se') {
     if (gesture || !callbacks.available() || !callbacks.canStart() || operation === 'move' && !target.movable) return;
     const rect = stage.getBoundingClientRect(), source = callbacks.program();
-    const g = { target, operation, source, rect, scale: rect.width/canvasGeometry(display).width,
+    const g = { target, operation, edge, source, rect, scale: rect.width/canvasGeometry(display).width,
       startX: event.clientX, startY: event.clientY, pointer: event.pointerId,
       pending: null, running: false, ended: false, final: null, key: null };
     gesture = g; g.context = callbacks.start(target, operation); host.classList.add('editing-guide');
@@ -66,8 +84,7 @@ export function createGuideEditor(host, callbacks) {
     if (gesture !== g || g.ended) return;
     const dx = (x-g.startX)/g.scale, dy = (y-g.startY)/g.scale;
     if (Math.abs(dx)+Math.abs(dy)<2 && !g.final) return;
-    const b = g.target.bounds, w=b.right-b.left, h=b.bottom-b.top;
-    const factor = (w*(w+dx)+h*(h+dy))/Math.max(1,w*w+h*h);
+    const factor = guideResizeFactor(g.target.bounds, dx, dy, g.edge);
     const action = g.operation === 'resize' ? resizeGuide(g.target, factor)
       : moveGuide(g.source,g.target,(x-g.rect.left)/g.scale,(y-g.rect.top)/g.scale);
     const key = JSON.stringify(action); if (g.key === key) return;
@@ -125,7 +142,7 @@ export function createGuideEditor(host, callbacks) {
     const button = event.target.closest('[data-guide]');
     if (!button || event.button!==0) return;
     const target=targets.find(t=>t.key===button.dataset.guide); if(!target)return;
-    const g=start(target,button.dataset.guideOperation??'move',event); if(!g)return;
+    const g=start(target,button.dataset.guideOperation??'move',event,button.dataset.guideEdge); if(!g)return;
     event.preventDefault();event.stopPropagation();host.setPointerCapture(event.pointerId);
   });
   host.addEventListener('pointermove', event => { if(gesture&&!gesture.ended&&gesture.pointer===event.pointerId)update(gesture,event.clientX,event.clientY); });
@@ -141,7 +158,7 @@ export function createGuideEditor(host, callbacks) {
     const button=event.target.closest('[data-guide-operation="resize"]');
     if(!button||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
     const target=targets.find(t=>t.key===button.dataset.guide),rect=button.getBoundingClientRect();
-    const g=start(target,'resize',{clientX:rect.x,clientY:rect.y});if(!g)return;
+    const g=start(target,'resize',{clientX:rect.x,clientY:rect.y},'se');if(!g)return;
     event.preventDefault();const amount=(event.shiftKey?20:6)*g.scale;
     update(g,g.startX+(['ArrowRight','ArrowDown'].includes(event.key)?amount:-amount),g.startY);g.ended=true;if(!g.running)finish(g);
   });

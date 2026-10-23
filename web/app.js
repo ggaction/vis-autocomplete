@@ -48,7 +48,7 @@ const sales = Array.from({ length: 36 }, (_, i) => ({
 }));
 
 const state = { initialEngine: null, rows: [], name: '', program: null, base: null,
-  phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [], codeCard: null,
+  phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [],
   committing: false, resizing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
   selection: { x: '', y: '', color: '' }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
   optionGroup: 'encoding', searchQuery: '', datasetId: null };
@@ -138,7 +138,7 @@ const canvasResize = createCanvasResize(elements.current, {
   start(handle) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish();
-    state.codeCard = null; state.resizing = true; elements.cards.inert = true;
+    state.resizing = true; elements.cards.inert = true;
     updateHistoryButtons(); updateGalleryNavigation();
     const context = { base: state.program, view: state.view, guideCall: state.guideCall,
       resizeBefore: resizeHistory.begin(),
@@ -188,7 +188,6 @@ const canvasResize = createCanvasResize(elements.current, {
     for (const [card, program] of context.thumbnails) if (program && card.element.isConnected) {
       renderedCharts.delete(card.thumbnail); renderChart(card.thumbnail, program, card.title);
     }
-    state.codeCard = null;
     renderChart(elements.current, context.view, 'Current visualization'); showCode();
     if (error && error.reason !== 'no-change') notice(error.message, true);
   },
@@ -255,7 +254,7 @@ for (const [index, group] of OPTION_GROUPS.entries()) {
   button.addEventListener('click', () => {
     if (state.committing || state.phase === 'initial' || state.optionGroup === group.id) return;
     clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
-    state.optionGroup = group.id; state.codeCard = null; state.active = null;
+    state.optionGroup = group.id; state.active = null;
     showPreview(null);
     updateCards().catch(error => notice(error.message, true));
   });
@@ -274,7 +273,7 @@ function searchActions() {
   if (state.committing || state.phase === 'initial') return;
   const query = normalizeSearchQuery($('action-search').value);
   if (state.searchQuery === query) return;
-  state.searchQuery = query; state.codeCard = null; state.active = null;
+  state.searchQuery = query; state.active = null;
   showPreview(null);
   updateCards().catch(error => notice(error.message, true));
 }
@@ -316,7 +315,7 @@ async function restoreHistory(direction) {
   saveGallery();
   const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
   Object.assign(state, structuredClone({ ...metadata, calls: [], setupCalls: [] }),
-    { program, view, calls: [...snapshot.calls], setupCalls: snapshot.setupCalls, selectionAxes: axes, active: null, codeCard: null });
+    { program, view, calls: [...snapshot.calls], setupCalls: snapshot.setupCalls, selectionAxes: axes, active: null });
   resetCodeView($('code-content'));
   elements.current.dataset.steps = state.steps;
   elements.current.dataset.traceCount = view.trace.children.length;
@@ -407,13 +406,10 @@ function showCode(card = null, { settleApplied = false } = {}) {
     $('code-content').dataset.previewMethod = '';
     return;
   }
-  if (!card && state.codeCard?.base === state.program && state.codeCard.prepared &&
-    inspectingCode()) card = state.codeCard;
   const current = programCode([...state.setupCalls, ...state.calls,
     ...(state.phase === 'initial' ? state.selectionAxes?.calls ?? [] : []),
     ...(state.guideCall ? [state.guideCall] : [])], state.name, state.rows.length);
   const call = card?.prepared?.recommendation;
-  if (call) state.codeCard = card;
   const proposed = call ? programCode([...state.setupCalls, ...(card.resizeBefore?.calls ?? state.calls),
     ...(card.prepared.prerequisiteCalls ?? []),
     { method: call.method, args: call.args }, ...(card.prepared.postActionCalls ?? []),
@@ -442,7 +438,6 @@ function showPreview(card, { showCodeChange = true, duration } = {}) {
   const focusedCard = card?.element?.contains(document.activeElement) && document.activeElement.matches(':focus-visible');
   if (card && pointerCard !== card && !focusedCard) card = null;
   $('preview-heading').textContent = 'Preview';
-  if (!card && state.phase === 'initial') state.codeCard = null;
   showCode(showCodeChange ? card : null);
   if (!card) {
     placeholder(elements.preview, '');
@@ -846,9 +841,8 @@ async function createCard(spec, index) {
     element.addEventListener('focusout', event => {
       if (!element.contains(event.relatedTarget) && !pointerInGallery) {
         expandCards([[card, false]]);
-        const inspecting = inspectingCode(event.relatedTarget);
         state.active = null;
-        showPreview(null, { showCodeChange: inspecting });
+        showPreview(null);
       }
     });
   }
@@ -1234,7 +1228,6 @@ async function commit(card, { direct = false } = {}) {
       mountedGallery.rankingSource ??= { program: mountedGallery.program, view: mountedGallery.view, guideCall: mountedGallery.guideCall };
     }
     state.program = next; state.view = view; state.guideCall = committed.guideCall;
-    state.codeCard = null;
     if (before) state.calls = [...before.calls];
     state.calls.push(...prerequisiteCalls.map(call => structuredClone(call)),
       { method: recommendation.method, args: structuredClone(recommendation.args) },
@@ -1292,7 +1285,7 @@ async function commit(card, { direct = false } = {}) {
     notice(message, !unchanged);
     if (direct) {
       for (const item of state.cards) item.needsResizeRefresh = true;
-      state.codeCard = null; renderChart(elements.current, state.view, 'Current visualization'); showCode();
+      renderChart(elements.current, state.view, 'Current visualization'); showCode();
     }
   }
   finally {
@@ -1307,7 +1300,7 @@ async function refreshSelection() {
   state.program = setup.program; state.view = setup.program; state.plotData = setup.data;
   state.setupCalls = [...state.baseCalls, ...setup.calls];
   state.selectionAxes = selectionAxes(state.program, state.profile, state.rows, state.selection);
-  state.codeCard = null; state.active = null;
+  state.active = null;
   state.tableView?.update(state.selection);
   elements.current.dataset.traceCount = state.program.trace.children.length;
   // An edited selection starts a new chart branch. Merely visiting History 0
@@ -1366,7 +1359,7 @@ async function showSnapshot(snapshot) {
   pointerMotion.reset(); cancelChartTransfer(); saveGallery();
   state.generation++; state.galleryObserver?.disconnect();
   const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
-  Object.assign(state, structuredClone(metadata), { program, view, selectionAxes: axes, active: null, codeCard: null });
+  Object.assign(state, structuredClone(metadata), { program, view, selectionAxes: axes, active: null });
   resetCodeView($('code-content'));
   elements.current.dataset.steps = state.steps;
   elements.current.dataset.traceCount = view.trace.children.length;
@@ -1406,7 +1399,7 @@ async function activateDataset(record, { selection = { x: '', y: '', color: '' }
     [role, profile.fields.some(field => field.name === name && field.usable) ? name : '']));
   state.phase = 'initial'; state.steps = 0; state.context = {}; state.calls = [];
   state.optionGroup = 'encoding'; clearSearch();
-  state.codeCard = null; resetCodeView($('code-content')); updateDatasetOptions();
+  resetCodeView($('code-content')); updateDatasetOptions();
   if (session) {
     const current = history.restore(session.entries, session.index);
     await showSnapshot(current);
@@ -1538,23 +1531,13 @@ function updateHeaderGuidance(focusTarget = document.activeElement) {
   $('code-guidance').hidden = !inspecting;
 }
 
-// Let the user inspect the last hovered proposal in the code panel itself.
-// Otherwise the new function would disappear before it could be expanded.
-$('code-content').closest('.code-panel').addEventListener('mouseenter', () => {
-  updateHeaderGuidance();
-  if (inspectingCode() && state.codeCard?.base === state.program) showCode(state.codeCard);
-});
-$('code-content').closest('.code-panel').addEventListener('mouseleave', () => {
-  updateHeaderGuidance();
-  if (state.phase === 'initial' && !pointerInGallery) { state.active = null; showPreview(null); }
-  else showCode();
-});
-$('code-content').closest('.code-panel').addEventListener('focusin', () => updateHeaderGuidance());
-$('code-content').closest('.code-panel').addEventListener('focusout', event => {
-  updateHeaderGuidance(event.relatedTarget);
-  const panel = $('code-content').closest('.code-panel');
-  if (!panel.contains(event.relatedTarget) && !panel.matches(':hover')) showCode();
-});
+// Code follows the active preview. Entering this panel must not resurrect a
+// departed card's proposal; manually expanded committed calls remain independent.
+const codePanel = $('code-content').closest('.code-panel');
+codePanel.addEventListener('mouseenter', () => updateHeaderGuidance());
+codePanel.addEventListener('mouseleave', () => updateHeaderGuidance());
+codePanel.addEventListener('focusin', () => updateHeaderGuidance());
+codePanel.addEventListener('focusout', event => updateHeaderGuidance(event.relatedTarget));
 
 let layoutGalleryPage = 0;
 function beforeWorkspaceChange() {

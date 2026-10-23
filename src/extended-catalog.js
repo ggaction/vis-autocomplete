@@ -8,6 +8,7 @@ import { arcMarkCandidates } from './arc-candidates.js';
 import { chartOwner } from './chart-owner.js';
 import { regressionFilterLimits } from './regression-context.js';
 import { editableFilterRows } from './filter-context.js';
+import { labelPlacementCandidates } from './label-placement-candidates.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -30,6 +31,7 @@ const aggregateOps = ['mean', 'median', 'sum', 'min', 'max'];
 export function extendedCandidates(program, { layer, profile }) {
   if (!hasChartContext(program, layer)) return [];
   const out = [], target = layer.id, encoding = layer.encoding ?? {}, mark = layer.mark?.type;
+  out.push(...labelPlacementCandidates(program, layer));
   const owner = chartOwner(program, layer);
   const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
   const resourceId = stem => {

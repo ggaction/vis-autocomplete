@@ -23,8 +23,6 @@ export function corpusCandidates(program, { layer }, evidence) {
     else if (method === 'editErrorBar' && config.errorBar) targets = [layer.id];
     else if (method === 'editErrorBand' && config.errorBand) targets = [layer.id];
     else if (method === 'editErrorBandBoundary' && config.errorBandBoundary) targets = [layer.id];
-    else if (method === 'editMarkLabelPlacement') targets = program.semanticSpec.layers
-      .filter(l => l.source === layer.id && program.markConfigs[l.id]?.labelAuthoring).map(l => l.id);
     if (!targets.length) continue;
     for (const template of record.templates.slice(0, 4)) {
       if (method === 'editArcMark') {

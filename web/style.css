@@ -62,7 +62,7 @@ main { padding: 14px 16px 16px; }
 .next-selection .selection-empty { border-color: #9db5d2; background: #f8faff; color: #4679b8; }
 .data-table-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border); border-radius: 3px; scrollbar-width: thin; cursor: pointer; }
 .data-table-scroll .dataset-table, .data-table-scroll .dataset-table * { cursor: inherit; }
-.dataset-table { --data-column-width: 58px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 9px; text-align: left; white-space: nowrap; width: calc(var(--data-column-width) * var(--data-column-count)); }
+.dataset-table { --data-column-width: 58px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 9px; text-align: left; white-space: nowrap; width: max(100%, calc(var(--data-column-width) * var(--data-column-count))); }
 .dataset-table col { width: var(--data-column-width); }
 .dataset-table th, .dataset-table td { width: var(--data-column-width); max-width: var(--data-column-width); overflow: hidden; text-overflow: ellipsis; padding: 4px 5px; border-right: 1px solid #eceef0; border-bottom: 1px solid #eceef0; cursor: pointer; }
 .dataset-table th { position: sticky; top: 0; z-index: 1; background: #f8f8f8; font-weight: 600; }

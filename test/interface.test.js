@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -34,9 +35,9 @@ test('the UI uses all original Cars rows and retains nulls through every availab
   assert.equal(definitions.length, 29);
   assert.equal(definitions.filter(d => d.requirement).length, 2); // No unique X or unique radar series identity.
   for (const definition of definitions.filter(d => !d.requirement)) {
-    const { preview } = prepareStartingPlot(p, { method: definition.method, args: definition.build(defaultValues(definition)) });
-    assert.equal(preview.trace.children.length, p.trace.children.length + 2, definition.method);
-    assert.deepEqual(preview.trace.children.slice(-2).map(node => node.op), [definition.method, 'createGuides']);
+    const prepared = prepareStartingPlot(p, { method: definition.method, args: definition.build(defaultValues(definition)) });
+    const { preview } = prepared; assertPreparedTrace(prepared);
+    assert.deepEqual(replayPrepared(prepared).graphicSpec, preview.graphicSpec);
     assert.deepEqual(preview.semanticSpec.datasets.find(d => d.id === 'dataset').values, original);
     assert.ok(renderToSVG(preview).startsWith('<svg'), definition.method);
   }
@@ -95,7 +96,8 @@ test('every starting plot leads to engine-ranked actions with up to four working
   const p = base();
   let checked = 0;
   for (const definition of getPlotDefinitions(profileDataset(p, 'dataset'))) {
-    const { preview } = prepareStartingPlot(p, { method: definition.method, args: definition.build(defaultValues(definition)) });
+    const prepared = prepareStartingPlot(p, { method: definition.method, args: definition.build(defaultValues(definition)) });
+    const { preview } = prepared;
     const layers = preview.semanticSpec.layers;
     const root = layers.find(l => l.id === 'plot') ?? layers.find(l =>
       preview.semanticSpec.datasets.find(d => d.id === l.data)?.values?.length) ?? layers[0];
@@ -121,7 +123,7 @@ test('default guide setup is explicit, matches the preview and leaves later reco
   const definition = getPlotDefinitions(profileDataset(p, 'dataset')).find(d => d.method === 'createScatterPlot');
   const args = definition.build({ ...defaultValues(definition), color: 'Origin' });
   const prepared = prepareStartingPlot(p, { method: definition.method, args });
-  const committed = addDefaultGuides(applyRecommendation(p, prepared.recommendation), prepared.guideCall);
+  const committed = replayPrepared(prepared);
   assert.deepEqual(prepared.guideCall, { method: 'createGuides', args: {
     legend: { target: 'plot', channels: ['color'] },
   } });
@@ -135,8 +137,8 @@ test('default guide setup is explicit, matches the preview and leaves later reco
   assert.ok(title);
   const titlePreview = prepareGuidedAction(prepared.authoringPreview, { method: title.method, args: title.args });
   const next = titlePreview.preview;
-  assert.equal(next.trace.children.length, committed.trace.children.length + 1);
-  assert.deepEqual(next.trace.children.slice(-2).map(node => node.op), ['createTitle', 'createGuides']);
+  assertPreparedTrace(titlePreview);
+  assert.deepEqual(replayPrepared(titlePreview).graphicSpec, next.graphicSpec);
   assert.equal(next.trace.children.filter(node => node.op === 'createGuides').length, 1);
   const code = programCode([{ method: definition.method, args }, prepared.guideCall]);
   const titleCode = programCode([{ method: definition.method, args }, { method: title.method, args: title.args }, titlePreview.guideCall]);
@@ -172,18 +174,18 @@ test('the final guide moves after each authored action and creates legends for n
       const editor = recommendationParameters(original, profileDataset(view, result.state.data));
       prepared = prepareGuidedAction(authoring, { method, args: editor.build(valuesFor(editor.controls)) });
       const applied = applyRecommendation(authoring, prepared.recommendation);
-      const guided = addDefaultGuides(applied, prepared.guideCall);
+      const guided = replayPrepared(prepared);
       assert.deepEqual(guided.semanticSpec, prepared.preview.semanticSpec);
       assert.equal(applied.trace.children.length, authoring.trace.children.length + 1);
-      assert.equal(guided.trace.children.length, view.trace.children.length + 1);
+      assertPreparedTrace(prepared);
       assert.equal(guided.trace.children.at(-1).op, 'createGuides');
       assert.equal(guided.trace.children.filter(node => node.op === 'createGuides').length, 1);
       assert.ok(renderToSVG(guided).startsWith('<svg'));
       const guidedRecommendations = engine.recommend(guided, { target: 'plot', limit: 50, group: 'style' });
       assert.ok(guidedRecommendations.state.features.includes('guide.legend'));
       assert.ok(guidedRecommendations.recommendations.every(r => r.method !== 'createLegend'));
-      authoring = applied; view = guided;
-      calls.push({ method, args: prepared.recommendation.args });
+      authoring = replayPrepared(prepared, false); view = guided;
+      calls.push(...prepared.prerequisiteCalls, { method, args: prepared.recommendation.args }, ...(prepared.postActionCalls ?? []));
       const code = programCode([...calls, prepared.guideCall]);
       assert.equal(code.match(/\.createGuides\(/g).length, 1);
       assert.equal(codeCallBlocks(code).calls.at(-1).method, 'createGuides');
@@ -242,15 +244,17 @@ test('existing guides recommend real edit calls and a suffix-created legend stay
   assert.deepEqual(prepared.prerequisiteCalls.map(call => call.method), ['createLegend']);
   assert.equal(prepared.recommendation.validation.topLevelActions, 1);
   const applied = applyRecommendation(prepared.actionBase, prepared.recommendation);
-  const committed = addDefaultGuides(applied, prepared.guideCall);
+  const committed = replayPrepared(prepared);
   assert.deepEqual(committed.semanticSpec, prepared.preview.semanticSpec);
   assert.deepEqual(committed.graphicSpec, prepared.preview.graphicSpec);
   assert.equal(committed.trace.children.filter(n => n.op === 'createGuides').length, 1);
-  assert.deepEqual(committed.trace.children.slice(-3).map(n => n.op), ['createLegend', 'editLegend', 'createGuides']);
+  assertPreparedTrace(prepared);
+  assert.equal(committed.trace.children.at(-1).op, 'createGuides');
   assert.equal(JSON.stringify(raw), before);
   const replay = prepared.prerequisiteCalls.reduce((p, call) => p[call.method](call.args), raw)
-    .editLegend(args).createGuides(prepared.guideCall.args);
-  assert.deepEqual(replay.graphicSpec, committed.graphicSpec);
+    .editLegend(args);
+  const replayView = (prepared.postActionCalls ?? []).reduce((p, call) => p[call.method](call.args), replay).createGuides(prepared.guideCall.args);
+  assert.deepEqual(replayView.graphicSpec, committed.graphicSpec);
   assert.ok(Object.values(committed.guideConfigs.legend).some(c => c.labels.fontSize === 10));
   const again = prepareGuidedAction(applied, { method: 'editLegend', args: { ...args, labels: { fontSize: 11 } } }, committed);
   assert.deepEqual(again.prerequisiteCalls, []);
@@ -275,7 +279,7 @@ test('grid controls offer Vertical, Horizontal and Both with matching native pre
       const prepared = prepareGuidedAction(start.authoringPreview, { method: 'editGrid', args }, start.preview);
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);
       const applied = applyRecommendation(prepared.actionBase, prepared.recommendation);
-      const committed = addDefaultGuides(applied, prepared.guideCall);
+      const committed = replayPrepared(prepared);
       assert.deepEqual(committed.graphicSpec, prepared.preview.graphicSpec);
       for (const key of selected) {
         assert.equal(committed.guideConfigs.grid[key].color, '#6b7280');
@@ -292,8 +296,9 @@ test('grid controls offer Vertical, Horizontal and Both with matching native pre
         assert.ok(graphic.items.every(item => item.properties.strokeWidth === 0), 'no visible opposite grid lines');
       }
       const replay = prepared.prerequisiteCalls.reduce((program, call) => program[call.method](call.args), start.authoringPreview)
-        .editGrid(args).createGuides(prepared.guideCall.args);
-      assert.deepEqual(replay.graphicSpec, committed.graphicSpec);
+        .editGrid(args);
+      const replayView = (prepared.postActionCalls ?? []).reduce((p, call) => p[call.method](call.args), replay).createGuides(prepared.guideCall.args);
+      assert.deepEqual(replayView.graphicSpec, committed.graphicSpec);
       assert.ok(renderToSVG(committed).startsWith('<svg'));
     }
     assert.deepEqual(start.authoringPreview.graphicSpec, before);
@@ -342,7 +347,7 @@ test('default square plot accommodates all title and legend positions with match
       const applied = applyRecommendation(prepared.actionBase, prepared.recommendation);
       assert.equal(applied.trace.children.length, prepared.actionBase.trace.children.length + 1);
       assert.equal(applied.trace.children.at(-1).op, action.method);
-      const final = addDefaultGuides(applied, prepared.guideCall);
+      const final = replayPrepared(prepared);
       assert.deepEqual(final.graphicSpec, prepared.preview.graphicSpec);
       assert.deepEqual(final.materializationConfigs.canvas.plot, { width: 314, height: 314 });
       assert.ok(renderToSVG(final).startsWith('<svg'));

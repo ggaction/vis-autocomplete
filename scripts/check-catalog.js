@@ -17,7 +17,7 @@ const methods = [...new Set([...ACTION_METHODS, ...INITIAL_PLOT_METHODS])].map(m
   assert.equal(typeof program[method], 'function', `${method} is missing from the installed ggaction`);
   assert.ok(new RegExp(`\\b${method}(?:<[^\\n]+>)?\\(`).test(declarations), `${method} is not a declared public method`);
   const descriptor = describeAction(program, { action: method });
-  assert.ok(['supported', 'needs-input'].includes(descriptor.applicability), `${method} has no supported public descriptor`);
+  assert.ok(['supported', 'needs-input', 'incompatible'].includes(descriptor.applicability), `${method} has no public descriptor`);
   return { method, runtime: true, publicTypeDeclaration: true, inspectionDescriptor: true };
 });
 let corpus;

@@ -3,6 +3,9 @@ import { resolveConcreteGraphicBounds } from '../vendor/ggaction/src/grammar/sch
 import { axisGraphicIds, legendGraphicIds } from '../vendor/ggaction/src/materialization/guides/resources.js';
 import { cartesianAxisOwners, axisTargetArgs } from '../vendor/ggaction/src/selectors/axes.js';
 import { legendBlockChannels, describeLegendBlock } from '../vendor/ggaction/src/grammar/legendBlocks.js';
+import { scopedCall } from './composition-context.js';
+import { prepareCompositionSnapshots } from '../vendor/ggaction/src/materialization/composition.js';
+import { namespaceGraphicId } from '../vendor/ggaction/src/materialization/compositionSnapshot.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -16,6 +19,16 @@ export function guideBounds(program, ids) {
 }
 
 export function editableGuides(program) {
+  if (program.compositionSpec && !program.compositionSpec.facet) {
+    const { children, layout } = prepareCompositionSnapshots(program);
+    return layout.children.flatMap(placement => editableGuides(children[placement.id]).map(localTarget => {
+      const ids = localTarget.ids.map(id => namespaceGraphicId(`${program.compositionSpec.id}-${placement.id}`, id));
+      const bounds = guideBounds(program, ids);
+      return { ...localTarget, ids, bounds, key: `${placement.id}/${localTarget.key}`,
+        childPath: [placement.id], localTarget, localProgram: children[placement.id],
+        offset: { x: placement.x, y: placement.y } };
+    }).filter(target => target.bounds));
+  }
   const objects = program.graphicSpec.objects, targets = [];
   const add = target => { const bounds = guideBounds(program, target.ids); if (bounds) targets.push({ ...target, bounds }); };
   if (program.titleConfig && objects.chartTitle) {
@@ -66,6 +79,7 @@ export function editableGuides(program) {
 // Every manipulation is one native domain edit. The regular preparer owns
 // margin fitting, collisions, guide refresh and facet source replay.
 export function resizeGuide(target, factor) {
+  if (target.childPath) return scopedCall(resizeGuide(target.localTarget, factor), [{ childPath: target.childPath }]);
   factor = clamp(factor, .25, 4);
   const config = target.config;
   const font = style => ({ fontSize: clamp(round(style.fontSize * factor), 6, 96) });
@@ -100,6 +114,7 @@ export function resizeGuide(target, factor) {
 }
 
 export function moveGuide(program, target, x, y) {
+  if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y), [{ childPath: target.childPath }]);
   const geometry = canvasGeometry(program);
   const p = geometry.plotBounds ?? { x: geometry.x, y: geometry.y, ...geometry.plot };
   const nx = (x - p.x - p.width / 2) / Math.max(1, p.width / 2);

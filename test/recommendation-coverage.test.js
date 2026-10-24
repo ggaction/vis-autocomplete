@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -151,8 +152,7 @@ test('one native size card replaces radius and supports fixed area and variable 
     const args = editor.build({ ...valuesFor(editor.controls), mode, value: 100, field: 'Other' });
     const prepared = prepareGuidedAction(raw, { method: sizes[0].method, args }, p);
     const next = prepared.authoringPreview;
-    assert.equal(next.trace.children.length, raw.trace.children.length + 1);
-    assert.equal(next.trace.children.at(-1).op, 'encodeSize');
+    assertPreparedTrace(prepared);
     if (mode === 'fixed') assert.equal(next.markConfigs.plot.radius, Math.sqrt(100 / Math.PI));
     else assert.equal(next.semanticSpec.layers.find(l => l.id === 'plot').encoding.size.field, 'Other');
   }
@@ -168,8 +168,7 @@ test('summary recommendations reach original source variables and replay depende
   const editor = recommendationParameters(rec, profileDataset(p, 'summary'));
   const args = editor.build({ ...valuesFor(editor.controls), p0: 'Other', p1: 'mean' });
   const prepared = prepareGuidedAction(raw, { method: rec.method, args }, p);
-  assert.equal(prepared.authoringPreview.trace.children.length, raw.trace.children.length + 1);
-  assert.equal(prepared.authoringPreview.trace.children.at(-1).op, 'editSummaryData');
+  assertPreparedTrace(prepared);
   assert.equal(prepared.preview.semanticSpec.guides.axis.y.title, 'mean(Other)');
   assert.equal(JSON.stringify(p), before);
   assert.deepEqual(prepared.preview.semanticSpec.datasets.find(d => d.id === 'data').values, rows);

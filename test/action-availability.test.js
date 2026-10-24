@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -30,7 +31,7 @@ test('heatmap offers every supported unused appearance channel with real Fixed/V
       const args = editor.build(values);
       const prepared = prepareGuidedAction(raw, { method, args }, view);
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);
-      assert.equal(prepared.authoringPreview.trace.children.at(-1).op, method);
+      assertPreparedTrace(prepared);
       const next = recommend(prepared.authoringPreview);
       assert.ok(next.recommendations.some(r => r.method === method && r.previouslyApplied), 'applied channels remain available at the back');
     }
@@ -161,7 +162,7 @@ test('facet fields resolve to valid upstream owners when a folded chart repeats 
  const layer=start.preview.semanticSpec.layers.find(l=>l.id==='plot');
  const candidates=facetCandidates(start.preview,{layer,profile:profileDataset(start.preview,layer.data)});
  const rec=candidates.find(r=>r.method==='facet'&&r.args.field==='Origin');
- assert.ok(rec); assert.equal(rec.args.data,'data');
+ assert.ok(rec); assert.ok(start.preview.semanticSpec.datasets.find(d => d.id === rec.args.data).values.every(row => Object.hasOwn(row, 'Origin')));
  assert.equal(prepareGuidedAction(start.authoringPreview,rec,start.preview).recommendation.validation.topLevelActions,1);
 });
 

@@ -6,7 +6,7 @@ import { PUBLIC_ACTION_NAMES } from './public-actions.js';
 // blocked by the application's old hand-written execution allowlist.
 const runtime = chart();
 export const PUBLIC_ACTION_METHODS = Object.freeze(PUBLIC_ACTION_NAMES.filter(name =>
-  typeof runtime[name] === 'function' && ['supported', 'needs-input'].includes(describeAction(runtime, { action: name }).applicability)));
+  typeof runtime[name] === 'function' && ['supported', 'needs-input', 'incompatible'].includes(describeAction(runtime, { action: name }).applicability)));
 
 export const dataEditors = Object.freeze({
   computed: 'editComputedData', filter: 'editFilteredData', fold: 'editFoldData',
@@ -17,6 +17,7 @@ export const dataEditors = Object.freeze({
 });
 
 export function corpusActionPolicy(method) {
+  if (['createOverlay', 'editOverlay', 'createAdjacentPlot', 'editCompositionScales'].includes(method)) return { role: 'recommendation', via: method, reason: 'Explicit native chart composition and scoped editing.' };
   if (['facet', 'facetGrid', 'repeatCharts'].includes(method) || /^editFacet/.test(method) || method === 'editCompositionLayout') {
     return { role: 'recommendation', via: method, reason: 'Retained facet templates support native source and layout editing.' };
   }

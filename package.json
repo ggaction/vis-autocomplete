@@ -27,7 +27,10 @@
     "validate:initial": "node scripts/validate-initial.js",
     "audit:actions": "node scripts/audit-action-availability.js",
     "audit:initial-options": "node scripts/audit-initial-options.js",
-    "benchmark:session": "node scripts/benchmark-session.js"
+    "benchmark:session": "node scripts/benchmark-session.js",
+    "test:composition": "node scripts/test-composition-browser.js",
+    "benchmark:composition": "node scripts/benchmark-composition.js",
+    "validate:corpus-programs": "node scripts/validate-corpus-programs.js"
   },
   "dependencies": {
     "@ggaction/transition": "file:vendor/transition",

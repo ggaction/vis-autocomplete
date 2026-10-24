@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -37,10 +38,10 @@ test('shared preparation reuses exact states while retaining one authored action
   assert.equal(prepareGuidedAction(raw, structuredClone(action), view), first);
   assert.equal(validateCandidate(raw, action), validateCandidate(raw, structuredClone(action)));
   assert.ok(Object.isFrozen(first));
-  assert.equal(first.authoringPreview.trace.children.length, raw.trace.children.length + 1);
+  assertPreparedTrace(first);
   assert.equal(first.preview.trace.children.at(-1).op, 'createGuides');
   const applied = applyRecommendation(first.actionBase, first.recommendation);
-  assert.equal(comparePrograms(applied, first.authoringPreview).equivalence, 'equal');
+  assert.equal(comparePrograms(replayPrepared(first, false), first.authoringPreview).equivalence, 'equal');
   const other = prepareGuidedAction(raw, { method: 'encodeSize', args: { target: 'plot', value: 100 } }, view);
   assert.notEqual(other, first);
   assert.notEqual(prepareGuidedAction(raw.createTitle({ text: 'Changed' }), action), first);
@@ -136,7 +137,7 @@ test('worker recommendation and materialization preserve rankings, parameters, S
   const reference = prepareGuidedAction(raw, action, view);
   assert.deepEqual(committed.program.semanticSpec, reference.authoringPreview.semanticSpec);
   assert.deepEqual(committed.view.graphicSpec, reference.preview.graphicSpec);
-  assert.equal(committed.program.trace.children.at(-1).op, action.method);
+  assert.deepEqual(committed.program.trace, replayPrepared(reference, false).trace);
   assert.equal(committed.view.trace.children.filter(node => node.op === 'createGuides').length, 1);
   const followup = await client.recommend(committed.program, committed.view, committed.guideCall, options, 'encoding');
   assert.ok(!followup.result.recommendations.some(r => r.method === action.method), 'applied Size must not return from a cached worker result');
@@ -195,9 +196,9 @@ test('unchanged recommendation defaults never poison the preview cache or block 
   const prepared = await client.prepare(raw, view, guideCall, next);
   assert.ok(prepared.preview.graphicSpec.objects.canvas);
   const applied = await client.materialize(raw, view, guideCall, next);
-  assert.equal(applied.program.trace.children.length, raw.trace.children.length + 1);
-  assert.deepEqual(applied.program.semanticSpec, raw.encodeShape(next.args).semanticSpec);
-  assert.equal(applied.program.trace.children.at(-1).op, 'encodeShape');
+  const reference = prepareGuidedAction(raw, next, view);
+  assertPreparedTrace(reference);
+  assert.deepEqual(applied.program, replayPrepared(reference, false));
 });
 
 test('successive Apply reuses worker states, cross-role advance and exact immutable inputs', async t => {
@@ -216,7 +217,7 @@ test('successive Apply reuses worker states, cross-role advance and exact immuta
     const action = { method: 'encodeOpacity', args: { target: 'plot', value: i % 2 ? .4 : .8 } };
     await client.prepare(program, view, guideCall, action);
     const next = await client.materialize(program, view, guideCall, action);
-    const expected = program.encodeOpacity(action.args);
+    const expected = replayPrepared(prepareGuidedAction(program, action, view), false);
     assert.deepEqual(next.program.semanticSpec, expected.semanticSpec);
     assert.deepEqual(next.program.trace, expected.trace);
     if (i === 0) {

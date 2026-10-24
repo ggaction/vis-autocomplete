@@ -1,3 +1,5 @@
+import { compositionRecommendations } from '../src/composition-recommendations.js';
+import { chartAtPath, resolveEditingContext } from '../src/composition-context.js';
 import { createTransitionScene } from 'ggaction/scene';
 import { canvasGeometry } from './canvas-geometry.js';
 import { deserializeProgram, serializeProgram } from 'ggaction/persistence';
@@ -36,7 +38,9 @@ export function createCalculationService(model) {
     const attempt = (choice, allowNeighbors = true) => {
       const editor = recommendationParameters(choice, profile);
       const parameterValues = valuesFor(editor.controls);
-      const action = buildRecommendationCall({ ...editor, method: choice.method }, parameterValues);
+      let action;
+      try { action = buildRecommendationCall({ ...editor, method: choice.method }, parameterValues); }
+      catch (error) { diagnostics.rejected.push({ method: choice.method, reason: 'scope', message: error.message }); return null; }
       const key = signature(action);
       if (attempted.has(key)) return null;
       attempted.add(key);
@@ -44,7 +48,8 @@ export function createCalculationService(model) {
       try {
         const prepared = prepareGuidedAction(program, action, view);
         const fittedAction = { method: prepared.recommendation.method, args: prepared.recommendation.args };
-        return { recommendation: { ...choice, ...fittedAction, call: prepared.recommendation.call,
+        return { recommendation: { ...choice, ...fittedAction,
+          ...(choice.editingScope ? { localRecommendation: { ...choice, editingScope: undefined } } : {}), call: prepared.recommendation.call,
           parameterValues, defaultDecisions: editor.defaultDecisions,
           validation: prepared.recommendation.validation }, action: fittedAction, prepared: artifact(prepared) };
       } catch (error) {
@@ -137,6 +142,9 @@ export function createCalculationService(model) {
       if (type === 'recommend') {
         if (!['encoding', 'transform', 'style'].includes(group)) throw new TypeError('Unknown recommendation group.');
         if (!Number.isInteger(page) || page < 0) throw new TypeError('page must be a nonnegative integer.');
+        const editing = resolveEditingContext(view, options);
+        const localView = editing.program, localOptions = editing.options;
+        const localProgram = chartAtPath(program, editing.selected?.childPath ?? []);
         const query = normalizeSearchQuery(searchQuery), rankingKey = signature([options, group]);
         const key = signature([options, group, query]);
         let deck = decks.get(key);
@@ -145,23 +153,25 @@ export function createCalculationService(model) {
           if (!original) {
             // Import hints describe source columns. Aggregation and projection can
             // remove columns or replace them with native derived fields.
-            const target = options?.target
-              ? view.semanticSpec.layers.find(layer => layer.id === options.target)
-              : view.semanticSpec.layers.length === 1 ? view.semanticSpec.layers[0] : undefined;
-            const data = target?.data ?? options?.data;
-            const names = new Set(getDatasetSchema(view, { ...(data ? { data } : {}) }).schema.fields.map(field => field.name));
+            const target = localOptions?.target
+              ? localView.semanticSpec.layers.find(layer => layer.id === localOptions.target)
+              : localView.semanticSpec.layers.length === 1 ? localView.semanticSpec.layers[0] : undefined;
+            const data = target?.data ?? localOptions?.data;
+            const names = new Set(getDatasetSchema(localView, { ...(data ? { data } : {}) }).schema.fields.map(field => field.name));
             const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => names.has(name)));
-            original = rankings.set(rankingKey, engine.rank(view, { ...options, fieldTypes, group, hierarchy: false }));
+            const ranked = engine.rank(localView, { ...localOptions, fieldTypes, group, hierarchy: false });
+            original = rankings.set(rankingKey, { ...ranked, recommendations: [...ranked.recommendations, ...compositionRecommendations(program, model, group)]
+              .sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) || (a.previouslyApplied ? a.appliedOrder - b.appliedOrder : 0) || b.score - a.score || a.id.localeCompare(b.id, 'en')) });
           }
           const matches = filterActionRecommendations(original.recommendations, query);
           const ranked = { ...original, recommendations: matches, diagnostics: { ...original.diagnostics,
             search: { query, totalCandidates: original.recommendations.length, matchingCandidates: matches.length } } };
-          const available = new Set(getDatasetSchema(view, { data: ranked.state.data }).schema.fields.map(f => f.name));
+          const available = new Set(getDatasetSchema(localView, { data: ranked.state.data }).schema.fields.map(f => f.name));
           const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => available.has(name)));
-          deck = decks.set(key, { ranked, profile: profileDataset(view, ranked.state.data, fieldTypes), cursor: 0,
+          deck = decks.set(key, { ranked, profile: profileDataset(localView, ranked.state.data, fieldTypes), cursor: 0,
             // Searching is an explicit request for the fine-grained action;
             // it bypasses promotion and still uses the same cached raw ranking.
-            hierarchy: options?.hierarchy && !query ? createHierarchyProjection(matches, program) : null,
+            hierarchy: options?.hierarchy && !query ? createHierarchyProjection(matches, localProgram) : null,
             emitted: new Set(), unavailable: new Set(),
             pages: [], pageStart: 0,
             recommendations: [], defaults: [], diagnostics: { validatedCalls: [], rejected: [] } });
@@ -182,7 +192,9 @@ export function createCalculationService(model) {
             // invalid ancestor does not: try the next ancestor or the leaf.
             if (deck.unavailable.has(candidate.id)) continue;
             if (deck.emitted.has(candidate.id)) break;
-            const recommendation = deck.hierarchy?.promote(candidate, source, rank) ?? candidate;
+            const localRecommendation = deck.hierarchy?.promote(candidate, source, rank) ?? candidate;
+            const recommendation = !localRecommendation.executionRoot && editing.scope && (editing.scope.all || editing.scope.targets[0].childPath.length)
+              ? { ...localRecommendation, editingScope: editing.scope } : localRecommendation;
             try {
               const next = prepareDefault(program, view, recommendation, profile, diagnostics);
               if (!next) { deck.unavailable.add(candidate.id); continue; }

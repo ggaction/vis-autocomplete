@@ -1,26 +1,47 @@
 {
   "repository": "https://github.com/ggaction/chart-datasets",
-  "commit": "0333f33f043f0f18fb1b317333bd7cef61fb39a1",
-  "ggactionVersion": "0.0.21",
+  "commit": "58791ace7212cacb98c2b64e3f92280722ab638e",
+  "ggactionVersion": "0.0.25",
   "ggactionSource": {
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
-    "branch": "codex/edit-axes-autocomplete",
-    "commit": "3d7cca0e00dbc1520805586e845823dde35b1132",
+    "branch": "codex/overlay-composition-v025",
+    "commit": "43a8b05063087d3294b04d75c723ef4d125946bc",
     "modified": false
   },
   "trainingUnit": "one-chart-id",
   "stagePolicy": "union-of-every-accepted-stage-deduplicated-per-chart",
-  "extraction": "static-public-ggaction-source-semantics-v5",
-  "chartCount": 1213,
-  "programCount": 8788,
-  "dataFiles": 1213,
-  "dataBytes": 467771237,
-  "rawDataFileHashes": 844,
-  "canonicalDatasets": 843,
-  "sourceFamilies": 842,
+  "extraction": "static-public-ggaction-program-graph-v6",
+  "corpusRuntime": {
+    "schemaVersion": 1,
+    "package": "ggaction",
+    "version": "0.0.24",
+    "status": "published",
+    "sourceCommit": "5f952f59b9ca236e8e9cff477c4f51067f2f8ea9",
+    "contractId": "sha256:e755591a2e5f5e2b494867583876e28020a478c5220b77bdc6ad469a6224891d",
+    "releasePullRequest": "https://github.com/ggaction/ggaction/pull/270",
+    "tag": "v0.0.24",
+    "releaseCommit": "fd5c4073fc80295c513bd099ac0ff0aa83059371",
+    "sha1": "798b04408b4ba252f29f5f38afd0f8ddcab84bd0",
+    "sha256": "ab6dce015ef4698aa9b1691ce91448c03ce6ad5244d0918a84d3f6f758413889",
+    "integrity": "sha512-dJBd8L9K9tOOXpXIWx5VkTJUrnx7QLj47eOlMJmiHVkCeBsW6sprC0I2qHuIrWi5KBeEpkGx/ode9usaOgboDA==",
+    "registryArchive": "https://registry.npmjs.org/ggaction/-/ggaction-0.0.24.tgz",
+    "releaseWorkflow": "https://github.com/ggaction/ggaction/actions/runs/40078934064",
+    "releaseUrl": "https://github.com/ggaction/ggaction/releases/tag/v0.0.24",
+    "previousRelease": "v0.0.22",
+    "previousReleaseCommit": "202b7afd4146a691c136964c4cc53f9c37444513"
+  },
+  "chartCount": 1387,
+  "programCount": 10174,
+  "dataFiles": 1452,
+  "dataBytes": 562448488,
+  "generation": "8701f48a695c008eed50b36f5263b24c61795b9bbbde471878d609e020f67f05",
+  "rawDataFileHashes": 981,
+  "canonicalDatasets": 1004,
+  "sourceFamilies": 995,
   "indexedChartIds": [
     "vl_0002",
+    "vl_0006",
     "vl_0009",
     "vl_0011",
     "vl_0012",
@@ -40,8 +61,10 @@
     "vl_0034",
     "vl_0035",
     "vl_0037",
+    "vl_0041",
     "vl_0042",
     "vl_0043",
+    "vl_0044",
     "vl_0045",
     "vl_0047",
     "vl_0054",
@@ -54,18 +77,24 @@
     "vl_0064",
     "vl_0068",
     "vl_0069",
+    "vl_0070",
     "vl_0075",
     "vl_0076",
     "vl_0077",
     "vl_0085",
+    "vl_0087",
     "vl_0090",
+    "vl_0091",
     "vl_0093",
     "vl_0096",
     "vl_0097",
     "vl_0098",
     "vl_0101",
+    "vl_0102",
     "vl_0103",
     "vl_0104",
+    "vl_0106",
+    "vl_0107",
     "vl_0108",
     "vl_0109",
     "vl_0111",
@@ -79,23 +108,32 @@
     "vl_0122",
     "vl_0123",
     "vl_0126",
+    "vl_0128",
+    "vl_0129",
+    "vl_0130",
     "vl_0133",
+    "vl_0136",
     "vl_0137",
     "vl_0138",
     "vl_0140",
     "vl_0141",
+    "vl_0142",
     "vl_0143",
     "vl_0144",
     "vl_0145",
     "vl_0146",
     "vl_0149",
     "vl_0150",
+    "vl_0151",
     "vl_0152",
     "vl_0153",
     "vl_0157",
     "vl_0160",
     "vl_0163",
     "vl_0166",
+    "vl_0167",
+    "vl_0168",
+    "vl_0170",
     "vl_0171",
     "vl_0177",
     "vl_0179",
@@ -103,10 +141,12 @@
     "vl_0183",
     "vl_0184",
     "vl_0186",
+    "vl_0187",
     "vl_0188",
     "vl_0189",
     "vl_0190",
     "vl_0191",
+    "vl_0193",
     "vl_0194",
     "vl_0197",
     "vl_0199",
@@ -116,12 +156,15 @@
     "vl_0203",
     "vl_0208",
     "vl_0209",
+    "vl_0211",
     "vl_0217",
     "vl_0218",
     "vl_0219",
     "vl_0220",
     "vl_0221",
+    "vl_0222",
     "vl_0226",
+    "vl_0227",
     "vl_0228",
     "vl_0229",
     "vl_0230",
@@ -160,6 +203,7 @@
     "vl_0270",
     "vl_0271",
     "vl_0274",
+    "vl_0279",
     "vl_0281",
     "vl_0286",
     "vl_0287",
@@ -211,6 +255,7 @@
     "vl_0339",
     "vl_0340",
     "vl_0341",
+    "vl_0342",
     "vl_0343",
     "vl_0344",
     "vl_0345",
@@ -220,6 +265,7 @@
     "vl_0349",
     "vl_0357",
     "vl_0358",
+    "vl_0359",
     "vl_0360",
     "vl_0361",
     "vl_0362",
@@ -233,10 +279,12 @@
     "vl_0371",
     "vl_0377",
     "vl_0378",
+    "vl_0387",
     "vl_0388",
     "vl_0389",
     "vl_0392",
     "vl_0397",
+    "vl_0399",
     "vl_0400",
     "vl_0401",
     "vl_0406",
@@ -255,8 +303,10 @@
     "vl_0447",
     "vl_0448",
     "vl_0450",
+    "vl_0451",
     "vl_0453",
     "vl_0454",
+    "vl_0458",
     "vl_0459",
     "vl_0461",
     "vl_0493",
@@ -274,6 +324,7 @@
     "vl_0521",
     "vl_0524",
     "vl_0525",
+    "vl_0526",
     "vl_0527",
     "vl_0528",
     "vl_0529",
@@ -292,6 +343,7 @@
     "vl_0546",
     "vl_0547",
     "vl_0548",
+    "vl_0549",
     "vl_0555",
     "vl_0556",
     "vl_0558",
@@ -304,15 +356,24 @@
     "vl_0565",
     "vl_0566",
     "vl_0567",
+    "vl_0568",
     "vl_0570",
+    "vl_0572",
+    "vl_0573",
+    "vl_0574",
     "vl_0575",
+    "vl_0576",
     "vl_0577",
     "vl_0578",
+    "vl_0581",
     "vl_0582",
     "vl_0583",
     "vl_0584",
+    "vl_0585",
     "vl_0586",
     "vl_0587",
+    "vl_0588",
+    "vl_0589",
     "vl_0590",
     "vl_0591",
     "vl_0592",
@@ -322,8 +383,12 @@
     "vl_0597",
     "vl_0598",
     "vl_0599",
+    "vl_0600",
+    "vl_0601",
+    "vl_0602",
     "vl_0603",
     "vl_0605",
+    "vl_0606",
     "vl_0607",
     "vl_0608",
     "vl_0609",
@@ -344,6 +409,7 @@
     "vl_0627",
     "vl_0630",
     "vl_0631",
+    "vl_0632",
     "vl_0633",
     "vl_0634",
     "vl_0635",
@@ -392,6 +458,7 @@
     "vl_0698",
     "vl_0699",
     "vl_0701",
+    "vl_0702",
     "vl_0703",
     "vl_0704",
     "vl_0705",
@@ -405,12 +472,16 @@
     "vl_0716",
     "vl_0718",
     "vl_0719",
+    "vl_0720",
+    "vl_0721",
     "vl_0723",
     "vl_0724",
     "vl_0725",
     "vl_0726",
     "vl_0727",
     "vl_0728",
+    "vl_0730",
+    "vl_0732",
     "vl_0735",
     "vl_0736",
     "vl_0737",
@@ -419,7 +490,10 @@
     "vl_0740",
     "vl_0741",
     "vl_0742",
+    "vl_0743",
+    "vl_0744",
     "vl_0745",
+    "vl_0746",
     "vl_0747",
     "vl_0748",
     "vl_0749",
@@ -429,9 +503,14 @@
     "vl_0754",
     "vl_0755",
     "vl_0757",
+    "vl_0758",
+    "vl_0761",
     "vl_0764",
     "vl_0765",
     "vl_0767",
+    "vl_0768",
+    "vl_0769",
+    "vl_0770",
     "vl_0771",
     "vl_0772",
     "vl_0776",
@@ -443,6 +522,7 @@
     "vl_0782",
     "vl_0783",
     "vl_0784",
+    "vl_0785",
     "vl_0787",
     "vl_0788",
     "vl_0789",
@@ -486,6 +566,8 @@
     "vl_0847",
     "vl_0852",
     "vl_0857",
+    "vl_0859",
+    "vl_0860",
     "vl_0861",
     "vl_0866",
     "vl_0868",
@@ -515,6 +597,7 @@
     "vl_0905",
     "vl_0906",
     "vl_0907",
+    "vl_0916",
     "vl_0917",
     "vl_0918",
     "vl_0919",
@@ -540,6 +623,7 @@
     "vl_0943",
     "vl_0946",
     "vl_0951",
+    "vl_0952",
     "vl_0953",
     "vl_0954",
     "vl_0955",
@@ -584,6 +668,7 @@
     "vl_0998",
     "vl_1000",
     "vl_1003",
+    "vl_1004",
     "vl_1005",
     "vl_1008",
     "vl_1011",
@@ -598,10 +683,12 @@
     "vl_1020",
     "vl_1021",
     "vl_1022",
+    "vl_1023",
     "vl_1024",
     "vl_1025",
     "vl_1026",
     "vl_1028",
+    "vl_1029",
     "vl_1031",
     "vl_1032",
     "vl_1033",
@@ -621,6 +708,7 @@
     "vl_1048",
     "vl_1051",
     "vl_1052",
+    "vl_1053",
     "vl_1054",
     "vl_1055",
     "vl_1056",
@@ -631,6 +719,7 @@
     "vl_1061",
     "vl_1062",
     "vl_1063",
+    "vl_1064",
     "vl_1065",
     "vl_1066",
     "vl_1067",
@@ -650,6 +739,7 @@
     "vl_1085",
     "vl_1087",
     "vl_1089",
+    "vl_1091",
     "vl_1092",
     "vl_1094",
     "vl_1095",
@@ -672,6 +762,7 @@
     "vl_1121",
     "vl_1122",
     "vl_1123",
+    "vl_1125",
     "vl_1126",
     "vl_1127",
     "vl_1128",
@@ -718,6 +809,8 @@
     "vl_1178",
     "vl_1179",
     "vl_1180",
+    "vl_1181",
+    "vl_1182",
     "vl_1183",
     "vl_1184",
     "vl_1186",
@@ -737,6 +830,11 @@
     "vl_1200",
     "vl_1201",
     "vl_1205",
+    "vl_1208",
+    "vl_1209",
+    "vl_1210",
+    "vl_1211",
+    "vl_1212",
     "vl_1213",
     "vl_1215",
     "vl_1216",
@@ -757,16 +855,35 @@
     "vl_1243",
     "vl_1244",
     "vl_1245",
+    "vl_1246",
+    "vl_1247",
+    "vl_1248",
+    "vl_1249",
+    "vl_1250",
+    "vl_1251",
+    "vl_1252",
+    "vl_1253",
+    "vl_1254",
     "vl_1255",
     "vl_1256",
+    "vl_1257",
+    "vl_1258",
     "vl_1259",
+    "vl_1260",
+    "vl_1261",
+    "vl_1262",
     "vl_1263",
     "vl_1264",
     "vl_1265",
+    "vl_1266",
+    "vl_1267",
+    "vl_1268",
+    "vl_1269",
     "vl_1271",
     "vl_1272",
     "vl_1273",
     "vl_1274",
+    "vl_1275",
     "vl_1277",
     "vl_1278",
     "vl_1279",
@@ -795,14 +912,47 @@
     "vl_1308",
     "vl_1309",
     "vl_1310",
+    "vl_1311",
     "vl_1312",
     "vl_1313",
     "vl_1314",
+    "vl_1315",
     "vl_1316",
+    "vl_1317",
+    "vl_1318",
+    "vl_1319",
+    "vl_1320",
+    "vl_1321",
+    "vl_1322",
+    "vl_1323",
+    "vl_1324",
+    "vl_1325",
+    "vl_1326",
+    "vl_1327",
+    "vl_1328",
+    "vl_1329",
+    "vl_1330",
+    "vl_1331",
+    "vl_1332",
+    "vl_1333",
+    "vl_1334",
+    "vl_1335",
+    "vl_1336",
+    "vl_1337",
+    "vl_1338",
+    "vl_1339",
+    "vl_1340",
+    "vl_1341",
+    "vl_1342",
+    "vl_1343",
+    "vl_1344",
+    "vl_1345",
     "vl_1346",
     "vl_1347",
+    "vl_1352",
     "vl_1355",
     "vl_1359",
+    "vl_1360",
     "vl_1361",
     "vl_1362",
     "vl_1363",
@@ -843,7 +993,9 @@
     "vl_1402",
     "vl_1403",
     "vl_1404",
+    "vl_1405",
     "vl_1407",
+    "vl_1408",
     "vl_1410",
     "vl_1411",
     "vl_1412",
@@ -886,6 +1038,8 @@
     "vl_1456",
     "vl_1457",
     "vl_1458",
+    "vl_1459",
+    "vl_1460",
     "vl_1461",
     "vl_1462",
     "vl_1463",
@@ -915,10 +1069,13 @@
     "vl_1489",
     "vl_1490",
     "vl_1491",
+    "vl_1492",
     "vl_1493",
     "vl_1494",
     "vl_1495",
+    "vl_1496",
     "vl_1497",
+    "vl_1498",
     "vl_1499",
     "vl_1500",
     "vl_1501",
@@ -926,6 +1083,7 @@
     "vl_1503",
     "vl_1504",
     "vl_1505",
+    "vl_1506",
     "vl_1507",
     "vl_1508",
     "vl_1509",
@@ -950,16 +1108,21 @@
     "vl_1531",
     "vl_1532",
     "vl_1533",
+    "vl_1534",
     "vl_1535",
+    "vl_1536",
     "vl_1537",
     "vl_1538",
     "vl_1539",
     "vl_1540",
+    "vl_1543",
     "vl_1545",
     "vl_1546",
     "vl_1548",
     "vl_1550",
     "vl_1556",
+    "vl_1557",
+    "vl_1558",
     "vl_1560",
     "vl_1562",
     "vl_1563",
@@ -987,6 +1150,8 @@
     "vl_1585",
     "vl_1586",
     "vl_1587",
+    "vl_1588",
+    "vl_1589",
     "vl_1590",
     "vl_1591",
     "vl_1592",
@@ -1011,8 +1176,11 @@
     "vl_1611",
     "vl_1612",
     "vl_1613",
+    "vl_1614",
+    "vl_1615",
     "vl_1616",
     "vl_1617",
+    "vl_1618",
     "vl_1619",
     "vl_1620",
     "vl_1621",
@@ -1030,6 +1198,8 @@
     "vl_1637",
     "vl_1638",
     "vl_1639",
+    "vl_1640",
+    "vl_1641",
     "vl_1643",
     "vl_1644",
     "vl_1645",
@@ -1052,6 +1222,8 @@
     "vl_1663",
     "vl_1664",
     "vl_1665",
+    "vl_1666",
+    "vl_1667",
     "vl_1673",
     "vl_1674",
     "vl_1675",
@@ -1060,11 +1232,13 @@
     "vl_1678",
     "vl_1679",
     "vl_1680",
+    "vl_1681",
     "vl_1682",
     "vl_1683",
     "vl_1685",
     "vl_1686",
     "vl_1687",
+    "vl_1688",
     "vl_1689",
     "vl_1690",
     "vl_1691",
@@ -1084,6 +1258,7 @@
     "vl_1716",
     "vl_1717",
     "vl_1718",
+    "vl_1720",
     "vl_1721",
     "vl_1722",
     "vl_1723",
@@ -1097,7 +1272,9 @@
     "vl_1731",
     "vl_1733",
     "vl_1734",
+    "vl_1735",
     "vl_1736",
+    "vl_1737",
     "vl_1738",
     "vl_1739",
     "vl_1740",
@@ -1114,6 +1291,7 @@
     "vl_1752",
     "vl_1753",
     "vl_1754",
+    "vl_1755",
     "vl_1756",
     "vl_1757",
     "vl_1758",
@@ -1132,9 +1310,12 @@
     "vl_1771",
     "vl_1772",
     "vl_1773",
+    "vl_1774",
     "vl_1776",
     "vl_1777",
     "vl_1779",
+    "vl_1781",
+    "vl_1782",
     "vl_1783",
     "vl_1784",
     "vl_1785",
@@ -1181,9 +1362,16 @@
     "vl_1836",
     "vl_1837",
     "vl_1838",
+    "vl_1839",
     "vl_1840",
+    "vl_1841",
     "vl_1842",
     "vl_1845",
+    "vl_1856",
+    "vl_1857",
+    "vl_1858",
+    "vl_1859",
+    "vl_1860",
     "vl_1873",
     "vl_1874",
     "vl_1875",
@@ -1195,10 +1383,14 @@
     "vl_1886",
     "vl_1894",
     "vl_1896",
+    "vl_1897",
     "vl_1898",
+    "vl_1899",
+    "vl_1900",
     "vl_1901",
     "vl_1902",
     "vl_1903",
+    "vl_1904",
     "vl_1905",
     "vl_1906",
     "vl_1907",
@@ -1221,12 +1413,14 @@
     "vl_1924",
     "vl_1925",
     "vl_1929",
+    "vl_1930",
     "vl_1933",
     "vl_1949",
     "vl_1950",
     "vl_1952",
     "vl_1972",
     "vl_1973",
+    "vl_1974",
     "vl_1975",
     "vl_1976",
     "vl_1977",
@@ -1252,6 +1446,20 @@
       ],
       "sourceUrls": [],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0006",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "13217b7829141b16e59a3eaa9745e17943b9b4f344f44958d1998f953809779e"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
     },
     {
       "id": "vl_0009",
@@ -1544,6 +1752,23 @@
       "stageCount": 7
     },
     {
+      "id": "vl_0041",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "afa6025b7e8aa2a7417a1863fbf63ab3e5d276fbb5e9e4df96fe3c9ca5cfb5c2",
+        "a2499a4e6ae5c592ac60fdaf3846a47b53095e3af28e814b48aa98ae02107d46"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0042",
       "methods": [
         "createBarPlot"
@@ -1570,6 +1795,23 @@
       ],
       "sourceUrls": [],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0044",
+      "methods": [
+        "createHeatmap",
+        "createRugPlot"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "13af4db960093d571264ddcbdfbc1b7994df00c8f1f17d5c3a4ad537e70fab54",
+        "35572dca41974b36e653fdcdc727b61f1ef27c86224e1ae092e125ff65e70c5a",
+        "a113604107eae3804393313af43c6fb738c31cabfbb946b23e802111f274a1e8"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
     },
     {
       "id": "vl_0045",
@@ -1760,6 +2002,23 @@
       "stageCount": 7
     },
     {
+      "id": "vl_0070",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "dc5aa4aa13d398bf125a48102335c8d48fc9755401ad0935dbcdee240a7b89bb",
+        "aa2857ffddb41de0c6e0767985366bdfcb73a6a90fe11837ea1c873e922f1836"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0075",
       "methods": [
         "createAreaPlot"
@@ -1822,6 +2081,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0087",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "efc31ea89b08f49231ff2d6c8984cf4e9bd167d747f65c20a9f4168c5b14ca42"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/data/ECO2.TENREYO.C2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0090",
       "methods": [
         "createScatterPlot"
@@ -1834,6 +2109,22 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/COG-UK/UK-lineage-dynamics-analysis/2ca84630ab1fb80b949d25b05b6578fa9674f574/analyses/epidemiological/results/sim-study-3-reestimates.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0091",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "4300ee04c9f2a73469450bb53487c3cd08e28880d27ee087a1a5c409f405a137"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/editor/data/github.csv"
       ],
       "stageCount": 8
     },
@@ -1913,6 +2204,23 @@
       "stageCount": 6
     },
     {
+      "id": "vl_0102",
+      "methods": [
+        "createHeatmap",
+        "createRugPlot"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "8231b58f524b36cdf5934962d4d2ceba39aa8c2c8dd67e6cf59da2719e91c77b",
+        "83657c96d9463a9413a1f19ff95cc98a72782478e3fe91723feb567053444428",
+        "7e6273d59d2beb80a0b9885eb6e5a18e7c963fd95d2e691a4f92ae6dfd8ea51c"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0103",
       "methods": [
         "createPiePlot"
@@ -1938,6 +2246,39 @@
         "53832f9662a7a353479a29f605ad54f9097b092f8c5879ccefc5a8b02a91940f"
       ],
       "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0106",
+      "methods": [
+        "createHeatmap",
+        "createRugPlot"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "02994067618baac56cd605279609b45acaf55952d8c767385266e84b78e58ab0",
+        "05fb34d8bb217dcf88cfd77dcde7d7541beeddd3a4eb5b856ea1089efcb34fe9",
+        "61abd411773314dec45830dca4009a29a1c1bdfcca2174cb50a5c066584c5128"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0107",
+      "methods": [
+        "createRugPlot"
+      ],
+      "nativeMethods": [
+        "createRugPlot"
+      ],
+      "datasets": [
+        "4b6f11a747099c4224285e57dcc62d6f24fc4bceab7dc0eff5c692d45389cb0b"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/traffordDataLab/analysis/159de7ef18e84bccfe9ac5bbfe949536da2b2a0b/IoD2019/nearest_neighbours/nearest_neighbours.csv"
+      ],
       "stageCount": 8
     },
     {
@@ -2144,6 +2485,57 @@
       "stageCount": 6
     },
     {
+      "id": "vl_0128",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "cc7c7741245c95d5c4db0baf6f967c7e61f3b6ab26154b3eb68601ecd6f6a292",
+        "f3ba73c76fdb7c3aacce32ec645ad135a0f1e909c6f9825ee0db804524e590aa"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0129",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "e6443a95e1f110de1af41f709f894beddb72379dd796fe38bd1cd41575dad26c",
+        "1864f4e44c5ac2ed4baf1dba1ecf09089fc0f1181d5cb23acf83a63feddea7b2"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0130",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "dcbebd0ea70d0ee8fb511d207214d3ce79666dd465e1e0b5b21510a6426ba9d0",
+        "e1cb023ca6a838a911426da05693816caec7cff0bd8a2f3ca31f9369710307e9"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0133",
       "methods": [
         "createBarPlot"
@@ -2158,6 +2550,22 @@
         "https://raw.githubusercontent.com/vega/vega/master/docs/data/ohlc.json"
       ],
       "stageCount": 6
+    },
+    {
+      "id": "vl_0136",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "e11a0e2fbc9b3ffb0294eb5725f3e6f646becb70df06eaafc8e7068118468045"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/traffordDataLab/interactive_graphics_companion/e70ef4d7c116ddee99d5b83fc0720079a3aba836/data/gapminder.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0137",
@@ -2223,6 +2631,22 @@
         "https://raw.githubusercontent.com/nl4dv/nl4dv/master/examples/assets/data/euro.csv"
       ],
       "stageCount": 5
+    },
+    {
+      "id": "vl_0142",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "efc31ea89b08f49231ff2d6c8984cf4e9bd167d747f65c20a9f4168c5b14ca42"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/data/ECO2.TENREYO.C2.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0143",
@@ -2317,6 +2741,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0151",
+      "methods": [
+        "createTextPlot"
+      ],
+      "nativeMethods": [
+        "createTextPlot"
+      ],
+      "datasets": [
+        "4300ee04c9f2a73469450bb53487c3cd08e28880d27ee087a1a5c409f405a137"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/editor/data/github.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0152",
       "methods": [
         "createBarPlot"
@@ -2405,6 +2845,54 @@
       ],
       "sourceUrls": [],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0167",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "20d49f0252d18c4175dad5bf600550c5f6f33063ec05a8118a177a5d8490a408",
+        "e9a6a881b5ac3a6f04c9e81d5a5c721a68e1c10a808d024bd5caadca6f70de3b"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0168",
+      "methods": [
+        "createHeatmap",
+        "createRugPlot"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "a8f626dfb4b371eefe1d558560f44abb2ae663f78e0b6766fe358e1c8b96d738",
+        "e03744e96ef64f6b13fd4f362cdf7da8a4fd475a1380abe3aaf78e34a2cb8ae2",
+        "8759a653e7924da890b3e1e1f988bbc2e1ce597e5bb453110747d350e6cc041f"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0170",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "951a8400723ae889302ae38284f4c97e05a85ac5ae63d089f502adfb4227f075"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
     },
     {
       "id": "vl_0171",
@@ -2514,6 +3002,23 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0187",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "3693e4e08b9552b1af2777b72870784643013720b51908133cbc8feed744e91c",
+        "f1f1e3008f17988cba760aebe13e5a5f673681cdf6fed5f64c215bfe4c9ad19e"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0188",
       "methods": [
         "createBarPlot"
@@ -2571,6 +3076,22 @@
       ],
       "sourceUrls": [],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0193",
+      "methods": [
+        "createRugPlot"
+      ],
+      "nativeMethods": [
+        "createRugPlot"
+      ],
+      "datasets": [
+        "e11a0e2fbc9b3ffb0294eb5725f3e6f646becb70df06eaafc8e7068118468045"
+      ],
+      "sourceUrls": [
+        "https://www.trafforddatalab.io/interactive_graphics_companion/data/gapminder.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0194",
@@ -2715,6 +3236,28 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0211",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot",
+        "createTextPlot"
+      ],
+      "datasets": [
+        "aab974c29f51c9dfc3e71bed828c32ecc62df47502b20096a143288a1312badc",
+        "b40b91beee8ea183be7fae5bbf13ee19ca6f8883cc96d717295a33738fe69942",
+        "c12ae30e785080cbf38ebd61e7200f0e62e766cc2f918bfb2fc7688d739cd3f6",
+        "6a9dbef79bdafe939ebc0c767549606e351f1cc8827e5e01981d208dda4f6efc",
+        "ede747757fd81e5f01bc85a63d2f4bf5d1eb5d2d3b4512249b33fba762ef0e30",
+        "26a716ce9322cd9c10468ac68d12ee0fb89eefe4ba6f8c557776e40dc3608f3a"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0217",
       "methods": [
         "createAreaPlot"
@@ -2790,6 +3333,24 @@
       "stageCount": 6
     },
     {
+      "id": "vl_0222",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "746ef88e69c5fbdf7b3af2817cafd25169469986340abb98cb5d68e97f3b1c08",
+        "721d9877291baee1d2c6ff79c91b53f9dc09c873c74fd86e0232153dc18231eb"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/xinyuelu2/xinyuelu2.github.io/main/pjchart5p1.csv",
+        "https://raw.githubusercontent.com/xinyuelu2/xinyuelu2.github.io/main/pjchart5p2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0226",
       "methods": [
         "createBarPlot"
@@ -2804,6 +3365,22 @@
         "https://raw.githubusercontent.com/xinyuelu2/xinyuelu2.github.io/main/homework4_version3.csv"
       ],
       "stageCount": 5
+    },
+    {
+      "id": "vl_0227",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "5bfdbd868d807ac59f314578cdd15dc3552b869bb29c24aa8c256cf078da9e5e"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/xinyuelu2/xinyuelu2.github.io/main/homework3_version4.json"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0228",
@@ -3401,6 +3978,24 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/timjordanRe/DataVisA2_RefugeeData/main/Datasets/Myanmar_move.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0279",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "bbed414b3e4304f25cdc917361a70f9521a3742eec434631b8838bc0bed3a8c1"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/timjordanRe/DataVisA2_RefugeeData/main/Datasets/Displaced%20People%202010-2021%20transformed.csv"
       ],
       "stageCount": 8
     },
@@ -4215,6 +4810,24 @@
       "stageCount": 6
     },
     {
+      "id": "vl_0342",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "98d51c859d96aaf1c57b98e692640c030eb2cea0885563935e11709e233bcbba"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/hyungkwonko/tmp-data/main/observation.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0343",
       "methods": [
         "createLinePlot"
@@ -4361,6 +4974,22 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/data/BoE_USD_GBP.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0359",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "a049cac7dbaf3a5447cc5d3d4339ddc7c088c894aaea220086e4a2d37973acc3"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/data/GiltsInIssueClean.csv"
       ],
       "stageCount": 8
     },
@@ -4575,6 +5204,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0387",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "1163fa46dd8c203512ab94b7751a7cfc19b509dcfe964add270e0fcc494c4bc1"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/productivity/BSD_Industries.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0388",
       "methods": [
         "createScatterPlot"
@@ -4625,6 +5270,22 @@
     },
     {
       "id": "vl_0397",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "d37382ca6e3e2e16642af93e2b0dfb13cc5cb09d2d4cb4e597c803879e27c55d"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/productivity/BSD_SizeRLP.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0399",
       "methods": [
         "createScatterPlot"
       ],
@@ -4931,6 +5592,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0451",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "3a6dd0a6c9f2a378e8b370094d1382d932a9c69656a8b1bfbae4d359e850ddc4"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/prices/master/analysis/priceChangesByDivision.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0453",
       "methods": [
         "createHeatmap"
@@ -4961,6 +5638,24 @@
         "https://raw.githubusercontent.com/RDeconomist/prices/master/analysis/priceChangesByDivision.csv"
       ],
       "stageCount": 6
+    },
+    {
+      "id": "vl_0458",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "4e2bc150af73d492f51285ba31862868ae7ba63b14e59c907fc1c26a766fd3e9"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/prices/master/analysis/db_AdjustmentFrequency.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0459",
@@ -5236,6 +5931,22 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/RDeconomist/observatory/main/sugar_C4b.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0526",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "a5cee3f4daeee03e822dee6589068d397e14524c3607ceb1f24d0e955d891f5e"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/observatory/main/DATA_BP_C2_formatted.csv"
       ],
       "stageCount": 8
     },
@@ -5528,6 +6239,24 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0549",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "37ccd8d3d1472fe340e45e80d4889b4370cd9d2a6bfab91d272f8c7c1c751164",
+        "d80a834392eb234694fb1bacd0fd62954766641c00752c400d34319a5ebaf1b8"
+      ],
+      "sourceUrls": [
+        "https://api.economicsobservatory.com/gbr/unem",
+        "https://api.economicsobservatory.com/usa/unem"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0555",
       "methods": [
         "createBarPlot"
@@ -5721,6 +6450,24 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0568",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "0a0ffc417b29f9e1a190644794f9d059f01b1d021b77a2e799951850065beaaf"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/JamesFKean/RA_work/main/tradedta.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0570",
       "methods": [
         "createLinePlot"
@@ -5738,6 +6485,60 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0572",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "a524b18bc8d57f8649bb560a19413e96d185f6b22a15fce7c3299cceb6f2c80b"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/JamesFKean/RA_work/main/chart1_2v2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0573",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "3c965c9d70e0a69441445eed2bbfea7812bbdb0520c897415e981d0e5f534534"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/JamesFKean/RA_work/main/chart3v2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0574",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "3c965c9d70e0a69441445eed2bbfea7812bbdb0520c897415e981d0e5f534534"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/JamesFKean/RA_work/main/chart3v2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0575",
       "methods": [
         "createAreaPlot"
@@ -5750,6 +6551,22 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/Global_IMF_Debt.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0576",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "c9fb921f6bacc9293f70a2de7ce354904688d39573fdd4eafc9e64163f8ad423"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/US_FRED_HousePrices_NYC_LV.csv"
       ],
       "stageCount": 8
     },
@@ -5784,6 +6601,20 @@
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/US_Shiller_CAPE.csv"
       ],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0581",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [],
+      "datasets": [
+        "b4803786626453a8c696d02ffbbf6465b463b611cac357e9f75a17d6482e76e4"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/US_MineapolisFed_CPI_longRun.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0582",
@@ -5834,6 +6665,23 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0585",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "8968ef44eae8ceb0498f1e8f4e73bf25e76cee13ee9480a10fbdeae28190bfcb"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/example_bondYields.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0586",
       "methods": [
         "createBarPlot"
@@ -5865,6 +6713,40 @@
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/example_bondYields.csv"
       ],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0588",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "8968ef44eae8ceb0498f1e8f4e73bf25e76cee13ee9480a10fbdeae28190bfcb"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/example_bondYields.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0589",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "8968ef44eae8ceb0498f1e8f4e73bf25e76cee13ee9480a10fbdeae28190bfcb"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/example_bondYields.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0590",
@@ -6010,6 +6892,60 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0600",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "4b6ee5c89ef85ac596ba71041340d8cf0a3f34d6f573d9816c8bde25fd1f52fa"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/jhellingsdata/jhellingsdata.github.io/main/Data/ONS_UK_employment.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0601",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "62b653efacc007fca35c2d228dc5d6a0f17e3b993d7a4e1c8957275e937e6c29"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/jhellingsdata/jhellingsdata.github.io/main/Data/FRED_employRate.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0602",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "8c0f8869db387a7bfbaad81a419f504ea677bfd33569ae11745a0e3401b5a782"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/jhellingsdata/jhellingsdata.github.io/main/Data/FRED_UNEMPLOY.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0603",
       "methods": [
         "createScatterPlot"
@@ -6040,6 +6976,22 @@
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/ch3_Work/chicagoSalaries.csv"
       ],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0606",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "0e4c960f49e3e0bc1a4d7a226506781b687baaf3c6583364d6c62e0dca8dbcda"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/ch3_Work/chicagoSalaries.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0607",
@@ -6359,6 +7311,22 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/ch2_Growth/globalGDP.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0632",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "430a7978b984c3074be2be17dae210749e9b75f4881b39b1270d9bc3309188ed"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/e4e/US_FRED_GDP_LongRun.csv"
       ],
       "stageCount": 8
     },
@@ -7112,6 +8080,25 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0702",
+      "methods": [
+        "createLinePlot",
+        "createRegressionPlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "9313122b7701c2962205faf892e11b24e0e132a25487d3940b4497b308df7572"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/matsim-scenarios/matsim-duesseldorf/b160620ef3d645969b5060b436391be3bc378cb6/src/main/simwrapper/overview/validate.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0703",
       "methods": [
         "createBarPlot"
@@ -7319,6 +8306,40 @@
       "stageCount": 6
     },
     {
+      "id": "vl_0720",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "4756b1809d5e98a765a11d25ffb9221d363ae420fa314923d4227915bc2a57e1"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/Transport%20Comms%20Cost%20CSV.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0721",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "46f5eba4257d271d2c7c86f3eff54fa45fd71f5264dc86ac59a15ecbfd4b0346"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/Trade%20Globalisation%20History%20CSV.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0723",
       "methods": [
         "createScatterPlot"
@@ -7413,6 +8434,40 @@
         "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/data_ONS-mgsx.json"
       ],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0730",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "9907c0f187fef0223380e1f0893aa6d8dc5a4e9a14831dec08851094a458ce08"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/Revenues%20and%20Outlays%20share%20of%20GDP%20CSV.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0732",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "84cccf0a7b13a1f0285335178d28e36532c97cf7eeacc68fc93c7d2e78d48bcd"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/Deficit%20govt.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0735",
@@ -7529,6 +8584,44 @@
       "stageCount": 6
     },
     {
+      "id": "vl_0743",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "351420609cd2243131578b154d7559001a3c7c3b76a3e752555ae83590a6d0d0",
+        "455c9aa133dc10a6267bd9e1b471e2644f7c8e834ceb1ef57e3ca6a6cd7a1056"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/_CAF_Religiosity_2022_dropna.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0744",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "542dcda2e96727ff568852005febc284583c44b3d4db221eb59729067c2f7cd7",
+        "7eb9b9859df69996b4656afc693a858d3d026e585fa28f0160515cd022834bbe"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/_CAF_MedAge_TotPop_2022_dropna.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0745",
       "methods": [
         "createLinePlot"
@@ -7543,6 +8636,25 @@
         "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/data_ONS-lf24.json"
       ],
       "stageCount": 5
+    },
+    {
+      "id": "vl_0746",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "2b0ddde99d2346707c22e45ddcdbe9355684db9949d82af7fbcd2f63cd4638d2",
+        "7ac7d522fb7fa090a036b4acfc174c99359c69f96a8554daf2dd68113058b9ab"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/_CAF_GDP_2018-22_SHIFTED_new.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0747",
@@ -7684,6 +8796,42 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0758",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "8b43678c5b4b90c0580031af598fd15a873c2078e41a4cddb52d4634b45da214"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/Week8HourlyEarnings_shifted.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0761",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "d4f3e86fa4e398c5ad5ef2e7cfc381ad3515ca26d326b69cd6f1ee21876cd968"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/Week8TotalCompGrowth_1_shifted.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0764",
       "methods": [
         "createLinePlot"
@@ -7730,6 +8878,63 @@
         "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/Budget%20Outlook%20CSV%202.csv"
       ],
       "stageCount": 6
+    },
+    {
+      "id": "vl_0768",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "351420609cd2243131578b154d7559001a3c7c3b76a3e752555ae83590a6d0d0",
+        "25b481b2f264ff3ce3269dc0c492763e6a9ed39522f9195bbb2d8e6e0a745d2f"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/_CAF_Religiosity_2022_dropna.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0769",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "542dcda2e96727ff568852005febc284583c44b3d4db221eb59729067c2f7cd7",
+        "5c36d42d7c8eedc7cef0b29ed2e65ec97f8cffc817d07d510d32808d06886631"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/main/_CAF_MedAge_TotPop_2022_dropna.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0770",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "2b0ddde99d2346707c22e45ddcdbe9355684db9949d82af7fbcd2f63cd4638d2",
+        "7b199b5f18d9959dbb0358ef7dd7dc771651ebccd7decd0f6a5822bd9faa930b"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/maddyht20/maddyht20.github.io/a371eb79af69b7e6fec1b01dab5de280df82de40/_CAF_GDP_2018-22_SHIFTED_new.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_0771",
@@ -7901,6 +9106,24 @@
         "5b1e8a3f7313d7f07bcf142e20576770d2d66d12134e4255724cd7ec00d3bb1b"
       ],
       "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0785",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "879c326b02102bf5c8e31bd9dfcf472a840a7f8c36e93fe30c11e2a45a2dab16"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/KrishnaSharan/KrishnaSharan.github.io/main/Daily%20Yield%20Change.csv",
+        "https://raw.githubusercontent.com/KrishnaSharan/KrishnaSharan.github.io/main/Project%20Lines%202.csv",
+        "https://raw.githubusercontent.com/KrishnaSharan/KrishnaSharan.github.io/main/Project_Lines.csv"
+      ],
       "stageCount": 8
     },
     {
@@ -8579,6 +9802,38 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0859",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "ee04e22e3b0956cc301ed87d822ede405ef9542d13d1c4359b51a29e48b831e1"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/joewilliams200217/joewilliams200217.github.io/main/voldata2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_0860",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "2bad83d95781275f518fad94f568a81c18374072d3b38ed70b29baec635b107f"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/joewilliams200217/joewilliams200217.github.io/main/propdata.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0861",
       "methods": [
         "createLinePlot"
@@ -9032,6 +10287,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_0916",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "b7b2181d468022745295e858d74c36ab997fb6bbb78413eee1d59e4e4ab0be47"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/issylavenstein/issylavenstein.github.io/main/trends_data_clean.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_0917",
       "methods": [
         "createScatterPlot"
@@ -9407,6 +10678,22 @@
       ],
       "sourceUrls": [],
       "stageCount": 7
+    },
+    {
+      "id": "vl_0952",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "44b26331df2dc7da2efce1d90f644b6eea0bdfcca0c1945807f9ce19816f2463"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
     },
     {
       "id": "vl_0953",
@@ -10122,6 +11409,24 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1004",
+      "methods": [
+        "createRegressionPlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot",
+        "createTextPlot"
+      ],
+      "datasets": [
+        "c7897b8e574feee19c94cb851acf674653952979cba47f5151bc44fc33671069"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/GeorgeRobbin/GeorgeRobbin.github.io/main/Data/chart6.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1005",
       "methods": [
         "createBarPlot"
@@ -10346,6 +11651,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1023",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "63ad915e6b5d1d31871179395cde0451a847de3cd1b6d3499058cbe9d004c52a"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/GeorgeRobbin/GeorgeRobbin.github.io/main/Data/BTC_Volatility.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1024",
       "methods": [
         "createBarPlot"
@@ -10410,6 +11731,20 @@
       "sourceUrls": [
         "https://raw.githubusercontent.com/ferguswalshe/ferguswalshe.github.io/main/realmedianwagevsmedianhouseprice.csv"
       ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1029",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "b1afe8c7ca91e3046149fb08d2ba33e6340a2d61bc87ce891bd0b8f11ba1c0b6"
+      ],
+      "sourceUrls": [],
       "stageCount": 8
     },
     {
@@ -10711,6 +12046,20 @@
       "stageCount": 3
     },
     {
+      "id": "vl_1053",
+      "methods": [
+        "createPiePlot"
+      ],
+      "nativeMethods": [
+        "createPiePlot"
+      ],
+      "datasets": [
+        "3e358e6e64a71438611b88fe53a5337b1aa762c4a54eca64264bb1d2c9adb934"
+      ],
+      "sourceUrls": [],
+      "stageCount": 6
+    },
+    {
       "id": "vl_1054",
       "methods": [
         "createPiePlot"
@@ -10862,6 +12211,20 @@
       "sourceUrls": [
         "https://vega.github.io/editor/data/seattle-weather.csv"
       ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1064",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "fdc0365b9cdbac9f43336fc605ffec88c4a9f084f2cf82160fd10bc6a894c12c"
+      ],
+      "sourceUrls": [],
       "stageCount": 8
     },
     {
@@ -11157,6 +12520,22 @@
         "https://raw.githubusercontent.com/Emilysquires02/Emilysquires02.github.io/main/data_ONS-lf24.json"
       ],
       "stageCount": 7
+    },
+    {
+      "id": "vl_1091",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "2ffbe16e0b4d233bc0e109a9008f1d457004d89b9be9cc7b76e03fcadc4c8d38"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/hyungkwonko/tmp-data/main/housing-tenure-2011-census-by-2016-ward.json"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_1092",
@@ -11504,6 +12883,22 @@
         "0a37565be58aa56da659db32321a039d55ec5c977dfae853a7f6577924356670"
       ],
       "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1125",
+      "methods": [
+        "createHeatmap"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "e84e6594c8592c6149c3d8d5debc9d116c7123bcb291108b88d5bfdaf49f55ba"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/DataScienceLiam/DataScienceLiam.github.io/main/Daily%20Stock%20Data.json"
+      ],
       "stageCount": 8
     },
     {
@@ -12209,6 +13604,44 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1181",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot",
+        "createTextPlot"
+      ],
+      "datasets": [
+        "831ad2fba88bd5f019daafaf85881571e84165931ab2fe6552dfc4525a0100e4"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/cavalab/srbench/78f5d3d068621c4065f6bf84124fc904405e2438/docs/csv/pareto.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1182",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot",
+        "createTextPlot"
+      ],
+      "datasets": [
+        "831ad2fba88bd5f019daafaf85881571e84165931ab2fe6552dfc4525a0100e4"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/cavalab/srbench/78f5d3d068621c4065f6bf84124fc904405e2438/docs/csv/pareto.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1183",
       "methods": [
         "createLinePlot"
@@ -12517,6 +13950,96 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1208",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "1b17d4f1ec07ecc96c0177241b7255ebe7445877c94aa4f93f4f62516e3cfb0e"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/Ben25Walker/Ben25Walker.github.io/main/EnergyCost.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1209",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "d8d882671a7b8018504ef7ddd91a0b6b9ea94249a6a6fea02a421e964dd0422f"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/Ben25Walker/Ben25Walker.github.io/main/Projectchart1extension3.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1210",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "b56826f96106ce9398b89e363810c6521336c7f418771656d3bae12e5ea26888"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/Ben25Walker/Ben25Walker.github.io/main/Projectchart1extension2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1211",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "ceec33baa793e91b5a047769877c97f69f550a317338f98224300c449227c3c3"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/Ben25Walker/Ben25Walker.github.io/main/Projectchart1extension1%20(1).csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1212",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "b56826f96106ce9398b89e363810c6521336c7f418771656d3bae12e5ea26888"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/Ben25Walker/Ben25Walker.github.io/118facd167b21c1550477f591ea0c77af5cde250/Projectchart1extension2.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1213",
       "methods": [
         "createBarPlot"
@@ -12815,6 +14338,159 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1246",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "e87fc633a2b19a80d0f8847153498ec8ad86ca804908144fde074052fe599665"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/frostbite.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1247",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "c38a87b9e7607e2132db6590ca2c5a146e3b71cbf4cbe6a2744988661f880636"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/wizardofwor.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1248",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "763b0ae5bea29fcca03b231592d97e417a0cb25c7a21b23edd314819ec4e7efa"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/carnival.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1249",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "602576318cdd3ca173e4eb5c03adee8b6c9ab5126cad62a11bcf0ae0484ce18b"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/skiing.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1250",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "96d96e3cc4d0485cbe02d95adc258a887e3f5639e2d445c5b666e70f528dc3e3"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/airraid.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1251",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "3dee547fe5c27efce7696d8cd587d38366ac375e10a33bed8bd9f16d71b70202"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/solaris.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1252",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "5f1163966d329ccc55c5e93e2d6dc8e71dd06b0be7a755c1850219a5359ad334"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/timepilot.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1253",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "726cc3861ccdce32bf9538d7d1255c4bc899730084f919cea7303770e5cce804"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/hero.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1254",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "d763cd3d1fdaa6307c647b811c593f164367110b2725eb6c4e9b930a06450912"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/freeway.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1255",
       "methods": [
         "createAreaPlot",
@@ -12851,6 +14527,40 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1257",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "c65907b748354e44646f22663cb81ecdc2eb7f2569ec014b2aa2aa88bdea0afc"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/mspacman.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1258",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "4929cbe2ef459c5625b695989b2f88932bc5f7038ad319416579c0718d072654"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/beamrider.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1259",
       "methods": [
         "createAreaPlot",
@@ -12865,6 +14575,57 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/mujoco/data/walker2d.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1260",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "fb08a4dd58db2197013f3469b0e724fa64425e3c02699a06bc6ca9876bc715b9"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/fishingderby.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1261",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "97189a92cbfb86016f65e82a289cb99c438798ace2ff5be236063885e410e2e5"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/riverraid.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1262",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "ea7f17e70ce2d36541fa234cce2d26d5f26e9670168dd4110dd5b40455d904a6"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/gravitar.json"
       ],
       "stageCount": 8
     },
@@ -12922,6 +14683,74 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1266",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "c889769ef3c26fbaadbd82e1e90925ca75a8f0bb465b724b0751fef511e15b62"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/boxing.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1267",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "6f6fd766df430e27e9eb6acd34a18d7c6ca52803ba97d7fe31450e20425edcdd"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/robotank.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1268",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "f708f741ce4d5e7ed05a8cf1746992333614148f276f86f15a0ab0c40942fcdc"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/kangaroo.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1269",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "92a5948f34ac10a7d059790381d12fc2da6d87dfbc116b05ad34bd9ffa62be42"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/google/dopamine/a6f414ca01a81e933359a4922965178a40e0f38a/baselines/atari/data/atlantis.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1271",
       "methods": [
         "createBarPlot"
@@ -12973,6 +14802,20 @@
       ],
       "datasets": [
         "3ce92f9bddcbc8bcc18f36a569a29f5949ae39ec10521399495677653f30c4e0"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1275",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "12469c765e00ebdabee61f9ccb65d2342be134f12cf5d2d984d15311200f2aa3"
       ],
       "sourceUrls": [],
       "stageCount": 8
@@ -13370,6 +15213,20 @@
       "stageCount": 7
     },
     {
+      "id": "vl_1311",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "f33b18cbe67388b7bf9a6cdafa49d964894e0d817dc45699bbe08007d91eba20"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1312",
       "methods": [
         "createScatterPlot"
@@ -13412,6 +15269,20 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1315",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "398f866107e2f0b26cc96b938e42244b6b61c6f88bf3e7c4ad01854d934499ed"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1316",
       "methods": [
         "createBarPlot"
@@ -13424,6 +15295,499 @@
       ],
       "sourceUrls": [],
       "stageCount": 7
+    },
+    {
+      "id": "vl_1317",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "680e5510e6a334b5980da1f70854caf24785cfe1e45041508b00dd42689d3292"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/bowling.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1318",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "87b688c47ae23029deb9fb3b9346d7792cf3ef0dcfc02683e707b54b3939d819"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/fishingderby.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1319",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "a2f63a828e8d132cc722ba73e335380a26486b079bf84f29f95b9fae19eadbc1"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/amidar.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1320",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "4fc67133d9accae7d4e73e1e72f2210a4b76a68d5835351e5d034c3fe9f13dea"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/freeway.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1321",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "57b2e3fbac63a7ebfc1a24611fb8d320c4dc497ba42f452877e667ff184a24be"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/icehockey.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1322",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "45b0404a7b73cfd30e79ad16e8dafda41dd07eae9b1232a8b34db9c1002efd2e"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/krull.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1323",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "898de5f26da65aca8f44de1b0a6bb0c4316c654a8897d24537bb2ca96b6a2f1b"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/battlezone.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1324",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "f529582100c02eab5f9e250b8a81649a9a718f506b06a020f39e733c4265b9af"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/upndown.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1325",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "71bf252c77dc432fb842f98bac4c9255ed1862bc66730109099589a7a78a9e72"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/centipede.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1326",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "c37b64c392630971aa1e505dc9c078cb30f3682ccd29f496d6f652f1a5d431a2"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/wizardofwor.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1327",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "e690c46bae1042c067f973865d03af30795280376ff9589b07611c039f4ac662"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/assault.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1328",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "3752ff64a91c5cc7164544ad64f68bf23b773ae992507fbc6a19716c038195e4"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/skiing.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1329",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "7d414a83d80de42cd730609e33f8640bfa4bb02c8847b513b35d98b2fdbd4a63"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/enduro.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1330",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "9f93d4b3c694a37f48defc06e17018bf55ed43947196c97d52e3103b558f3ff3"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/robotank.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1331",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "25d57a20af8ce3d119cad57b3d01df4d0d3136ffc12fb5f4cc3fb7eff5019c6c"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/alien.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1332",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "d25adddb9bd2249bd1474e267baa3e370fa6d42e4e2ed15fda01981d9398e94b"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/zaxxon.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1333",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "f7fe8c4b207443b236d0e6777903504c6abffec1deec76664088fd035623e759"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/phoenix.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1334",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "2f8b5204c2e4a97b0f6d9d3ae42791274affd630ca7a008b24d8c6937c8fbe0c"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/gravitar.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1335",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "adfdaa8de017253c324d2cdc8b65679b86f6fb23a6419040eb1d98e29729499a"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/beamrider.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1336",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "aee1b047989806afa0ae8c7e26e912c7f14cc7dabedf9ff951757131c6b52e6f"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/bankheist.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1337",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "4c72963670a742887c4fb8222cb68bff4d36eda20a0c15e986284f6f950a1820"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/asteroids.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1338",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "30b41c3afbeb6df40d8be4205bd06bd451ab008eb326ce3d68a2f41203c7c88d"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/riverraid.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1339",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "989c68982e49927cb6e8bfb65c8e9a73b81de98a68fa27af10966935792d3dca"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/doubledunk.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1340",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "16bd42f48ccbaef6906a3a65486e87a07a319c290bf70fd192b7005e689b83d5"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/choppercommand.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1341",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "b4e19ce137953ceefdace074a9270abf3783fef2ab41d7b1308d0c800ad1bb66"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/berzerk.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1342",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "361f0268527dcb958e286bef0ab30b0723d1df80313fe456d3e013ccda3361c5"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/venture.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1343",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "f082a91c6ff7c8c6ea67e1ab26cc11150f0e17d101f801cede42be4f3af0e6ab"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/pitfall.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1344",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "48baa1d9f549a91dc1dd3ed4a309d758f4cd23751215ae740ac2f62dc8d99508"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/carnival.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1345",
+      "methods": [
+        "createAreaPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "6b124c6f797aa8ac1c7ebe8ca871c333bdea1233b86fe23629046af0a900efa7"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/ACampero/dopamine/0f7dd25bfb85e9881bb8953a1fbd213ceeef942f/baselines/data/elevatoraction.json"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_1346",
@@ -13458,6 +15822,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1352",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "5f4d999aa8a391a1a722ccf22340dabc751f0ce2de709f7a69723609495e0d86"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/Emilysquires02/Emilysquires02.github.io/main/error.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1355",
       "methods": [
         "createLinePlot"
@@ -13483,6 +15863,20 @@
       ],
       "datasets": [
         "d311203c64dba8299a25f35e056732d0059ab5ea7c7ddfc53e80656cec51bc0c"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1360",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "9b4f6cfde08c2f5284f70e2b6945059c8e51767c463863109ad9db3ef6a12407"
       ],
       "sourceUrls": [],
       "stageCount": 8
@@ -14093,6 +16487,20 @@
       "stageCount": 5
     },
     {
+      "id": "vl_1405",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "31019346d18c191edc716d364867026a435520caf4522f55d22420f94bad7990"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1407",
       "methods": [
         "createScatterPlot"
@@ -14106,6 +16514,23 @@
       "sourceUrls": [
         "https://raw.githubusercontent.com/adamConnerSax/incarceration/3bcd9826c6eb62fa3e9ea06136531ea6fa624e18/data/kMeansCOMoneyBondRatevsPovertyRateByYearAndUrbanicity.csv"
       ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1408",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot",
+        "createTextPlot"
+      ],
+      "datasets": [
+        "e072a40fddb7332f96bdd66e7fabe093f052012b9bfa9a836ad72a8b0818ff99"
+      ],
+      "sourceUrls": [],
       "stageCount": 8
     },
     {
@@ -14712,6 +17137,35 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1459",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "45f3a7bc5b19ff0105d07ca2d2222b8d725034acfd8bbbfa122f34e620c36e93"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1460",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "fdd7bc858461b065dcc6a21ca74196c56f03c77070e62359bcd5b33c053e1a7b",
+        "cb669ed85867e196d8581286091e3ac50922289f4932241d5db17f99e989ddce"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1461",
       "methods": [
         "createLinePlot"
@@ -15139,6 +17593,23 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1492",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "60cd84a6d6b5712028e62b44efaa73811cdd269bdfb8994c2d5f4e2ef666dee1",
+        "0b8a9586b8199ce88e4e4e00e5bcbd93be8c3f16e82709e51040f44184eebf6a"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1493",
       "methods": [
         "createScatterPlot"
@@ -15181,6 +17652,23 @@
       "stageCount": 7
     },
     {
+      "id": "vl_1496",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "97a9eed5dcb4a5c8080d2cb4df99a50307a58ccfadb84a433879ccaba1156725",
+        "22fd21be6eb285a33b87bc4849fe8e278f30aeec7d560c53e1925295044d38cb"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1497",
       "methods": [
         "createBarPlot"
@@ -15190,6 +17678,23 @@
       ],
       "datasets": [
         "9cff88a1c6b1cb79ddae9469fb3c72544fab4553550dfbf300d22f5bc0bc2bdc"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1498",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "9cff88a1c6b1cb79ddae9469fb3c72544fab4553550dfbf300d22f5bc0bc2bdc",
+        "c61031f6f0b77ae81fdcc933acb18009256b13932ce5e61ba5bd99456b74d0ba"
       ],
       "sourceUrls": [],
       "stageCount": 8
@@ -15288,6 +17793,20 @@
       ],
       "datasets": [
         "b86f9f6d3a53551a6f6c116f174d57782436db89353ae31cc4ea9f7710921740"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1506",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "456e26614e791c99154f4ea2c8fe6f780678bfd3770964b053b0a6617b50a394"
       ],
       "sourceUrls": [],
       "stageCount": 8
@@ -15629,6 +18148,23 @@
       "stageCount": 7
     },
     {
+      "id": "vl_1534",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "694679756baabb7aab059be5683774f38fd817a8820f9a84d6a59a802585616f",
+        "0948654d2b6dad7834e3b49b6141e2e511cb7553be461b37523d3eb8ede4c360"
+      ],
+      "sourceUrls": [],
+      "stageCount": 6
+    },
+    {
       "id": "vl_1535",
       "methods": [
         "createBarPlot"
@@ -15641,6 +18177,23 @@
       ],
       "sourceUrls": [],
       "stageCount": 7
+    },
+    {
+      "id": "vl_1536",
+      "methods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot",
+        "createLinePlot"
+      ],
+      "datasets": [
+        "fd87c79608f1f2be6d464c3386a846567a6524e716d7c76fb170fb6a910865ad",
+        "647bcbf5a2dd6e6ad328df2bac1ceedc6ab09fb2ef7ba311f8c0056173dff021"
+      ],
+      "sourceUrls": [],
+      "stageCount": 6
     },
     {
       "id": "vl_1537",
@@ -15697,6 +18250,23 @@
         "6310e612dcb32ae83b03f3490526ea51776f293e605e9b4ac05e5c99c5d59910"
       ],
       "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1543",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "2f674aa8a9927cb115c813f2e6ca45bcd825c1ab7fa249e806e025b541bd82af"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/data/db_wages_real.csv"
+      ],
       "stageCount": 8
     },
     {
@@ -15774,6 +18344,38 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/hyungkwonko/tmp-data/main/ncaa.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1557",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "128f48aaaf6110ad381e23c8709625b430a0dcf75359743c3fedc34a3835ba1d"
+      ],
+      "sourceUrls": [
+        "https://uiuc-ischool-dataviz.github.io/fall2019/data/govtrack-us-congress-legislators/data/legislators_historical_terms.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1558",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "128f48aaaf6110ad381e23c8709625b430a0dcf75359743c3fedc34a3835ba1d"
+      ],
+      "sourceUrls": [
+        "https://uiuc-ischool-dataviz.github.io/fall2019/data/govtrack-us-congress-legislators/data/legislators_historical_terms.csv"
       ],
       "stageCount": 8
     },
@@ -16187,6 +18789,38 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1588",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "23ee73e35d9bbbba843fd8ca2b200e02591c5d007934b9bb79af96c244044594"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/cars.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1589",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "23ee73e35d9bbbba843fd8ca2b200e02591c5d007934b9bb79af96c244044594"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/cars.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1590",
       "methods": [
         "createScatterPlot"
@@ -16576,6 +19210,34 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1614",
+      "methods": [
+        "createIntervalPlot"
+      ],
+      "nativeMethods": [],
+      "datasets": [
+        "23ee73e35d9bbbba843fd8ca2b200e02591c5d007934b9bb79af96c244044594"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/cars.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1615",
+      "methods": [
+        "createIntervalPlot"
+      ],
+      "nativeMethods": [],
+      "datasets": [
+        "23ee73e35d9bbbba843fd8ca2b200e02591c5d007934b9bb79af96c244044594"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/cars.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1616",
       "methods": [
         "createIntervalPlot"
@@ -16602,6 +19264,22 @@
         "https://vega.github.io/vega-lite/data/cars.json"
       ],
       "stageCount": 5
+    },
+    {
+      "id": "vl_1618",
+      "methods": [
+        "createIntervalPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "2f440ca1e4015e41a4a95f063dc3457cb4233ffe3b5cd9eff99fad8f0f3f0417"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/barley.json"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_1619",
@@ -16856,6 +19534,34 @@
       ],
       "sourceUrls": [],
       "stageCount": 6
+    },
+    {
+      "id": "vl_1640",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "7503c7ea5d8de70b0304ad5ccdbecd5114d25e86f64c53050ce45adb54e38605"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1641",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "aaf08b5c6a4f06ce5dcdb2c40bad699721e8ae13f86eece3f7ed192dd2cde755"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
     },
     {
       "id": "vl_1643",
@@ -17172,6 +19878,34 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1666",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "cefd913a94a64c96ab7bcbb930673b8deabbcedbc0d021af975257d1e6f0fc9c"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1667",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "cefd913a94a64c96ab7bcbb930673b8deabbcedbc0d021af975257d1e6f0fc9c"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1673",
       "methods": [
         "createLinePlot"
@@ -17296,6 +20030,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1681",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "cd7f8aee2a3d4565ee091626aa6effd23a38c1f16882c81f5e63eb6798a04a7b"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/lookup_groups.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1682",
       "methods": [
         "createBarPlot"
@@ -17361,6 +20111,22 @@
     },
     {
       "id": "vl_1687",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "0699b621858ee7228c7239f927677544e1b6ef751bc222c307ac5363dc6d31ee"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/population.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1688",
       "methods": [
         "createBarPlot"
       ],
@@ -17677,6 +20443,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1720",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "23ee73e35d9bbbba843fd8ca2b200e02591c5d007934b9bb79af96c244044594"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/cars.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1721",
       "methods": [
         "createScatterPlot"
@@ -17879,6 +20661,22 @@
       "stageCount": 5
     },
     {
+      "id": "vl_1735",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "23ee73e35d9bbbba843fd8ca2b200e02591c5d007934b9bb79af96c244044594"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/cars.json"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1736",
       "methods": [
         "createScatterPlot"
@@ -17891,6 +20689,22 @@
       ],
       "sourceUrls": [],
       "stageCount": 2
+    },
+    {
+      "id": "vl_1737",
+      "methods": [
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "23ee73e35d9bbbba843fd8ca2b200e02591c5d007934b9bb79af96c244044594"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/cars.json"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_1738",
@@ -18141,6 +20955,22 @@
       ],
       "sourceUrls": [],
       "stageCount": 4
+    },
+    {
+      "id": "vl_1755",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "bd63e6389a708c2283b337b70cf080771729b92ac5eadd2eb27e3579d82fb683"
+      ],
+      "sourceUrls": [
+        "https://gicentre.github.io/data/westMidlands/westMidsCrimesAggregated.tsv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_1756",
@@ -18421,6 +21251,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1774",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "710d818926795ea5dce2913825e5484afb47498909f65230929b1dc79e64756d"
+      ],
+      "sourceUrls": [
+        "https://gicentre.github.io/data/tests/timeTest.tsv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1776",
       "methods": [
         "createBarPlot",
@@ -18462,6 +21308,38 @@
         "2d92594111103e7bd1eeb3976530626c0ec167262f8bfc93d3b1b055e3b4445b"
       ],
       "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1781",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "0699b621858ee7228c7239f927677544e1b6ef751bc222c307ac5363dc6d31ee"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/population.json"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1782",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "0699b621858ee7228c7239f927677544e1b6ef751bc222c307ac5363dc6d31ee"
+      ],
+      "sourceUrls": [
+        "https://vega.github.io/vega-lite/data/population.json"
+      ],
       "stageCount": 8
     },
     {
@@ -19202,6 +22080,24 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1839",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "3a5bd7aed4fe967e0c882309012d5557c4eb404c54169c6ba7ccb1dc99c0da0b"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/elasComputacao/raio-x-dados/main/data/dados-processados/notas.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1840",
       "methods": [
         "createScatterPlot"
@@ -19214,6 +22110,22 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/elasComputacao/raio-x-dados/main/data/dados-processados/raca.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1841",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "27f6a21adbc107feead9741dca1fae9d986da15fb630d7c9122406e852fa55d4"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/elasComputacao/raio-x-dados/5688192f0ef41ffc80f848db51de0d0c7e513ce4/data/dados-processados/situacao_academica.csv"
       ],
       "stageCount": 8
     },
@@ -19247,6 +22159,86 @@
       ],
       "sourceUrls": [
         "https://gicentre.github.io/scrc/data/grid/scotLAsGrid.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1856",
+      "methods": [
+        "createHeatmap"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "8d53e10c133db5dda3a6bb5f4fbe08dee06e1ec9f11e0b3b1e469fac3dff6f14"
+      ],
+      "sourceUrls": [
+        "https://gicentre.github.io/scrc/data/flows/scotLAsFlows.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1857",
+      "methods": [
+        "createHeatmap"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "8d53e10c133db5dda3a6bb5f4fbe08dee06e1ec9f11e0b3b1e469fac3dff6f14"
+      ],
+      "sourceUrls": [
+        "https://gicentre.github.io/scrc/data/flows/scotLAsFlows.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1858",
+      "methods": [
+        "createHeatmap"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "8d53e10c133db5dda3a6bb5f4fbe08dee06e1ec9f11e0b3b1e469fac3dff6f14"
+      ],
+      "sourceUrls": [
+        "https://gicentre.github.io/scrc/data/flows/scotLAsFlows.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1859",
+      "methods": [
+        "createHeatmap"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "8d53e10c133db5dda3a6bb5f4fbe08dee06e1ec9f11e0b3b1e469fac3dff6f14"
+      ],
+      "sourceUrls": [
+        "https://gicentre.github.io/scrc/data/flows/scotLAsFlows.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1860",
+      "methods": [
+        "createHeatmap"
+      ],
+      "nativeMethods": [
+        "createHeatmap"
+      ],
+      "datasets": [
+        "8d53e10c133db5dda3a6bb5f4fbe08dee06e1ec9f11e0b3b1e469fac3dff6f14"
+      ],
+      "sourceUrls": [
+        "https://gicentre.github.io/scrc/data/flows/scotLAsFlows.csv"
       ],
       "stageCount": 8
     },
@@ -19425,6 +22417,24 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1897",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "d2b0a5ab47d2b30d2bfde6c91975aa1fe021354e30b76a50ed769ef8552f72ea"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/ukMacro/F1.2.FiscalRevVExp.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1898",
       "methods": [
         "createLinePlot"
@@ -19439,6 +22449,42 @@
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/ukMacro/F2.DataHub.FiscalTotalExpend.csv"
       ],
       "stageCount": 6
+    },
+    {
+      "id": "vl_1899",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "3f6f6bcb1516b7d2afaad64dd4d8385c029dc4db032263638671974954399d44"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/ukMacro/F3.DataHub.FiscalCurrentBudgetDefAnn.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1900",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "f39906640f562d64a7048916b7cec8fb6bb0d3f1d9d318ad4f1db4940d765ad2"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/ukMacro/F4.DataHub.FiscalCurrentBudgetDefPerDGP.csv"
+      ],
+      "stageCount": 8
     },
     {
       "id": "vl_1901",
@@ -19491,6 +22537,24 @@
       ],
       "sourceUrls": [
         "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/ukMacro/GI1.DataHub.GrowthInnovationGDP.csv"
+      ],
+      "stageCount": 8
+    },
+    {
+      "id": "vl_1904",
+      "methods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot",
+        "createScatterPlot"
+      ],
+      "datasets": [
+        "c6b1d1e6db6f5d9e74b8eba7e139e7960a831c5a722c775a445b53f9c95de8bb"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/charts/ukMacro/GI2.DataHub.GrowthInnovationGDPRealGrowth.csv"
       ],
       "stageCount": 8
     },
@@ -19875,6 +22939,22 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1930",
+      "methods": [
+        "createLinePlot"
+      ],
+      "nativeMethods": [
+        "createLinePlot"
+      ],
+      "datasets": [
+        "fb938eb195f3154ba98b63ae00ac3852f7c89e4faf8f9bfc7a6a45ab2646d6ea"
+      ],
+      "sourceUrls": [
+        "https://raw.githubusercontent.com/RDeconomist/RDeconomist.github.io/main/data/xmasDrinks.csv"
+      ],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1933",
       "methods": [
         "createScatterPlot"
@@ -19968,6 +23048,20 @@
       "stageCount": 8
     },
     {
+      "id": "vl_1974",
+      "methods": [
+        "createBarPlot"
+      ],
+      "nativeMethods": [
+        "createBarPlot"
+      ],
+      "datasets": [
+        "83b0c9d79dec7351725463cb8e147ea0ae356056569f8ad5828fec1af9caf33a"
+      ],
+      "sourceUrls": [],
+      "stageCount": 8
+    },
+    {
       "id": "vl_1975",
       "methods": [
         "createLinePlot"
@@ -20055,18 +23149,18 @@
     }
   ],
   "chartTypeCounts": {
-    "createLinePlot": 432.66666666666663,
-    "createScatterPlot": 285.16666666666663,
-    "createBarPlot": 341.8333333333333,
-    "createHeatmap": 43.33333333333333,
-    "createIntervalPlot": 8,
+    "createLinePlot": 506.99999999999994,
+    "createScatterPlot": 322.49999999999994,
+    "createBarPlot": 362.8333333333333,
+    "createHeatmap": 51.33333333333333,
+    "createIntervalPlot": 11,
     "createHistogram": 9,
-    "createPiePlot": 29,
+    "createRugPlot": 6.5,
+    "createPiePlot": 30,
     "createBoxPlot": 10,
-    "createAreaPlot": 35.5,
-    "createRegressionPlot": 14,
-    "createRugPlot": 2.5,
-    "createTextPlot": 2
+    "createAreaPlot": 59,
+    "createTextPlot": 3,
+    "createRegressionPlot": 14.833333333333334
   },
   "availablePlotTypesWithoutExamples": [
     "createViolinPlot",

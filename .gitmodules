@@ -1,7 +1,7 @@
 [submodule "vendor/ggaction"]
 	path = vendor/ggaction
 	url = https://github.com/ggaction/ggaction.git
-	branch = codex/edit-axes-autocomplete
+	branch = codex/overlay-composition-v025
 [submodule "vendor/transition"]
 	path = vendor/transition
 	url = https://github.com/ggaction/transition.git

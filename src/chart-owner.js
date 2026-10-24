@@ -40,6 +40,8 @@ export function chartOwner(program, layer) {
 
 export function primaryChartLayer(program, preferred) {
   const layers = program.semanticSpec.layers, old = layers.find(layer => layer.id === preferred);
+  const intervalOwner = Object.entries(program.markConfigs).find(([,config]) => config.intervalPlot?.intervalId === preferred);
+  if (intervalOwner) return layers.find(layer => layer.id === intervalOwner[0]);
   const owner = chartOwner(program, old);
   if (owner?.method === 'editRaincloudPlot') return layers.find(layer => layer.id === owner.target);
   return old ?? layers.find(layer => layer.id === 'plot') ??

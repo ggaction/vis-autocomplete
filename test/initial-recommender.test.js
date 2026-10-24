@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -136,7 +137,7 @@ test('rankings and field defaults depend on input data, preserve evidence scores
       const applied = applyRecommendation(prepared.actionBase, prepared.recommendation);
       assert.equal(applied.trace.children.length, p.trace.children.length + 1);
       assert.equal(applied.trace.children.at(-1).op, rec.method);
-      assert.deepEqual(addDefaultGuides(applied, prepared.guideCall).graphicSpec, prepared.preview.graphicSpec);
+      assert.deepEqual(replayPrepared(prepared).graphicSpec, prepared.preview.graphicSpec);
     }
   }
   assert.notDeepEqual(rankings[0], rankings[1]);

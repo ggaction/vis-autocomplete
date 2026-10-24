@@ -94,6 +94,8 @@ test('all generated chart-family recipes have an audited semantic category', () 
       if (/^edit.*Scale$/.test(rec.method)) assert.equal(group, 'encoding', rec.method);
       else if (['encodeX', 'encodeY'].includes(rec.method)) {
         assert.equal(group, rec.feature.startsWith('transform.') ? 'transform' : 'encoding');
+      } else if (['createOverlay', 'editOverlay'].includes(rec.method)) {
+        assert.equal(group, 'encoding', rec.method);
       } else if (['editBoxPlot', 'editErrorBar'].includes(rec.method)) {
         assert.equal(group, rec.args.x || rec.args.y ? 'encoding'
           : rec.args.whisker?.type || rec.args.whisker?.factor !== undefined ? 'transform' : 'style');

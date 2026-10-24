@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -104,7 +105,7 @@ test('every selected-variable plot renders and Apply matches preview using one n
       catch (error) { throw new Error(`${rec.method} ${JSON.stringify(chosen)}: ${error.message}`); }
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);
       const applied = applyRecommendation(prepared.actionBase, prepared.recommendation);
-      const committed = addDefaultGuides(applied, prepared.guideCall);
+      const committed = replayPrepared(prepared);
       assert.deepEqual(committed.graphicSpec, prepared.preview.graphicSpec);
       assert.ok(renderToSVG(committed).startsWith('<svg'));
       assert.equal(args.data, rec.setup(rec.values).at(-1)?.args.id ?? setup.data);
@@ -189,9 +190,9 @@ test('area and horizon bin nearby distinct X positions and aggregate Y per Color
         for (const row of summary.values) assert.equal(vertices.find(v => v.x === row[rec.binField] &&
           (!color || v.C === row.C)).y, row.Y, 'all plot families must share native line binning and aggregates');
         assert.equal(prepared.recommendation.validation.topLevelActions, 1);
-        const applied = addDefaultGuides(applyRecommendation(prepared.actionBase, prepared.recommendation), prepared.guideCall);
+        const applied = replayPrepared(prepared);
         assert.deepEqual(applied.graphicSpec, prepared.preview.graphicSpec);
-        const replay = [...calls, { method, args }, prepared.guideCall].reduce((q, call) => q[call.method](call.args), p);
+        const replay = [...prepared.prerequisiteCalls, prepared.recommendation, ...prepared.postActionCalls, prepared.guideCall].reduce((q, call) => q[call.method](call.args), p);
         assert.deepEqual(replay.graphicSpec, prepared.preview.graphicSpec);
         assert.ok(renderToSVG(replay).startsWith('<svg'));
         if (method === 'createAreaPlot' && aggregate === 'sum') {
@@ -254,7 +255,7 @@ test('numeric-X line uses native X bins and Y aggregation, including separate Co
     assert.equal(a.values[1].y, 8);
     assert.equal(prepared.recommendation.validation.topLevelActions, 1);
     assert.deepEqual(prepared.prerequisiteCalls, []);
-    const applied = addDefaultGuides(applyRecommendation(p, prepared.recommendation), prepared.guideCall);
+    const applied = replayPrepared(prepared);
     assert.deepEqual(applied.graphicSpec, prepared.preview.graphicSpec);
   }
   assert.equal(JSON.stringify(p), before);
@@ -344,7 +345,7 @@ test('numeric-X bars retain native bin intervals and expose all Color layouts th
         const binPixels = (q.resolvedScales.x.range[1] - q.resolvedScales.x.range[0]) / 2;
         assert.ok(rectangles.every(b => Math.abs(b.width - binPixels / (layout === 'group' ? 2 : 1)) < 1e-8));
         assert.equal(prepared.recommendation.validation.topLevelActions, 1);
-        const applied = addDefaultGuides(applyRecommendation(prepared.actionBase, prepared.recommendation), prepared.guideCall);
+        const applied = replayPrepared(prepared);
         assert.deepEqual(applied.graphicSpec, q.graphicSpec);
         if (layout === 'fill') assert.deepEqual(q.resolvedScales.y.domain, [0, 1]);
       }
@@ -374,7 +375,7 @@ test('three continuous variables offer Cartesian and polar/parallel plot types w
       const args = rec.build(rec.values), calls = rec.setup(rec.values);
       const prepared = prepareGuidedAction(selected.program, { method: rec.method, args }, selected.program, calls);
       assert.equal(prepared.recommendation.validation.topLevelActions, 1);
-      const applied = addDefaultGuides(applyRecommendation(prepared.actionBase, prepared.recommendation), prepared.guideCall);
+      const applied = replayPrepared(prepared);
       assert.deepEqual(applied.graphicSpec, prepared.preview.graphicSpec);
       assert.ok(renderToSVG(applied).startsWith('<svg'));
       const encoding = applied.semanticSpec.layers.find(l => l.id === 'plot').encoding;

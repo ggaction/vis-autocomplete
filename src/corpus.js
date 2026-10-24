@@ -1,3 +1,4 @@
+import { extractProgramStructure } from './corpus-structure.js';
 import { parse } from 'acorn';
 import { chart } from 'ggaction';
 import { actionFeatures } from './semantics.js';
@@ -61,40 +62,33 @@ export function parseProgramSource(source) {
     }
   });
   for (const name of duplicateBindings) bindings.delete(name);
-  const features = new Set();
-  const methods = Object.create(null);
-  const unknownMethods = new Set();
-  let dynamicOptions = 0;
-  let temporal = false;
-  const calls = [];
+  const structure = extractProgramStructure(tree, publicActions);
+  const active = structure.resolved ? new Map(structure.calls.map(call => [call.end, call])) : null;
+  const features = new Set(), methods = Object.create(null), unknownMethods = new Set(), calls = [];
+  let dynamicOptions = 0, temporal = false;
   walk(tree, node => {
     if (node.type !== 'CallExpression' || node.callee.type !== 'MemberExpression') return;
-    const method = node.callee.computed ? literal(node.callee.property, bindings)
-      : node.callee.property.name;
+    const method = node.callee.computed ? literal(node.callee.property, bindings) : node.callee.property.name;
     if (typeof method !== 'string' || !publicActions.has(method) && !/^(create|edit|encode|facet|filterData|filterMarks|jitter|pack|select|layout|order|apply|remove|bind|revise|repeat)/.test(method)) return;
-    if (typeof runtime[method] !== 'function') {
-      unknownMethods.add(method);
-      return;
-    }
+    if (typeof runtime[method] !== 'function') { unknownMethods.add(method); return; }
+    if (active && !active.has(node.end)) return;
     methods[method] = (methods[method] ?? 0) + 1;
-    let options = node.arguments.length ? literal(node.arguments[0], bindings) : {};
-    if (!options || typeof options !== 'object' || Array.isArray(options)) {
-      if (node.arguments.length) dynamicOptions++;
-      options = {};
-    }
-    if (options.__dynamicSpread) dynamicOptions++;
-    // Preserve static public options for chart-label/field-role extraction.
-    // This never evaluates or imports corpus JavaScript.
-    if (method !== 'createData' && method !== 'createCanvas') calls.push({ method, options, end: node.end });
+    let options = active?.get(node.end)?.options ?? (node.arguments.length ? literal(node.arguments[0], bindings) : {});
+    if (!options || typeof options !== 'object' || Array.isArray(options)) { if (node.arguments.length) dynamicOptions++; options = {}; }
+    let dynamic = Boolean(options.__dynamicSpread);
     const scan = value => {
+      if (typeof value === 'symbol') { dynamic = true; return; }
       if (!value || typeof value !== 'object') return;
       if (value.fieldType === 'temporal') temporal = true;
       for (const child of Object.values(value)) scan(child);
     };
-    scan(options);
+    scan(options); if (dynamic) dynamicOptions++;
+    if (method !== 'createData' && method !== 'createCanvas') calls.push({ method, options, end: node.end,
+      ...(active ? { viewId: active.get(node.end).viewId, data: active.get(node.end).data, dataFiles: active.get(node.end).dataFiles } : {}) });
     for (const feature of actionFeatures(method, options)) features.add(feature);
   });
-  return { features: [...features].sort(), methods, unknownMethods: [...unknownMethods].sort(),
+  for (const method of structure.methods) { methods[method] = (methods[method] ?? 0) + 1; features.add(`composition.${method}`); }
+  return { structure, features: [...features].sort(), methods, unknownMethods: [...unknownMethods].sort(),
     dynamicOptions, temporal, calls: calls.sort((a, b) => a.end - b.end) };
 }
 

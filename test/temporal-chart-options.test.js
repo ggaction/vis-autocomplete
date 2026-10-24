@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -30,7 +31,7 @@ test('Miles_per_Gallon × Horsepower × Year offers ten native chart types with 
   assert.deepEqual(result.selectedFields, Object.values(selection));
   for (const rec of result.recommendations) {
     const prepared = prepare(selected, rec);
-    const applied = addDefaultGuides(applyRecommendation(prepared.actionBase, prepared.recommendation), prepared.guideCall);
+    const applied = replayPrepared(prepared);
     assert.deepEqual(applied.graphicSpec, prepared.preview.graphicSpec, rec.method);
     assert.equal(prepared.recommendation.validation.topLevelActions, 1);
     assert.ok(renderToSVG(applied).startsWith('<svg'));

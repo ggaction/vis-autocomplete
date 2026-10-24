@@ -1,3 +1,4 @@
+import { scopeRecommendationCall } from '../src/composition-context.js';
 import { paletteChoices } from '../src/palette-options.js';
 // At most four visible parameter groups. Native ggaction options only.
 import { binnedPositionExpression } from '../src/plot-aggregation.js';
@@ -72,6 +73,11 @@ export function initialParameters(spec) {
 }
 
 export function recommendationParameters(recommendation, profile) {
+  if (recommendation.editingScope) {
+    const local = recommendation.localRecommendation ?? recommendation;
+    const editor = recommendationParameters({ ...local, editingScope: undefined, localRecommendation: undefined }, profile);
+    return { ...editor, editingScope: recommendation.editingScope };
+  }
   const { method, args } = recommendation;
   if (method === 'editFacetSource' && args.action) {
     const source = { ...recommendation, method: args.action.method, args: args.action.options,
@@ -632,5 +638,5 @@ export function activeControls(controls, values) {
 // A card may group native calls for one user decision. Each selected option
 // still resolves to exactly one real public method plus its native arguments.
 export function buildRecommendationCall(editor, values) {
-  return { method: editor.method, args: editor.build(values) };
+  return scopeRecommendationCall({ method: editor.method, args: editor.build(values) }, editor.editingScope);
 }

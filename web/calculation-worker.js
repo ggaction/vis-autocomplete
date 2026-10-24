@@ -1,3 +1,4 @@
+import { loadModel } from './model-loader.js';
 import { createCalculationService } from './calculation-service.js';
 
 let service, recommendationGeneration = 0;
@@ -6,12 +7,10 @@ self.addEventListener('message', async ({ data: { id, request } }) => {
     if (request.type === 'initialize') {
       let model = null;
       if (request.role === 'recommendation') {
-        const response = await fetch('/data/model.json');
-        if (!response.ok) throw new Error('The recommendation model is missing. Run npm run corpus:update.');
-        model = await response.json();
+        model = await loadModel('model.json');
       }
       service = createCalculationService(model);
-      self.postMessage({ id, value: { ready: true } }); return;
+      self.postMessage({ id, value: { ready: true, generation: model?.provenance.generation } }); return;
     }
     if (request.type === 'materialize' || request.type === 'cancel-recommendations') recommendationGeneration++;
     if (request.type === 'recommend' && request.stream) {

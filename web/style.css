@@ -435,3 +435,19 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .guide-edge:hover { background: #5884ab25; }
 .guide-size::after { content: ''; position: absolute; inset: -4px; }
 .editing-guide, .editing-guide * { user-select: none !important; }
+
+/* Composition controls occupy the existing toolbar; edge controls never resize the canvas. */
+.current-shell { position: relative; min-height: 0; flex: 1; display: flex; }
+.current-shell > .chart-view { flex: 1; min-width: 0; width: 100%; }
+.add-adjacent { position: absolute; z-index: 12; width: 26px; height: 26px; padding: 0; font-size: 22px; line-height: 24px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; opacity: 0; transition: opacity 120ms; cursor: pointer; }
+.current-shell:hover > .add-adjacent, .add-adjacent:focus-visible { opacity: 1; }
+.add-adjacent-left { left: 3px; top: calc(50% - 13px); }
+.add-adjacent-right { right: 3px; top: calc(50% - 13px); }
+.add-adjacent-top { top: 3px; left: calc(50% - 13px); }
+.add-adjacent-bottom { bottom: 3px; left: calc(50% - 13px); }
+.editing-target, .adjacent-controls, .adjacent-controls label { display: flex; align-items: center; gap: 6px; }
+.editing-target select { max-width: 170px; }
+.editing-target, .adjacent-controls { font-size: 12px; }
+.adjacent-controls { flex-wrap: wrap; margin: 0 10px 8px; gap: 12px; }
+.adjacent-controls select { max-width: 160px; }
+.editing-target[hidden], .adjacent-controls[hidden], .add-adjacent[hidden] { display: none; }

@@ -1,3 +1,4 @@
+import { replayPrepared } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chart } from 'ggaction';
@@ -45,7 +46,9 @@ test('a displayed-only facet legend is promoted through the composition owner be
  const legend=editableGuides(view).find(t=>t.kind==='legend');
  for(const action of [resizeGuide(legend,1.4),{method:'editLegend',args:{target:'plot',channel:'color',position:'bottom'}}]){
   const result=prepareGuidedAction(program,action,view);
-  assert.ok(result.prerequisiteCalls.some(c=>c.method==='editFacetGuides'));
+  assert.ok(result.prerequisiteCalls.some(c=>c.method==='createGuides' && c.args.legend));
+  const replay = replayPrepared(result);
+  assert.deepEqual(replay.graphicSpec,result.preview.graphicSpec);
   assert.ok(result.preview.guideConfigs.legend.color);
   assert.equal(result.recommendation.method,'editLegend');
  }

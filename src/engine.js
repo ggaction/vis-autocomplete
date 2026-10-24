@@ -313,8 +313,8 @@ export function createRecommendationEngine(model) {
           facetFields: candidate.facetFields,
           facetFieldCounts: candidate.facetFieldCounts,
           guideContext: candidate.guideContext ? structuredClone(candidate.guideContext) : undefined,
-          nextContext: candidate.groupTarget ? { data: candidate.args.id }
-            : context.layer ? { target: context.layer.id } : { data: context.profile.id },
+          nextContext: candidate.nextContext ?? (candidate.groupTarget ? { data: candidate.args.id }
+            : context.layer ? { target: context.layer.id } : { data: context.profile.id }),
           validation: check.validation,
           alternatives: variants.map(({ candidate: c, check: v }) => ({
             method: c.method, args: structuredClone(c.args), call: callText(c),

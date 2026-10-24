@@ -160,6 +160,9 @@ export function extractFeatures(program, { target, data, datasetType = 'tabular'
     }
     const config = configs[layer.id];
     if (config?.regression) features.add('transform.regression');
+    if (layer.derivedBindings?.overlay || program.semanticSpec.layers.some(child => child.derivedBindings?.overlay?.source === layer.id)) {
+      features.add('action.createOverlay');
+    }
     if (Object.values(configs).some(child => child.statisticalReference?.source === layer.id)) features.add('action.createStatisticalReference');
     const opacity = config?.opacity ?? config?.barAppearance?.opacity;
     if (layer.mark?.type && opacity !== undefined) features.add(`style.${layer.mark.type}.opacity`);

@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -38,7 +39,7 @@ test('appearance cards expose native fixed and field calls with at most three vi
       const next = applyRecommendation(prepared.actionBase, prepared.recommendation);
       assert.equal(next.trace.children.length, raw.trace.children.length + 1);
       assert.equal(next.trace.children.at(-1).op, method);
-      const applied = addDefaultGuides(next, prepared.guideCall);
+      const applied = replayPrepared(prepared);
       assert.deepEqual(applied.graphicSpec, prepared.preview.graphicSpec);
       assert.equal(applied.trace.children.at(-1).op, 'createGuides');
       const code = programCode([{ method, args }]);

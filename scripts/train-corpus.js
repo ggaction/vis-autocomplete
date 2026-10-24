@@ -39,7 +39,10 @@ export async function trainCorpus({ corpusRoot = CORPUS_ROOT, outputRoot = join(
   const actionEvidence = actionEvidenceCollector();
   const parameterEvidence = parameterEvidenceCollector();
   let programCount = 0;
-  let dataBytes = 0;
+  let dataBytes = 0, dataFiles = 0;
+  let corpusRuntime = null;
+  try { corpusRuntime = JSON.parse(await readFile(join(corpusRoot, 'runtime-lock.json'), 'utf8')); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
   for (const [index, id] of entries.entries()) {
     const folder = join(chartRoot, id);
     const metadata = JSON.parse(await readFile(join(folder, 'metadata.json'), 'utf8'));
@@ -72,12 +75,28 @@ export async function trainCorpus({ corpusRoot = CORPUS_ROOT, outputRoot = join(
       temporal ||= parsed.temporal;
       programCount++;
     }
+    let rawInputs = null;
+    try {
+      const raw = await readFile(join(folder, 'raw-inputs.json'));
+      if (metadata.files['raw-inputs.json']?.sha256 && digest(raw) !== metadata.files['raw-inputs.json'].sha256) throw new Error(`Raw binding SHA-256 mismatch: ${id}`);
+      rawInputs = JSON.parse(raw);
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const importedFiles = new Set(stages.flatMap(stage => stage.structure.views.flatMap(view => Object.values(view.datasets).flatMap(data => data.files))));
+    const tableNames = new Set(['data.json', ...(rawInputs?.descriptors ?? []).map(entry => entry.file), ...importedFiles]);
+    const allData = {}, hashes = {};
+    for (const name of [...tableNames].sort()) {
+      if (!/^[a-zA-Z0-9_.-]+\.json$/.test(name)) throw new Error(`Unsafe corpus data path: ${id}/${name}`);
+      const bytes = await readFile(join(folder, name));
+      const expected = metadata.files[name]?.sha256 ?? rawInputs?.descriptors.find(entry => entry.file === name)?.sha256;
+      if (!expected || digest(bytes) !== expected) throw new Error(`Data SHA-256 mismatch: ${id}/${name}`);
+      allData[name] = JSON.parse(bytes); hashes[name] = digest(bytes); dataFiles++; dataBytes += bytes.length;
+    }
     const bytes = await readFile(join(folder, 'data.json'));
     if (digest(bytes) !== metadata.files['data.json']?.sha256) throw new Error(`Data SHA-256 mismatch: ${id}`);
     const rows = JSON.parse(bytes.toString('utf8'));
     const data = summarizeData(rows);
     if (!data.tables) throw new Error(`No tabular data arrays found: ${id}`);
-    dataBytes += bytes.length;
+
     const sources = {};
     for (const name of ['source.vl.json', 'resolved-source.vl.json']) {
       if (!metadata.files[name]) continue;
@@ -87,12 +106,13 @@ export async function trainCorpus({ corpusRoot = CORPUS_ROOT, outputRoot = join(
       if (digest(source) !== metadata.files[name].sha256) throw new Error(`Source SHA-256 mismatch: ${id}/${name}`);
       sources[name] = JSON.parse(source.toString('utf8'));
     }
-    initialRecords.push(prepareInitialRecord({ id, dataHash: metadata.files['data.json'].sha256, data: rows, stages,
+    initialRecords.push(prepareInitialRecord({ id, dataHash: digest(JSON.stringify(hashes)), data: rows, dataFiles: allData, primaryFile: rawInputs?.primary ?? 'data.json', stages,
       source: sources['resolved-source.vl.json'] ?? sources['source.vl.json'], originalSource: sources['source.vl.json'] }, profileCache));
     features.add(temporal || data.isoTemporal ? 'data.time-series' : 'data.tabular');
     for (const name of chartMethods) actionFrequency[name] = (actionFrequency[name] ?? 0) + 1;
     observations.push({ id, features: [...features].sort() });
     reports.push({ id, programs: files.length, features: features.size, data: { ...data, bytes: bytes.length },
+      dataFiles: hashes, structureDiagnostics: stages.flatMap((stage, index) => stage.structure.diagnostics.map(message => ({ stage: files[index], message }))),
       dynamicOptions, unknownMethods: [...unknownMethods].sort() });
     if ((index + 1) % 200 === 0) console.log(`Read all stages + data: ${index + 1}/${entries.length} charts`);
   }
@@ -100,9 +120,10 @@ export async function trainCorpus({ corpusRoot = CORPUS_ROOT, outputRoot = join(
     repository: 'https://github.com/ggaction/chart-datasets', commit,
     ggactionVersion: ggactionPackage.version, ggactionSource: ggactionSource(), trainingUnit: 'one-chart-id',
     stagePolicy: 'union-of-every-accepted-stage-deduplicated-per-chart',
-    extraction: 'static-public-ggaction-source-semantics-v5',
-    chartCount: entries.length, programCount, dataFiles: entries.length, dataBytes,
+    extraction: 'static-public-ggaction-program-graph-v6', corpusRuntime,
+    chartCount: entries.length, programCount, dataFiles, dataBytes,
   };
+  provenance.generation = digest(JSON.stringify([provenance, observations]));
   const model = trainCooccurrenceModel(observations, provenance);
   model.actionEvidence = actionEvidence.finish(actionFrequency, provenance);
   model.parameterDefaults = parameterEvidence.finish(provenance);
@@ -135,14 +156,19 @@ export async function trainCorpus({ corpusRoot = CORPUS_ROOT, outputRoot = join(
     fingerprintVersion: FINGERPRINT_VERSION, entries: [...profileCache] }));
   await rename(`${cachePath}.tmp`, cachePath);
   // Publish one self-contained model only after EVERY chart and file passed.
+  const manifest = { schemaVersion: 1, generation: provenance.generation, files: {} };
   for (const [name, value] of [['corpus-report.json', report], ['observations.json', observations], ['model.json', model],
     ['initial-model.json', initial.model], ['initial-corpus-report.json', initial.report], ['initial-evaluation.json', evaluation],
     ['action-evidence.json', model.actionEvidence], ['parameter-defaults.json', model.parameterDefaults]]) {
     const path = join(outputRoot, name);
-    await writeFile(`${path}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
+    const bytes = `${JSON.stringify(value, null, 2)}\n`;
+    manifest.files[name] = { sha256: digest(bytes) };
+    await writeFile(`${path}.tmp`, bytes);
     await rename(`${path}.tmp`, path);
   }
-  console.log(`Trained on ${entries.length} charts / ${programCount} programs / ${entries.length} data files.`);
+  await writeFile(join(outputRoot, 'model-manifest.json.tmp'), JSON.stringify(manifest, null, 2) + '\n');
+  await rename(join(outputRoot, 'model-manifest.json.tmp'), join(outputRoot, 'model-manifest.json'));
+  console.log(`Trained on ${entries.length} charts / ${programCount} programs / ${dataFiles} data files.`);
   console.log(`Features: ${report.featureCount}; pairs: ${report.pairCount}; skipped charts: 0.`);
   console.log(`Initial index: ${initial.report.canonicalDatasets} datasets / ${initial.report.sourceFamilies} source families; k=${initial.model.neighborCount}; unresolved charts=${initial.report.unresolved.length}.`);
   return { model, report, initialModel: initial.model, initialReport: initial.report, initialEvaluation: evaluation };

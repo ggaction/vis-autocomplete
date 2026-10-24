@@ -1,3 +1,6 @@
+import { loadModel } from './model-loader.js';
+import { initializeCompositionControls, adjacentContext, adjacentSpecs } from './composition-controls.js';
+import { editableChartTargets, chartAtPath } from '../src/composition-context.js';
 import { parameterTransitionDuration } from './parameter-motion.js';
 import { createTransitionMode } from './transition-mode.js';
 import { renderChartCanvas, copyChartCanvas, holdChartCanvasDensity } from './chart-canvas.js';
@@ -53,7 +56,18 @@ const state = { initialEngine: null, rows: [], name: '', program: null, base: nu
   phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [],
   committing: false, resizing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
   selection: { x: '', y: '', color: '' }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
-  optionGroup: 'encoding', searchQuery: '', datasetId: null };
+  optionGroup: 'encoding', searchQuery: '', datasetId: null, adding: null };
+const compositionControls = initializeCompositionControls({
+  select: $('editing-target'), host: $('current-shell'), adjacentHost: $('adjacent-controls'), read: () => state,
+  onTarget: context => { if (state.committing || state.resizing) return; state.context = focus(state.program, context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
+  onAdd: position => {
+    if (state.committing || state.resizing) return;
+    try { state.adding = adjacentContext(state.program, state.context, position, datasets.get(state.datasetId)?.imported.fieldTypes); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); }
+    catch (error) { notice(error.message, true); }
+  },
+  onChange: patch => { Object.assign(state.adding, patch); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
+  onCancel: () => { state.adding = null; showPreview(null); updateCards().catch(error => notice(error.message, true)); },
+});
 let cars;
 const datasets = new Map();
 const datasetBases = createLRU(4);
@@ -254,7 +268,7 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 
 function updateHistoryButtons() {
   const busy = state.committing || state.resizing;
-  chartDownloads.refresh();
+  chartDownloads.refresh(); compositionControls.refresh();
   for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
   $('undo').disabled = busy || !history.canUndo;
   $('redo').disabled = busy || !history.canRedo;
@@ -264,7 +278,8 @@ function updateHistoryButtons() {
 }
 
 function updateOptionGroups() {
-  const initial = state.phase === 'initial';
+  const initial = state.phase === 'initial' || Boolean(state.adding);
+  compositionControls.refresh();
   $('option-groups').hidden = initial;
   $('action-search-control').hidden = initial;
   $('clear-search').hidden = !state.searchQuery;
@@ -347,7 +362,7 @@ function mountDataTable() {
 
 async function restoreHistory(direction) {
   if (state.committing || state.resizing) return;
-  resizeHistory.reset();
+  resizeHistory.reset(); state.adding = null;
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
   const snapshot = typeof direction === 'number' ? history.jump(direction) : history[direction]();
@@ -428,8 +443,10 @@ function makeBase(rows = state.rows) {
 }
 
 function focus(program, preferred = {}) {
-  if (!program.semanticSpec.layers.length) return preferred.data ? { data: preferred.data } : { data: 'dataset' };
-  return { target: primaryChartLayer(program, preferred.target).id };
+  const targets = editableChartTargets(program);
+  if (!targets.length) return preferred.data ? { data: preferred.data } : { data: 'dataset' };
+  const selected = targets.find(t => t.id === preferred.target && (!preferred.childPath || JSON.stringify(t.childPath) === JSON.stringify(preferred.childPath))) ?? targets[0];
+  return { target: selected.id, ...(selected.childPath.length ? { childPath: selected.childPath } : {}), ...(preferred.scope === 'all' ? { scope: 'all' } : {}) };
 }
 
 function inspectingCode(focusTarget = document.activeElement) {
@@ -802,7 +819,7 @@ async function createCard(spec, index) {
   card.interaction = createPreviewInteraction({ readPinned: () => card.values,
     render: values => { if (!state.committing && !state.resizing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
     requestFrame: requestAnimationFrame, cancelFrame: cancelAnimationFrame });
-  if (state.phase === 'initial' && !card.disabled) {
+  if ((state.phase === 'initial' || card.chartChoice) && !card.disabled) {
     // Corpus role transfer proposes parameters; the real library decides whether
     // they execute. A fallback changes defaults only, never the corpus score.
     for (const values of [card.values, card.fallbackValues].filter(Boolean)) {
@@ -943,13 +960,14 @@ elements.cards.addEventListener('keydown', event => {
 function saveGallery() {
   cancelSelectedPreview();
   cardMotion.finish();
-  if (!mountedGallery || mountedGallery.phase !== 'recommendations') return;
+  if (!mountedGallery) return;
+  if (mountedGallery.phase !== 'recommendations') { mountedGallery = null; return; }
   const deck = mountedGallery;
   deck.scrollLeft = elements.cards.scrollLeft;
   for (const card of deck.cards) { setCardExpanded(card, false); card.interaction.reset(); }
   if (!deck.loading) {
     if (!galleryCache.has(deck.view)) galleryCache.set(deck.view, new Map());
-    const cache = galleryCache.get(deck.view), key = JSON.stringify([deck.group, deck.searchQuery]);
+    const cache = galleryCache.get(deck.view), key = JSON.stringify([deck.context, deck.group, deck.searchQuery]);
     cache.delete(key); cache.set(key, deck);
     if (cache.size > 8) cache.delete(cache.keys().next().value);
   }
@@ -1038,12 +1056,15 @@ async function updateCards() {
   notice('Preparing options…'); await tick();
   if (generation !== state.generation) return;
   try {
-    let restored = state.phase === 'recommendations' ? galleryCache.get(state.view)?.get(JSON.stringify([state.optionGroup, state.searchQuery])) : null;
+    let restored = state.phase === 'recommendations' && !state.adding ? galleryCache.get(state.view)?.get(JSON.stringify([state.context, state.optionGroup, state.searchQuery])) : null;
     let specs = restored?.specs, pageCount = restored?.pageCount, pagination = restored?.pagination;
     if (restored) {
       cancelRecommendationWork();
       state.cards = restored.cards; state.galleryRows = restored.rows;
       elements.cards.append(...restored.rows); elements.cards.scrollLeft = restored.scrollLeft ?? 0;
+    } else if (state.adding) {
+      cancelRecommendationWork();
+      specs = adjacentSpecs(state.initialEngine, state.adding, state.program);
     } else if (state.phase === 'initial') {
       const profile = { ...state.profile, id: state.plotData };
       const result = state.initialEngine.recommend(state.rows, profile, { selection: state.selection });
@@ -1071,7 +1092,7 @@ async function updateCards() {
             }
             state.galleryRows.push(row); elements.cards.append(row);
             restored = { view: state.view, program: state.program, guideCall: state.guideCall,
-              context: structuredClone(state.context), phase: state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
+              context: structuredClone(state.context), phase: state.adding ? 'adjacent' : state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
               specs: [], pages: new Set(), rows: state.galleryRows, cards: state.cards, pageCount: 1,
               pagination: response.pagination, loading: true };
             mountedGallery = restored;
@@ -1123,7 +1144,7 @@ async function updateCards() {
     // restored list loses pages appended later when the user switches groups.
     const rows = state.galleryRows;
     const deck = restored ?? { view: state.view, program: state.program, guideCall: state.guideCall,
-      context: structuredClone(state.context), phase: state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
+      context: structuredClone(state.context), phase: state.adding ? 'adjacent' : state.phase, group: state.optionGroup, searchQuery: state.searchQuery,
       specs, pages, rows, cards: state.cards, pageCount: count, pagination };
     mountedGallery = deck;
     let rendering = Promise.resolve();
@@ -1276,7 +1297,9 @@ async function commit(card, { direct = false } = {}) {
       ...postActionCalls.map(call => structuredClone(call)));
     state.steps = (before?.steps ?? state.steps) + 1; state.phase = 'recommendations';
     if (!direct) clearSearch();
-    state.context = focus(state.program, direct ? state.context : card.original?.nextContext ?? {});
+    state.context = focus(state.program, direct ? state.context : card.original?.nextContext
+      ? { ...state.context, ...card.original.nextContext } : state.context);
+    state.adding = null;
     if (before) resizeHistory.commit(before, historySnapshot(card.title), card.historyKey);
     else { resizeHistory.reset(); history.push(historySnapshot(card.title)); }
     scheduleSave();
@@ -1397,6 +1420,7 @@ function updateDatasetOptions() {
 }
 
 async function showSnapshot(snapshot) {
+  state.adding = null;
   historyView.clear({ restore: false }); historyInspection = null;
   pointerMotion.reset(); cancelChartTransfer(); saveGallery();
   state.generation++; state.galleryObserver?.disconnect();
@@ -1439,7 +1463,7 @@ async function activateDataset(record, { selection = { x: '', y: '', color: '' }
   state.baseCalls = base.calls; state.setupCalls = base.calls; state.profile = profile;
   state.selection = Object.fromEntries(Object.entries(selection).map(([role, name]) =>
     [role, profile.fields.some(field => field.name === name && field.usable) ? name : '']));
-  state.phase = 'initial'; state.steps = 0; state.context = {}; state.calls = [];
+  state.adding = null; state.phase = 'initial'; state.steps = 0; state.context = {}; state.calls = [];
   state.optionGroup = 'encoding'; clearSearch();
   resetCodeView($('code-content')); updateDatasetOptions();
   if (session) {
@@ -1675,9 +1699,9 @@ zoomCurrent.addEventListener('click', () => enlarge(elements.current, 'Current v
 $('chart-exports').append(zoomCurrent);
 
 try {
-  const [initialResponse, sourceResponse] = await Promise.all([fetch('/data/initial-model.json'), fetch('/output/workers/source.json'), calculations.ready]);
-  if (!initialResponse.ok) throw new Error('The recommendation models are missing. Run npm run corpus:update.');
-  state.initialEngine = createInitialChartRecommender(await initialResponse.json());
+  const [initialModel, sourceResponse, workers] = await Promise.all([loadModel('initial-model.json'), fetch('/output/workers/source.json'), calculations.ready]);
+  if (workers.some(worker => worker.generation && worker.generation !== initialModel.provenance.generation)) throw new Error('Recommendation models updated during loading. Reload to use one version.');
+  state.initialEngine = createInitialChartRecommender(initialModel);
   if (sourceResponse.ok) sourceVersion = await sourceResponse.json();
   const examples = [
     ['cars', 'Cars', '/web/data/cars.json'], ['tips', 'Tips', '/web/data/tips.json'],

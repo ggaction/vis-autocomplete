@@ -47,18 +47,41 @@ function callRoles(options) {
 // low-level mark realizations; static native calls enrich roles where available.
 export function extractChartEvidence(stages, source) {
   const calls = stages.flatMap(stage => stage.calls ?? []);
+  const structuredViews = stages.flatMap(stage => stage.structure?.views.flatMap(view => view.layers.flatMap(layer => {
+    const call = layer.call;
+    const method = plots.has(call.method) ? call.method : {
+      createPointMark: 'createScatterPlot', createLineMark: 'createLinePlot', createBarMark: 'createBarPlot',
+      createAreaMark: 'createAreaPlot', createRectMark: 'createHeatmap', createArcMark: 'createPiePlot',
+    }[call.method];
+    if (!method) return [];
+    const roles = callRoles(call.options);
+    for (const [method, args] of Object.entries(layer.encodings)) {
+      const channel = { encodeX: 'x', encodeY: 'y', encodeColor: 'color', encodeR: 'radius', encodeTheta: 'theta' }[method];
+      if (channel && field(args)) roles[channel] = field(args);
+    }
+    return [{ method, roles, dataFiles: call.dataFiles, childPath: view.path,
+      basis: 'native-program-graph', aggregation: call.options.y?.aggregate ?? null }];
+  })) ?? []);
+
   let views = sourceViews(source);
   if (views.length) {
     // Text/rule annotations on a positioned chart are not separate starting charts.
     const primary = views.filter(view => view.mark !== 'text' && view.mark !== 'rule');
     if (primary.length) views = primary;
     views = views.map(view => {
-      const native = calls.find(call => call.method === view.method);
-      return { ...view, roles: { ...(native ? callRoles(native.options) : {}), ...view.roles } };
+      const candidates = structuredViews.filter(native => native.method === view.method);
+      const overlap = native => Object.entries(view.roles).filter(([role, name]) => native.roles[role] === name).length;
+      candidates.sort((a, b) => overlap(b) - overlap(a));
+      const best = candidates.filter(native => overlap(native) === overlap(candidates[0]));
+      const owners = [...new Set(best.flatMap(native => native.dataFiles ?? []))];
+      const native = candidates[0];
+      return { ...view, roles: { ...native?.roles, ...view.roles },
+        ...(owners.length === 1 ? { dataFiles: owners } : {}) };
     });
   } else {
     // Future corpora may supply native ggaction programs without a source spec.
-    for (const call of calls) if (plots.has(call.method)) {
+    views.push(...structuredViews);
+    for (const call of views.length ? [] : calls) if (plots.has(call.method)) {
       views.push({ method: call.method, roles: callRoles(call.options), basis: 'native-plot', aggregation: call.options.y?.aggregate ?? null });
     }
     if (!views.length) for (const call of calls) {
@@ -75,7 +98,7 @@ export function extractChartEvidence(stages, source) {
   }
   const unique = new Map();
   for (const view of views) {
-    const key = JSON.stringify([view.method, view.roles, view.aggregation]);
+    const key = JSON.stringify([view.method, view.roles, view.aggregation, view.dataFiles]);
     if (!unique.has(key)) unique.set(key, view);
   }
   const evidence = [...unique.values()];

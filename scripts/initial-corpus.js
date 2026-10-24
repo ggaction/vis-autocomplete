@@ -37,13 +37,14 @@ function sourceUrls(spec) {
 export function prepareInitialRecord(record, cache = new Map()) {
   let tables = cache.get(record.dataHash);
   if (!tables) {
-    tables = tablesIn(record.data).map(({ path, rows }) => ({ path,
+    tables = (record.dataFiles ? Object.entries(record.dataFiles).flatMap(([file, value]) => tablesIn(value).map(table => ({ ...table, file })))
+      : tablesIn(record.data)).map(({ path, rows, file }) => ({ path, ...(file ? { file } : {}),
       id: canonicalDataFingerprint(rows), profile: describeDataset(rows) }));
     cache.set(record.dataHash, tables);
   }
   return { id: record.id, dataHash: record.dataHash, tables,
     evidence: extractChartEvidence(record.stages, record.source),
-    urls: sourceUrls(record.originalSource ?? record.source), stageCount: record.stages.length };
+    primaryFile: record.primaryFile, urls: sourceUrls(record.originalSource ?? record.source), stageCount: record.stages.length };
 }
 
 export function buildInitialIndex(records, provenance = {}) {
@@ -60,11 +61,16 @@ export function buildInitialIndex(records, provenance = {}) {
     // rather than pairing their labels with an arbitrary first table.
     const tableViews = tables.map(table => ({ table, views: evidence.views.filter(view => {
       const names = Object.values(view.roles).flat().filter(v => typeof v === 'string');
-      return names.some(name => table.profile.fields.some(field => field.name === name));
+      if (view.dataFiles?.length) return view.dataFiles.includes(table.file);
+      return names.length > 0 && names.every(name => table.profile.fields.some(field => field.name === name));
     }) }));
     const assignments = tables.length === 1 ? [{ table: tables[0], views: evidence.views, methods: evidence.methods }]
       : tableViews.filter(value => value.views.length).map(value => ({ ...value, methods: [...new Set(value.views.map(view => view.method))] }));
-    if (!assignments.length) throw new Error(`Cannot associate chart with its source tables: ${record.id}`);
+    if (!assignments.length) {
+      const primary = tables.filter(table => table.file === (prepared.primaryFile ?? 'data.json'));
+      if (primary.length !== 1) throw new Error(`Cannot associate chart with its source tables: ${record.id}`);
+      assignments.push({ table: primary[0], views: evidence.views, methods: evidence.methods });
+    }
     const chartReport = { id: record.id, methods: evidence.methods, nativeMethods: evidence.nativeMethods,
       datasets: assignments.map(a => a.table.id), sourceUrls: urls, stageCount: prepared.stageCount };
     charts.push(chartReport);

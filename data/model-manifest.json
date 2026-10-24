@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "generation": "8701f48a695c008eed50b36f5263b24c61795b9bbbde471878d609e020f67f05",
+  "files": {
+    "corpus-report.json": {
+      "sha256": "87e173b1f386c5b5f44be932da776224291dc258b187467ce7fa12f4ae0e2aa3"
+    },
+    "observations.json": {
+      "sha256": "9f0d0e1ea6913555209d8ea786f8ac0bba092f9f2f57e6810af9ad966ad32143"
+    },
+    "model.json": {
+      "sha256": "6e6dcba5d2eb919f1aff2f3a75fc9377c37420db9e69e6933f24fd40e61dc359"
+    },
+    "initial-model.json": {
+      "sha256": "e9e74bcf9d1feb36e3d7cd48e0349900bbf7b362bc21c18b0e54fc792c13d5ac"
+    },
+    "initial-corpus-report.json": {
+      "sha256": "86c798acc9a01d48be56b151edcf621d077cd35c9c094d6bd6bf370bd7a598d4"
+    },
+    "initial-evaluation.json": {
+      "sha256": "69cb166e5dff8c5c0f039ff4b23e2ad1b20633917b28bfb082db6e2030fe5e50"
+    },
+    "action-evidence.json": {
+      "sha256": "a41afc8e873f9673fad3bffe0f536640570ca0c1aa15e36ceb00bc3e8506ceac"
+    },
+    "parameter-defaults.json": {
+      "sha256": "681fe11edc4048008e76d7a11bce8a3c63876bae07bde2b599c57458359d3b04"
+    }
+  }
+}

@@ -19,7 +19,6 @@ if (!exists) {
 }
 // Use Git, not the GitHub Contents API (which stops listing after 1,000 entries).
 git(['-C', CORPUS_ROOT, 'sparse-checkout', 'set', '--no-cone',
-  '/charts/*/*.gg.mjs', '/charts/*/metadata.json', '/charts/*/data.json',
-  '/charts/*/source.vl.json', '/charts/*/resolved-source.vl.json',
+  '/charts/*/*.gg.mjs', '/charts/*/*.json', '/runtime-lock.json', '/package.json',
   '/README.md', '/LICENSE', '/DATA_SOURCES.md']);
 await trainCorpus();

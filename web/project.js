@@ -95,7 +95,9 @@ function normalizeSession(session, names) {
       return [role, field];
     }));
     const context = snapshot.context ?? {};
-    if (!plain(context) || Object.entries(context).some(([key, value]) => !['target', 'data'].includes(key) || typeof value !== 'string' || !value)) {
+    if (!plain(context) || Object.entries(context).some(([key, value]) => key === 'childPath'
+      ? !Array.isArray(value) || value.some(id => typeof id !== 'string' || !id)
+      : key === 'scope' ? value !== 'all' : !['target', 'data'].includes(key) || typeof value !== 'string' || !value)) {
       throw new TypeError('Invalid project chart context.');
     }
     const dataIds = snapshot.setupCalls.filter(call => /Data$/.test(call.method) && typeof call.args.id === 'string').map(call => call.args.id);

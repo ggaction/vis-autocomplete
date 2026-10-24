@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -47,13 +48,12 @@ test('all statistics and central intervals preview and Apply as exactly one nati
     const action = buildRecommendationCall({ ...editor, method: rec.method }, { axis, statistic });
     assert.equal(action.method, 'createStatisticalReference');
     const prepared = prepareGuidedAction(p, action), q = prepared.authoringPreview;
-    assert.equal(q.trace.children.length, p.trace.children.length + 1);
-    assert.equal(q.trace.children.at(-1).op, action.method);
+    assertPreparedTrace(prepared);
     const dataset = q.semanticSpec.datasets.find(d => d.id.endsWith('-statistical-reference-data'));
     const actual = Object.values(dataset.values[0]);
     assert.equal(actual.length, endpoints.length);
     actual.forEach((value, i) => assert.ok(Math.abs(value - endpoints[i] * (axis === 'x' ? 1 : 2)) < 1e-10));
-    const applied = addDefaultGuides(applyRecommendation(prepared.actionBase, prepared.recommendation), prepared.guideCall);
+    const applied = replayPrepared(prepared);
     assert.deepEqual(applied.graphicSpec, prepared.preview.graphicSpec);
     if (statistic === 'middle95') assert.deepEqual(action.args.statistics, [{ op: 'quantile', p: .025 }, { op: 'quantile', p: .975 }]);
   }

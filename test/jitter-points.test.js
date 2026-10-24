@@ -1,3 +1,4 @@
+import { replayPrepared, assertPreparedTrace } from './support/prepared.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -27,7 +28,7 @@ test('Jitter points offers X, Y and Both with one native action and two paramete
     const args = editor.build({ ...valuesFor(editor.controls), [direction.key]: channel });
     prepared[channel] = prepareGuidedAction(raw, { method: rec.method, args }, view);
     assert.equal(prepared[channel].recommendation.validation.topLevelActions, 1);
-    assert.equal(prepared[channel].authoringPreview.trace.children.at(-1).op, 'jitterPoints');
+    assertPreparedTrace(prepared[channel]);
     assert.equal(prepared[channel].authoringPreview.materializationConfigs.jitters.plot.channel, channel);
   }
   const positions = (program, channel) => program.graphicSpec.objects.plot.items.map(item => item.properties[channel]);

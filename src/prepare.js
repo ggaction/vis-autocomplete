@@ -1,3 +1,4 @@
+import { chartViews, chartAtPath, scopedCall, nativeActionTargets } from './composition-context.js';
 import { centerCanvasContent } from './canvas-centering.js';
 import { prepareAction } from './engine.js';
 import { createLRU, signature, freezeResult } from './cache.js';
@@ -18,6 +19,9 @@ export function defaultCanvasOptions() {
 
 // Default plot setup is explicit in the code/trace, separate from a recommendation.
 function defaultGuideCall(program) {
+  if (program.compositionSpec && !program.compositionSpec.facet) {
+    return { method: 'createGuides', args: { target: chartViews(program).map(({ childPath }) => ({ childPath })) } };
+  }
   const args = {};
   const coveredScales = new Set();
   const collectScales = value => {
@@ -78,9 +82,38 @@ export function prepareGuidedAction(program, action, view = program, setupCalls 
   const cache = views.get(view), key = signature([action, setupCalls]);
   const cached = cache.get(key);
   if (cached) return cached;
-  const prepared = prepareUncached(program, action, view, setupCalls);
+  const prepared = nativeActionTargets(action)
+    ? prepareScopedAction(program, action, view, setupCalls)
+    : prepareUncached(program, action, view, setupCalls);
   cache.set(key, freezeResult(prepared));
   return prepared;
+}
+
+function prepareScopedAction(program, action, view, setupCalls) {
+  const targets = nativeActionTargets(action), prerequisites = [], posts = [];
+  const { target: _target, ...options } = action.args;
+  for (const target of targets) {
+    const local = chartAtPath(program, target.childPath), displayed = chartAtPath(view, target.childPath);
+    const call = { ...action, args: { ...options, ...(target.id === undefined ? {} : { target: target.id }) },
+      allowUnchanged: targets.length > 1 || action.allowUnchanged };
+    const localSetup = setupCalls.map(setup => {
+      const { target: _target, ...args } = setup.args;
+      return { ...setup, args };
+    });
+    const prepared = prepareGuidedAction(local, call, displayed, localSetup);
+    for (const entry of prepared.prerequisiteCalls) prerequisites.push(scopedCall(entry, [{ childPath: target.childPath }]));
+    for (const entry of prepared.postActionCalls) posts.push(scopedCall(entry, [{ childPath: target.childPath }]));
+  }
+  const unique = calls => [...new Map(calls.map(call => [signature(call), call])).values()];
+  const prerequisiteCalls = unique(prerequisites), postActionCalls = unique(posts);
+  let base = program;
+  for (const call of prerequisiteCalls) base = base[call.method](call.args);
+  const prepared = prepareAction(base, action);
+  let authoringPreview = prepared.preview;
+  for (const call of postActionCalls) authoringPreview = authoringPreview[call.method](call.args);
+  const guideCall = defaultGuideCall(authoringPreview);
+  return { ...prepared, actionBase: base, prerequisiteCalls, postActionCalls, authoringPreview,
+    guideCall, preview: addDefaultGuides(authoringPreview, guideCall) };
 }
 
 function prepareUncached(program, action, view, setupCalls, repairs = {}) {
@@ -138,7 +171,7 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
         const option = { axis: 'axes', grid: 'grid', legend: 'legend' }[family];
         // A facet owns its shared legend; createLegend is unit-only.
         const call = family === 'legend' && actionBase.compositionSpec?.facet
-          ? { method: 'editFacetGuides', args: { legend: structuredClone(suffix?.args.legend ?? {
+          ? { method: 'createGuides', args: { axes: false, grid: false, legend: structuredClone(suffix?.args.legend ?? {
             ...sourceAction.args.target ? { target: sourceAction.args.target } : {},
             ...sourceAction.args.channel ? { channels: [sourceAction.args.channel] } : {}
           }) } }
@@ -358,32 +391,36 @@ function prepareFittedPlot(program, action, finish = value => value) {
     }
   }
   if (!/^create.*(?:Plot|Histogram|Heatmap|ParallelCoordinates)$/.test(action.method)) return finish(prepareAction(program, action));
+  const adjacent = action.method === 'createAdjacentPlot';
+  const plotMethod = adjacent ? action.args.plot?.action ?? 'createLinePlot' : action.method;
+  const plotArgs = adjacent ? action.args.plot?.options ?? {} : action.args;
+  const proposed = args => adjacent ? { ...action, args: { ...action.args, plot: { action: plotMethod, options: args } } } : { ...action, args };
   let lastError;
   try { return finish(prepareAction(program, action)); } catch (error) { lastError = error; }
   if (!/label|text|overlap|Canvas space/i.test(lastError.message)) throw lastError;
-  const data = program.semanticSpec.datasets.find(d => d.id === action.args.data) ??
+  const data = program.semanticSpec.datasets.find(d => d.id === plotArgs.data) ??
     (program.semanticSpec.datasets.length === 1 ? program.semanticSpec.datasets[0] : undefined);
   const rows = data?.values ?? [];
   for (const count of [6, 4, 3]) {
-    const args = structuredClone(action.args);
+    const args = structuredClone(plotArgs);
     if (args.guides === false) throw lastError;
     args.guides = { ...args.guides, axes: { ...args.guides?.axes } };
     const bindings = { x: args.x, y: args.y };
-    if (action.method === 'createHistogram') {
+    if (plotMethod === 'createHistogram') {
       bindings.x = { field: args.field, fieldType: 'quantitative' };
       bindings.y = { field: args.field, fieldType: 'quantitative' };
     }
-    if (['createDotPlot', 'createLollipopPlot', 'createDumbbellPlot', 'createRaincloudPlot'].includes(action.method)) {
+    if (['createDotPlot', 'createLollipopPlot', 'createDumbbellPlot', 'createRaincloudPlot'].includes(plotMethod)) {
       bindings[args.orientation === 'horizontal' ? 'y' : 'x'] = { field: args.category, fieldType: 'nominal' };
       bindings[args.orientation === 'horizontal' ? 'x' : 'y'] = { field: args.value ?? args.start, fieldType: 'quantitative' };
     }
-    if (['createPolarScatterPlot', 'createPolarLinePlot', 'createRosePlot', 'createRadialBarPlot'].includes(action.method)) {
+    if (['createPolarScatterPlot', 'createPolarLinePlot', 'createRosePlot', 'createRadialBarPlot'].includes(plotMethod)) {
       bindings.theta = args.theta ?? { field: args.category, fieldType: 'nominal' };
       bindings.radius = args.radius ?? args.value ?? { field: '__count' };
     }
     for (const axis of Object.keys(bindings)) {
       const binding = bindings[axis];
-      if (!binding || action.method === 'createHorizonPlot' && axis === 'y') continue;
+      if (!binding || plotMethod === 'createHorizonPlot' && axis === 'y') continue;
       const field = typeof binding === 'string' ? binding : binding.field;
       const domain = [...new Set(rows.map(row => row[field]).filter(value => value != null))];
       const discrete = ['nominal', 'ordinal'].includes(binding.fieldType);
@@ -395,7 +432,7 @@ function prepareFittedPlot(program, action, finish = value => value) {
         labels: { ...ticks.labels, fontFamily: 'Arial', fontSize: 9,
           ...(['theta', 'radius'].includes(axis) ? {} : discrete && axis === 'x' ? { rotation: { value: 90, unit: 'degrees' }, maxWidth: 120, wrap: 'word' } : { maxWidth: 120, wrap: 'word' }) } } };
     }
-    try { return finish(prepareAction(program, { ...action, args })); } catch (error) {
+    try { return finish(prepareAction(program, proposed(args))); } catch (error) {
       lastError = error; if (!/label|text|overlap|Canvas space/i.test(error.message)) throw error;
     }
   }

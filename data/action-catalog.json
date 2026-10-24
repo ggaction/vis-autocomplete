@@ -1,10 +1,10 @@
 {
-  "ggactionVersion": "0.0.21",
+  "ggactionVersion": "0.0.24",
   "ggactionSource": {
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
-    "branch": "codex/edit-axes-autocomplete",
-    "commit": "f9b67f80a51ca94312e43ee606652398157492e4",
+    "branch": "codex/overlay-composition-v025",
+    "commit": "f6e86048f4f25369af5bae209580e68456f9443a",
     "modified": false
   },
   "policy": "one-existing-public-ggaction-method-per-recommendation",
@@ -12,21 +12,28 @@
   "corpusActions": [
     {
       "method": "createData",
-      "charts": 1213,
+      "charts": 1387,
       "role": "setup",
       "reason": "Resource creation; an existing chart already owns these resources.",
       "runtime": true
     },
     {
       "method": "createCanvas",
-      "charts": 1213,
+      "charts": 1387,
       "role": "setup",
       "reason": "Resource creation; an existing chart already owns these resources.",
       "runtime": true
     },
     {
+      "method": "editYScale",
+      "charts": 1247,
+      "role": "recommendation",
+      "via": "editYScale",
+      "runtime": true
+    },
+    {
       "method": "createYAxis",
-      "charts": 1162,
+      "charts": 1238,
       "role": "existing-guide",
       "via": "editYAxis",
       "reason": "Default guides already exist; recommend their native editors.",
@@ -34,144 +41,130 @@
     },
     {
       "method": "createXAxis",
-      "charts": 1162,
+      "charts": 1238,
       "role": "existing-guide",
       "via": "editXAxis",
       "reason": "Default guides already exist; recommend their native editors.",
       "runtime": true
     },
     {
-      "method": "editYScale",
-      "charts": 1151,
-      "role": "recommendation",
-      "via": "editYScale",
-      "runtime": true
-    },
-    {
       "method": "editXScale",
-      "charts": 1147,
+      "charts": 1227,
       "role": "recommendation",
       "via": "editXScale",
       "runtime": true
     },
     {
       "method": "editXAxis",
-      "charts": 1053,
+      "charts": 1214,
       "role": "recommendation",
       "via": "editXAxis",
       "runtime": true
     },
     {
       "method": "editYAxis",
-      "charts": 1045,
+      "charts": 1206,
       "role": "recommendation",
       "via": "editYAxis",
       "runtime": true
     },
     {
       "method": "createAxes",
-      "charts": 1019,
+      "charts": 1188,
       "role": "existing-guide",
       "via": "editAxes",
       "reason": "Default guides already exist; recommend their native editors.",
       "runtime": true
     },
     {
-      "method": "createComputedData",
-      "charts": 843,
-      "role": "data-preparation",
-      "via": "editComputedData",
-      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
-      "runtime": true
-    },
-    {
       "method": "createGrid",
-      "charts": 803,
+      "charts": 935,
       "role": "existing-guide",
       "via": "editGrid",
       "reason": "Default guides already exist; recommend their native editors.",
       "runtime": true
     },
     {
+      "method": "createComputedData",
+      "charts": 933,
+      "role": "data-preparation",
+      "via": "editComputedData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
       "method": "editYAxisTitle",
-      "charts": 795,
+      "charts": 900,
       "role": "recommendation",
       "via": "editYAxisTitle",
       "runtime": true
     },
     {
-      "method": "editXAxisTitle",
-      "charts": 755,
-      "role": "recommendation",
-      "via": "editXAxisTitle",
-      "runtime": true
-    },
-    {
-      "method": "createTitle",
-      "charts": 745,
-      "role": "recommendation",
-      "via": "createTitle",
-      "runtime": true
-    },
-    {
-      "method": "editXAxisLabels",
-      "charts": 731,
-      "role": "recommendation",
-      "via": "editXAxisLabels",
-      "runtime": true
-    },
-    {
-      "method": "editTitle",
-      "charts": 725,
-      "role": "recommendation",
-      "via": "editTitle",
-      "runtime": true
-    },
-    {
       "method": "editXAxisLine",
-      "charts": 722,
+      "charts": 861,
       "role": "recommendation",
       "via": "editXAxisLine",
       "runtime": true
     },
     {
+      "method": "editXAxisLabels",
+      "charts": 857,
+      "role": "recommendation",
+      "via": "editXAxisLabels",
+      "runtime": true
+    },
+    {
+      "method": "editXAxisTitle",
+      "charts": 855,
+      "role": "recommendation",
+      "via": "editXAxisTitle",
+      "runtime": true
+    },
+    {
       "method": "editYAxisLine",
-      "charts": 706,
+      "charts": 845,
       "role": "recommendation",
       "via": "editYAxisLine",
       "runtime": true
     },
     {
+      "method": "createTitle",
+      "charts": 838,
+      "role": "recommendation",
+      "via": "createTitle",
+      "runtime": true
+    },
+    {
+      "method": "editTitle",
+      "charts": 818,
+      "role": "recommendation",
+      "via": "editTitle",
+      "runtime": true
+    },
+    {
       "method": "editYAxisLabels",
-      "charts": 673,
+      "charts": 796,
       "role": "recommendation",
       "via": "editYAxisLabels",
       "runtime": true
     },
     {
       "method": "editXAxisTicks",
-      "charts": 618,
+      "charts": 751,
       "role": "recommendation",
       "via": "editXAxisTicks",
       "runtime": true
     },
     {
       "method": "editYAxisTicks",
-      "charts": 611,
+      "charts": 745,
       "role": "recommendation",
       "via": "editYAxisTicks",
       "runtime": true
     },
     {
-      "method": "editHorizontalGrid",
-      "charts": 596,
-      "role": "recommendation",
-      "via": "editHorizontalGrid",
-      "runtime": true
-    },
-    {
       "method": "createGuides",
-      "charts": 545,
+      "charts": 715,
       "role": "existing-guide",
       "via": "editAxes",
       "reason": "Default guides already exist; recommend their native editors.",
@@ -179,222 +172,229 @@
     },
     {
       "method": "encodeColor",
-      "charts": 494,
+      "charts": 620,
       "role": "recommendation",
       "via": "encodeColor",
       "runtime": true
     },
     {
-      "method": "editColorScale",
-      "charts": 489,
-      "role": "recommendation",
-      "via": "editColorScale",
-      "runtime": true
-    },
-    {
-      "method": "editVerticalGrid",
-      "charts": 488,
-      "role": "recommendation",
-      "via": "editVerticalGrid",
-      "runtime": true
-    },
-    {
       "method": "createLinePlot",
-      "charts": 482,
+      "charts": 603,
       "role": "initial-chart",
       "via": "createLinePlot",
       "runtime": true
     },
     {
+      "method": "editHorizontalGrid",
+      "charts": 601,
+      "role": "recommendation",
+      "via": "editHorizontalGrid",
+      "runtime": true
+    },
+    {
+      "method": "editColorScale",
+      "charts": 553,
+      "role": "recommendation",
+      "via": "editColorScale",
+      "runtime": true
+    },
+    {
       "method": "editLineMark",
-      "charts": 454,
+      "charts": 518,
       "role": "recommendation",
       "via": "editLineMark",
       "runtime": true
     },
     {
       "method": "createLegend",
-      "charts": 394,
+      "charts": 500,
       "role": "existing-guide",
       "via": "editLegend",
       "reason": "Default guides already exist; recommend their native editors.",
       "runtime": true
     },
     {
-      "method": "createScatterPlot",
-      "charts": 382,
-      "role": "initial-chart",
-      "via": "createScatterPlot",
+      "method": "editVerticalGrid",
+      "charts": 491,
+      "role": "recommendation",
+      "via": "editVerticalGrid",
       "runtime": true
     },
     {
       "method": "encodeStroke",
-      "charts": 378,
+      "charts": 462,
       "role": "recommendation",
       "via": "encodeStroke",
       "runtime": true
     },
     {
+      "method": "createScatterPlot",
+      "charts": 443,
+      "role": "initial-chart",
+      "via": "createScatterPlot",
+      "runtime": true
+    },
+    {
       "method": "editPointMark",
-      "charts": 373,
+      "charts": 434,
       "role": "recommendation",
       "via": "editPointMark",
       "runtime": true
     },
     {
-      "method": "encodeBarWidth",
-      "charts": 353,
+      "method": "editXAxisTicksAndLabels",
+      "charts": 409,
       "role": "recommendation",
-      "via": "encodeBarWidth",
-      "runtime": true
-    },
-    {
-      "method": "createBarPlot",
-      "charts": 352,
-      "role": "initial-chart",
-      "via": "createBarPlot",
-      "runtime": true
-    },
-    {
-      "method": "encodeStrokeWidth",
-      "charts": 337,
-      "role": "recommendation",
-      "via": "encodeStrokeWidth",
-      "runtime": true
-    },
-    {
-      "method": "encodePointRadius",
-      "charts": 335,
-      "role": "recommendation",
-      "via": "encodeSize",
-      "reason": "One point-size editor handles fixed area and variable mapping through encodeSize.",
+      "via": "editXAxisTicksAndLabels",
       "runtime": true
     },
     {
       "method": "filterData",
-      "charts": 331,
+      "charts": 403,
       "role": "data-preparation",
       "via": "filterMarks",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
       "runtime": true
     },
     {
-      "method": "editXAxisTicksAndLabels",
-      "charts": 330,
-      "role": "recommendation",
-      "via": "editXAxisTicksAndLabels",
-      "runtime": true
-    },
-    {
       "method": "editYAxisTicksAndLabels",
-      "charts": 323,
+      "charts": 402,
       "role": "recommendation",
       "via": "editYAxisTicksAndLabels",
       "runtime": true
     },
     {
-      "method": "encodeOpacity",
-      "charts": 295,
+      "method": "encodePointRadius",
+      "charts": 392,
       "role": "recommendation",
-      "via": "encodeOpacity",
+      "via": "encodeSize",
+      "reason": "One point-size editor handles fixed area and variable mapping through encodeSize.",
+      "runtime": true
+    },
+    {
+      "method": "encodeBarWidth",
+      "charts": 380,
+      "role": "recommendation",
+      "via": "encodeBarWidth",
+      "runtime": true
+    },
+    {
+      "method": "createBarPlot",
+      "charts": 379,
+      "role": "initial-chart",
+      "via": "createBarPlot",
       "runtime": true
     },
     {
       "method": "applyTextMetrics",
-      "charts": 254,
+      "charts": 373,
       "role": "setup",
       "reason": "Font measurements and the initial theme belong to chart setup; corpus measurements cannot be copied to unrelated text.",
       "runtime": true
     },
     {
+      "method": "encodeStrokeWidth",
+      "charts": 338,
+      "role": "recommendation",
+      "via": "encodeStrokeWidth",
+      "runtime": true
+    },
+    {
       "method": "editCanvas",
-      "charts": 244,
+      "charts": 307,
       "role": "recommendation",
       "via": "editCanvas",
       "runtime": true
     },
     {
+      "method": "encodeOpacity",
+      "charts": 299,
+      "role": "recommendation",
+      "via": "encodeOpacity",
+      "runtime": true
+    },
+    {
       "method": "editBarMark",
-      "charts": 243,
+      "charts": 270,
       "role": "recommendation",
       "via": "editBarMark",
       "runtime": true
     },
     {
-      "method": "editGrid",
-      "charts": 230,
-      "role": "recommendation",
-      "via": "editGrid",
-      "runtime": true
-    },
-    {
       "method": "editLegendTitle",
-      "charts": 225,
+      "charts": 239,
       "role": "recommendation",
       "via": "editLegendTitle",
       "runtime": true
     },
     {
-      "method": "editLegendLabels",
-      "charts": 164,
+      "method": "editGrid",
+      "charts": 233,
       "role": "recommendation",
-      "via": "editLegendLabels",
+      "via": "editGrid",
       "runtime": true
     },
     {
       "method": "encodeX",
-      "charts": 140,
+      "charts": 214,
       "role": "recommendation",
       "via": "encodeX",
       "runtime": true
     },
     {
+      "method": "editLegend",
+      "charts": 195,
+      "role": "recommendation",
+      "via": "editLegend",
+      "runtime": true
+    },
+    {
+      "method": "encodeY",
+      "charts": 182,
+      "role": "recommendation",
+      "via": "encodeY",
+      "runtime": true
+    },
+    {
+      "method": "editLegendLabels",
+      "charts": 179,
+      "role": "recommendation",
+      "via": "editLegendLabels",
+      "runtime": true
+    },
+    {
       "method": "createSummaryData",
-      "charts": 139,
+      "charts": 167,
       "role": "data-preparation",
       "via": "editSummaryData",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
       "runtime": true
     },
     {
-      "method": "editLegend",
-      "charts": 136,
-      "role": "recommendation",
-      "via": "editLegend",
-      "runtime": true
-    },
-    {
       "method": "editLegendSymbols",
-      "charts": 135,
+      "charts": 137,
       "role": "recommendation",
       "via": "editLegendSymbols",
       "runtime": true
     },
     {
       "method": "createSortedData",
-      "charts": 131,
+      "charts": 133,
       "role": "data-preparation",
       "via": "editSortedData",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
       "runtime": true
     },
     {
-      "method": "encodeY",
-      "charts": 110,
-      "role": "recommendation",
-      "via": "encodeY",
-      "runtime": true
-    },
-    {
       "method": "editLegendBlock",
-      "charts": 107,
+      "charts": 113,
       "role": "recommendation",
       "via": "editLegendBlock",
       "runtime": true
     },
     {
       "method": "createVerticalGrid",
-      "charts": 104,
+      "charts": 111,
       "role": "existing-guide",
       "via": "editVerticalGrid",
       "reason": "Default guides already exist; recommend their native editors.",
@@ -402,14 +402,21 @@
     },
     {
       "method": "encodeGroup",
-      "charts": 98,
+      "charts": 103,
       "role": "recommendation",
       "via": "encodeGroup",
       "runtime": true
     },
     {
+      "method": "createRuleMark",
+      "charts": 102,
+      "role": "mark",
+      "via": "editRuleMark",
+      "runtime": true
+    },
+    {
       "method": "createHorizontalGrid",
-      "charts": 92,
+      "charts": 100,
       "role": "existing-guide",
       "via": "editHorizontalGrid",
       "reason": "Default guides already exist; recommend their native editors.",
@@ -417,58 +424,72 @@
     },
     {
       "method": "editTextMark",
-      "charts": 75,
+      "charts": 89,
       "role": "recommendation",
       "via": "editTextMark",
       "runtime": true
     },
     {
-      "method": "createRuleMark",
-      "charts": 73,
-      "role": "mark",
-      "via": "editRuleMark",
-      "runtime": true
-    },
-    {
-      "method": "createWindowData",
-      "charts": 69,
-      "role": "data-preparation",
-      "via": "editWindowData",
-      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
-      "runtime": true
-    },
-    {
       "method": "createFoldData",
-      "charts": 68,
+      "charts": 79,
       "role": "data-preparation",
       "via": "editFoldData",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
       "runtime": true
     },
     {
+      "method": "editRuleMark",
+      "charts": 72,
+      "role": "recommendation",
+      "via": "editRuleMark",
+      "runtime": true
+    },
+    {
       "method": "encodeText",
-      "charts": 58,
+      "charts": 70,
       "role": "recommendation",
       "via": "encodeText",
       "runtime": true
     },
     {
+      "method": "createWindowData",
+      "charts": 70,
+      "role": "data-preparation",
+      "via": "editWindowData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
       "method": "createTextMark",
-      "charts": 57,
+      "charts": 69,
       "role": "mark",
       "via": "editTextMark",
       "runtime": true
     },
     {
+      "method": "editStrokeScale",
+      "charts": 60,
+      "role": "recommendation",
+      "via": "editStrokeScale",
+      "runtime": true
+    },
+    {
       "method": "encodeSize",
-      "charts": 55,
+      "charts": 59,
       "role": "recommendation",
       "via": "encodeSize",
       "runtime": true
     },
     {
+      "method": "createLineMark",
+      "charts": 59,
+      "role": "mark",
+      "via": "editLineMark",
+      "runtime": true
+    },
+    {
       "method": "createStackData",
-      "charts": 55,
+      "charts": 57,
       "role": "data-preparation",
       "via": "editStackData",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
@@ -476,28 +497,14 @@
     },
     {
       "method": "editSizeScale",
-      "charts": 53,
+      "charts": 55,
       "role": "recommendation",
       "via": "editSizeScale",
       "runtime": true
     },
     {
-      "method": "editStrokeScale",
-      "charts": 51,
-      "role": "recommendation",
-      "via": "editStrokeScale",
-      "runtime": true
-    },
-    {
-      "method": "editRuleMark",
-      "charts": 46,
-      "role": "recommendation",
-      "via": "editRuleMark",
-      "runtime": true
-    },
-    {
       "method": "createTimeUnitData",
-      "charts": 45,
+      "charts": 52,
       "role": "data-preparation",
       "via": "editTimeUnitData",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
@@ -505,14 +512,58 @@
     },
     {
       "method": "createHeatmap",
-      "charts": 42,
+      "charts": 52,
       "role": "initial-chart",
       "via": "createHeatmap",
       "runtime": true
     },
     {
+      "method": "editErrorBand",
+      "charts": 52,
+      "role": "recommendation",
+      "via": "editErrorBand",
+      "runtime": true
+    },
+    {
+      "method": "createErrorBand",
+      "charts": 52,
+      "role": "recommendation",
+      "via": "createErrorBand",
+      "runtime": true
+    },
+    {
+      "method": "editRectMark",
+      "charts": 47,
+      "role": "recommendation",
+      "via": "editRectMark",
+      "runtime": true
+    },
+    {
+      "method": "createPointMark",
+      "charts": 46,
+      "role": "mark",
+      "via": "editPointMark",
+      "runtime": true
+    },
+    {
+      "method": "editCompositionLayout",
+      "charts": 42,
+      "role": "recommendation",
+      "via": "editCompositionLayout",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
+      "method": "facet",
+      "charts": 42,
+      "role": "recommendation",
+      "via": "facet",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
       "method": "editAreaMark",
-      "charts": 39,
+      "charts": 41,
       "role": "recommendation",
       "via": "editAreaMark",
       "runtime": true
@@ -525,44 +576,53 @@
       "runtime": true
     },
     {
-      "method": "editRectMark",
-      "charts": 37,
+      "method": "editFacetHeaders",
+      "charts": 36,
       "role": "recommendation",
-      "via": "editRectMark",
+      "via": "editFacetHeaders",
+      "reason": "Retained facet templates support native source and layout editing.",
       "runtime": true
     },
     {
       "method": "editRegressionData",
-      "charts": 31,
+      "charts": 33,
       "role": "recommendation",
       "via": "editRegressionData",
       "runtime": true
     },
     {
       "method": "createRegressionData",
-      "charts": 31,
+      "charts": 33,
       "role": "data-preparation",
       "via": "editRegressionData",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
       "runtime": true
     },
     {
+      "method": "editFacetGuides",
+      "charts": 31,
+      "role": "recommendation",
+      "via": "editFacetGuides",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
       "method": "editArcMark",
-      "charts": 29,
+      "charts": 30,
       "role": "recommendation",
       "via": "editArcMark",
       "runtime": true
     },
     {
       "method": "createPiePlot",
-      "charts": 29,
+      "charts": 30,
       "role": "initial-chart",
       "via": "createPiePlot",
       "runtime": true
     },
     {
       "method": "encodeYRange",
-      "charts": 26,
+      "charts": 27,
       "role": "recommendation",
       "via": "encodeYRange",
       "runtime": true
@@ -576,17 +636,17 @@
     },
     {
       "method": "editLegendLayout",
-      "charts": 21,
+      "charts": 22,
       "role": "recommendation",
       "via": "editLegendLayout",
       "runtime": true
     },
     {
-      "method": "createPointMark",
+      "method": "hconcat",
       "charts": 20,
-      "role": "mark",
-      "via": "editPointMark",
-      "runtime": true
+      "role": "recommendation",
+      "via": "hconcat",
+      "runtime": false
     },
     {
       "method": "createAnnotation",
@@ -610,10 +670,24 @@
       "runtime": true
     },
     {
-      "method": "createLineMark",
+      "method": "encodeShape",
+      "charts": 16,
+      "role": "recommendation",
+      "via": "encodeShape",
+      "runtime": true
+    },
+    {
+      "method": "vconcat",
+      "charts": 16,
+      "role": "recommendation",
+      "via": "vconcat",
+      "runtime": false
+    },
+    {
+      "method": "editSummaryData",
       "charts": 14,
-      "role": "mark",
-      "via": "editLineMark",
+      "role": "recommendation",
+      "via": "editSummaryData",
       "runtime": true
     },
     {
@@ -625,26 +699,31 @@
       "runtime": true
     },
     {
-      "method": "encodeShape",
+      "method": "editTickMark",
       "charts": 12,
       "role": "recommendation",
-      "via": "encodeShape",
+      "via": "editTickMark",
       "runtime": true
     },
     {
-      "method": "editCompositionLayout",
+      "method": "createBarMark",
       "charts": 12,
-      "role": "recommendation",
-      "via": "editCompositionLayout",
-      "reason": "Retained facet templates support native source and layout editing.",
+      "role": "mark",
+      "via": "editBarMark",
       "runtime": true
     },
     {
-      "method": "facet",
+      "method": "editCoordinate",
       "charts": 12,
       "role": "recommendation",
-      "via": "facet",
-      "reason": "Retained facet templates support native source and layout editing.",
+      "via": "editCoordinate",
+      "runtime": true
+    },
+    {
+      "method": "editOpacityScale",
+      "charts": 12,
+      "role": "recommendation",
+      "via": "editOpacityScale",
       "runtime": true
     },
     {
@@ -655,17 +734,17 @@
       "runtime": true
     },
     {
-      "method": "editCoordinate",
+      "method": "editShapeScale",
       "charts": 11,
       "role": "recommendation",
-      "via": "editCoordinate",
+      "via": "editShapeScale",
       "runtime": true
     },
     {
-      "method": "editOpacityScale",
+      "method": "encodeStrokeDash",
       "charts": 11,
       "role": "recommendation",
-      "via": "editOpacityScale",
+      "via": "encodeStrokeDash",
       "runtime": true
     },
     {
@@ -683,33 +762,32 @@
       "runtime": true
     },
     {
-      "method": "editShapeScale",
+      "method": "highlightMarks",
       "charts": 10,
       "role": "recommendation",
-      "via": "editShapeScale",
+      "via": "highlightMarks",
       "runtime": true
     },
     {
-      "method": "editFacetGuides",
+      "method": "encodeChannels",
       "charts": 10,
       "role": "recommendation",
-      "via": "editFacetGuides",
-      "reason": "Retained facet templates support native source and layout editing.",
+      "via": "encodeChannels",
       "runtime": true
     },
     {
-      "method": "editTickMark",
-      "charts": 10,
-      "role": "recommendation",
-      "via": "editTickMark",
-      "runtime": true
-    },
-    {
-      "method": "editFacetHeaders",
+      "method": "selectMarks",
       "charts": 9,
-      "role": "recommendation",
-      "via": "editFacetHeaders",
-      "reason": "Retained facet templates support native source and layout editing.",
+      "role": "selection",
+      "via": "filterMarks",
+      "reason": "A named selection alone does not change a chart.",
+      "runtime": true
+    },
+    {
+      "method": "createRectMark",
+      "charts": 8,
+      "role": "mark",
+      "via": "editRectMark",
       "runtime": true
     },
     {
@@ -720,6 +798,29 @@
       "runtime": true
     },
     {
+      "method": "createTextPlot",
+      "charts": 8,
+      "role": "initial-chart",
+      "via": "createTextPlot",
+      "runtime": true
+    },
+    {
+      "method": "editFacetScales",
+      "charts": 8,
+      "role": "recommendation",
+      "via": "editFacetScales",
+      "reason": "Retained facet templates support native source and layout editing.",
+      "runtime": true
+    },
+    {
+      "method": "createLookupData",
+      "charts": 8,
+      "role": "data-preparation",
+      "via": "editLookupData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
       "method": "createHistogram",
       "charts": 7,
       "role": "initial-chart",
@@ -727,17 +828,24 @@
       "runtime": true
     },
     {
-      "method": "encodeChannels",
+      "method": "editStrokeDashScale",
       "charts": 7,
       "role": "recommendation",
-      "via": "encodeChannels",
+      "via": "editStrokeDashScale",
       "runtime": true
     },
     {
-      "method": "encodeStrokeDash",
+      "method": "encodeX2",
       "charts": 6,
       "role": "recommendation",
-      "via": "encodeStrokeDash",
+      "via": "encodeX2",
+      "runtime": true
+    },
+    {
+      "method": "bindMarkData",
+      "charts": 6,
+      "role": "recommendation",
+      "via": "bindMarkData",
       "runtime": true
     },
     {
@@ -748,17 +856,24 @@
       "runtime": true
     },
     {
-      "method": "createBarMark",
+      "method": "encodeY2",
       "charts": 5,
-      "role": "mark",
-      "via": "editBarMark",
+      "role": "recommendation",
+      "via": "encodeY2",
       "runtime": true
     },
     {
-      "method": "encodeX2",
+      "method": "editErrorBar",
       "charts": 5,
       "role": "recommendation",
-      "via": "encodeX2",
+      "via": "editErrorBar",
+      "runtime": true
+    },
+    {
+      "method": "encodePathOrder",
+      "charts": 5,
+      "role": "recommendation",
+      "via": "encodePathOrder",
       "runtime": true
     },
     {
@@ -777,13 +892,6 @@
       "runtime": true
     },
     {
-      "method": "bindMarkData",
-      "charts": 5,
-      "role": "recommendation",
-      "via": "bindMarkData",
-      "runtime": true
-    },
-    {
       "method": "editCompleteData",
       "charts": 5,
       "role": "recommendation",
@@ -791,39 +899,25 @@
       "runtime": true
     },
     {
-      "method": "editStrokeDashScale",
-      "charts": 5,
-      "role": "recommendation",
-      "via": "editStrokeDashScale",
-      "runtime": true
-    },
-    {
-      "method": "highlightMarks",
-      "charts": 5,
-      "role": "recommendation",
-      "via": "highlightMarks",
-      "runtime": true
-    },
-    {
-      "method": "selectMarks",
-      "charts": 5,
-      "role": "selection",
-      "via": "filterMarks",
-      "reason": "A named selection alone does not change a chart.",
-      "runtime": true
-    },
-    {
-      "method": "createRectMark",
-      "charts": 4,
-      "role": "mark",
-      "via": "editRectMark",
-      "runtime": true
-    },
-    {
-      "method": "editErrorBar",
+      "method": "createCoordinate",
       "charts": 4,
       "role": "recommendation",
-      "via": "editErrorBar",
+      "via": "createCoordinate",
+      "runtime": true
+    },
+    {
+      "method": "editBinData",
+      "charts": 4,
+      "role": "recommendation",
+      "via": "editBinData",
+      "runtime": true
+    },
+    {
+      "method": "createBinData",
+      "charts": 4,
+      "role": "data-preparation",
+      "via": "editBinData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
       "runtime": true
     },
     {
@@ -834,18 +928,17 @@
       "runtime": true
     },
     {
-      "method": "editBinData",
+      "method": "createRugPlot",
       "charts": 3,
-      "role": "recommendation",
-      "via": "editBinData",
+      "role": "initial-chart",
+      "via": "createRugPlot",
       "runtime": true
     },
     {
-      "method": "createBinData",
+      "method": "createErrorBar",
       "charts": 3,
-      "role": "data-preparation",
-      "via": "editBinData",
-      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "role": "recommendation",
+      "via": "createErrorBar",
       "runtime": true
     },
     {
@@ -863,32 +956,11 @@
       "runtime": true
     },
     {
-      "method": "editErrorBand",
-      "charts": 3,
-      "role": "recommendation",
-      "via": "editErrorBand",
-      "runtime": true
-    },
-    {
-      "method": "createErrorBand",
-      "charts": 3,
-      "role": "recommendation",
-      "via": "createErrorBand",
-      "runtime": true
-    },
-    {
       "method": "createImputedData",
       "charts": 3,
       "role": "data-preparation",
       "via": "editImputedData",
       "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
-      "runtime": true
-    },
-    {
-      "method": "encodeY2",
-      "charts": 2,
-      "role": "recommendation",
-      "via": "encodeY2",
       "runtime": true
     },
     {
@@ -906,13 +978,6 @@
       "runtime": true
     },
     {
-      "method": "createErrorBar",
-      "charts": 2,
-      "role": "recommendation",
-      "via": "createErrorBar",
-      "runtime": true
-    },
-    {
       "method": "editLegendBorder",
       "charts": 2,
       "role": "recommendation",
@@ -927,10 +992,10 @@
       "runtime": true
     },
     {
-      "method": "encodePathOrder",
+      "method": "editErrorBandBoundary",
       "charts": 2,
       "role": "recommendation",
-      "via": "encodePathOrder",
+      "via": "editErrorBandBoundary",
       "runtime": true
     },
     {
@@ -938,13 +1003,6 @@
       "charts": 2,
       "role": "initial-chart",
       "via": "createIntervalPlot",
-      "runtime": true
-    },
-    {
-      "method": "createTextPlot",
-      "charts": 2,
-      "role": "initial-chart",
-      "via": "createTextPlot",
       "runtime": true
     },
     {
@@ -966,6 +1024,13 @@
       "charts": 2,
       "role": "recommendation",
       "via": "editRScale",
+      "runtime": true
+    },
+    {
+      "method": "encodeDx",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "encodeDx",
       "runtime": true
     },
     {
@@ -998,6 +1063,35 @@
       "runtime": true
     },
     {
+      "method": "createRegressionStatisticsData",
+      "charts": 1,
+      "role": "data-preparation",
+      "via": "editRegressionStatisticsData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
+      "runtime": true
+    },
+    {
+      "method": "filterMarks",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "filterMarks",
+      "runtime": true
+    },
+    {
+      "method": "createReferenceLine",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "createReferenceLine",
+      "runtime": true
+    },
+    {
+      "method": "editAxes",
+      "charts": 1,
+      "role": "recommendation",
+      "via": "editAxes",
+      "runtime": true
+    },
+    {
       "method": "editXOffsetScale",
       "charts": 1,
       "role": "recommendation",
@@ -1020,17 +1114,11 @@
       "runtime": true
     },
     {
-      "method": "editErrorBandBoundary",
+      "method": "createFlattenData",
       "charts": 1,
-      "role": "recommendation",
-      "via": "editErrorBandBoundary",
-      "runtime": true
-    },
-    {
-      "method": "createRugPlot",
-      "charts": 1,
-      "role": "initial-chart",
-      "via": "createRugPlot",
+      "role": "data-preparation",
+      "via": "editFlattenData",
+      "reason": "Creating an unused dataset does not change the current visualization; edit its live derivation or filter the mark.",
       "runtime": true
     },
     {
@@ -1058,6 +1146,12 @@
     },
     {
       "method": "bindMarkData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createAdjacentPlot",
       "runtime": true,
       "publicTypeDeclaration": true,
       "inspectionDescriptor": true
@@ -1207,6 +1301,12 @@
       "inspectionDescriptor": true
     },
     {
+      "method": "createFlattenData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
       "method": "createFoldData",
       "runtime": true,
       "publicTypeDeclaration": true,
@@ -1297,6 +1397,12 @@
       "inspectionDescriptor": true
     },
     {
+      "method": "createLookupData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
       "method": "createMarkLabels",
       "runtime": true,
       "publicTypeDeclaration": true,
@@ -1304,6 +1410,12 @@
     },
     {
       "method": "createNormalizedData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "createOverlay",
       "runtime": true,
       "publicTypeDeclaration": true,
       "inspectionDescriptor": true
@@ -1741,6 +1853,12 @@
       "inspectionDescriptor": true
     },
     {
+      "method": "editCompositionScales",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
       "method": "editComputedData",
       "runtime": true,
       "publicTypeDeclaration": true,
@@ -1837,6 +1955,12 @@
       "inspectionDescriptor": true
     },
     {
+      "method": "editFlattenData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
       "method": "editFoldData",
       "runtime": true,
       "publicTypeDeclaration": true,
@@ -1927,6 +2051,12 @@
       "inspectionDescriptor": true
     },
     {
+      "method": "editLookupData",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
       "method": "editMarkLabelPlacement",
       "runtime": true,
       "publicTypeDeclaration": true,
@@ -1952,6 +2082,12 @@
     },
     {
       "method": "editOpacityScale",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "editOverlay",
       "runtime": true,
       "publicTypeDeclaration": true,
       "inspectionDescriptor": true
@@ -2330,6 +2466,18 @@
     },
     {
       "method": "encodeDensity",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeDx",
+      "runtime": true,
+      "publicTypeDeclaration": true,
+      "inspectionDescriptor": true
+    },
+    {
+      "method": "encodeDy",
       "runtime": true,
       "publicTypeDeclaration": true,
       "inspectionDescriptor": true

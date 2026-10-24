@@ -28,3 +28,33 @@ export function centerCanvasContent(program, view, guideCall) {
   }
   return { program, view, calls: [] };
 }
+
+// Adjacent views inherit generous single-chart margins. Remove only empty
+// horizontal canvas space once, on insertion, using replayable public edits.
+export function compactAdjacentCanvases(program, view, guideCall) {
+  const calls = [];
+  const visit = (local, path = []) => {
+    if (local.compositionSpec && !local.compositionSpec.facet) {
+      for (const id of local.compositionSpec.children) visit(local.children[id], [...path, id]);
+      return;
+    }
+    const g = canvasGeometry(local), b = g?.content;
+    if (!b || g.composition) return;
+    const margin = { ...g.margin,
+      left: Math.min(g.margin.left, Math.max(0, g.margin.left - b.left + 8)),
+      right: Math.min(g.margin.right, Math.max(0, g.margin.right - (g.width - b.right) + 8)) };
+    if (g.margin.left + g.margin.right - margin.left - margin.right < 1) return;
+    const call = { method: 'editCanvas', args: { target: { childPath: path }, plot: g.plot, margin } };
+    try {
+      const next = program.editCanvas(call.args), fitted = next.createGuides(guideCall.args);
+      let child = fitted; for (const id of path) child = child.children[id];
+      const after = canvasGeometry(child), bounds = after.content;
+      if (!bounds || bounds.left < -0.5 || bounds.right > after.width + 0.5) return;
+      program = next; view = fitted; calls.push(call);
+    } catch {
+      // Keep explicit guide placements that need their existing canvas space.
+    }
+  };
+  visit(view);
+  return { program, view, calls };
+}

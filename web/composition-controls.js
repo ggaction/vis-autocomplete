@@ -82,6 +82,7 @@ export function adjacentSpecs(engine, adding, root) {
         }
         return { id, source: adding.id, position: adding.position, plot: { action: spec.method, options },
           share: adding.share === 'none' ? {} : { [adding.share]: true }, align: 'plot',
+          ...(['left', 'right'].includes(adding.position) ? { gap: 8 } : {}),
           ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) };
       },
       setup: values => (editor.setup?.(values) ?? []).map(call => ({ ...call, args: { ...call.args,

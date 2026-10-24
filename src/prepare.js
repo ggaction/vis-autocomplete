@@ -1,5 +1,5 @@
 import { chartViews, chartAtPath, scopedCall, nativeActionTargets } from './composition-context.js';
-import { centerCanvasContent } from './canvas-centering.js';
+import { centerCanvasContent, compactAdjacentCanvases } from './canvas-centering.js';
 import { canvasGeometry } from './canvas-geometry.js';
 import { prepareAction } from './engine.js';
 import { createLRU, signature, freezeResult } from './cache.js';
@@ -218,7 +218,9 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
     }
     const call = defaultGuideCall(authoringPreview);
     let preview = addDefaultGuides(authoringPreview, call);
-    const centered = centerCanvasContent(authoringPreview, preview, call);
+    const centered = sourceAction.method === 'createAdjacentPlot' && ['left', 'right'].includes(sourceAction.args.position ?? 'right')
+      ? compactAdjacentCanvases(authoringPreview, preview, call)
+      : centerCanvasContent(authoringPreview, preview, call);
     authoringPreview = centered.program; preview = rememberDisplayedGuides(centered.view, call);
     postActionCalls.push(...centered.calls);
     return { ...prepared, authoringPreview, postActionCalls, preview, guideCall: call };

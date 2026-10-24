@@ -6,7 +6,7 @@ import { serializeProgram, deserializeProgram } from 'ggaction/persistence';
 import { createTransitionScene } from 'ggaction/scene';
 import { validateCanvasScene } from '../vendor/transition/src/canvas-player.js';
 import { adjacentContext, adjacentSpecs } from '../web/composition-controls.js';
-import { adjacentPlacements, adjacentPlacementBounds } from '../src/adjacent-placement.js';
+import { adjacentPlacements, adjacentPlacementBounds, adjacentHandlePositions } from '../src/adjacent-placement.js';
 import { createInitialChartRecommender } from '../src/initial-recommender.js';
 import { prepareGuidedAction } from '../src/prepare.js';
 import { chartAtPath, editableChartTargets } from '../src/composition-context.js';
@@ -17,6 +17,20 @@ const rows = Array.from({ length: 12 }, (_, i) => ({ x: i % 3 + 1, y: i + 2, g: 
 const unit = () => chart().createCanvas({ plot: { width: 220, height: 220 }, margin: 90 })
   .createData({ id: 'data', values: rows }).createBarPlot({ id: 'bar', x: 'x', y: 'y', color: 'g' });
 const pair = () => unit().createAdjacentPlot({ id: 'line', source: 'bar', position: 'right' });
+
+test('spatial handles distinguish left, whole-row and right placement, including tight viewports', () => {
+  const program = pair(), placements = adjacentPlacements(program), bounds = adjacentPlacementBounds(program);
+  for (const scale of [.35, .7, 1]) {
+    const handles = adjacentHandlePositions(placements, bounds, { left: 0, top: 0, scale }, { width: 900 * scale, height: 400 * scale });
+    const bottom = handles.filter(h => h.position === 'bottom');
+    assert.equal(bottom.length, 3);
+    assert.ok(bottom[0].x < bottom[2].x && bottom[2].x < bottom[1].x);
+    assert.ok(bottom[2].y >= Math.max(bottom[0].y, bottom[1].y) + 29);
+    const top = handles.filter(h => h.position === 'top');
+    assert.ok(top[2].y <= Math.min(top[0].y, top[1].y) - 29);
+    assert.ok(handles.every(h => h.x >= 13 && h.y >= 13 && h.x <= 900 * scale - 13 && h.y <= 400 * scale - 13));
+  }
+});
 
 test('placement enumerates real panels and groups in visual order, without duplicating overlays or facet cells', () => {
   const p = pair().createOverlay({ target: { childPath: ['bar'] }, id: 'points', source: 'bar', type: 'point' });

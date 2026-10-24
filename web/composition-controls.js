@@ -4,7 +4,7 @@ import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
 import { initialPositionBindings } from '../src/initial-scales.js';
 import { overlayCandidates } from '../src/overlay-candidates.js';
-import { adjacentPlacements, adjacentPlacementBounds, placementLabel } from '../src/adjacent-placement.js';
+import { adjacentPlacements, adjacentPlacementBounds, adjacentHandlePositions, placementLabel } from '../src/adjacent-placement.js';
 import { initialParameters, recommendationParameters } from './parameters.js';
 
 const fieldName = value => typeof value === 'string' ? value : value?.field;
@@ -145,61 +145,73 @@ export function overlaySpecs(adding) {
 }
 
 export function initializeCompositionControls({ select, overlayButton, host, adjacentHost, read, onTarget, onAdd, onOverlay, onChange, onCancel }) {
-  let chooser, highlight, chooserProgram;
-  const closeChooser = () => { chooser?.remove(); highlight?.remove(); chooser = highlight = null; chooserProgram = null; };
-  function choosePlacement(position, anchor) {
-    closeChooser();
-    const state = read(), placements = adjacentPlacements(state.program);
-    if (placements.length === 1) { onAdd(position, placements[0].childPath); return; }
-    chooserProgram = state.program;
-    const bounds = adjacentPlacementBounds(state.view ?? state.program);
-    chooser = document.createElement('div'); chooser.className = `adjacent-placement-chooser placement-${position}`;
-    chooser.setAttribute('role', 'dialog'); chooser.setAttribute('aria-label', `Add chart ${position}: placement`);
-    const heading = document.createElement('strong'); heading.textContent = 'Attach to'; chooser.append(heading);
-    const mark = choice => {
-      highlight?.remove();
-      const frame = bounds.get(JSON.stringify(choice.childPath));
-      const canvas = host.querySelector('.canvas-stage > canvas');
-      if (!frame || !canvas) return;
-      const rect = canvas.getBoundingClientRect(), shell = host.getBoundingClientRect();
-      const scale = rect.width / Number(canvas.dataset.logicalWidth);
-      if (!Number.isFinite(scale)) return;
-      highlight = document.createElement('div'); highlight.className = 'adjacent-placement-highlight';
-      Object.assign(highlight.style, { left: `${rect.left - shell.left + frame.x * scale}px`,
-        top: `${rect.top - shell.top + frame.y * scale}px`, width: `${frame.width * scale}px`, height: `${frame.height * scale}px` });
-      host.append(highlight);
-    };
-    for (const choice of placements) {
-      const button = document.createElement('button'); button.type = 'button';
-      button.textContent = placementLabel(position, choice.label); button.dataset.childPath = JSON.stringify(choice.childPath);
-      button.dataset.grouped = String(choice.grouped);
-      button.addEventListener('pointerenter', () => mark(choice));
-      button.addEventListener('focus', () => mark(choice));
-      button.addEventListener('click', () => { closeChooser(); onAdd(position, choice.childPath); });
-      chooser.append(button);
-    }
-    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel';
-    cancel.addEventListener('click', () => { closeChooser(); anchor.focus(); }); chooser.append(cancel);
-    host.append(chooser);
-    chooser.querySelector('button').focus({ preventScroll: true });
+  let highlight, revision, placements = [], bounds, buttons = [], frame;
+  const clearHighlight = () => { highlight?.remove(); highlight = null; };
+  function viewport() {
+    const canvas = host.querySelector('.canvas-stage > canvas');
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect(), shell = host.getBoundingClientRect();
+    const scale = rect.width / Number(canvas.dataset.logicalWidth);
+    return Number.isFinite(scale) && scale > 0 ? { scale, left: rect.left - shell.left, top: rect.top - shell.top } : null;
   }
-  document.addEventListener('pointerdown', event => {
-    if (chooser && !chooser.contains(event.target) && !event.target.closest('.add-adjacent, .adjacent-placement-change')) closeChooser();
-  });
-  document.addEventListener('keydown', event => {
-    if (chooser && event.key === 'Escape') { closeChooser(); event.preventDefault(); }
-  });
-  window.addEventListener('resize', closeChooser);
-  const buttons = ['left', 'right', 'top', 'bottom'].map(position => {
-    const button = document.createElement('button'); button.type = 'button'; button.className = `add-adjacent add-adjacent-${position}`;
-    button.textContent = '+'; button.setAttribute('aria-label', `Add chart ${position}`); button.title = `Add chart ${position}`;
-    button.addEventListener('click', () => choosePlacement(position, button)); host.append(button); return button;
-  });
+  function mark(choice) {
+    clearHighlight();
+    const box = bounds?.get(JSON.stringify(choice.childPath)), view = viewport();
+    if (!box || !view) return;
+    highlight = document.createElement('div'); highlight.className = 'adjacent-placement-highlight';
+    Object.assign(highlight.style, { left: `${view.left + box.x * view.scale}px`, top: `${view.top + box.y * view.scale}px`,
+      width: `${box.width * view.scale}px`, height: `${box.height * view.scale}px` });
+    host.append(highlight);
+  }
+  function layout() {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = null;
+      const view = viewport();
+      if (!view || !bounds) return;
+      const handles = adjacentHandlePositions(placements, bounds, view, { width: host.clientWidth, height: host.clientHeight });
+      for (const [index, handle] of handles.entries()) {
+        const button = buttons[index];
+        if (button) Object.assign(button.style, { left: `${handle.x - 13}px`, top: `${handle.y - 13}px` });
+      }
+    });
+  }
+  new ResizeObserver(layout).observe(host);
+  host.addEventListener('pointerenter', layout);
+  host.addEventListener('pointerleave', clearHighlight);
+  function refreshHandles(state, ready, busy) {
+    const displayed = state.view ?? state.program;
+    if (revision !== displayed) {
+      clearHighlight(); buttons.forEach(button => button.remove()); buttons = [];
+      revision = displayed;
+      placements = ready ? adjacentPlacements(state.program) : [];
+      bounds = ready ? adjacentPlacementBounds(displayed) : null;
+      for (const position of ['left', 'right', 'top', 'bottom']) for (const choice of placements) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'add-adjacent'; button.textContent = '+';
+        button.dataset.position = position; button.dataset.childPath = JSON.stringify(choice.childPath);
+        button.dataset.grouped = String(choice.grouped);
+        const label = `Add chart ${position}${placements.length > 1 ? `: ${choice.label}` : ''}`;
+        button.setAttribute('aria-label', label); button.title = placementLabel(position, choice.label);
+        button.addEventListener('pointerenter', () => mark(choice));
+        button.addEventListener('pointerleave', clearHighlight);
+        button.addEventListener('focus', () => mark(choice)); button.addEventListener('blur', clearHighlight);
+        button.addEventListener('click', () => { clearHighlight(); onAdd(position, choice.childPath); });
+        host.append(button); buttons.push(button);
+      }
+    }
+    for (const button of buttons) {
+      button.hidden = !ready || busy || state.adding?.kind === 'overlay'; button.disabled = busy;
+      button.setAttribute('aria-pressed', String(Boolean(state.adding && state.adding.position === button.dataset.position &&
+        JSON.stringify(state.adding.receivingPath) === button.dataset.childPath)));
+    }
+    if (!ready || busy) clearHighlight();
+    layout();
+  }
   overlayButton.addEventListener('click', onOverlay);
-  return { refresh() {
+  return { layout, refresh() {
     const { program, context, phase, committing, resizing, adding } = read();
     const ready = phase !== 'initial' && program, busy = committing || resizing;
-    if (!ready || busy || chooserProgram && chooserProgram !== program) closeChooser();
+    refreshHandles(read(), ready, busy);
     select.parentElement.hidden = !ready;
     const groups = ready ? editableChartTargetGroups(program) : [];
     const current = context.scope === 'all' ? 'all' : JSON.stringify({ childPath: context.childPath ?? [], target: context.target });
@@ -229,7 +241,6 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     overlayButton.hidden = !ready;
     overlayButton.disabled = !ready || busy || Boolean(adding) || !overlayContext(program, context);
     overlayButton.title = overlayButton.disabled && ready && !busy && !adding ? 'Choose a Cartesian bar, line, area, or point chart to add an overlay.' : 'Add overlay';
-    for (const button of buttons) { button.hidden = !ready || Boolean(adding); button.disabled = busy; }
     adjacentHost.hidden = !adding;
     adjacentHost.replaceChildren();
     if (!adding) return;
@@ -239,10 +250,8 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
       cancel.addEventListener('click', onCancel); adjacentHost.append(heading, cancel); return;
     }
     const heading = document.createElement('span');
-    const placement = document.createElement('button'); placement.type = 'button'; placement.className = 'adjacent-placement-change';
+    const placement = document.createElement('span');
     placement.textContent = placementLabel(adding.position, adding.placementLabel ?? adding.label);
-    placement.title = 'Change chart placement'; placement.disabled = busy;
-    placement.addEventListener('click', () => choosePlacement(adding.position, placement));
     heading.append(placement); adjacentHost.append(heading);
     if (adding.sources?.length > 1) {
       const label = document.createElement('label'); label.className = 'adjacent-source'; label.textContent = 'Data from';

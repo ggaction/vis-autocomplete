@@ -439,22 +439,10 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 /* Composition controls occupy the existing toolbar; edge controls never resize the canvas. */
 .current-shell { position: relative; min-height: 0; flex: 1; display: flex; }
 .current-shell > .chart-view { flex: 1; min-width: 0; width: 100%; }
-.add-adjacent { position: absolute; z-index: 12; width: 26px; height: 26px; padding: 0; font-size: 22px; line-height: 24px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; opacity: 0; transition: opacity 120ms; cursor: pointer; }
+.add-adjacent { position: absolute; z-index: 14; width: 26px; height: 26px; padding: 0; font-size: 22px; line-height: 24px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; opacity: 0; transition: opacity 120ms; cursor: pointer; }
 .current-shell:hover > .add-adjacent, .add-adjacent:focus-visible { opacity: 1; }
-.add-adjacent-left { left: 3px; top: calc(50% - 13px); }
-.add-adjacent-right { right: 3px; top: calc(50% - 13px); }
-.add-adjacent-top { top: 3px; left: calc(50% - 13px); }
-.add-adjacent-bottom { bottom: 3px; left: calc(50% - 13px); }
-.adjacent-placement-chooser { position: absolute; z-index: 30; display: flex; flex-direction: column; gap: 4px; padding: 10px; max-width: min(360px, calc(100% - 40px)); max-height: calc(100% - 70px); overflow: auto; background: #fff; border: 1px solid #cbd5e1; border-radius: 5px; box-shadow: 0 3px 14px #00000018; font-size: 12px; }
-.adjacent-placement-chooser strong { padding: 2px 5px 5px; }
-.adjacent-placement-chooser button { text-align: left; padding: 6px 8px; white-space: normal; font-size: 12px; }
-.adjacent-placement-chooser button:hover, .adjacent-placement-chooser button:focus-visible { background: #edf5ff; border-color: #5991c7; }
-.placement-left { left: 34px; top: 50%; transform: translateY(-50%); }
-.placement-right { right: 34px; top: 50%; transform: translateY(-50%); }
-.placement-top { top: 34px; left: 50%; transform: translateX(-50%); }
-.placement-bottom { bottom: 34px; left: 50%; transform: translateX(-50%); }
 .adjacent-placement-highlight { position: absolute; z-index: 13; pointer-events: none; outline: 2px solid #287cbd; background: #287cbd0c; border-radius: 2px; }
-.adjacent-placement-change { padding: 3px 6px; font-size: 12px; max-width: 100%; white-space: normal; text-align: left; }
+.add-adjacent:hover, .add-adjacent:focus-visible, .add-adjacent[aria-pressed="true"] { color: #086bb9; border-color: #5991c7; background: #edf5ff; }
 .editing-target, .adjacent-controls, .adjacent-controls label { display: flex; align-items: center; gap: 6px; }
 #editing-target { display: flex; align-items: stretch; gap: 8px; max-width: 420px; overflow-x: auto; padding: 2px; }
 #editing-target .target-chart-group { display: flex; flex: none; border: 1px solid #d8dce4; border-radius: 4px; overflow: hidden; }

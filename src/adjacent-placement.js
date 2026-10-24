@@ -24,7 +24,7 @@ export function placementLabel(position, label) {
 }
 
 // Use materialized snapshots: shared plot alignment can resize authored children.
-// Compute only when opening the chooser, never for every pointer move.
+// Compute once per program revision, never for every pointer move.
 export function adjacentPlacementBounds(program) {
   const result = new Map();
   const visit = (view, childPath = [], x = 0, y = 0) => {
@@ -36,4 +36,30 @@ export function adjacentPlacementBounds(program) {
   };
   visit(program);
   return result;
+}
+
+// Group handles sit one lane farther out than the panels they contain. Move a
+// whole edge's lanes inward when space is tight, preserving their hierarchy.
+export function adjacentHandlePositions(placements, bounds, viewport, size) {
+  const levels = new Map();
+  for (const choice of placements) {
+    const descendants = placements.filter(other => other.childPath.length > choice.childPath.length && containsPath(choice.childPath, other.childPath));
+    levels.set(choice, descendants.length ? 1 + Math.max(...descendants.map(other => levels.get(other) ?? 0)) : 0);
+  }
+  return ['left', 'right', 'top', 'bottom'].flatMap(position => {
+    const horizontal = ['left', 'right'].includes(position), before = ['left', 'top'].includes(position);
+    const handles = placements.flatMap(choice => {
+      const frame = bounds.get(JSON.stringify(choice.childPath));
+      if (!frame) return [];
+      const x = viewport.left + frame.x * viewport.scale, y = viewport.top + frame.y * viewport.scale;
+      const width = frame.width * viewport.scale, height = frame.height * viewport.scale;
+      const offset = 36 + levels.get(choice) * 30;
+      return [{ choice, position, x: horizontal ? x + (before ? -offset : width + offset) : x + width / 2,
+        y: horizontal ? y + height / 2 : y + (before ? -offset : height + offset) }];
+    });
+    const axis = horizontal ? 'x' : 'y', extent = horizontal ? size.width : size.height;
+    const edge = before ? Math.min(...handles.map(handle => handle[axis])) : Math.max(...handles.map(handle => handle[axis]));
+    const shift = before ? Math.max(0, 16 - edge) : Math.min(0, extent - 16 - edge);
+    return handles.map(handle => ({ ...handle, [axis]: handle[axis] + shift }));
+  });
 }

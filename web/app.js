@@ -430,7 +430,7 @@ function renderChart(host, program, label) {
   if (host === elements.preview) lastPreview = { program, label, generation: state.generation };
   if (host === elements.current) {
     chartDownloads.refresh();
-    if (state.phase !== 'initial') { canvasResize.mount(program, canvas); guideEditor.mount(program); }
+    if (state.phase !== 'initial') { canvasResize.mount(program, canvas); guideEditor.mount(program); compositionControls.layout(); }
   }
 }
 

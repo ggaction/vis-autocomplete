@@ -6,9 +6,11 @@ Library checkpoint: `d5b7f59df14a8519d9ad056443e939662b6f9b12` on `codex/overlay
 
 ## User-facing behavior
 
-An edge `+` opens a placement chooser before the chart-type cards. For `[A | B]`,
-Bottom offers `Below A`, `Below B`, and `Below A + B`. Top, Left and Right offer
-the equivalent choices. Selection highlights the affected panel/group boundary.
+Each panel/group exposes its own spatial `+` handles; there is no placement menu.
+For `[A | B]`, three bottom handles sit below A, below B, and in the center one
+lane farther down for the whole group. Top, Left, and Right use the same rule.
+Hover highlights the receiver; clicking immediately opens its chart-type cards.
+This supersedes the original chooser design at the user's request.
 Overlays belong to their containing panel; they do not produce duplicate placement
 choices. An existing nested group is a placement candidate alongside its leaf
 panels and the overall composition. Names follow visible chart names and order,
@@ -124,3 +126,18 @@ to that group. UI placement and data-source choices are separate and visible.
 - Local browser evidence is under ignored `output/adjacent-placement/`; no exported
   project/data files are committed. Existing transition APIs handle the new compositions;
   no transition package change or npm publication was needed.
+
+
+### Spatial handle revision
+
+The placement menu was removed in response to the user's correction. Each real
+panel and existing group now has a direct `+` on each edge. A group's handle is
+30 px farther out than its descendants; for two columns the bottom handles read
+left panel, whole row slightly lower in the center, right panel. Hover highlights
+the affected bounds, and clicking opens chart cards without an intermediate dialog.
+Handles follow fitted chart geometry and view resizing; geometry is computed once
+per program revision. The option-card heading retains a text placement label.
+
+Validation: 15 placement/geometry tests, the 24-case browser matrix with spatial
+ordering checks, and saved-project/Undo/Redo/nested-handle restoration. The 1350 px
+vertical layout was visually inspected; its twelve edge buttons do not overlap.

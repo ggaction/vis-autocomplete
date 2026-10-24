@@ -62,16 +62,19 @@ with sync_playwright() as p:
         for direction, prefix in [('left', 'Left of'), ('right', 'Right of'), ('top', 'Above'), ('bottom', 'Below')]:
             for scope in ['Area', 'Bar / Line', 'All charts']:
                 page.locator('#current-shell').hover()
-                page.get_by_role('button', name='Add chart ' + direction, exact=True).click()
-                chooser = page.get_by_role('dialog', name=f'Add chart {direction}: placement')
-                expect(chooser.get_by_role('button')).to_have_count(4)  # three placements plus cancel
-                button = chooser.get_by_role('button', name=f'{prefix} {scope}', exact=True)
+                handles = page.locator(f'.add-adjacent[data-position="{direction}"]')
+                expect(handles).to_have_count(3)
+                if direction == 'bottom':
+                    boxes = [page.get_by_role('button', name=f'Add chart bottom: {name}', exact=True).bounding_box() for name in ['Area', 'All charts', 'Bar / Line']]
+                    assert boxes[0]['x'] < boxes[1]['x'] < boxes[2]['x']
+                    assert boxes[1]['y'] >= max(boxes[0]['y'], boxes[2]['y']) + 25
+                button = page.get_by_role('button', name=f'Add chart {direction}: {scope}', exact=True)
                 button.hover()
                 expect(page.locator('.adjacent-placement-highlight')).to_be_visible()
                 if mode == 'transition' and direction == 'bottom' and scope == 'All charts':
                     page.screenshot(path=str(output / 'group-highlight.png'))
                 button.click()
-                expect(chooser).to_have_count(0)
+                expect(page.get_by_role('dialog')).to_have_count(0)
                 controls = page.locator('#adjacent-controls')
                 shared = 'Y' if direction in ['left', 'right'] else 'X'
                 expect(controls.locator('label').filter(has_text=f'{shared} (shared)')).to_have_count(1)
@@ -96,6 +99,7 @@ with sync_playwright() as p:
                 expect(page.locator('.target-chart-group')).to_have_count(2)
                 print(f'PASS {mode} {direction} {scope}', flush=True)
     # Reopen saved nested group and then exercise redo and nested placement discovery.
+    expect(page.locator('#undo')).to_be_enabled()
     page.locator('#project-file').set_input_files(str(output / 'wide-bottom-transition.json'))
     expect(page.locator('.target-chart-group')).to_have_count(3)
     page.locator('#undo').click()
@@ -106,11 +110,8 @@ with sync_playwright() as p:
     page.reload()
     expect(page.locator('.target-chart-group')).to_have_count(3)
     page.locator('#current-shell').hover()
-    page.get_by_role('button', name='Add chart right', exact=True).click()
-    chooser = page.get_by_role('dialog', name='Add chart right: placement')
-    expect(chooser.get_by_role('button')).to_have_count(6)  # three panels, two groups, cancel
-    chooser.get_by_role('button', name='Cancel', exact=True).click()
-    expect(chooser).to_have_count(0)
+    expect(page.locator('.add-adjacent[data-position="right"]')).to_have_count(5)
+    page.locator('h1').hover()
     expect(page.locator('.adjacent-placement-highlight')).to_have_count(0)
     assert not errors, errors
     print('PASS saved project, refresh, undo/redo, nested choices; no page errors', flush=True)

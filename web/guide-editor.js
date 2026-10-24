@@ -1,4 +1,5 @@
-import { editableGuides, guideBounds, resizeGuide, moveGuide } from '../src/guide-manipulation.js';
+import { editableGuides, guideBounds, resizeGuide, moveGuide, removeGuide } from '../src/guide-manipulation.js';
+import { removableChartPanels } from '../src/chart-removal.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
 // Resize along the edge being dragged, not a projection onto the box diagonal.
@@ -22,7 +23,7 @@ export function createGuideEditor(host, callbacks) {
     display = program; stage = host.querySelector('.canvas-stage');
     if (!stage || !callbacks.available()) { clear(); return; }
     const source = gesture?.source ?? callbacks.program();
-    targets = editableGuides(source);
+    targets = [...removableChartPanels(source), ...editableGuides(source)];
     const old = active?.key;
     overlay = stage.querySelector('.guide-editor');
     if (!overlay) { overlay = document.createElement('div'); overlay.className = 'guide-editor'; stage.append(overlay); }
@@ -32,19 +33,29 @@ export function createGuideEditor(host, callbacks) {
       const bounds = guideBounds(program, target.ids); if (!bounds) continue;
       const pad = target.key === 'title-group' ? 10 : 3;
       const node = document.createElement('div'); node.className = 'guide-control'; node.dataset.guideKey = target.key;
-      node.style.zIndex = target.key === 'title-group' ? '1' : '2';
+      node.style.zIndex = target.kind === 'panel' ? '0' : target.key === 'title-group' ? '1' : target.kind === 'legend' && target.part ? '3' : '2';
+      node.classList.toggle('panel-control', target.kind === 'panel');
       Object.assign(node.style, { left: `${bounds.left*scale-pad}px`, top: `${bounds.top*scale-pad}px`,
         width: `${(bounds.right-bounds.left)*scale+pad*2}px`, height: `${(bounds.bottom-bounds.top)*scale+pad*2}px` });
       const hit = document.createElement('button'); hit.type = 'button'; hit.className = 'guide-hit';
       hit.dataset.guide = target.key; hit.setAttribute('aria-label', target.movable ? `Move ${target.label}` : `Select ${target.label}`);
       hit.style.cursor = target.movable ? 'move' : 'default';
-      const label = document.createElement('span'); label.className = 'guide-label'; label.textContent = target.label;
       const size = document.createElement('button'); size.type = 'button'; size.className = 'guide-size';
       size.dataset.guide = target.key; size.dataset.guideOperation = 'resize';
       size.dataset.guideEdge = 'se';
       size.setAttribute('aria-label', `Resize ${target.label}`); size.title = 'Drag to resize · arrow keys · Esc to cancel';
-      node.append(hit, label, size);
-      if (target.kind === 'legend') for (const edge of ['n', 'e', 's', 'w', 'ne', 'nw', 'sw']) {
+      if (target.kind !== 'panel') node.append(hit, size);
+      if (target.kind !== 'legend' || target.part) {
+        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'guide-delete';
+        remove.textContent = '×'; remove.dataset.guide = target.key; remove.dataset.guideOperation = 'delete';
+        remove.setAttribute('aria-label', `Delete ${target.label}`);
+        remove.addEventListener('click', event => {
+          event.preventDefault(); event.stopPropagation();
+          if (!gesture && callbacks.available() && callbacks.canStart()) callbacks.remove(target, target.remove ?? removeGuide(target));
+        });
+        node.append(remove);
+      }
+      if (target.kind === 'legend' && !target.part) for (const edge of ['n', 'e', 's', 'w', 'ne', 'nw', 'sw']) {
         const handle = document.createElement('button'); handle.type = 'button';
         handle.className = `guide-edge guide-edge-${edge}`;
         handle.dataset.guide = target.key; handle.dataset.guideOperation = 'resize'; handle.dataset.guideEdge = edge;
@@ -65,7 +76,21 @@ export function createGuideEditor(host, callbacks) {
     if (gesture || !callbacks.available()) return;
     const button = event.target.closest('[data-guide]');
     if (button) select(button.dataset.guide);
-    else if (!event.target.closest('.guide-control')) select(null);
+    else if (!event.target.closest('.guide-control')) {
+      const previous = [...overlay?.children ?? []].find(node => node.dataset.guideKey === active?.key)?.getBoundingClientRect();
+      // Keep the corner control reachable from a very short/rotated title.
+      if (previous && event.clientX >= previous.left - 18 && event.clientX <= previous.right + 18 &&
+        event.clientY >= previous.top - 18 && event.clientY <= previous.bottom + 10) return;
+      const panel = targets.find(target => {
+        if (target.kind !== 'panel') return false;
+        const node = [...overlay?.children ?? []].find(node => node.dataset.guideKey === target.key);
+        const b = node?.getBoundingClientRect();
+        return b && event.clientX >= b.left - 12 && event.clientX <= b.right + 12 &&
+          event.clientY >= b.top - 12 && event.clientY <= b.bottom + 12 &&
+          Math.min(Math.abs(event.clientX-b.left),Math.abs(event.clientX-b.right),Math.abs(event.clientY-b.top),Math.abs(event.clientY-b.bottom)) < 12;
+      });
+      select(panel?.key);
+    }
   }
   host.addEventListener('pointermove', pointer);
   host.addEventListener('pointerleave', () => { if (!gesture) select(null); });
@@ -141,6 +166,7 @@ export function createGuideEditor(host, callbacks) {
   host.addEventListener('pointerdown', event => {
     const button = event.target.closest('[data-guide]');
     if (!button || event.button!==0) return;
+    if (button.dataset.guideOperation === 'delete') { event.stopPropagation(); return; }
     const target=targets.find(t=>t.key===button.dataset.guide); if(!target)return;
     const g=start(target,button.dataset.guideOperation??'move',event,button.dataset.guideEdge); if(!g)return;
     event.preventDefault();event.stopPropagation();host.setPointerCapture(event.pointerId);

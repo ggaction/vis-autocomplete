@@ -28,6 +28,7 @@ import { defaultCanvasOptions } from './plot-setup.js';
 import { selectionAxes, selectionData } from './selection-setup.js';
 import { renderDataTable } from './data-table.js';
 import { createHistory, captureHistorySnapshot, historyLabel, historyPreview } from './history.js';
+import { initializeHistoryShortcuts } from './history-shortcuts.js';
 import { createHistoryView } from './history-view.js';
 import { OPTION_GROUPS, FOLLOWUP_RECOMMENDATION_OPTIONS } from './option-groups.js';
 import { createCalculationClient } from './calculation-client.js';
@@ -224,6 +225,12 @@ const guideEditor = createGuideEditor(elements.current, {
   program: () => state.view,
   available: () => state.phase !== 'initial' && !transitionMode.active,
   canStart: () => !state.committing && !state.resizing,
+  async remove(target, action) {
+    leaveGallery(); cardMotion.finish(); resizeHistory.reset();
+    await commit({ base: state.program, view: state.view, guideCall: state.guideCall,
+      method: action.method, values: {}, build: () => action.args, title: `Delete ${target.label}`,
+      interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true, refresh: true });
+  },
   start(target, operation) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish();
@@ -1267,7 +1274,7 @@ function emptyActionsMessage() {
     : `No applicable ${state.optionGroup} actions for this chart yet.`;
 }
 
-async function commit(card, { direct = false } = {}) {
+async function commit(card, { direct = false, refresh = false } = {}) {
   if (state.committing || card.base !== state.program) return;
   const datasetId = state.datasetId;
   clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
@@ -1309,7 +1316,7 @@ async function commit(card, { direct = false } = {}) {
         view.trace.children.length !== next.trace.children.length + 1 || view.trace.children.at(-1).op !== 'createGuides') {
       throw new Error('Expected one selected action followed by one final createGuides call.');
     }
-    if (!direct) saveGallery();
+    if (!direct || refresh) saveGallery();
     else if (mountedGallery) {
       // This deck is about to be rebased in place. Never let Undo retrieve it
       // through the previous immutable chart state's gallery cache.
@@ -1332,7 +1339,7 @@ async function commit(card, { direct = false } = {}) {
     const committedProgram = state.program;
     // Invalidate an initial gallery that may still be filling, and remove the
     // entire old set before the chart starts moving. No stale cards remain clickable.
-    if (!direct) {
+    if (!direct || refresh) {
       state.generation++;
       state.galleryObserver?.disconnect();
       state.active = null; state.cards = [];
@@ -1367,7 +1374,7 @@ async function commit(card, { direct = false } = {}) {
     // The chart is committed. Background recommendation thumbnails must not
     // lock Undo, groups, search, or already validated cards behind the slowest.
     release();
-    if (!direct || !mountedGallery) await updateCards();
+    if (!direct || refresh || !mountedGallery) await updateCards();
   } catch (error) {
     const unchanged = error.reason === 'no-change';
     const message = unchanged ? 'These settings are already applied.' : error.message;
@@ -1694,6 +1701,15 @@ $('edit-schema').addEventListener('click', () => editSchema().catch(error => not
 $('reset').addEventListener('click', resetVisualization);
 $('undo').addEventListener('click', () => restoreHistory('undo'));
 $('redo').addEventListener('click', () => restoreHistory('redo'));
+initializeHistoryShortcuts({ run: restoreHistory,
+  busy: () => state.committing || state.resizing, dataset: () => state.datasetId,
+  cancelGesture() {
+    const dragging = state.resizing;
+    canvasResize.cancel(); guideEditor.cancel();
+    return dragging && !state.resizing;
+  } });
+$('undo').title = 'Undo (Ctrl/Cmd+Z)';
+$('redo').title = 'Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y)';
 $('save-project').addEventListener('click', () => {
   try { downloadText(JSON.stringify(projectSnapshot()), `${filename(state.name)}.visauto.json`); }
   catch (error) { notice(error.message, true); }

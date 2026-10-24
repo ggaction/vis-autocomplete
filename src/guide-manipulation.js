@@ -19,26 +19,29 @@ export function guideBounds(program, ids) {
 }
 
 export function editableGuides(program) {
+  const titles = [];
+  if (program.titleConfig && program.graphicSpec.objects.chartTitle) {
+    const config = program.titleConfig;
+    for (const target of [
+      { key: 'title', label: 'Title', part: 'titleStyle', ids: ['chartTitle'] },
+      ...(program.graphicSpec.objects.chartSubtitle ? [
+        { key: 'subtitle', label: 'Subtitle', part: 'subtitleStyle', ids: ['chartSubtitle'] },
+        { key: 'title-group', label: 'Title + subtitle', ids: ['chartTitle', 'chartSubtitle'] },
+      ] : [])
+    ]) titles.push({ ...target, kind: 'title', config, movable: true, bounds: guideBounds(program, target.ids) });
+  }
   if (program.compositionSpec && !program.compositionSpec.facet) {
     const { children, layout } = prepareCompositionSnapshots(program);
-    return layout.children.flatMap(placement => editableGuides(children[placement.id]).map(localTarget => {
+    return [...titles, ...layout.children.flatMap(placement => editableGuides(children[placement.id]).map(localTarget => {
       const ids = localTarget.ids.map(id => namespaceGraphicId(`${program.compositionSpec.id}-${placement.id}`, id));
       const bounds = guideBounds(program, ids);
       return { ...localTarget, ids, bounds, key: `${placement.id}/${localTarget.key}`,
         childPath: [placement.id], localTarget, localProgram: children[placement.id],
         offset: { x: placement.x, y: placement.y } };
-    }).filter(target => target.bounds));
+    }).filter(target => target.bounds))];
   }
-  const objects = program.graphicSpec.objects, targets = [];
+  const objects = program.graphicSpec.objects, targets = [...titles];
   const add = target => { const bounds = guideBounds(program, target.ids); if (bounds) targets.push({ ...target, bounds }); };
-  if (program.titleConfig && objects.chartTitle) {
-    const config = program.titleConfig;
-    add({ key: 'title', label: 'Title', kind: 'title', part: 'titleStyle', config, ids: ['chartTitle'], movable: true });
-    if (objects.chartSubtitle) {
-      add({ key: 'subtitle', label: 'Subtitle', kind: 'title', part: 'subtitleStyle', config, ids: ['chartSubtitle'], movable: true });
-      add({ key: 'title-group', label: 'Title + subtitle', kind: 'title', config, ids: ['chartTitle', 'chartSubtitle'], movable: true });
-    }
-  }
   const findIds = ids => Object.keys(objects).filter(id => ids.some(native => id === native || id.endsWith(`_${native}`)));
   for (const owner of cartesianAxisOwners(program)) {
     if (!owner.config?.title) continue;
@@ -61,7 +64,7 @@ export function editableGuides(program) {
     const graphic = objects[id];
     for (const [index, item] of (graphic.items ?? [graphic]).entries()) {
       const dimension = dimensions[index]; if (!dimension) continue;
-      add({ key: `axis:${item.id ?? id}`, label: `${dimension.field} axis title`, kind: 'axis',
+      add({ key: `axis:${id}:${dimension.field}`, label: `${dimension.field} axis title`, kind: 'axis',
         config: dimension.title, method: 'editParallelAxis', args: { target: parallel.target, field: dimension.field },
         ids: [item.id ?? id], facet: Boolean(program.compositionSpec?.facet) });
     }
@@ -72,8 +75,25 @@ export function editableGuides(program) {
     if (!ids.length) continue;
     add({ key: `legend:${kind}`, label: `${config.title || 'Legend'} legend`, kind: 'legend', family: kind,
       config, ids, movable: true, representation: describeLegendBlock(program, kind, config).family, channels: legendBlockChannels(kind, config) });
+    add({ key: `legend-title:${kind}`, label: `${config.title || 'Legend'} legend title`, kind: 'legend', family: kind,
+      part: 'titleStyle', config, ids: ids.filter(id => id.endsWith('Title')), channels: legendBlockChannels(kind, config) });
   }
   return targets;
+}
+
+export function removeGuide(target) {
+  if (target.childPath) return scopedCall(removeGuide(target.localTarget), [{ childPath: target.childPath }]);
+  if (target.kind === 'title') return target.part === 'subtitleStyle'
+    ? { method: 'editTitle', args: { subtitle: false } } : { method: 'removeTitle', args: {} };
+  if (target.kind === 'axis') {
+    const method = target.method?.replace(/Title$/, '') ?? `edit${target.channel.toUpperCase()}Axis`;
+    const args = { ...target.args, title: false };
+    return target.facet ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
+  }
+  if (target.kind === 'legend' && target.part === 'titleStyle') return {
+    method: 'editLegend', args: { target: target.config.target, channel: target.channels[0], title: false },
+  };
+  throw new Error('This guide has no supported removal action.');
 }
 
 // Every manipulation is one native domain edit. The regular preparer owns
@@ -83,6 +103,9 @@ export function resizeGuide(target, factor) {
   factor = clamp(factor, .25, 4);
   const config = target.config;
   const font = style => ({ fontSize: clamp(round(style.fontSize * factor), 6, 96) });
+  if (target.kind === 'legend' && target.part === 'titleStyle') return {
+    method: 'editLegend', args: { target: config.target, channel: target.channels[0], titleStyle: font(config.titleStyle) },
+  };
   if (target.kind === 'title') {
     const args = target.part ? { [target.part]: font(config[target.part]) }
       : { titleStyle: font(config.titleStyle), subtitleStyle: font(config.subtitleStyle), gap: round(config.gap * factor) };

@@ -20,6 +20,7 @@ try {
   page.setDefaultTimeout(60000); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
   const applied = async card => { await card.hover(); await card.locator('button').filter({hasText:/^Apply$/}).click(); await page.waitForFunction(()=>!document.querySelector('#undo').disabled); };
   const cardFor = async selector => {
+   await page.locator('#cards .card').first().waitFor();
    for(let i=0;i<9;i++) {
     const card=page.locator(selector).first();
     if(await card.isVisible())return card;
@@ -34,15 +35,15 @@ try {
    for(const name of c.fields) await page.getByRole('button',{name:`Select column ${name}`,exact:true}).click();
    await applied(await cardFor(`.card[data-method="${c.plot}"]`)); console.log('STEP',c.dataset,'chart');
    await page.waitForFunction(()=>document.body.dataset.phase==='recommendations');
-   await page.locator('#action-search').fill('overlay');
+   await page.getByRole('button',{name:'Add overlay',exact:true}).click();
    await applied(page.locator('.card[data-method="createOverlay"]').first());
    await page.waitForFunction(()=>document.querySelector('#current').dataset.lastMethod==='createOverlay'); console.log('STEP',c.dataset,'overlay');
    await page.locator('#current-shell').hover();
    await page.getByRole('button',{name:`Add chart ${c.direction}`,exact:true}).click();
    const adjacent=page.locator('.card[data-method="createAdjacentPlot"]').filter({has:page.locator('h3',{hasText:new RegExp(c.next,'i')})}).first();
    await applied(adjacent); console.log('STEP',c.dataset,'adjacent');
-   await page.waitForFunction(()=>document.querySelector('#editing-target').options.length===4);
-   await page.locator('#editing-target').selectOption('all');
+   await page.waitForFunction(()=>document.querySelectorAll('#editing-target button').length===4);
+   await page.locator('#editing-target').getByRole('button',{name:'All',exact:true}).click();
    const appearance=c.appearance ?? 'encodeOpacity';
    await page.locator('#action-search').fill(appearance === 'encodeStroke' ? 'stroke color' : 'opacity');
    await applied(page.locator(`.card[data-method="${appearance}"]`).first());
@@ -69,7 +70,7 @@ try {
    await page.locator('.project-menu > summary').click();
    await page.locator('#undo').click();await page.waitForFunction(()=>!document.querySelector('#redo').disabled);
    await page.locator('#redo').click();await page.waitForFunction(method=>document.querySelector('#current').dataset.lastMethod===method && !document.querySelector('#undo').disabled,restoredLastMethod);
-   await page.reload();await page.waitForFunction(()=>document.querySelector('#editing-target').options.length===4);
+   await page.reload();await page.waitForFunction(()=>document.querySelectorAll('#editing-target button').length===4);
    await page.locator('#cards .card:visible').first().waitFor();
    await page.waitForFunction(()=>!document.querySelector('#undo').disabled);
    await page.waitForFunction(method=>document.querySelector('#current').dataset.lastMethod===method,restoredLastMethod);

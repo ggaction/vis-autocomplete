@@ -1,5 +1,5 @@
 import { loadModel } from './model-loader.js';
-import { initializeCompositionControls, adjacentContext, adjacentSpecs } from './composition-controls.js';
+import { initializeCompositionControls, adjacentContext, adjacentSpecs, overlayContext, overlaySpecs } from './composition-controls.js';
 import { editableChartTargets, chartAtPath } from '../src/composition-context.js';
 import { parameterTransitionDuration } from './parameter-motion.js';
 import { createTransitionMode } from './transition-mode.js';
@@ -58,13 +58,14 @@ const state = { initialEngine: null, rows: [], name: '', program: null, base: nu
   selection: { x: '', y: '', color: '' }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
   optionGroup: 'encoding', searchQuery: '', datasetId: null, adding: null };
 const compositionControls = initializeCompositionControls({
-  select: $('editing-target'), host: $('current-shell'), adjacentHost: $('adjacent-controls'), read: () => state,
+  select: $('editing-target'), overlayButton: $('add-overlay'), host: $('current-shell'), adjacentHost: $('adjacent-controls'), read: () => state,
   onTarget: context => { if (state.committing || state.resizing) return; state.context = focus(state.program, context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onAdd: position => {
     if (state.committing || state.resizing) return;
     try { state.adding = adjacentContext(state.program, state.context, position, datasets.get(state.datasetId)?.imported.fieldTypes); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); }
     catch (error) { notice(error.message, true); }
   },
+  onOverlay: () => { if (state.committing || state.resizing) return; state.adding = overlayContext(state.program, state.context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onChange: patch => { Object.assign(state.adding, patch); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onCancel: () => { state.adding = null; showPreview(null); updateCards().catch(error => notice(error.message, true)); },
 });
@@ -994,7 +995,7 @@ function recommendationResponse(program = state.program, view = state.view, guid
     activeRecommendation = entry;
     const remove = () => { if (cache.get(key) === entry) cache.delete(key); };
     entry.promise = calculations.recommend(program, view, guideCall, { ...context, fieldTypes: datasets.get(state.datasetId)?.imported.fieldTypes,
-      ...FOLLOWUP_RECOMMENDATION_OPTIONS }, group, page, searchQuery, response => {
+      ...FOLLOWUP_RECOMMENDATION_OPTIONS, excludeMethods: ['createOverlay'] }, group, page, searchQuery, response => {
         entry.latest = response;
         for (const listener of entry.listeners) listener(response);
       }).then(response => { if (response.cancelled) remove(); return response; })
@@ -1064,7 +1065,7 @@ async function updateCards() {
       elements.cards.append(...restored.rows); elements.cards.scrollLeft = restored.scrollLeft ?? 0;
     } else if (state.adding) {
       cancelRecommendationWork();
-      specs = adjacentSpecs(state.initialEngine, state.adding, state.program);
+      specs = state.adding.kind === 'overlay' ? overlaySpecs(state.adding) : adjacentSpecs(state.initialEngine, state.adding, state.program);
     } else if (state.phase === 'initial') {
       const profile = { ...state.profile, id: state.plotData };
       const result = state.initialEngine.recommend(state.rows, profile, { selection: state.selection });

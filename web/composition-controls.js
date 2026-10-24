@@ -2,7 +2,8 @@ import { editableChartTargets, chartAtPath, targetKey, inheritedCompositionShare
 import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
 import { initialPositionBindings } from '../src/initial-scales.js';
-import { initialParameters } from './parameters.js';
+import { overlayCandidates } from '../src/overlay-candidates.js';
+import { initialParameters, recommendationParameters } from './parameters.js';
 
 const fieldName = value => typeof value === 'string' ? value : value?.field;
 const at = (object, path) => path.split('.').reduce((node, key) => node?.[key], object);
@@ -89,27 +90,68 @@ export function adjacentSpecs(engine, adding, root) {
   });
 }
 
-export function initializeCompositionControls({ select, host, adjacentHost, read, onTarget, onAdd, onChange, onCancel }) {
+// Overlay creation is a deliberate chart-choice flow, independent of ranked actions.
+export function overlayContext(program, context) {
+  const targets = editableChartTargets(program);
+  let source = targets.find(t => t.id === context.target && targetKey(t) === targetKey({ id: context.target, childPath: context.childPath ?? [] }));
+  if (source?.overlay) {
+    const local = chartAtPath(program, source.childPath);
+    const id = local.semanticSpec.layers.find(l => l.id === source.id)?.derivedBindings.overlay.source;
+    source = targets.find(t => t.id === id && JSON.stringify(t.childPath) === JSON.stringify(source.childPath));
+  }
+  if (!source || context.scope === 'all') source = targets.find(t => !t.overlay);
+  if (!source) return null;
+  const local = chartAtPath(program, source.childPath);
+  const layer = local.semanticSpec.layers.find(l => l.id === source.id);
+  const candidates = overlayCandidates(local, layer).filter(c => c.method === 'createOverlay');
+  return candidates.length ? { kind: 'overlay', source, candidates, program: local, data: chartOwner(local, layer)?.source ?? layer.data } : null;
+}
+export function overlaySpecs(adding) {
+  const profile = profileDataset(adding.program, adding.data);
+  return adding.candidates.map(candidate => {
+    const recommendation = { ...candidate, parameters: candidate.parameters.filter(p => p.path !== 'type') };
+    const editor = recommendationParameters(recommendation, profile);
+    const faceted = Boolean(adding.program.compositionSpec?.facet);
+    return { ...editor, method: faceted ? 'editFacetSource' : 'createOverlay', chartChoice: true,
+      title: candidate.args.type === 'line' ? 'Line overlay' : 'Point overlay',
+      original: { nextContext: { childPath: adding.source.childPath, target: candidate.args.id } },
+      build: values => ({ ...(faceted ? { action: { method: 'createOverlay', options: editor.build(values) } } : editor.build(values)),
+        ...(adding.source.childPath.length ? { target: { childPath: adding.source.childPath } } : {}) }) };
+  });
+}
+
+export function initializeCompositionControls({ select, overlayButton, host, adjacentHost, read, onTarget, onAdd, onOverlay, onChange, onCancel }) {
   const buttons = ['left', 'right', 'top', 'bottom'].map(position => {
     const button = document.createElement('button'); button.type = 'button'; button.className = `add-adjacent add-adjacent-${position}`;
     button.textContent = '+'; button.setAttribute('aria-label', `Add chart ${position}`); button.title = `Add chart ${position}`;
     button.addEventListener('click', () => onAdd(position)); host.append(button); return button;
   });
-  select.addEventListener('change', () => onTarget(select.value === 'all' ? { scope: 'all' } : JSON.parse(select.value)));
+  overlayButton.addEventListener('click', onOverlay);
   return { refresh() {
     const { program, context, phase, committing, resizing, adding } = read();
     const ready = phase !== 'initial' && program, busy = committing || resizing;
-    select.parentElement.hidden = !ready || Boolean(adding); select.disabled = busy;
+    select.parentElement.hidden = !ready;
     const targets = ready ? editableChartTargets(program) : [];
+    const current = context.scope === 'all' ? 'all' : JSON.stringify({ childPath: context.childPath ?? [], target: context.target });
     select.replaceChildren(...[{ label: 'All', value: 'all' }, ...targets.map(t => ({ label: t.label,
       value: JSON.stringify({ childPath: t.childPath, target: t.id }) }))].map(({ label, value }) => {
-      const option = document.createElement('option'); option.textContent = label; option.value = value; return option;
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+      button.setAttribute('aria-pressed', String(value === current)); button.disabled = busy || Boolean(adding);
+      button.addEventListener('click', () => onTarget(value === 'all' ? { scope: 'all' } : JSON.parse(value)));
+      return button;
     }));
-    select.value = context.scope === 'all' ? 'all' : JSON.stringify({ childPath: context.childPath ?? [], target: context.target });
+    overlayButton.hidden = !ready;
+    overlayButton.disabled = !ready || busy || Boolean(adding) || !overlayContext(program, context);
+    overlayButton.title = overlayButton.disabled && ready && !busy && !adding ? 'Choose a Cartesian bar, line, area, or point chart to add an overlay.' : 'Add overlay';
     for (const button of buttons) { button.hidden = !ready || Boolean(adding); button.disabled = busy; }
     adjacentHost.hidden = !adding;
     adjacentHost.replaceChildren();
     if (!adding) return;
+    if (adding.kind === 'overlay') {
+      const heading = document.createElement('span'); heading.textContent = `Add overlay · ${adding.source.label}`;
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy;
+      cancel.addEventListener('click', onCancel); adjacentHost.append(heading, cancel); return;
+    }
     const heading = document.createElement('span'); heading.textContent = `Add chart ${adding.position}`; adjacentHost.append(heading);
     for (const channel of ['x', 'y', 'color']) {
       const label = document.createElement('label'); label.textContent = channel === 'color' ? 'Color' : channel.toUpperCase();

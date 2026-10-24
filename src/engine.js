@@ -229,6 +229,7 @@ export function createRecommendationEngine(model) {
       for (let candidate of generateCandidates(program, context)) {
         const coverage = coverageFor(candidate.method); coverage.generated++;
         const exclude = reason => { coverage.excluded[reason] = (coverage.excluded[reason] ?? 0) + 1; };
+        if (options.excludeMethods?.includes(candidate.method)) { exclude('dedicated-control'); continue; }
         if (category && candidate.category !== category) { exclude('other-category'); continue; }
         if (group && optionGroup(candidate) !== group) { exclude('other-group'); continue; }
         // Established variable choices do not compete with new encodings. The

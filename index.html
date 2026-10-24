@@ -95,7 +95,7 @@
               <button id="group-transform" type="button" role="tab" data-group="transform" aria-controls="cards" aria-selected="false" tabindex="-1">Transform</button>
               <button id="group-style" type="button" role="tab" data-group="style" aria-controls="cards" aria-selected="false" tabindex="-1">Style</button>
             </div>
-            <label id="editing-target-control" class="editing-target" hidden><span>Target</span><select id="editing-target" aria-label="Edit chart or overlay"></select></label>
+            <button id="add-overlay" type="button" hidden>Add overlay</button>
             <div id="action-search-control" class="action-search" hidden>
               <label class="sr-only" for="action-search">Search actions</label>
               <input id="action-search" type="search" placeholder="Search actions…" autocomplete="off" spellcheck="false" maxlength="120" aria-controls="cards">
@@ -103,7 +103,7 @@
             </div>
           </div>
         </div>
-        <div class="options-tools"><span id="options-note" class="quiet"></span><nav class="cards-navigation" aria-label="Chart option pages"><button id="cards-prev" type="button" aria-label="Previous five charts" disabled>‹</button><span id="cards-page" class="quiet" aria-live="polite">1 / 1</span><button id="cards-next" type="button" aria-label="Next five charts" disabled>›</button></nav><div class="history-controls" role="group" aria-label="Visualization history"><button id="undo" type="button" aria-label="Undo" title="Undo last applied action" disabled>↶ Undo</button><button id="redo" type="button" aria-label="Redo" title="Redo applied action" disabled>↷ Redo</button></div></div>
+        <div class="options-tools"><span id="options-note" class="quiet"></span><div id="editing-target-control" class="editing-target" hidden><span>Target</span><div id="editing-target" role="group" aria-label="Edit chart or overlay"></div></div><nav class="cards-navigation" aria-label="Chart option pages"><button id="cards-prev" type="button" aria-label="Previous five charts" disabled>‹</button><span id="cards-page" class="quiet" aria-live="polite">1 / 1</span><button id="cards-next" type="button" aria-label="Next five charts" disabled>›</button></nav><div class="history-controls" role="group" aria-label="Visualization history"><button id="undo" type="button" aria-label="Undo" title="Undo last applied action" disabled>↶ Undo</button><button id="redo" type="button" aria-label="Redo" title="Redo applied action" disabled>↷ Redo</button></div></div>
       </div>
       <div id="adjacent-controls" class="adjacent-controls" hidden></div>
       <div id="cards" class="cards" tabindex="0" aria-label="Chart options" aria-live="polite"></div>

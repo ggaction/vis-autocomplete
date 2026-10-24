@@ -5,8 +5,8 @@
 
 ## Overlay and adjacent charts (ggaction 0.0.25)
 
-- Encoding의 **Add overlay**는 `createOverlay` 한 번으로 현재 마크의 최종 결과를 따르는 line 또는 point를 추가한다. 집계·bin·stack의 계산된 끝점을 사용한다. 원본을 수정하면 overlay가 따라가며, overlay의 외형은 독립적으로 편집한다.
-- Option cards 상단 **Target**에서 All, 원래 차트, 각 overlay 또는 병치 패널을 선택한다. All은 공개 함수의 명시적 대상 목록을 사용해 원자적으로 적용한다. 원본 데이터가 달라 공통 적용할 수 없는 액션은 개별 차트를 선택해서 사용한다.
+- Option cards 헤더의 **Add overlay** 버튼을 누르면 **Line overlay / Point overlay** 선택 카드가 열린다. 호버로 미리 보고 **Apply**로 확정하며, **Cancel**은 기존 추천 목록으로 돌아간다. `createOverlay` 한 번으로 현재 마크의 최종 결과를 따르는 line 또는 point를 추가한다. 집계·bin·stack의 계산된 끝점을 사용한다. 원본을 수정하면 overlay가 따라가며, overlay의 외형은 독립적으로 편집한다.
+- 페이지 이동 버튼 왼쪽의 **Target** 연속 버튼에서 All, 원래 차트, 각 overlay 또는 병치 패널을 선택한다. All은 공개 함수의 명시적 대상 목록을 사용해 원자적으로 적용한다. 원본 데이터가 달라 공통 적용할 수 없는 액션은 개별 차트를 선택해서 사용한다.
 - 차트 네 가장자리의 **+**를 누르면 차트 추가 카드가 열린다. X/Y/Color와 공유 X/Y 또는 None을 선택하고 Apply한다. 좌우 추가의 기본값은 공유 Y, 상하 추가는 공유 X다. 같은 변수의 집계 방식도 원본에서 이어받는다.
 - `createAdjacentPlot`은 독립된 데이터 스냅샷으로 이웃 차트를 만든다. 공유 축은 자식의 원본 domain을 합치며, 각 plot의 실제 프레임을 정렬한다. **Edit shared scales**에서 공유를 해제하거나 다시 설정한다. 서로 다른 변수·척도·측정 단위의 공유는 라이브러리에서 거부한다.
 - 선택된 패널의 제목과 범례를 직접 움직이거나 크기를 바꾸면 그 패널만 편집한다. 병치 전체 Canvas의 외곽 크기는 composition padding으로 조절한다.

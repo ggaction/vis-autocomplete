@@ -156,9 +156,10 @@ npm run dev
   추가 추천은 기존 논문 점수, 수정 추천은 교체할 요소를 뺀 같은 평균 공식을 사용하며,
   Fixed와 Variable을 별도 순위나 임의의 가산점으로 나누지 않는다. 엔진의 기본값은 여전히 additions-only다.
 - 색상·테두리 색상 팔레트는 데이터 유형에 맞는 대표 5개를 바로 보여주고, 나머지는 `More` 메뉴로 제공한다. 메뉴의 항목도 호버하면 프리뷰, 클릭하면 파라미터 고정, Apply하면 차트에 반영된다. 범주형 15개·연속형 53개 ggaction 팔레트를 지원한다.
-- Style 카드는 최대 4개 파라미터를 제공한다. Adjust axes와 개별 X/Y 축에서 레이블 크기·간격·축 굵기를 조절하고, 연속 축은 눈금 수, 범주 축은 위치를 선택한다. 세부 축·범례·마크·제목 카드는 색상·회전·두께·간격 등 해당 함수가 지원하는 옵션을 제공한다. 추가 마크 스타일은 변경했을 때만 적용하여 기존 변수 매핑을 유지한다.
+- Style 카드는 최대 4개 파라미터 그룹을 제공한다. Adjust axes와 개별 X/Y 축에서 레이블 크기·간격·축 굵기를 조절하고, 숫자·시간·범주 축 모두 위치(X: 위/아래, Y: 왼쪽/오른쪽)를 선택한다. 연속 축의 눈금 수도 유지하며, 현재 축 위치는 다른 스타일을 수정할 때 보존한다. 병치에서는 Target으로 선택한 패널만 이동하고 공유 스케일은 유지한다. 세부 축·범례·마크·제목 카드는 색상·회전·두께·간격 등 해당 함수가 지원하는 옵션을 제공한다. 추가 마크 스타일은 변경했을 때만 적용하여 기존 변수 매핑을 유지한다.
   Edit label placement는 corpus 객체 프리셋 대신 Position·Gap·Overflow·Leader line을 제공한다.
   현재 레이블 설정과 연결선 스타일을 보존하며, source mark에 허용되는 위치만 선택할 수 있다.
+- Cartesian **Adjust line / Adjust area → Curve**는 `linear`, `step`, `step-before`, `step-after`, `monotone`, `monotone-steffen`, `basis`, `cardinal`, `natural`을 제공한다. Line의 `cardinal`에서만 Tension(0–1)을 표시하며 다른 곡선을 선택하면 해당 인자를 제거한다. 이는 데이터 평활화가 아닌 경로 보간이다. 극좌표·평행좌표 선과 ECDF는 기존 지원 범위를 유지한다. `smooth` 또는 `curve`로 카드를 검색할 수 있다.
 - `editArcMark`의 반지름·조각 간격은 Encoding의 **Adjust arc geometry**, 투명도·윤곽선은 Style의 **Adjust arc appearance**로 나눈다. 코퍼스의 혼합 호출은 목적별 인자만 사용하고 각 카드는 동일한 공개 함수 한 번을 호출한다. 픽셀/비율 반지름과 도 단위 간격을 개별 슬라이더로 표시하며, 간격 범위는 가장 작은 조각과 facet 패널에 맞춘다. 로즈·방사형 막대의 측정 반지름은 기존 radial scale 카드에서 조절한다.
 - Adjust grid의 Cartesian 방향은 **Vertical / Horizontal / Both**다. Both는 한 `editGrid` 호출에서 양쪽 스타일을 수정한다.
   자동 가이드가 한 방향을 생략했다면 실제 `createGrid` 준비 호출을 코드에 표시한 뒤 편집한다.

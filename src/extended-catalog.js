@@ -124,8 +124,16 @@ export function extendedCandidates(program, { layer, profile }) {
       else if (['bar', 'rect'].includes(mark)) parameters.push(number('cornerRadius', 'Corner radius', config.cornerRadius ?? 0, 0, 12));
       else if (mark === 'tick') parameters.push(number('length', 'Length', config.length ?? 12, 1, 30));
       else if (mark === 'line' && coordinateType !== 'cartesian') parameters.push(choices('lineJoin', 'Line join', config.lineJoin ?? 'miter', ['miter', 'round', 'bevel']));
-      else if (['line', 'area'].includes(mark)) parameters.push(choices('curve', 'Curve', config.curve ?? 'linear',
-        ['linear', 'step', 'step-before', 'step-after', ...(!config.ecdfPlot ? ['monotone'] : [])]));
+      else if (['line', 'area'].includes(mark)) {
+        parameters.push({ ...choices('curve', 'Curve', config.curve ?? 'linear',
+          ['linear', 'step', 'step-before', 'step-after', ...(!config.ecdfPlot
+            ? ['monotone', 'monotone-steffen', 'basis', 'cardinal', 'natural'] : [])]),
+          ...(mark === 'line' && !config.ecdfPlot ? { section: 'Interpolation' } : {}) });
+        if (mark === 'line' && !config.ecdfPlot) parameters.push({
+          ...number('tension', 'Tension', config.tension ?? 0, 0, 1, .01), section: 'Interpolation',
+          whenPath: { path: 'curve', values: ['cardinal'] }, requires: { curve: 'cardinal' },
+        });
+      }
       else parameters.push(dash('strokeDash', config.strokeDash ?? []));
     }
     style(editor, { target, opacity }, parameters.map(p => ({ ...p, omitUnchanged: p.path !== 'opacity',
@@ -281,28 +289,30 @@ export function extendedCandidates(program, { layer, profile }) {
     const channel = axis.channel ?? id;
     if (!['x', 'y'].includes(channel) || axis.coordinate && axis.coordinate !== layer.coordinate || axis.scale !== encoding[channel]?.scale) continue;
     const prefix = `edit${channel.toUpperCase()}Axis`, current = program.guideConfigs.axis?.[id] ?? {};
+    const axisTarget = id === channel ? {} : { target: id };
+    const position = axis.position ?? current.line?.position ?? current.labels?.position ?? current.ticks?.position ?? current.title?.position;
     const discrete = ['nominal', 'ordinal'].includes(encoding[channel]?.fieldType);
     const size = current.labels?.fontSize === 11 ? 12 : 11;
     const labelOffset = current.labels?.offset ?? 8;
     const lineWidth = current.line?.lineWidth ?? 1;
     const labelColor = current.labels?.color ?? '#555555';
-    style(prefix, { target: id, ticksAndLabels: { labels: font(size) } }, [number('ticksAndLabels.labels.fontSize', 'Label size', size, 8, 18),
-      number('ticksAndLabels.labels.offset', 'Label offset', labelOffset, 0, 30),
+    style(prefix, { ...axisTarget, ticksAndLabels: { labels: font(size) } }, [{ ...number('ticksAndLabels.labels.fontSize', 'Label size', size, 8, 18), ...(!discrete ? { section: 'Labels' } : {}) },
+      { ...number('ticksAndLabels.labels.offset', 'Label offset', labelOffset, 0, 30), ...(!discrete ? { section: 'Labels' } : {}) },
       number('line.lineWidth', 'Axis width', lineWidth, 0, 5, .25),
-      ...(!discrete ? [number('ticksAndLabels.count', 'Ticks', current.ticks?.count ?? 5, 2, 12)]
-        : [choices('position', 'Position', axis.position ?? (channel === 'x' ? 'bottom' : 'left'), channel === 'x' ? ['bottom', 'top'] : ['left', 'right'])])]);
-    style(`${prefix}Labels`, { target: id, ...font(size), rotation: { value: degrees(current.labels?.rotation), unit: 'degrees' } },
+      ...(!discrete ? [number('ticksAndLabels.count', 'Ticks', current.ticks?.count ?? 5, 2, 12)] : []),
+      { ...choices('position', 'Position', position ?? (channel === 'x' ? 'bottom' : 'left'), channel === 'x' ? ['bottom', 'top'] : ['left', 'right']), defaultPolicy: 'context' }]);
+    style(`${prefix}Labels`, { ...axisTarget, ...font(size), rotation: { value: degrees(current.labels?.rotation), unit: 'degrees' } },
       [number('fontSize', 'Label size', size, 8, 18), number('offset', 'Offset', labelOffset, 0, 30),
         number('rotation.value', 'Rotation', degrees(current.labels?.rotation), -90, 90, 5), color('color', 'Text color', labelColor)]);
-    style(`${prefix}Line`, { target: id, color: '#6b7280', lineWidth: 1.5 },
+    style(`${prefix}Line`, { ...axisTarget, color: '#6b7280', lineWidth: 1.5 },
       [number('lineWidth', 'Width', 1.5, 0, 5, .25), color('color', 'Line color', current.line?.color ?? '#6b7280')]);
-    style(`${prefix}Ticks`, { target: id, length: 7 }, [number('length', 'Tick length', 7, 0, 16),
+    style(`${prefix}Ticks`, { ...axisTarget, length: 7 }, [number('length', 'Tick length', 7, 0, 16),
       number('lineWidth', 'Tick width', current.ticks?.lineWidth ?? 1, 0, 5, .25), color('color', 'Tick color', current.ticks?.color ?? '#6b7280'),
       ...(!discrete ? [number('count', 'Ticks', current.ticks?.count ?? 5, 2, 12)] : [])]);
-    style(`${prefix}TicksAndLabels`, { target: id, ...(!discrete ? { count: 6 } : {}), labels: font(size) },
+    style(`${prefix}TicksAndLabels`, { ...axisTarget, ...(!discrete ? { count: 6 } : {}), labels: font(size) },
       [...(!discrete ? [number('count', 'Ticks', 6, 2, 12)] : []), number('labels.fontSize', 'Label size', size, 8, 18),
         number('labels.offset', 'Label offset', labelOffset, 0, 30), number('ticks.length', 'Tick length', current.ticks?.length ?? 6, 0, 16)]);
-    if (current.title) style(`${prefix}Title`, { target: id, text: current.title?.text ?? encoding[channel]?.field ?? channel, ...font(14),
+    if (current.title) style(`${prefix}Title`, { ...axisTarget, text: current.title?.text ?? encoding[channel]?.field ?? channel, ...font(14),
       offset: { from: 'labels', gap: current.title?.offset?.from === 'labels' ? current.title.offset.gap : 8 } },
       [text('text', 'Title', current.title?.text ?? encoding[channel]?.field ?? channel), number('fontSize', 'Size', 14, 8, 24),
         number('offset.gap', 'Label gap', current.title?.offset?.from === 'labels' ? current.title.offset.gap : 8, 0, 30), color('color', 'Text color', current.title?.color ?? '#555555')]);

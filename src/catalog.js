@@ -91,7 +91,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       if (axes[channel]) axes[channel] = [...(Array.isArray(axes[channel]) ? axes[channel] : [axes[channel]]), entry];
       else axes[channel] = entry;
       axisContexts[channel] = { fieldType: encoding[channel]?.fieldType, field: encoding[channel]?.field,
-        ticks: config.ticks?.count ?? 5, offset: config.labels.offset ?? 8, lineWidth: config.line?.lineWidth ?? 1 };
+        position: axis.position ?? config.line?.position ?? config.labels?.position ?? config.ticks?.position ?? config.title?.position, ticks: config.ticks?.count ?? 5, offset: config.labels.offset ?? 8, lineWidth: config.line?.lineWidth ?? 1 };
     }
     if (coordinate?.type === 'parallel') {
       const dimensions = encoding.parallel?.dimensions ?? [];

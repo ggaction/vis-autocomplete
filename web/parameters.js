@@ -391,16 +391,20 @@ export function recommendationParameters(recommendation, profile) {
       channel === 'parallel' ? fields.get(entry.field)?.type : contexts[channel]?.fieldType);
     const hasTicks = channels.some(channel => (Array.isArray(args[channel]) ? args[channel] : [args[channel]])
       .some(entry => ['x', 'y', 'parallel'].includes(channel) && quantitativeAxis(channel, entry)));
-    controls = [numeric('fontSize', 'Label size', 11, 8, 18),
-      numeric('offset', 'Label offset', 8, 0, 30),
+    controls = [{ ...numeric('fontSize', 'Label size', 11, 8, 18), section: 'Labels' },
+      { ...numeric('offset', 'Label offset', 8, 0, 30), section: 'Labels' },
       numeric('lineWidth', 'Axis width', Object.values(contexts)[0]?.lineWidth ?? 1, 0, 5, .25),
-      ...(hasTicks ? [numeric('ticks', 'Ticks', 5, 2, 12)] : [])];
+      ...(hasTicks ? [numeric('ticks', 'Ticks', 5, 2, 12)] : []),
+      ...channels.filter(channel => ['x', 'y'].includes(channel) && !Array.isArray(args[channel])).map(channel => ({
+        ...select(`${channel}Position`, `${channel.toUpperCase()} position`, channel === 'x' ? ['bottom', 'top'] : ['left', 'right'],
+          contexts[channel]?.position ?? (channel === 'x' ? 'bottom' : 'left')), section: 'Position', defaultPolicy: 'context',
+      }))];
     build = v => Object.fromEntries(channels.map(channel => {
       const edit = entry => {
         const out = structuredClone(entry); delete out.labels;
         const quantitative = quantitativeAxis(channel, entry);
         // Preserve categorical tick policies and specialized plot axis counts.
-        return { ...out, line: { ...(out.line || {}), lineWidth: v.lineWidth }, ticksAndLabels: {
+        return { ...out, ...(v[`${channel}Position`] ? { position: v[`${channel}Position`] } : {}), line: { ...(out.line || {}), lineWidth: v.lineWidth }, ticksAndLabels: {
           ...(quantitative && v.ticks !== undefined ? { count: v.ticks } : {}),
           labels: { fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset },
         } };
@@ -415,8 +419,9 @@ export function recommendationParameters(recommendation, profile) {
       numeric('offset', 'Label offset', context.offset ?? 8, 0, 30),
       numeric('lineWidth', 'Axis width', args.line?.lineWidth ?? context.lineWidth ?? 1, 0, 5, .25)];
     if (cartesian && quantitativeAxis) controls.push(numeric('ticks', 'Ticks', context.ticks ?? 5, 2, 12));
-    else if (cartesian) controls.push(select('position', 'Position', method === 'editXAxis' ? ['bottom', 'top'] : ['left', 'right'],
-      method === 'editXAxis' ? 'bottom' : 'left'));
+    if (cartesian) controls.push(select('position', 'Position', method === 'editXAxis' ? ['bottom', 'top'] : ['left', 'right'],
+      args.position ?? context.position ?? (method === 'editXAxis' ? 'bottom' : 'left')));
+    if (cartesian && quantitativeAxis) controls.slice(0, 2).forEach(c => { c.section = 'Labels'; });
     build = v => {
       const out = clone(); delete out.labels;
       return { ...out, line: { ...(out.line || {}), lineWidth: v.lineWidth }, ...(v.position ? { position: v.position } : {}), ticksAndLabels: {
@@ -554,11 +559,22 @@ export function recommendationParameters(recommendation, profile) {
     controls = [];
     build = clone;
   }
+  // Keep argument construction flat; grouping only changes the visible editor.
+  const groupControls = list => {
+    const seen = new Set();
+    return list.flatMap(control => {
+      if (!control.section) return [control];
+      if (seen.has(control.section)) return [];
+      seen.add(control.section);
+      return [{ key: `section-${control.section}`, label: control.section, type: 'group',
+        controls: list.filter(child => child.section === control.section) }];
+    });
+  };
   const defaultDecisions = applyParameterDefaults(controls, build, recommendation);
   const defaults = valuesFor(controls);
   const modes = controls.some(c => c.key === 'mode') ? ['fixed', 'variable'] : [undefined];
   for (const mode of modes) {
-    const count = controls.filter(c => !c.when || c.when({ ...defaults, mode })).length;
+    const count = groupControls(controls.filter(c => !c.when || c.when({ ...defaults, mode }))).length;
     if (count > 4) throw new Error('Too many visible parameter groups.');
   }
   // Dependent numeric bounds and model controls share one pure contract. Hover
@@ -663,7 +679,7 @@ export function recommendationParameters(recommendation, profile) {
     const numericControls = flat(resolved), lowKey = rangeIndices[0] >= 0 ? `p${rangeIndices[0]}` : 'min', highKey = rangeIndices[1] >= 0 ? `p${rangeIndices[1]}` : 'max';
     const low = numericControls.find(c => c.key === lowKey), high = numericControls.find(c => c.key === highKey);
     if (low && high) { low.max = Math.min(low.max, values[highKey]); high.min = Math.max(high.min, values[lowKey]); }
-    return resolved;
+    return groupControls(resolved);
   };
   normalize = (input, changedKey) => {
     const values = { ...input };
@@ -741,7 +757,7 @@ export function recommendationParameters(recommendation, profile) {
   };
   const rawBuild = build;
   build = values => rawBuild(normalize(values));
-  return { controls, build, defaultDecisions, normalizeValues: normalize, resolveControls: resolve };
+  return { controls: groupControls(controls), build, defaultDecisions, normalizeValues: normalize, resolveControls: resolve };
 }
 
 export function valuesFor(controls) {

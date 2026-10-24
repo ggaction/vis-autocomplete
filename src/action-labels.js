@@ -40,6 +40,7 @@ export function actionTitle(recommendation) {
   const args = recommendation.args?.action?.options ?? recommendation.args ?? {};
   if (method === 'editArcMark') return args.innerRadius !== undefined || args.padAngle !== undefined
     ? 'Adjust arc geometry' : 'Adjust arc appearance';
+  if (['editLineMark', 'editAreaMark'].includes(method) && recommendation.parameters?.some(p => p.path === 'curve')) return ACTION_LABELS[method];
   const marks = { editPointMark: 'Point', editBarMark: 'Bar', editRectMark: 'Cell', editLineMark: 'Line', editAreaMark: 'Area' };
   const properties = Object.keys(args).filter(key => !['target', 'id'].includes(key));
   const propertyNames = { opacity: 'opacity', radius: 'radius', fill: 'fill', stroke: 'border color', strokeWidth: 'border width', strokeDash: 'dash' };

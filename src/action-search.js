@@ -47,6 +47,7 @@ function searchableWords(recommendation) {
   text.push(recommendation.label ?? '', recommendation.feature ?? '');
   text.push(...Object.keys(recommendation.guideContext?.axes ?? {}), recommendation.args?.axis ?? '', recommendation.args?.channel ?? '');
   if (methods.has('createStatisticalReference')) text.push('statistic mean median min max percentile interval middle 50 95');
+  if (['editLineMark', 'editAreaMark'].some(method => methods.has(method))) text.push('curve smooth interpolation 곡선');
   const tokens = new Set(text.flatMap(words));
   for (const method of methods) tokens.add(method.toLowerCase());
   for (const group of aliases) if (group.some(term => words(term).every(word => tokens.has(word)))) {

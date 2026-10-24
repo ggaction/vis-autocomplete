@@ -60,6 +60,20 @@ export function editableChartTargets(program) {
     return { ...target, label: totals.get(target.label) > 1 ? `${target.label} ${number}` : target.label };
   });
 }
+// One visual panel per group; overlays retain their own selectable targets.
+// Follow composition layout order, including nested left/top additions.
+export function editableChartTargetGroups(program) {
+  const targets = editableChartTargets(program);
+  const visit = (view, childPath = []) => {
+    if (view.compositionSpec && !view.compositionSpec.facet) {
+      return view.compositionSpec.children.flatMap(id => visit(view.children[id], [...childPath, id]));
+    }
+    const key = JSON.stringify(childPath);
+    const members = targets.filter(target => JSON.stringify(target.childPath) === key);
+    return members.length ? [{ key, childPath, targets: members }] : [];
+  };
+  return visit(program);
+}
 export function resolveEditingContext(program, options = {}) {
   const targets = editableChartTargets(program);
   const requested = options.childPath ? { childPath: options.childPath, id: options.target } : null;

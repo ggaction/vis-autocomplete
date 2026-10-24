@@ -1,4 +1,4 @@
-import { editableChartTargets, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
+import { editableChartTargetGroups, editableChartTargets, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
 import { getDatasetSchema } from 'ggaction/inspection';
 import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
@@ -145,14 +145,30 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     const { program, context, phase, committing, resizing, adding } = read();
     const ready = phase !== 'initial' && program, busy = committing || resizing;
     select.parentElement.hidden = !ready;
-    const targets = ready ? editableChartTargets(program) : [];
+    const groups = ready ? editableChartTargetGroups(program) : [];
     const current = context.scope === 'all' ? 'all' : JSON.stringify({ childPath: context.childPath ?? [], target: context.target });
-    select.replaceChildren(...[{ label: 'All', value: 'all' }, ...targets.map(t => ({ label: t.label,
-      value: JSON.stringify({ childPath: t.childPath, target: t.id }) }))].map(({ label, value }) => {
+    const targetButton = (label, value, description) => {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+      button.title = description;
       button.setAttribute('aria-pressed', String(value === current)); button.disabled = busy || Boolean(adding);
       button.addEventListener('click', () => onTarget(value === 'all' ? { scope: 'all' } : JSON.parse(value)));
       return button;
+    };
+    const all = targetButton('All', 'all', 'Edit all charts and overlays');
+    all.className = 'target-all';
+    select.replaceChildren(all, ...groups.map((group, index) => {
+      const container = document.createElement('div'); container.className = 'target-chart-group';
+      container.setAttribute('role', 'group');
+      const description = group.targets.map(target => `${target.label}${target.overlay ? ' overlay' : ''}`).join(' + ');
+      container.setAttribute('aria-label', `Chart ${index + 1}: ${description}`);
+      container.dataset.childPath = JSON.stringify(group.childPath);
+      for (const target of group.targets) {
+        const button = targetButton(target.label, JSON.stringify({ childPath: target.childPath, target: target.id }),
+          `${target.label}${target.overlay ? ' overlay' : ''} · Chart ${index + 1}`);
+        button.dataset.overlay = String(target.overlay);
+        container.append(button);
+      }
+      return container;
     }));
     overlayButton.hidden = !ready;
     overlayButton.disabled = !ready || busy || Boolean(adding) || !overlayContext(program, context);

@@ -6,7 +6,7 @@
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
     "branch": "codex/overlay-composition-v025",
-    "commit": "43a8b05063087d3294b04d75c723ef4d125946bc",
+    "commit": "9a67a152f6d618a6d35b1bf433a49863f0a077bd",
     "modified": false
   },
   "trainingUnit": "one-chart-id",
@@ -35,7 +35,7 @@
   "programCount": 10174,
   "dataFiles": 1452,
   "dataBytes": 562448488,
-  "generation": "8701f48a695c008eed50b36f5263b24c61795b9bbbde471878d609e020f67f05",
+  "generation": "45014637364d490779d84b5642e32e8a296de94821ded3fa6f0722e312178004",
   "rawDataFileHashes": 981,
   "canonicalDatasets": 1004,
   "sourceFamilies": 995,

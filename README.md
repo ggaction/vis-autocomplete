@@ -17,6 +17,8 @@
 node scripts/test-composition-browser.js # localhost:5173, Cars/Barley/Iris/Stocks, both modes and all four edges
 ```
 
+구현 범위·재현 명령·검증 결과는 [통합 검증 기록](docs/composition-upgrade.md)을 참고한다.
+
 코퍼스 갱신은 모든 차트의 모든 G-stage와 참조 JSON 파일을 검사한다. 정적 프로그램 그래프로 병치 패널의 변수·데이터 소유자를 분리하며, 같은 차트의 단계별 출현은 합집합 한 표본으로 학습한다. `data/model-manifest.json`의 세대 및 SHA-256 검증으로 초기 추천과 후속 추천 모델이 서로 섞여 로드되는 것을 막는다.
 
 ## 웹 데모

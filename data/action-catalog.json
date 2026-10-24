@@ -1,10 +1,10 @@
 {
-  "ggactionVersion": "0.0.24",
+  "ggactionVersion": "0.0.25",
   "ggactionSource": {
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
     "branch": "codex/overlay-composition-v025",
-    "commit": "f6e86048f4f25369af5bae209580e68456f9443a",
+    "commit": "9a67a152f6d618a6d35b1bf433a49863f0a077bd",
     "modified": false
   },
   "policy": "one-existing-public-ggaction-method-per-recommendation",

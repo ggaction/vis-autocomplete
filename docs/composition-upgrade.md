@@ -24,6 +24,9 @@ deployment are separate release operations.
 - Facets remain source-editable; generated facet cells are not independent targets.
   Shared scales require compatible variables, scale kinds and aggregation semantics.
 
+Implementation commits: ggaction `9a67a152f6d618a6d35b1bf433a49863f0a077bd`,
+transition `1693936a04c67c3272805a24a1fb87491da7c874`. Both are pushed and pinned.
+
 ## Corpus
 
 Pinned chart-datasets commit: `58791ace7212cacb98c2b64e3f92280722ab638e`.
@@ -71,6 +74,14 @@ and Canvas scene creation. It excludes DOM paint, IPC and display frame timing.
 At steps 1/20/50/100, materialization was 284/119/89/102 ms and scene creation was
 17/18/11/12 ms in a contended validation run. Recommendation time was 909/780/851/965 ms.
 These samples show no progressive growth in that session; they are not frame-rate targets.
+
+The app suite passed **380/380** tests. Native source coverage ran **5,736/5,736**
+tests. The exhaustive realistic sweep covered **271** cases across 27 files; failed
+legacy inventory checks were updated without removing native-option obligations,
+and all failed cases passed focused reruns. The affected generation files were then
+rerun in full (**54/54**), and the 216/360-descriptor isolation checks passed (**3/3**).
+The 360-descriptor run used 441,597,952 combined RSS bytes under the unchanged
+512 MiB limit.
 
 Native source coverage: **95.67% lines, 93.08% branches, 98.69% functions**;
 all **175 critical-file floors** passed. The installed-package consumer suite and

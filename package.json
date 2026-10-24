@@ -31,7 +31,8 @@
     "test:composition": "node scripts/test-composition-browser.js",
     "benchmark:composition": "node scripts/benchmark-composition.js",
     "validate:corpus-programs": "node scripts/validate-corpus-programs.js",
-    "test:layers": "node scripts/test-layer-composition-browser.js"
+    "test:layers": "node scripts/test-layer-composition-browser.js",
+    "test:startup": "node scripts/test-dataset-startup-browser.js"
   },
   "dependencies": {
     "@ggaction/transition": "file:vendor/transition",

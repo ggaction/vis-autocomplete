@@ -69,7 +69,6 @@ const compositionControls = initializeCompositionControls({
   onChange: patch => { Object.assign(state.adding, patch); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onCancel: () => { state.adding = null; showPreview(null); updateCards().catch(error => notice(error.message, true)); },
 });
-let cars;
 const datasets = new Map();
 const datasetBases = createLRU(4);
 const drafts = createDraftStore();
@@ -271,6 +270,7 @@ function updateHistoryButtons() {
   const busy = state.committing || state.resizing;
   chartDownloads.refresh(); compositionControls.refresh();
   for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
+  for (const id of ['edit-schema', 'reset', 'save-project', 'code-export']) $(id).disabled = busy || !state.datasetId;
   $('undo').disabled = busy || !history.canUndo;
   $('redo').disabled = busy || !history.canRedo;
   for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = busy;
@@ -459,6 +459,11 @@ function inspectingCode(focusTarget = document.activeElement) {
 }
 
 function showCode(card = null, { settleApplied = false } = {}) {
+  if (!state.datasetId) {
+    $('code-content').replaceChildren();
+    $('code-content').dataset.previewMethod = '';
+    return;
+  }
   if (historyInspection) {
     const snapshot = historyInspection;
     const code = value => programCode([...value.setupCalls, ...value.calls,
@@ -1057,6 +1062,11 @@ async function updateCards() {
   if (state.phase === 'initial') {
     cancelRecommendationWork();
     showPreview(null);
+    if (!state.datasetId) {
+      elements['step-description'].textContent = 'Upload a dataset or choose an example to get started.';
+      elements['options-note'].textContent = '';
+      notice(); return;
+    }
     if (!state.selection.x) {
       elements.cards.dataset.selectedFields = '[]';
       elements.cards.dataset.queryFieldCount = '0';
@@ -1429,10 +1439,12 @@ function scheduleSave() { return flushSave(); }
 addEventListener('pagehide', flushSave);
 function updateDatasetOptions() {
   const selected = state.datasetId;
-  $('dataset').replaceChildren(...[...datasets.values()].map(record => {
+  const placeholder = document.createElement('option');
+  placeholder.value = ''; placeholder.textContent = 'Try example dataset'; placeholder.disabled = true;
+  $('dataset').replaceChildren(...(selected ? [] : [placeholder]), ...[...datasets.values()].map(record => {
     const option = document.createElement('option'); option.value = record.id; option.textContent = record.name; return option;
   }));
-  $('dataset').value = selected;
+  $('dataset').value = selected ?? '';
 }
 
 async function showSnapshot(snapshot) {
@@ -1608,7 +1620,7 @@ document.documentElement.addEventListener('pointerleave', () => {
 
 // Keep help in the header; reserve its height so switching hints never moves cards.
 function updateHeaderGuidance(focusTarget = document.activeElement) {
-  const inspecting = inspectingCode(focusTarget);
+  const inspecting = Boolean(state.datasetId) && inspectingCode(focusTarget);
   elements['step-description'].hidden = inspecting;
   $('code-guidance').hidden = !inspecting;
 }
@@ -1734,11 +1746,12 @@ try {
     datasets.set(id, { id, name, imported: importDataset(rawRows, options) });
   }
   datasets.set('sales', { id: 'sales', name: 'Monthly sales', imported: importDataset(sales, { format: 'rows', name: 'Monthly sales' }) });
-  cars = datasets.get('cars').imported.rows;
+  updateDatasetOptions();
   let draft;
   try { draft = await drafts.read(); } catch { $('draft-status').textContent = 'Use Save project to keep your work.'; }
   if (draft) {
     try { await openProject(draft); $('draft-status').textContent = 'Draft restored on this device'; }
-    catch (error) { await activateDataset(datasets.get('cars')); notice(`Could not restore the draft: ${error.message}`, true); }
-  } else await activateDataset(datasets.get('cars'));
+    catch (error) { await updateCards(); notice(`Could not restore the draft: ${error.message}`, true); }
+  } else await updateCards();
+  updateHistoryButtons();
 } catch (error) { notice(error.message, true); }

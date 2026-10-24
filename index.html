@@ -43,15 +43,15 @@
   <header class="app-header">
     <h1>Visualization Autocomplete 1.5</h1>
     <div class="dataset-controls">
+      <button id="upload" type="button" disabled>Upload dataset</button>
       <label class="sr-only" for="dataset">Dataset</label>
-      <select id="dataset"><option value="cars">Cars</option><option value="sales">Monthly sales</option></select>
-      <button id="upload" type="button">Upload dataset</button>
+      <select id="dataset" disabled><option value="" disabled selected>Try example dataset</option></select>
       <button id="reset" type="button" title="Reset this dataset's chart, variable selections and history" disabled>Reset</button>
       <input id="file" type="file" accept=".csv,.json,text/csv,application/json" hidden>
       <details class="project-menu"><summary>Project</summary><div>
-        <button id="save-project" type="button">Save project</button>
+        <button id="save-project" type="button" disabled>Save project</button>
         <button id="open-project" type="button">Open project</button>
-        <button id="edit-schema" type="button">Data types</button>
+        <button id="edit-schema" type="button" disabled>Data types</button>
         <span id="draft-status" role="status" aria-live="polite"></span>
       </div></details>
       <input id="project-file" type="file" accept=".json,.visauto,application/json" hidden>
@@ -66,7 +66,7 @@
     </script>
     <button id="reset-view-sizes" type="button" title="Restore default view sizes">Reset sizes</button>
     <div class="header-guidance" aria-label="Usage guidance">
-      <p id="step-description">Select X to see chart options; add Y and Color to compare variables.</p>
+      <p id="step-description">Upload a dataset or choose an example to get started.</p>
       <p id="code-guidance" hidden>Previewed actions show all parameters. Apply to collapse; click applied functions to expand.</p>
       <div id="notice" class="notice" role="status" aria-live="polite">Loading the recommendation model…</div>
     </div>
@@ -120,7 +120,7 @@
           <button id="code-font-decrease" type="button" aria-label="Decrease code font size" title="Decrease code font size">−</button>
           <button id="code-font-increase" type="button" aria-label="Increase code font size" title="Increase code font size">+</button>
           <button id="code-copy" type="button" aria-label="Copy code" title="Copy the full code, including collapsed parameters">Copy code</button>
-          <button id="code-export" type="button" aria-label="Download runnable code" title="Download code with this dataset and SVG renderer">.mjs</button>
+          <button id="code-export" type="button" aria-label="Download runnable code" title="Download code with this dataset and SVG renderer" disabled>.mjs</button>
         </div>
         <button id="toggle-code" class="panel-toggle" type="button" aria-label="Collapse ggaction Code" title="Collapse ggaction Code" aria-expanded="true" aria-controls="code-content"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M4 3 8 6 4 9"/></svg></button>
       </div>

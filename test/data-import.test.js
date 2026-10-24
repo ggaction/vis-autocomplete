@@ -15,6 +15,28 @@ const csv = rows => {
 };
 const profile = imported => profileDataset(chart().createData({ id: 'dataset', values: imported.rows, ...(imported.storageSchema ? { schema: imported.storageSchema } : {}) }), 'dataset', imported.fieldTypes);
 
+test('duplicate category orders fail in review, import and restored profiles before plotting', () => {
+  const rows = [{ category: 'conventional', count: 9126 }, { category: 'organic', count: 9123 }];
+  const overrides = { category: { type: 'ordinal', order: ['organic', 'organic'] } };
+  const drafts = createCategoryOrderDrafts(overrides);
+  assert.match(drafts.error('category'), /unique/);
+  assert.equal(drafts.commit().valid, true, 'untouched drafts are validated by the import pipeline');
+  assert.throws(() => importDataset(rows, { fieldOverrides: overrides }), /category.*unique/);
+  const imported = importDataset(rows);
+  const p = chart().createData({ id: 'dataset', values: rows });
+  assert.throws(() => profileDataset(p, 'dataset', overrides), /unique/);
+  assert.throws(() => importDataset(imported, { fieldOverrides: overrides }), /unique/);
+  drafts.write('category', '["organic","organic"]');
+  assert.equal(drafts.commit().valid, false);
+  drafts.write('category', '["missing","organic","conventional"]');
+  assert.equal(drafts.commit().valid, true);
+  assert.deepEqual(profile(importDataset(rows, { fieldOverrides: overrides })).fields[0].order,
+    ['organic', 'conventional']);
+  for (const order of [[null], [1, '1'], [Infinity], {}]) {
+    assert.throws(() => importDataset(rows, { fieldOverrides: { category: { type: 'ordinal', order } } }), /Category order/);
+  }
+});
+
 test('actual Stocks and Weather JSON/CSV share values, field types and descriptors while originals remain intact', () => {
   for (const name of ['stocks', 'weather', 'tips', 'iris']) {
     const raw = data(name), before = JSON.stringify(raw);

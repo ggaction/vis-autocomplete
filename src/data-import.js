@@ -1,5 +1,6 @@
 // One explicit import pipeline for files, built-in tables and schema edits.
 // Originals are retained; only `rows` is passed to the chart authoring layer.
+import { validateCategoryOrder } from './category-order.js';
 export const IMPORT_VERSION = 1;
 export const DEFAULT_MISSING_TOKENS = ['', 'NA', 'N/A', 'null'];
 export const DATE_FORMATS = ['auto', 'iso', 'month-name', 'year-month-name', 'mdy', 'dmy', 'ymd', 'year', 'timestamp'];
@@ -186,6 +187,8 @@ export function importDataset(input, options = {}) {
   const projectedNames = new Set(), projection = [];
   for (const name of fieldNames.values()) {
     const override = typeof settings.fieldOverrides[name] === 'string' ? { type: settings.fieldOverrides[name] } : settings.fieldOverrides[name] ?? {};
+    try { validateCategoryOrder(override.order); }
+    catch (error) { throw new DataImportError(`${name}: ${error.message}`); }
     if (!types.has(override.type ?? 'auto')) throw new DataImportError(`Unsupported type for ${name}: ${override.type}`);
     if (!DATE_FORMATS.includes(override.dateFormat ?? 'auto')) throw new DataImportError(`Unsupported date format for ${name}: ${override.dateFormat}`);
     const outputName = override.name === undefined ? name : String(override.name).trim();

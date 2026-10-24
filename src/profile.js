@@ -1,5 +1,6 @@
 import { getDatasetSchema } from 'ggaction/inspection';
 import { isTemporalValue } from './data-import.js';
+import { validateCategoryOrder } from './category-order.js';
 
 const FIELD_TYPES = new Set(['quantitative', 'nominal', 'ordinal', 'temporal']);
 const isoDate = isTemporalValue;
@@ -10,6 +11,7 @@ export function profileDataset(program, data, fieldTypes = {}) {
   const rows = dataset?.values;
   if (!Array.isArray(rows)) throw new Error(`Dataset ${data} has no materialized rows.`);
   for (const [name, hint] of Object.entries(fieldTypes)) {
+    if (typeof hint === 'object' && hint !== null) validateCategoryOrder(hint.order);
     const type = typeof hint === 'string' ? hint : hint?.type;
     if (!schema.fields.some(f => f.name === name) || !FIELD_TYPES.has(type)) {
       throw new TypeError(`Invalid field type hint: ${name} = ${type}`);

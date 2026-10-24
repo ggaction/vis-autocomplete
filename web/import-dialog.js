@@ -1,5 +1,6 @@
 import { createImportClient } from './import-client.js';
 import { DATE_FORMATS, DEFAULT_MISSING_TOKENS } from '../src/data-import.js';
+import { validateCategoryOrder } from '../src/category-order.js';
 
 const node = (tag, text, className) => {
   const value = document.createElement(tag); if (text !== undefined) value.textContent = text;
@@ -24,10 +25,9 @@ const parseOrder = text => {
   if (!text.trim()) return { value: undefined, error: '' };
   try {
     const value = JSON.parse(text);
-    if (!Array.isArray(value) || value.some(item => item !== null && !['string', 'number', 'boolean'].includes(typeof item)
-      || typeof item === 'number' && !Number.isFinite(item))) throw new Error();
+    validateCategoryOrder(value);
     return { value, error: '' };
-  } catch { return { error: orderError }; }
+  } catch (error) { return { error: error instanceof SyntaxError ? orderError : error.message }; }
 };
 
 // Raw text belongs to the editing session, not to a successful worker result.

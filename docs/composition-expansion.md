@@ -1,6 +1,6 @@
 # Overlay / concat 확장 검증과 구현 계약
 
-2026-10-24 조사. **아직 기능 구현 완료 보고가 아니다.** 신규 API 승인 전에 실제 native capability와 앱의 제한을 분리해 확인한 기록이다.
+2026-10-24 조사. **아직 기능 구현 완료 보고가 아니다.** 신규 API 승인 전에 실제 native capability와 앱의 제한을 분리해 확인한 기록이다. 이후 사용자가 2026-10-24 “구현하자”로 계약과 그림을 승인했으며 구현을 진행한다.
 
 ## 재현
 
@@ -53,4 +53,4 @@ Histogram, Heatmap, Density, Dot, Lollipop, Dumbbell, ECDF, Pie, Rose, RadialBar
 - 썸네일/preview/transition, code/Apply/history, 독립 Target/All, reset/replay/resize의 기존 의미를 유지한다.
 - 원본/집계 구분은 직전 수정 정책을 유지한다. contour, 지도, dual-axis 같은 별도 새 시각화 API를 조용히 추가하지 않는다.
 
-신규 API/목표 그림 Gate는 준비되어 있지만 아직 승인받지 않았다. 기존 사용자 프로젝트와 앱 runtime은 변경하지 않았다.
+신규 API/목표 그림 Gate는 사용자에게 승인받았다. 새 layer API와 앱 통합은 진행 중이며, 조사 시점의 결과와 구현 완료 검증은 구분한다.

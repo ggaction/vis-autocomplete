@@ -30,18 +30,34 @@ export function chartAtPath(program, path = []) {
   return program;
 }
 export const targetKey = target => JSON.stringify([target.childPath ?? [], target.id ?? null]);
+function chartTypeLabel(view, layer, owner) {
+  const role = view.markConfigs[layer.id]?.compositionRole;
+  const compound = { editRaincloudPlot: 'Raincloud', editBoxPlot: 'Box', editViolinPlot: 'Violin',
+    editGradientPlot: 'Gradient', editEndpointPlot: 'Endpoint', editECDFPlot: 'ECDF',
+    editRadarPlot: 'Radar', editErrorBar: 'Error bar', editBin2DData: 'Heatmap',
+    editHorizon: 'Horizon', editDensity: 'Density' }[owner?.method];
+  const type = compound ?? role ?? layer.mark.type;
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
 export function editableChartTargets(program) {
-  return chartViews(program).flatMap(({ program: view, childPath }, index) => {
+  const targets = chartViews(program).flatMap(({ program: view, childPath }) => {
     const owners = new Set();
     return view.semanticSpec.layers.flatMap(layer => {
       const owner = chartOwner(view, layer);
-      const id = primaryChartLayer(view, owner?.target ?? layer.id).id;
+      const primary = primaryChartLayer(view, owner?.target ?? layer.id), id = primary.id;
       if (owners.has(id) || layer.source && !owner || layer.derivedBindings?.statisticalReference) return [];
       owners.add(id);
-      const overlay = layer.derivedBindings?.overlay;
-      return [{ childPath, id, overlay: Boolean(overlay),
-        label: `${childPath.length ? `Chart ${index + 1} · ` : ''}${overlay ? 'Overlay' : 'Chart'}: ${id}` }];
+      return [{ childPath, id, overlay: Boolean(layer.derivedBindings?.overlay),
+        label: chartTypeLabel(view, primary, owner) }];
     });
+  });
+  // Names describe the visible chart, while stable IDs still route edits.
+  // Number only repeated types so multiple lines/panels remain distinguishable.
+  const totals = new Map(), counts = new Map();
+  for (const { label } of targets) totals.set(label, (totals.get(label) ?? 0) + 1);
+  return targets.map(target => {
+    const number = (counts.get(target.label) ?? 0) + 1; counts.set(target.label, number);
+    return { ...target, label: totals.get(target.label) > 1 ? `${target.label} ${number}` : target.label };
   });
 }
 export function resolveEditingContext(program, options = {}) {

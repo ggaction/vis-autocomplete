@@ -562,13 +562,18 @@ export function recommendationParameters(recommendation, profile) {
   // Keep argument construction flat; grouping only changes the visible editor.
   const groupControls = list => {
     const seen = new Set();
-    return list.flatMap(control => {
+    const grouped = list.flatMap(control => {
       if (!control.section) return [control];
       if (seen.has(control.section)) return [];
       seen.add(control.section);
       return [{ key: `section-${control.section}`, label: control.section, type: 'group',
         controls: list.filter(child => child.section === control.section) }];
     });
+    if (['editAxes', 'editXAxis', 'editYAxis'].includes(method)) {
+      const position = grouped.findIndex(control => control.key === 'section-Position' || control.key === 'position' || control.path === 'position');
+      if (position > 1) grouped.splice(1, 0, grouped.splice(position, 1)[0]);
+    }
+    return grouped;
   };
   const defaultDecisions = applyParameterDefaults(controls, build, recommendation);
   const defaults = valuesFor(controls);

@@ -495,6 +495,11 @@ export function recommendationParameters(recommendation, profile) {
         titleStyle: { ...args.titleStyle, fontFamily: 'Arial', fontSize: v.size,
           fontWeight: args.titleStyle?.fontWeight ?? 'bold' },
         subtitleStyle: { ...args.subtitleStyle, fontFamily: 'Arial', fontSize: v.subtitleSize } };
+      if (recommendation.titleWrapBounds) {
+        const extent = recommendation.titleWrapBounds[['top', 'bottom'].includes(v.position) ? 'width' : 'height'];
+        next.maxWidth = Math.min(args.maxWidth ?? extent, extent);
+        next.wrap = args.wrap ?? 'word';
+      }
       if (v.subtitle.trim()) next.subtitle = v.subtitle;
       else if (method === 'editTitle') next.subtitle = false;
       else delete next.subtitle;

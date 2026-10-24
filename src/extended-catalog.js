@@ -244,10 +244,17 @@ export function extendedCandidates(program, { layer, profile }) {
       strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
     out.at(-1).statisticalContext = statistic;
   }
-  if (!raincloud && ['line', 'area'].includes(mark) && group && rows.some(r => r[group] != null)) {
-    const values = [...new Set(rows.map(r => r[group]).filter(v => v != null))];
-    add('filterMarks', 'transform', { target, field: group, op: 'eq', value: values[0], mode: 'replace' },
-      [choices('value', 'Keep series', values[0], values)], 'transform.filter', 'Filter series');
+  const filterOwner = program.markConfigs[target]?.markFilter;
+  const seriesRows = program.semanticSpec.datasets.find(d => d.id === filterOwner?.source)?.values ?? rows;
+  if (!raincloud && ['line', 'area'].includes(mark) && group && seriesRows.some(r => r[group] != null)) {
+    // Replacing a filter must offer every original series, including hidden ones.
+    const values = [...new Set(seriesRows.map(r => r[group]).filter(v => v != null))];
+    const visible = new Set(rows.map(r => r[group]));
+    const selected = filterOwner ? values.filter(value => visible.has(value)) : values.slice(0, 1);
+    const keep = selected.length ? selected : values.slice(0, 1);
+    add('filterMarks', 'transform', { target, field: group, op: 'oneOf', values: keep, mode: 'replace' },
+      [{ ...choices('values', 'Keep series', keep, values), type: 'multiselect', minimum: 1, selectAll: true }],
+      'transform.filter', 'Filter series');
   }
   if (['line', 'bar'].includes(mark) && encoding.x?.fieldType === 'quantitative' && encoding.y?.aggregate) {
     const bins = encoding.x.bin?.maxBins === 12 ? 10 : 12;

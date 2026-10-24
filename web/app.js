@@ -572,7 +572,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
         throw new Error(`${control.label} must be between ${control.min} and ${control.max}.`);
       }
       if (control.type === 'multiselect' && value.length < control.minimum) {
-        throw new Error(`Choose at least ${control.minimum} dimensions.`);
+        throw new Error(`Choose at least ${control.minimum} items.`);
       }
     }
     const action = buildRecommendationCall(card, values);
@@ -696,9 +696,21 @@ function addControl(card, definition, parent = card.controlsElement) {
       button.addEventListener('focus', () => card.interaction.focus(button, draft(), button.matches(':focus-visible')));
       button.addEventListener('blur', () => card.interaction.blur(button));
       button.addEventListener('click', () => {
-        pinValues(card, draft(), definition.key);
+        pinValues(card, draft(), definition.key, !(definition.type === 'multiselect' && definition.selectAll));
+        refresh();
       });
       (choice.featured === false ? moreOptions : choices).append(button);
+    }
+    if (definition.type === 'multiselect' && definition.selectAll) {
+      const all = document.createElement('button'); all.type = 'button'; all.className = 'parameter-choice';
+      all.textContent = 'Select all';
+      const values = definition.choices.filter(choice => !choice.disabled).map(choice => choice.value);
+      const draft = () => ({ ...card.values, [definition.key]: [...values] });
+      parameterIntents.set(all, { card, draft }); card.parameterButtons.push(all);
+      all.addEventListener('focus', () => card.interaction.focus(all, draft(), all.matches(':focus-visible')));
+      all.addEventListener('blur', () => card.interaction.blur(all));
+      all.addEventListener('click', () => { pinValues(card, draft(), definition.key, false); refresh(); });
+      choices.prepend(all);
     }
     if (more) choices.append(more);
     refresh(); label.append(choices);

@@ -50,7 +50,11 @@ export function neighboringParameters(candidate) {
     const keys = parameter.path.split('.'), key = keys.pop();
     const parent = keys.reduce((node, part) => node?.[part], candidate.args);
     const current = parent?.[key] ?? parameter.value;
-    const values = parameter.choices?.map(choice => choice.value) ?? (parameter.type === 'number'
+    const values = parameter.type === 'multiselect'
+      ? parameter.choices.map(choice => {
+        const next = current.includes(choice.value) ? current.filter(value => value !== choice.value) : [...current, choice.value];
+        return next.length >= (parameter.minimum ?? 0) ? next : current;
+      }) : parameter.choices?.map(choice => choice.value) ?? (parameter.type === 'number'
       ? [current + parameter.step, current - parameter.step].filter(v => v >= parameter.min && v <= parameter.max) : []);
     return values.filter(value => value !== current).map(value => {
       const args = structuredClone(candidate.args);

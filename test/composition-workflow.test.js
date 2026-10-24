@@ -95,6 +95,15 @@ test('adjacent fitting repairs nested constructor guides without inventing wrapp
   assert.equal(result.recommendation.validation.topLevelActions,1);
   assert.equal(result.recommendation.args.guides,undefined);
   assert.ok(result.preview.children.line);
+  const third = prepareGuidedAction(result.authoringPreview, { ...action, args: { ...action.args,
+    target: { childPath: ['line'] }, source: 'line', id: 'third', position: 'right' } }, result.preview);
+  assert.ok(third.preview.children.line.children.third);
+  assert.equal(third.recommendation.args.plot.options.guides.axes.x.ticksAndLabels.labels.rotation.value, 90);
+  let replay = result.authoringPreview;
+  for (const call of third.prerequisiteCalls) replay = replay[call.method](call.args);
+  replay = replay[third.recommendation.method](third.recommendation.args);
+  for (const call of third.postActionCalls) replay = replay[call.method](call.args);
+  assert.deepEqual(addDefaultGuides(replay, third.guideCall).graphicSpec, third.preview.graphicSpec);
 });
 
 
@@ -108,4 +117,45 @@ test('horizontal bars default to category order and diverging stacks expose tota
   const grouped = chart().createCanvas().createData({values:[{a:'A',b:2,g:'one'},{a:'A',b:-3,g:'two'}]})
     .createBarPlot({id:'plot',x:'a',y:'b',color:{field:'g',layout:'diverging'},guides:false});
   assert.ok(overlayCandidates(grouped,grouped.semanticSpec.layers[0])[0].parameters.some(p=>p.path==='series'));
+});
+
+
+test('All recommends one root title while individual charts retain separate titles', () => {
+  const model = JSON.parse(readFileSync(new URL('../data/model.json', import.meta.url)));
+  const service = createCalculationService(model);
+  let added = prepareGuidedAction(bars(), { method: 'createAdjacentPlot', args: { id: 'line', source: 'plot' } });
+  service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(added.authoringPreview), guideCall: added.guideCall });
+  const request = { type: 'recommend', stateId: 1, options: { scope: 'all', target: 'plot', hierarchy: true, limit: 500 }, group: 'style', searchQuery: 'title' };
+  let response = service.execute(request);
+  const index = response.result.recommendations.findIndex(r => r.method === 'createTitle');
+  assert.ok(index >= 0, JSON.stringify(response.result.diagnostics.rejected));
+  const action = response.defaults[index].action;
+  assert.equal(action.args.target, undefined);
+  const titled = prepareGuidedAction(added.authoringPreview, action, added.preview);
+  assert.ok(titled.preview.graphicSpec.objects.chartTitle);
+  assert.ok(Object.values(titled.preview.children).every(child => !child.semanticSpec.title.text));
+  service.execute({ type: 'state', stateId: 2, snapshot: serializeProgram(titled.authoringPreview), guideCall: titled.guideCall });
+  response = service.execute({ ...request, stateId: 2 });
+  const edit = response.result.recommendations.find(r => r.method === 'editTitle');
+  assert.ok(edit, JSON.stringify(response.result.diagnostics.rejected));
+  assert.equal(edit.args.target, undefined);
+  assert.equal(edit.previouslyApplied, true);
+  response = service.execute({ ...request, stateId: 2, options: { childPath: ['line'], target: 'line', limit: 500 } });
+  const local = response.result.recommendations.find(r => r.method === 'createTitle');
+  assert.deepEqual(local.args.target, { childPath: ['line'] });
+});
+
+
+test('overall title wraps across the combined plot width instead of clipping at the first child', () => {
+  const model = JSON.parse(readFileSync(new URL('../data/model.json', import.meta.url)));
+  const service = createCalculationService(model);
+  const base = prepareGuidedAction(bars(), { method: 'createAdjacentPlot', args: { id: 'line', source: 'plot' } });
+  service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(base.authoringPreview), guideCall: base.guideCall });
+  const response = service.execute({ type: 'recommend', stateId: 1, options: { scope: 'all', target: 'plot', limit: 500 }, group: 'style', searchQuery: 'add title' });
+  const rec = response.result.recommendations.find(r => r.method === 'createTitle');
+  assert.ok(rec.args.maxWidth > 240 * 2);
+  const title = 'A long overall title that spans both adjacent charts and continues into a second line without clipping';
+  const p = prepareGuidedAction(base.authoringPreview, { method: rec.method, args: { ...rec.args, text: title } }, base.preview).preview;
+  assert.ok(p.graphicSpec.objects.chartTitle.items.length >= 2);
+  assert.ok(Object.values(p.children).every(child => !child.graphicSpec.objects.chartTitle));
 });

@@ -1,4 +1,4 @@
-import { compositionRecommendations } from '../src/composition-recommendations.js';
+import { compositionRecommendations, compositionTitleRecommendations } from '../src/composition-recommendations.js';
 import { chartAtPath, resolveEditingContext } from '../src/composition-context.js';
 import { createTransitionScene } from 'ggaction/scene';
 import { canvasGeometry } from './canvas-geometry.js';
@@ -160,7 +160,7 @@ export function createCalculationService(model) {
             const names = new Set(getDatasetSchema(localView, { ...(data ? { data } : {}) }).schema.fields.map(field => field.name));
             const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => names.has(name)));
             const ranked = engine.rank(localView, { ...localOptions, fieldTypes, group, hierarchy: false });
-            original = rankings.set(rankingKey, { ...ranked, recommendations: [...ranked.recommendations, ...compositionRecommendations(program, model, group)]
+            original = rankings.set(rankingKey, { ...ranked, recommendations: [...compositionTitleRecommendations(ranked.recommendations, program, model, editing.scope?.all), ...compositionRecommendations(program, model, group)]
               .sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) || (a.previouslyApplied ? a.appliedOrder - b.appliedOrder : 0) || b.score - a.score || a.id.localeCompare(b.id, 'en')) });
           }
           const matches = filterActionRecommendations(original.recommendations, query);

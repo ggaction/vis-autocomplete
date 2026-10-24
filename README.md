@@ -5,6 +5,11 @@
 
 ## Overlay and adjacent charts (ggaction 0.0.25)
 
+- **All → Add a title** creates one overall composition title. Selecting an individual chart creates/edits only that panel's title. Uniform child backgrounds also fill the gaps and overall title/legend lanes.
+- Adjacent charts that inherit the same color mapping share one color scale and one overall right-side color legend. Different color mappings retain independent legends. Existing compositions can enable this with **Edit shared scales → Color: Shared**.
+- **Filter series** supports multiple selected series and **Select all**. Applied filters retain the original series choices so hidden series can be restored with the same public `filterMarks({ op: 'oneOf', values, mode: 'replace' })` call.
+- `test/browser/composition-guides.py` exercises multi-series selection, restoration, overall long titles, background, a third panel, and responsive controls. Set `APP_URL` and optionally `PLAYWRIGHT_CHROMIUM_EXECUTABLE`; screenshots and exported projects go to ignored `output/composition-guides/`.
+
 - Option cards 헤더의 **Add overlay** 버튼을 누르면 **Line overlay / Point overlay** 선택 카드가 열린다. 호버로 미리 보고 **Apply**로 확정하며, **Cancel**은 기존 추천 목록으로 돌아간다. `createOverlay` 한 번으로 현재 마크의 최종 결과를 따르는 line 또는 point를 추가한다. 집계·bin·stack의 계산된 끝점을 사용한다. 원본을 수정하면 overlay가 따라가며, overlay의 외형은 독립적으로 편집한다.
 - 페이지 이동 버튼 왼쪽의 **Target** 연속 버튼에서 All, 원래 차트, 각 overlay 또는 병치 패널을 선택한다. All은 공개 함수의 명시적 대상 목록을 사용해 원자적으로 적용한다. 원본 데이터가 달라 공통 적용할 수 없는 액션은 개별 차트를 선택해서 사용한다.
 - 차트 네 가장자리의 **+**를 누르면 차트 추가 카드가 열린다. X/Y/Color와 공유 X/Y 또는 None을 선택하고 Apply한다. 좌우 추가의 기본값은 공유 Y, 상하 추가는 공유 X다. 같은 변수의 집계 방식도 원본에서 이어받는다.

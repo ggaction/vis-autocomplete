@@ -92,6 +92,7 @@ export function prepareGuidedAction(program, action, view = program, setupCalls 
 
 function prepareScopedAction(program, action, view, setupCalls) {
   const targets = nativeActionTargets(action), prerequisites = [], posts = [];
+  let resolvedAction = action;
   const { target: _target, ...options } = action.args;
   for (const target of targets) {
     const local = chartAtPath(program, target.childPath), displayed = chartAtPath(view, target.childPath);
@@ -102,6 +103,9 @@ function prepareScopedAction(program, action, view, setupCalls) {
       return { ...setup, args };
     });
     const prepared = prepareGuidedAction(local, call, displayed, localSetup);
+    // Local fitting may revise constructor guide options. Replay that fitted
+    // call at its explicit path, not the original options that already failed.
+    if (targets.length === 1) resolvedAction = { ...action, args: { ...prepared.recommendation.args, target: action.args.target } };
     for (const entry of prepared.prerequisiteCalls) prerequisites.push(scopedCall(entry, [{ childPath: target.childPath }]));
     for (const entry of prepared.postActionCalls) posts.push(scopedCall(entry, [{ childPath: target.childPath }]));
   }
@@ -109,7 +113,7 @@ function prepareScopedAction(program, action, view, setupCalls) {
   const prerequisiteCalls = unique(prerequisites), postActionCalls = unique(posts);
   let base = program;
   for (const call of prerequisiteCalls) base = base[call.method](call.args);
-  const prepared = prepareAction(base, action);
+  const prepared = prepareAction(base, resolvedAction);
   let authoringPreview = prepared.preview;
   for (const call of postActionCalls) authoringPreview = authoringPreview[call.method](call.args);
   const guideCall = defaultGuideCall(authoringPreview);

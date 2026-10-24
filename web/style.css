@@ -88,10 +88,10 @@ main { padding: 14px 16px 16px; }
 .chart-transfer { position: fixed; z-index: 20; margin: 0; background: #fff; pointer-events: none; transform-origin: top left; will-change: transform; }
 .chart-transfer-source > * { visibility: hidden; }
 .empty-state { max-width: 290px; padding: 20px; color: #9299a2; text-align: center; font-size: 12px; line-height: 1.6; }
-.options-section { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
-.options-heading { flex: none; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.options-section { container-type: inline-size; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
+.options-heading { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; margin-bottom: 9px; }
 .options-title-block { min-width: 0; }
-.options-title-row { display: flex; align-items: center; gap: 14px; }
+.options-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .options-title-row h2 { white-space: nowrap; }
 .action-search { flex: 0 1 160px; min-width: 105px; }
 .action-search input { display: block; width: 100%; height: 30px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 3px; background: #fff; font-size: 12px; }
@@ -450,9 +450,26 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 #editing-target button { flex: none; border: 0; border-right: 1px solid #d8dce4; border-radius: 0; white-space: nowrap; font-size: 12px; padding: 5px 8px; }
 #editing-target button:last-child { border-right: 0; }
 #editing-target button[aria-pressed="true"] { color: #086bb9; background: #eaf3fb; }
-.options-tools { flex-wrap: wrap; margin-left: auto; }
+.options-tools { flex-wrap: nowrap; min-width: 0; margin-left: 0; }
+.options-tools .cards-navigation, .options-tools .history-controls { flex: none; }
+.options-tools .editing-target { min-width: 0; }
+#editing-target { min-width: 0; }
 #add-overlay { white-space: nowrap; }
 .editing-target, .adjacent-controls { font-size: 12px; }
-.adjacent-controls { flex-wrap: wrap; margin: 0 10px 8px; gap: 12px; }
-.adjacent-controls select { max-width: 160px; }
+.adjacent-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(85px, .7fr); margin: 0 0 10px; padding-top: 8px; border-top: 1px solid #eceef1; gap: 8px 12px; }
+.adjacent-controls > span { grid-row: 1; grid-column: 1 / -2; font-weight: 600; }
+.adjacent-controls > button { grid-row: 1; grid-column: -2; justify-self: end; height: 27px; padding: 3px 9px; font-size: 12px; }
+.adjacent-controls label { min-width: 0; white-space: nowrap; }
+.adjacent-controls select { min-width: 0; width: 100%; max-width: none; height: 28px; padding: 3px 5px; font-size: 12px; }
+@container (max-width: 1050px) {
+  .options-heading { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  .workspace .options-tools { margin-left: 0; width: 100%; }
+  .options-tools .editing-target { flex: 1; }
+  #editing-target { max-width: 100%; }
+  .option-groups { gap: 6px; }
+  .option-groups button { min-width: 68px; padding: 0 9px; }
+}
+@container (max-width: 520px) {
+  .adjacent-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .editing-target[hidden], .adjacent-controls[hidden], .add-adjacent[hidden] { display: none; }

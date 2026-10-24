@@ -1,4 +1,5 @@
 import { editableChartTargets, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
+import { getDatasetSchema } from 'ggaction/inspection';
 import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
 import { initialPositionBindings } from '../src/initial-scales.js';
@@ -22,13 +23,19 @@ export function adjacentContext(program, context, position, fieldTypes) {
   const local = chartAtPath(program, target.childPath), layer = local.semanticSpec.layers.find(l => l.id === target.id);
   const data = chartOwner(local, layer)?.source ?? layer.data;
   const rows = local.semanticSpec.datasets.find(d => d.id === data)?.values;
-  const profile = profileDataset(local, data, fieldTypes);
+  const names = new Set(getDatasetSchema(local, { data }).schema.fields.map(field => field.name));
+  const localTypes = Object.fromEntries(Object.entries(fieldTypes ?? {}).filter(([name]) => names.has(name)));
+  const profile = profileDataset(local, data, localTypes);
   const field = channel => profile.fields.find(f => f.name === layer.encoding[channel]?.field)?.name ?? '';
   const scales = Object.fromEntries(['x', 'y', 'color'].flatMap(channel => {
     const scale = local.semanticSpec.scales.find(scale => scale.id === layer.encoding[channel]?.scale);
     return scale ? [[channel, Object.fromEntries(Object.entries(scale).filter(([key]) => key !== 'id' &&
       (channel === 'color' || key !== 'range')))]] : [];
   }));
+  if (scales.color?.range?.palette) {
+    scales.color.palette = scales.color.range.palette;
+    delete scales.color.range;
+  }
   return { ...target, position, rows, profile, selection: { x: field('x'), y: field('y'), color: field('color') },
     sourceSelection: { x: field('x'), y: field('y'), color: field('color') }, scales,
     inheritedSharing: inheritedCompositionShares(program, target.childPath),
@@ -43,6 +50,7 @@ export function adjacentSpecs(engine, adding, root) {
   return engine.recommend(adding.rows, adding.profile, { selection: adding.selection }).recommendations.map(spec => {
     const inherited = { ...spec.values };
     for (const control of spec.controls) {
+      if (/palette/i.test(control.key) && control.choices?.some(c => c.value === adding.scales.color?.palette)) inherited[control.key] = adding.scales.color.palette;
       if (/aggregate/i.test(control.key) && adding.aggregation && control.choices?.some(c => c.value === adding.aggregation)) inherited[control.key] = adding.aggregation;
       if (/bin/i.test(control.key) && control.type === 'number' && adding.bins) inherited[control.key] = adding.bins;
       const channel = ['x', 'y'].find(channel => control.key === `${channel}Scale`);
@@ -80,8 +88,13 @@ export function adjacentSpecs(engine, adding, root) {
             : bindings.find(binding => binding.axis === channel)?.paths ?? [];
           for (const path of paths) write(options, path, { ...at(options, path), ...adding.scales[channel] });
         }
+        const color = options.color;
+        const shareColor = adding.selection.color && adding.selection.color === adding.sourceSelection.color &&
+          fieldName(color) === adding.sourceSelection.color &&
+          (color.scale?.palette ?? adding.scales.color?.palette) === adding.scales.color?.palette;
+        if (shareColor && typeof color === 'object') color.scale = { ...adding.scales.color, ...color.scale };
         return { id, source: adding.id, position: adding.position, plot: { action: spec.method, options },
-          share: adding.share === 'none' ? {} : { [adding.share]: true }, align: 'plot',
+          share: { ...(adding.share === 'none' ? {} : { [adding.share]: true }), ...(shareColor ? { color: true } : {}) }, align: 'plot',
           ...(['left', 'right'].includes(adding.position) ? { gap: 8 } : {}),
           ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) };
       },
@@ -172,11 +185,6 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     const share = document.createElement('select'); share.setAttribute('aria-label', 'Adjacent shared axis');
     for (const value of ['x', 'y', 'none']) { const option = document.createElement('option'); option.value = value; option.textContent = value === 'none' ? (adding.inheritedSharing?.length ? 'None (local)' : 'None') : value.toUpperCase(); share.append(option); }
     share.value = adding.share; share.disabled = busy; share.addEventListener('change', () => onChange({ share: share.value, selection: { ...adding.selection, ...(share.value !== 'none' && adding.sourceSelection?.[share.value] ? { [share.value]: adding.sourceSelection[share.value] } : {}) } })); label.append(share); adjacentHost.append(label);
-    if (adding.inheritedSharing?.length) {
-      const inherited = document.createElement('span'); inherited.className = 'adjacent-inherited-sharing'; inherited.setAttribute('role', 'note');
-      inherited.textContent = `Inherited sharing: ${adding.inheritedSharing.map(policy => `${policy.channels.map(c => c.toUpperCase()).join(', ')} (${policy.label})`).join('; ')}. None changes local sharing only. Use Edit shared scales for that group to release it.`;
-      adjacentHost.append(inherited);
-    }
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy; cancel.addEventListener('click', onCancel); adjacentHost.append(cancel);
   } };
 }

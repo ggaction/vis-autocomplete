@@ -459,7 +459,7 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 #editing-target { min-width: 0; }
 #add-overlay { white-space: nowrap; }
 .editing-target, .adjacent-controls { font-size: 12px; }
-.adjacent-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(85px, .7fr); margin: 0 0 10px; padding-top: 8px; border-top: 1px solid #eceef1; gap: 8px 12px; }
+.adjacent-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0 0 10px; padding-top: 8px; border-top: 1px solid #eceef1; gap: 8px 12px; }
 .adjacent-controls > span { grid-row: 1; grid-column: 1 / -2; font-weight: 600; }
 .adjacent-controls > button { grid-row: 1; grid-column: -2; justify-self: end; height: 27px; padding: 3px 9px; font-size: 12px; }
 .adjacent-controls label { min-width: 0; white-space: nowrap; }

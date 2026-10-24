@@ -65,7 +65,7 @@ export function adjacentSpecs(engine, adding, root) {
         const type = adding.scales[channel].type;
         return { ...c, value: type, label: `${channel.toUpperCase()} scale · shared`,
           choices: c.choices.map(choice => ({ ...choice, ...(choice.value !== type ? { disabled: true,
-            reason: `Shared ${channel.toUpperCase()} uses the source ${type} scale. Choose Share=None to use another scale, or edit the parent shared-scales policy.` } : {}) })) };
+            reason: `Shared ${channel.toUpperCase()} uses the source ${type} scale. Use Edit shared scales to change the sharing policy.` } : {}) })) };
       });
     };
     const constrained = { ...spec, values: inherited, controls: constrainControls(inherited), resolveControls: constrainControls };
@@ -184,7 +184,8 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     }
     const heading = document.createElement('span'); heading.textContent = `Add chart ${adding.position}`; adjacentHost.append(heading);
     for (const channel of ['x', 'y', 'color']) {
-      const label = document.createElement('label'); label.textContent = channel === 'color' ? 'Color' : channel.toUpperCase();
+      const label = document.createElement('label');
+      label.textContent = `${channel === 'color' ? 'Color' : channel.toUpperCase()}${sharedChannels(adding).includes(channel) ? ' (shared)' : ''}`;
       const input = document.createElement('select'); input.setAttribute('aria-label', `Adjacent ${channel}`);
       const values = [...(channel === 'color' ? [''] : []), ...adding.profile.fields.filter(f => f.usable).map(f => f.name)];
       for (const field of values) {
@@ -197,10 +198,6 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
       input.addEventListener('change', () => onChange({ selection: { ...adding.selection, [channel]: input.value } }));
       label.append(input); adjacentHost.append(label);
     }
-    const label = document.createElement('label'); label.textContent = 'Share';
-    const share = document.createElement('select'); share.setAttribute('aria-label', 'Adjacent shared axis');
-    for (const value of ['x', 'y', 'none']) { const option = document.createElement('option'); option.value = value; option.textContent = value === 'none' ? (adding.inheritedSharing?.length ? 'None (local)' : 'None') : value.toUpperCase(); share.append(option); }
-    share.value = adding.share; share.disabled = busy; share.addEventListener('change', () => onChange({ share: share.value, selection: { ...adding.selection, ...(share.value !== 'none' && adding.sourceSelection?.[share.value] ? { [share.value]: adding.sourceSelection[share.value] } : {}) } })); label.append(share); adjacentHost.append(label);
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy; cancel.addEventListener('click', onCancel); adjacentHost.append(cancel);
   } };
 }

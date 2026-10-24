@@ -476,3 +476,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
   .adjacent-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .editing-target[hidden], .adjacent-controls[hidden], .add-adjacent[hidden] { display: none; }
+
+.overlay-modes { display: inline-flex; gap: 4px; }
+.overlay-modes button[aria-pressed="true"] { color: #086bb9; border-color: #9cbce0; background: #eaf3fb; }

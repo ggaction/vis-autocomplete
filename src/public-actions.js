@@ -40,6 +40,7 @@ export const PUBLIC_ACTION_NAMES = Object.freeze([
   "createImputedData",
   "createIntervalData",
   "createIntervalPlot",
+  "createLayerPlot",
   "createLegend",
   "createLineMark",
   "createLinePlot",

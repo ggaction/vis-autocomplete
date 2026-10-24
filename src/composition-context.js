@@ -1,3 +1,4 @@
+import { getPlotComposition } from 'ggaction/inspection';
 import { chartOwner, primaryChartLayer } from './chart-owner.js';
 
 // Facets retain one editable source. Generated facet cells never become targets.
@@ -44,11 +45,15 @@ export function editableChartTargets(program) {
     const owners = new Set();
     return view.semanticSpec.layers.flatMap(layer => {
       const owner = chartOwner(view, layer);
-      const primary = primaryChartLayer(view, owner?.target ?? layer.id), id = primary.id;
+      let primary = primaryChartLayer(view, owner?.target ?? layer.id);
+      if(!layer.derivedBindings?.overlay) {
+        try { const descriptor=getPlotComposition(view,{target:layer.id});primary=view.semanticSpec.layers.find(l=>l.id===descriptor.owner)??primary; } catch {}
+      }
+      const id = primary.id;
       if (owners.has(id) || layer.source && !owner || layer.derivedBindings?.statisticalReference) return [];
       owners.add(id);
       return [{ childPath, id, overlay: Boolean(layer.derivedBindings?.overlay),
-        label: chartTypeLabel(view, primary, owner) }];
+        label: chartTypeLabel(view, primary, chartOwner(view,primary)??owner) }];
     });
   });
   // Names describe the visible chart, while stable IDs still route edits.

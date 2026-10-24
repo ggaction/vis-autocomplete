@@ -467,7 +467,9 @@ function prepareFittedPlot(program, action, finish = value => value) {
       return finish(prepareAction(program, { ...action, args }));
     }
   }
-  if (!/^create.*(?:Plot|Histogram|Heatmap|ParallelCoordinates)$/.test(action.method)) return finish(prepareAction(program, action));
+  // A native layer shares this view's guides. Fit them through the existing
+  // outer guide-repair path, never by adding constructor-only guides options.
+  if (action.method === 'createLayerPlot' || !/^create.*(?:Plot|Histogram|Heatmap|ParallelCoordinates)$/.test(action.method)) return finish(prepareAction(program, action));
   const adjacent = action.method === 'createAdjacentPlot';
   const plotMethod = adjacent ? action.args.plot?.action ?? 'createLinePlot' : action.method;
   const plotArgs = adjacent ? action.args.plot?.options ?? {} : action.args;

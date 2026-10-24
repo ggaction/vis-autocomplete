@@ -1010,7 +1010,7 @@ function recommendationResponse(program = state.program, view = state.view, guid
     activeRecommendation = entry;
     const remove = () => { if (cache.get(key) === entry) cache.delete(key); };
     entry.promise = calculations.recommend(program, view, guideCall, { ...context, fieldTypes: datasets.get(state.datasetId)?.imported.fieldTypes,
-      ...FOLLOWUP_RECOMMENDATION_OPTIONS, excludeMethods: ['createOverlay'] }, group, page, searchQuery, response => {
+      ...FOLLOWUP_RECOMMENDATION_OPTIONS, excludeMethods: ['createOverlay', 'createLayerPlot'] }, group, page, searchQuery, response => {
         entry.latest = response;
         for (const listener of entry.listeners) listener(response);
       }).then(response => { if (response.cancelled) remove(); return response; })
@@ -1080,7 +1080,7 @@ async function updateCards() {
       elements.cards.append(...restored.rows); elements.cards.scrollLeft = restored.scrollLeft ?? 0;
     } else if (state.adding) {
       cancelRecommendationWork();
-      specs = state.adding.kind === 'overlay' ? overlaySpecs(state.adding) : adjacentSpecs(state.initialEngine, state.adding, state.program);
+      specs = state.adding.kind === 'overlay' ? overlaySpecs(state.adding, state.initialEngine) : adjacentSpecs(state.initialEngine, state.adding, state.program);
     } else if (state.phase === 'initial') {
       const profile = { ...state.profile, id: state.plotData };
       const result = state.initialEngine.recommend(state.rows, profile, { selection: state.selection });

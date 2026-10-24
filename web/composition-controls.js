@@ -1,5 +1,6 @@
+import { getPlotDefinitions, defaultValues } from '../src/plot-catalog.js';
 import { editableChartTargetGroups, editableChartTargets, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
-import { getDatasetSchema } from 'ggaction/inspection';
+import { getDatasetSchema, getPlotComposition, describeAction } from 'ggaction/inspection';
 import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
 import { initialPositionBindings } from '../src/initial-scales.js';
@@ -28,14 +29,20 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
     targets.find(t => JSON.stringify(t.childPath) === JSON.stringify(selected.childPath)) ?? targets[0];
   if (!target) throw new Error('Choose a source chart first.');
   const local = chartAtPath(program, target.childPath), layer = local.semanticSpec.layers.find(l => l.id === target.id);
-  const data = chartOwner(local, layer)?.source ?? layer.data;
+  const composition = getPlotComposition(local,{target:layer.id});
+  const data = composition.data;
   const rows = local.semanticSpec.datasets.find(d => d.id === data)?.values;
   const names = new Set(getDatasetSchema(local, { data }).schema.fields.map(field => field.name));
   const localTypes = Object.fromEntries(Object.entries(fieldTypes ?? {}).filter(([name]) => names.has(name)));
   const profile = profileDataset(local, data, localTypes);
-  const field = channel => profile.fields.find(f => f.name === layer.encoding[channel]?.field)?.name ?? '';
+  const channelRoles={x:composition.channels.x??composition.channels.theta,y:composition.channels.y??composition.channels.radius,color:composition.channels.color};
+  const field = channel => profile.fields.find(f => f.name === channelRoles[channel]?.field)?.name ??
+    (channel === 'color' ? '' : composition.dimensions?.[channel==='x'?0:1]?.field ??
+      composition.channels.theta?.fields?.[channel==='x'?0:1] ?? '');
+  const selectedFields={x:field('x'),y:field('y'),color:field('color')};
+  if(selectedFields.x===selectedFields.y) selectedFields.y=profile.fields.find(f=>f.usable&&f.name!==selectedFields.x&&f.type==='quantitative')?.name??'';
   const scales = Object.fromEntries(['x', 'y', 'color'].flatMap(channel => {
-    const scale = local.semanticSpec.scales.find(scale => scale.id === layer.encoding[channel]?.scale);
+    const scale = local.semanticSpec.scales.find(scale => scale.id === channelRoles[channel]?.scale);
     return scale ? [[channel, Object.fromEntries(Object.entries(scale).filter(([key]) => key !== 'id' &&
       (channel === 'color' || key !== 'range')))]] : [];
   }));
@@ -45,11 +52,11 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
   }
   const receivingPath = placement?.childPath ?? target.childPath;
   const datasets = local.semanticSpec.datasets;
-  const axisMeanings = Object.fromEntries(['x', 'y'].map(axis => [axis, axisValueMeaning(layer.encoding[axis], layer.data, datasets)]));
+  const axisMeanings = Object.fromEntries(['x', 'y'].map(axis => [axis, composition.channels[axis]?.field ? {field:composition.channels[axis].field,operations:composition.channels[axis].measurement.operations} : null]));
   return { ...target, receivingPath, placementLabel: placement?.label ?? target.label,
     sources: placement?.sources ?? [target], grouped: placement?.grouped ?? false,
-    position, rows, profile, selection: { x: field('x'), y: field('y'), color: field('color') },
-    sourceSelection: { x: field('x'), y: field('y'), color: field('color') }, scales, datasets, axisMeanings,
+    position, rows, profile, selection: selectedFields,
+    sourceSelection: selectedFields, scales, datasets, axisMeanings,
     inheritedSharing: inheritedCompositionShares(program, receivingPath),
     aggregation: axisMeanings.y?.operations.at(-1) ?? axisMeanings.x?.operations.at(-1), bins: layer.encoding.x?.bin?.maxBins,
     share: ['left', 'right'].includes(position) ? 'y' : 'x' };
@@ -145,10 +152,13 @@ export function overlayContext(program, context) {
   const local = chartAtPath(program, source.childPath);
   const layer = local.semanticSpec.layers.find(l => l.id === source.id);
   const candidates = overlayCandidates(local, layer).filter(c => c.method === 'createOverlay');
-  return candidates.length ? { kind: 'overlay', source, candidates, program: local, data: chartOwner(local, layer)?.source ?? layer.data } : null;
+  const composition=getPlotComposition(local,{target:layer.id});
+  if(composition.role==='pie')return null;
+  return { kind:'overlay', mode:'layer', source, candidates, program:local, composition, data:composition.data };
 }
-export function overlaySpecs(adding) {
+export function overlaySpecs(adding, engine) {
   const profile = profileDataset(adding.program, adding.data);
+  if(adding.mode === 'layer') return layerSpecs(adding,profile,engine);
   return adding.candidates.map(candidate => {
     const recommendation = { ...candidate, parameters: candidate.parameters.filter(p => p.path !== 'type') };
     const editor = recommendationParameters(recommendation, profile);
@@ -158,6 +168,67 @@ export function overlaySpecs(adding) {
       original: { nextContext: { childPath: adding.source.childPath, target: candidate.args.id } },
       build: values => ({ ...(faceted ? { action: { method: 'createOverlay', options: editor.build(values) } } : editor.build(values)),
         ...(adding.source.childPath.length ? { target: { childPath: adding.source.childPath } } : {}) }) };
+  });
+}
+
+// Constructor cards keep native geometry/statistical controls. Source roles and
+// shared scales come from ggaction, not another list of chart-specific guesses.
+function layerSpecs(adding,profile,engine) {
+  const used=new Set([...adding.program.semanticSpec.layers.map(l=>l.id),
+    ...Object.values(adding.program.markConfigs).map(c=>c.raincloudPlot?.id).filter(Boolean)]);
+  let id='layer'; for(let n=2;used.has(id);n++)id=`layer${n}`;
+  const definitions=engine ? engine.recommend(adding.program.semanticSpec.datasets.find(d=>d.id===adding.data).values,profile).recommendations
+    : getPlotDefinitions(profile).map(d=>({...d,values:defaultValues(d)}));
+  const fieldKeys=new Set(['x','y','color','category','value','end','field','theta','radius','dimensions','wide','groupBy','orientation']);
+  const fieldNames=new Set(profile.fields.map(f=>f.name));
+  return definitions.flatMap(spec=>{
+    const controls=spec.controls.filter(c=>!fieldKeys.has(c.key)&&c.section!=='scales'&&
+      !/scale|palette/i.test(c.key)&&(c.key==='start'||!c.choices?.some(choice=>fieldNames.has(choice.value)))&&
+      !(adding.composition.channels.x?.bin&&/bin/i.test(c.key))).slice(0,3).map(c=>({...c}));
+    controls.push({key:'placement',label:'Placement',type:'select',value:'front',choices:[{value:'front',label:'In front'},{value:'back',label:'Behind'}]});
+    const values={...spec.values,placement:'front'};
+    const measureAxis=['nominal','ordinal'].includes(adding.composition.channels.y?.fieldType)?'x':'y';
+    const start=controls.find(control=>control.key==='start');
+    if(start) values.start=start.choices.find(choice=>choice.value!==adding.composition.channels[measureAxis]?.field)?.value??values.start;
+    if(spec.method==='createRugPlot'&&['nominal','ordinal'].includes(adding.composition.channels.x?.fieldType)) values.edge='left';
+    const aggregation=adding.composition.channels.y?.measurement.operations.at(-1)??adding.composition.channels.x?.measurement.operations.at(-1)??adding.composition.channels.radius?.measurement.operations.at(-1)??adding.composition.channels.theta?.measurement.parameters?.aggregate;
+    for(const c of controls) if(/aggregate/i.test(c.key)) {
+      const compatibleDefault=c.choices?.some(choice=>choice.value===aggregation)?aggregation:
+        adding.composition.channels[measureAxis]?.measurement.unit==='value'&&c.choices?.some(choice=>choice.value==='mean')?'mean':undefined;
+      if(compatibleDefault!==undefined) values[c.key]=compatibleDefault;
+    }
+    const build=values=>{
+      const original=spec.build({...spec.values,...values}), options={};
+      for(const [key,value] of Object.entries(original)) {
+        if(['id','data','coordinate','guides',...fieldKeys].includes(key))continue;
+        if(adding.composition.channels.x?.bin&&['maxBins','binStep','binBoundaries'].includes(key))continue;
+        options[key]=value;
+      }
+      // Keep deliberate summary controls; omitting field roles lets the native
+      // constructor planner infer the original variables and orientation.
+      for(const axis of ['x','y']) {
+        if(typeof original[axis]!=='object'||!original[axis])continue;
+        const role=Object.fromEntries(Object.entries(original[axis]).filter(([key])=>!['field','fieldType','scale','bin','temporalUnit'].includes(key)));
+        if(role.aggregate && !controls.some(control=>/aggregate/i.test(control.key)))delete role.aggregate;
+        if(Object.keys(role).length) options[role.aggregate||role.center||role.extent?measureAxis:axis]=role;
+      }
+      return {id,source:adding.source.id,plot:{action:spec.method,options},placement:values.placement};
+    };
+    let args,description;
+    try {args=build(values);description=describeAction(adding.program,{action:'createLayerPlot',options:args});}
+    catch{return [];}
+    if(['incompatible','unsupported','needs-input'].includes(description.applicability))return [];
+    const faceted=Boolean(adding.program.compositionSpec?.facet);
+    for(const c of controls)c.value=values[c.key];
+    return [initialParameters({...spec,controls,values,setup:undefined,requirement:undefined,
+      resolveControls:values=>controls.map(c=>({...c,...(c.choices?{choices:c.choices.map(choice=>{
+        const result=describeAction(adding.program,{action:'createLayerPlot',options:build({...values,[c.key]:choice.value})});
+        return {...choice,...(['incompatible','unsupported','needs-input'].includes(result.applicability)?{disabled:true,reason:result.findings[0]?.message}:{})};
+      })}:{})})),resolveScaleControls:undefined,
+      method:faceted?'editFacetSource':'createLayerPlot',chartChoice:true,title:`${spec.title} layer`,
+      original:{nextContext:{childPath:adding.source.childPath,target:spec.method==='createRaincloudPlot'?`${id}Cloud`:id}},
+      build:values=>({... (faceted?{action:{method:'createLayerPlot',options:build(values)}}:build(values)),
+        ...(adding.source.childPath.length?{target:{childPath:adding.source.childPath}}:{})})})];
   });
 }
 
@@ -278,14 +349,21 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     }));
     overlayButton.hidden = !ready;
     overlayButton.disabled = !ready || busy || Boolean(adding) || !overlayContext(program, context);
-    overlayButton.title = overlayButton.disabled && ready && !busy && !adding ? 'Choose a Cartesian bar, line, area, or point chart to add an overlay.' : 'Add overlay';
+    overlayButton.title = overlayButton.disabled && ready && !busy && !adding ? 'Choose a source chart to add a layer.' : 'Add overlay';
     adjacentHost.hidden = !adding;
     adjacentHost.replaceChildren();
     if (!adding) return;
     if (adding.kind === 'overlay') {
       const heading = document.createElement('span'); heading.textContent = `Add overlay · ${adding.source.label}`;
       const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy;
-      cancel.addEventListener('click', onCancel); adjacentHost.append(heading, cancel); return;
+      cancel.addEventListener('click', onCancel);
+      const modes=document.createElement('div');modes.className='overlay-modes';
+      for(const [mode,label] of [['layer','Layer chart'],['follow','Follow results']]) {
+        const button=document.createElement('button');button.type='button';button.textContent=label;
+        button.setAttribute('aria-pressed',String(adding.mode===mode));button.disabled=busy||(mode==='follow'&&!adding.candidates.length);
+        button.addEventListener('click',()=>onChange({mode}));modes.append(button);
+      }
+      adjacentHost.append(heading,modes,cancel); return;
     }
     const heading = document.createElement('span');
     const placement = document.createElement('span');

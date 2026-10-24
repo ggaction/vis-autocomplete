@@ -18,7 +18,7 @@ try {
  for (const c of cases) {
   const page=await browser.newPage({viewport:{width:1600,height:1000}});
   page.setDefaultTimeout(60000); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
-  const applied = async card => { await card.hover(); await card.locator('button').filter({hasText:/^Apply$/}).click(); await page.waitForFunction(()=>!document.querySelector('#undo').disabled); };
+  const applied = async card => { const count=await page.locator('.history-item').count(); await card.hover(); await card.locator('.apply-button').click(); await page.waitForFunction(count=>document.querySelectorAll('.history-item').length>count,count); };
   const cardFor = async selector => {
    await page.locator('#cards .card').first().waitFor();
    for(let i=0;i<9;i++) {
@@ -36,10 +36,14 @@ try {
    await applied(await cardFor(`.card[data-method="${c.plot}"]`)); console.log('STEP',c.dataset,'chart');
    await page.waitForFunction(()=>document.body.dataset.phase==='recommendations');
    await page.getByRole('button',{name:'Add overlay',exact:true}).click();
+   await page.getByRole('button',{name:'Follow results',exact:true}).click();
    await applied(page.locator('.card[data-method="createOverlay"]').first());
-   await page.waitForFunction(()=>document.querySelector('#current').dataset.lastMethod==='createOverlay'); console.log('STEP',c.dataset,'overlay');
+   console.log('STEP',c.dataset,'overlay');
    await page.locator('#current-shell').hover();
-   await page.getByRole('button',{name:`Add chart ${c.direction}`,exact:true}).click();
+   const add=page.getByRole('button',{name:`Add chart ${c.direction}`,exact:true});
+   const bounds=await add.boundingBox();await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+   await page.waitForFunction(direction=>document.querySelector(`.add-adjacent[data-position="${direction}"]`)?.classList.contains('nearby'),c.direction);
+   await add.click();
    const adjacent=page.locator('.card[data-method="createAdjacentPlot"]').filter({has:page.locator('h3',{hasText:new RegExp(c.next,'i')})}).first();
    await applied(adjacent); console.log('STEP',c.dataset,'adjacent');
    await page.waitForFunction(()=>document.querySelectorAll('#editing-target button').length===4);
@@ -47,7 +51,7 @@ try {
    const appearance=c.appearance ?? 'encodeOpacity';
    await page.locator('#action-search').fill(appearance === 'encodeStroke' ? 'stroke color' : 'opacity');
    await applied(page.locator(`.card[data-method="${appearance}"]`).first());
-   await page.waitForFunction(method=>document.querySelector('#current').dataset.lastMethod===method,appearance);
+
    await page.locator('#action-search').fill('');
    await page.locator('#cards .card').first().waitFor();
    for(let i=0;i<40;i++) {

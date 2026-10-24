@@ -1,6 +1,6 @@
 // Shared names for option cards and keyword search.
 export const ACTION_LABELS = {
-  createOverlay: 'Add overlay', editOverlay: 'Edit overlay', createAdjacentPlot: 'Add adjacent chart',
+  createOverlay: 'Add overlay', createLayerPlot: 'Add chart layer', editOverlay: 'Edit overlay', createAdjacentPlot: 'Add adjacent chart',
   editCompositionScales: 'Edit shared scales',
   facet: 'Facet', facetGrid: 'Create facet grid', editFacetScales: 'Edit facet scales',
   editFacetHeaders: 'Edit facet headers', editFacetGuides: 'Edit facet guides', editCompositionLayout: 'Arrange facets',

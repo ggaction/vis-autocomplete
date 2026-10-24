@@ -17,7 +17,7 @@ export const dataEditors = Object.freeze({
 });
 
 export function corpusActionPolicy(method) {
-  if (['createOverlay', 'editOverlay', 'createAdjacentPlot', 'editCompositionScales'].includes(method)) return { role: 'recommendation', via: method, reason: 'Explicit native chart composition and scoped editing.' };
+  if (['createOverlay', 'createLayerPlot', 'editOverlay', 'createAdjacentPlot', 'editCompositionScales'].includes(method)) return { role: 'recommendation', via: method, reason: 'Explicit native chart composition and scoped editing.' };
   if (['facet', 'facetGrid', 'repeatCharts'].includes(method) || /^editFacet/.test(method) || method === 'editCompositionLayout') {
     return { role: 'recommendation', via: method, reason: 'Retained facet templates support native source and layout editing.' };
   }

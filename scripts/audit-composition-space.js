@@ -3,7 +3,7 @@ import { chart, hconcat, vconcat } from 'ggaction';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { profileDataset } from '../src/profile.js';
 import { getPlotDefinitions, defaultValues } from '../src/plot-catalog.js';
-import { adjacentContext, adjacentSpecs, overlayContext } from '../web/composition-controls.js';
+import { adjacentContext, adjacentSpecs, overlayContext, overlaySpecs } from '../web/composition-controls.js';
 import { createInitialChartRecommender } from '../src/initial-recommender.js';
 import { createTransitionScene } from 'ggaction/scene';
 const found=new Map(),attempts=[];
@@ -26,7 +26,7 @@ console.log('coverage',found.size);console.log([...found.keys()]);
 const engine=createInitialChartRecommender(JSON.parse(readFileSync(new URL('../data/initial-model.json',import.meta.url))));
 const ui=[...found].map(([method,{p}])=>{
  const row={method};
- try{row.overlayChoices=overlayContext(p,{target:'plot'})?.candidates.length??0;}catch(error){row.overlayError=error.message;}
+ try{const context=overlayContext(p,{target:'plot'});row.followChoices=context?.candidates.length??0;row.overlayChoices=context?overlaySpecs(context,engine).length:0;}catch(error){row.overlayError=error.message;}
  try{const context=adjacentContext(p,{target:'plot'},'right');row.fields=context.selection;
   const specs=adjacentSpecs(engine,context,p);row.adjacentChoices=specs.length;
   row.adjacentRequirements=specs.filter(spec=>spec.requirement).map(spec=>({title:spec.title,reason:spec.requirement}));
@@ -41,4 +41,4 @@ mkdirSync(new URL('../output/layer-composition-audit/',import.meta.url),{recursi
 writeFileSync(new URL('../output/layer-composition-audit/inventory.json',import.meta.url),JSON.stringify({attempts,ui,matrix,covered:[...found.keys()]},null,2));
 console.log('matrix',matrix.length,'errors',matrix.filter(x=>x.status==='rejected'));
 
-console.log('UI gaps',ui.filter(row=>row.overlayError||row.adjacentError||!row.overlayChoices));
+console.log('UI gaps',ui.filter(row=>row.overlayError||row.adjacentError));

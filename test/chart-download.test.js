@@ -36,6 +36,15 @@ test('exporting the current state never mutates it or exports a different previe
   assert.equal(JSON.stringify(p.graphicSpec), before);
 });
 
+test('fractional fit and resize dimensions export to PDF without changing chart geometry', async () => {
+  const p = current().editCanvas({ width: 500.375, height: 433.794647 });
+  const before = JSON.stringify(p.graphicSpec);
+  const result = await renderChartDownload('pdf', p.graphicSpec);
+  assert.match(result.buffer.toString('latin1'), /\/MediaBox \[0 0 501 434\]/);
+  assert.equal(JSON.stringify(p.graphicSpec), before);
+  assert.equal((await renderChartDownload('svg', p.graphicSpec)).buffer.toString(), renderToSVG(p));
+});
+
 test('download endpoint returns binary attachments and handles unsupported/invalid requests', async t => {
   const server = createDevServer();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -56,4 +65,10 @@ test('download endpoint returns binary attachments and handles unsupported/inval
   assert.match((await invalid.json()).error, /graphicSpec/);
   assert.equal((await fetch(`${url}/jpg`, { method: 'POST', body: '{}' })).status, 400);
   assert.equal((await fetch(`${url}/svg`, { method: 'POST', body: '{' })).status, 400);
+  const invalidGeometry = structuredClone(p.graphicSpec);
+  const root = invalidGeometry.order.find(id => invalidGeometry.objects[id].type === 'canvas');
+  invalidGeometry.objects[root].properties.width = 16777217;
+  assert.equal((await fetch(`${url}/pdf`, { method: 'POST',
+    body: JSON.stringify({ graphicSpec: invalidGeometry }) })).status, 400,
+    'invalid page geometry is not an oversized HTTP request');
 });

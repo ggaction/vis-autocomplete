@@ -9,6 +9,7 @@ import { chartOwner } from './chart-owner.js';
 import { regressionFilterLimits } from './regression-context.js';
 import { editableFilterRows } from './filter-context.js';
 import { labelPlacementCandidates } from './label-placement-candidates.js';
+import { statisticalContext } from './statistical-context.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -78,7 +79,15 @@ export function extendedCandidates(program, { layer, profile }) {
         `encoding.${channel}Offset`, `Offset ${channel.toUpperCase()}`);
     }
   }
-  const groupFields = categories.filter(f => f.complete && (mark !== 'bar' || canGroupBar(program, layer, f.name)));
+  const radarSourceFields = owner?.radar ? new Set(profileDataset(program, owner.source).fields.map(f => f.name)) : null;
+  const groupFields = categories.filter(f => f.complete && (mark !== 'bar' || canGroupBar(program, layer, f.name)) &&
+    (!radarSourceFields || radarSourceFields.has(f.name) &&
+      // A series must retain its full polygon and one value per paint channel.
+      [...new Set(rows.map(row => row[f.name]))].every(value => {
+        const group = rows.filter(row => row[f.name] === value);
+        return new Set(group.map(row => row[encoding.theta?.field])).size >= 2 &&
+          ['color', 'stroke'].every(channel => !encoding[channel]?.field || new Set(group.map(row => row[encoding[channel].field])).size <= 1);
+      })));
   if (['bar', 'line', 'area'].includes(mark)) for (const field of groupFields) {
     add('encodeGroup', 'encoding', { target, field: field.name },
       [choices('field', 'Series', field.name, groupFields.map(f => f.name))], 'encoding.group');
@@ -141,9 +150,19 @@ export function extendedCandidates(program, { layer, profile }) {
       !program.markConfigs[target]?.violinPlot) {
     const numericBar = mark === 'bar' && !encoding.x?.bin &&
       !['x', 'y'].some(c => ['nominal', 'ordinal', 'temporal'].includes(encoding[c]?.fieldType));
-    if (!numericBar) for (const mode of (mark === 'bar' ? ['group', 'stack', 'fill', 'overlay'] : ['stack', 'fill', 'overlay', 'center'])) {
-      if (mode !== layer.layout?.mode) add('layoutSeries', 'transform', { target, mode },
-        [choices('mode', 'Layout', mode, mark === 'bar' ? ['group', 'stack', 'fill', 'overlay'] : ['stack', 'fill', 'overlay', 'center'])]);
+    if (!numericBar) {
+      const measure = encoding.y?.aggregate || encoding.x?.bin || mark === 'area' ? 'y'
+        : encoding.x?.aggregate ? 'x' : ['x', 'y'].find(channel => encoding[channel]?.fieldType === 'quantitative');
+      const values = (mark === 'bar' ? barGrain(program, layer).values?.[measure] : undefined)
+        ?? rows.map(row => row[encoding[measure]?.field]);
+      const negative = values.some(value => Number.isFinite(value) && value < 0);
+      const modes = (mark === 'bar' ? ['group', 'stack', 'fill', 'overlay', 'diverging'] : ['stack', 'fill', 'overlay', 'center', 'diverging'])
+        .map(value => ({ value, label: value[0].toUpperCase() + value.slice(1),
+          disabled: negative && ['stack', 'fill', 'center'].includes(value),
+          ...(negative && ['stack', 'fill', 'center'].includes(value) ? { reason: 'Negative values need Diverging, Group, or Overlay layout.' } : {}) }));
+      for (const option of modes.filter(option => !option.disabled && option.value !== layer.layout?.mode)) {
+        add('layoutSeries', 'transform', { target, mode: option.value }, [choices('mode', 'Layout', option.value, modes)]);
+      }
     }
   }
 
@@ -217,30 +236,13 @@ export function extendedCandidates(program, { layer, profile }) {
       choices('center', 'Center line', { type }, [{ value: false, label: 'None' }, { value: { type: 'median' }, label: 'Median' }, { value: { type: 'mean' }, label: 'Mean' }]),
     ], 'style.gradientCenter', 'Edit gradient center');
   }
-  const sourceData = owner?.source ?? gradient?.source;
-  const statisticFields = sourceData ? profileDataset(program, sourceData).fields : fields;
-  const statisticGroups = preferVisualFields(statisticFields.filter(field => field.complete && field.distinct > 1), 'color')
-    .map(field => {
-      let visibleItems = gradient ? field.name === gradient.category : !['line', 'area', 'text'].includes(mark);
-      if (visibleItems && mark === 'bar') {
-        try { visibleItems = barGrain(program, layer).constant(field.name); }
-        catch { visibleItems = false; }
-      }
-      if (visibleItems && sourceData && sourceData !== layer.data) {
-        const itemRows = program.semanticSpec.datasets.find(dataset => dataset.id === layer.data)?.values ?? [];
-        visibleItems = itemRows.length > 0 && itemRows.every(row => Object.hasOwn(row, field.name));
-      }
-      return { name: field.name, visibleItems };
-    });
+  const statistic = statisticalContext(program, layer, owner);
   for (const axis of ['x', 'y']) {
     if (encoding[axis]?.fieldType !== 'quantitative') continue;
     if (owner?.statisticalAxes && !owner.statisticalAxes.includes(axis)) continue;
-    add('createStatisticalReference', 'transform', { id: resourceId('statisticalReference'), source: target, axis, population: sourceData || ['line', 'area', 'text'].includes(mark) ? 'boundData' : 'visibleItems', statistic: { op: 'mean' },
+    add('createStatisticalReference', 'transform', { id: resourceId('statisticalReference'), source: target, axis, population: statistic.axes[axis].defaultPopulation, statistic: { op: 'mean' },
       strokeWidth: 2.5, strokeDash: 'solid' }, [], 'action.createStatisticalReference', 'Add statistic');
-    out.at(-1).statisticalContext = { series: ['line', 'area', 'text'].includes(mark), groupFields: statisticGroups,
-      ...(owner?.statisticalAxes ? { axisChoices: ['x', 'y'].filter(channel => encoding[channel]?.fieldType === 'quantitative')
-        .map(value => ({ value, label: value, disabled: !owner.statisticalAxes.includes(value),
-          reason: owner.statisticalAxes.includes(value) ? undefined : owner.statisticalAxisReason })) } : {}) };
+    out.at(-1).statisticalContext = statistic;
   }
   if (!raincloud && ['line', 'area'].includes(mark) && group && rows.some(r => r[group] != null)) {
     const values = [...new Set(rows.map(r => r[group]).filter(v => v != null))];
@@ -293,9 +295,10 @@ export function extendedCandidates(program, { layer, profile }) {
     style(`${prefix}TicksAndLabels`, { target: id, ...(!discrete ? { count: 6 } : {}), labels: font(size) },
       [...(!discrete ? [number('count', 'Ticks', 6, 2, 12)] : []), number('labels.fontSize', 'Label size', size, 8, 18),
         number('labels.offset', 'Label offset', labelOffset, 0, 30), number('ticks.length', 'Tick length', current.ticks?.length ?? 6, 0, 16)]);
-    if (current.title) style(`${prefix}Title`, { target: id, text: current.title?.text ?? encoding[channel]?.field ?? channel, ...font(14) },
+    if (current.title) style(`${prefix}Title`, { target: id, text: current.title?.text ?? encoding[channel]?.field ?? channel, ...font(14),
+      offset: { from: 'labels', gap: current.title?.offset?.from === 'labels' ? current.title.offset.gap : 8 } },
       [text('text', 'Title', current.title?.text ?? encoding[channel]?.field ?? channel), number('fontSize', 'Size', 14, 8, 24),
-        number('offset', 'Offset', current.title?.offset ?? 35, 0, 60), color('color', 'Text color', current.title?.color ?? '#555555')]);
+        number('offset.gap', 'Label gap', current.title?.offset?.from === 'labels' ? current.title.offset.gap : 8, 0, 30), color('color', 'Text color', current.title?.color ?? '#555555')]);
   }
   for (const direction of ['horizontal', 'vertical']) {
     if (!program.semanticSpec.guides.grid?.[direction]) continue;
@@ -314,6 +317,10 @@ export function extendedCandidates(program, { layer, profile }) {
       const palette = ['nominal', 'ordinal'].includes(binding.fieldType) ? 'category10' : 'blues';
       add(method, 'encoding', { target, palette }, [choices('palette', 'Palette', palette,
         paletteChoices(binding.fieldType))]);
+      out.at(-1).guideContext = { colorScale: { fieldType: binding.fieldType,
+        type: scale.type, reverse: scale.reverse ?? false, midpoint: scale.midpoint ?? 'auto',
+        domain: scale.domain ?? 'auto', resolvedDomain: program.resolvedScales[binding.scale]?.domain,
+        valuesPositive: rows.filter(row => Number.isFinite(row[binding.field])).every(row => row[binding.field] > 0) } };
     } else if (channel === 'radius' && scale.radialMapping) {
       const mapping = scale.radialMapping === 'area' ? 'radius-length' : 'area';
       add(method, 'encoding', { target, radialMapping: mapping }, [choices('radialMapping', 'Measure by', mapping,
@@ -348,6 +355,7 @@ export function extendedCandidates(program, { layer, profile }) {
       ['right', 'left', 'top', 'bottom', 'top-right', 'top-left', 'bottom-right', 'bottom-left']),
       number('itemGap', 'Item gap', 18, 4, 30),
       ...(['nominal', 'ordinal'].includes(encoding[channel].fieldType) ? [number('columns', 'Columns', 1, 1, 4)] : [])]);
+    out.at(-1).guideContext = { sharedFacetLegend: Boolean(program.compositionSpec?.facet && program.compositionSpec.facet.guides.legend !== false) };
     style('editLegendBorder', { ...owner, border: { color: '#9ca3af', lineWidth: 1, padding: 8 } },
       [number('border.padding', 'Padding', 8, 0, 20), number('border.lineWidth', 'Width', 1, .25, 3, .25),
         color('border.color', 'Border color', '#9ca3af'), color('border.background', 'Background', '#ffffff')]);

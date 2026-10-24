@@ -114,7 +114,11 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       add('editLegend', 'action.editLegend', 'guide', '기존 범례의 배치와 글자 수정',
         { target, channel, position: config?.position === 'top-right' ? 'right' : 'top-right',
           labels: { fontFamily: 'Arial', fontSize: config?.labels?.fontSize ?? 12 } }, inspectionTarget);
-      candidates.at(-1).guideContext = { channel, title: legend.title ?? channel };
+      candidates.at(-1).guideContext = { channel, title: legend.title ?? channel,
+        categorical: ['nominal', 'ordinal'].includes(encoding[channel]?.fieldType),
+        sharedFacetLegend: Boolean(program.compositionSpec?.facet && program.compositionSpec.facet.guides.legend !== false),
+        itemCount: program.resolvedScales[encoding[channel]?.scale]?.domain?.length ?? 1,
+        overflow: config?.overflow ?? false };
     }
     const directions = Object.entries(program.semanticSpec.guides.grid ?? {}).filter(([, grid]) =>
       grid && (!grid.coordinate || grid.coordinate === layer.coordinate));

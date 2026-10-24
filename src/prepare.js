@@ -1,5 +1,6 @@
 import { chartViews, chartAtPath, scopedCall, nativeActionTargets } from './composition-context.js';
 import { centerCanvasContent } from './canvas-centering.js';
+import { canvasGeometry } from './canvas-geometry.js';
 import { prepareAction } from './engine.js';
 import { createLRU, signature, freezeResult } from './cache.js';
 import { createProgramResultCache } from './program-cache.js';
@@ -224,6 +225,29 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   };
   let prepared;
   try { prepared = prepareFittedPlot(actionBase, action, finish); } catch (error) {
+    if (family === 'legend' && /^(In-plot legend(?: group)? does not fit|Horizontal legend block requires more plot width)/.test(error.message)) {
+      // An explicit Show all or larger typography request must not silently
+      // truncate entries or move the legend. Enlarge its containing plot via
+      // replayable native setup, retaining the requested placement and text.
+      const geometry = canvasGeometry(actionBase);
+      let lastError = error;
+      for (const factor of [1.25, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32]) {
+        const args = { plot: { width: Math.ceil(geometry.plot.width * factor),
+          height: Math.ceil(geometry.plot.height * factor) }, margin: geometry.margin };
+        const call = actionBase.compositionSpec?.facet
+          ? { method: 'editFacetSource', args: { action: { method: 'editCanvas', options: args } } }
+          : { method: 'editCanvas', args };
+        try {
+          const base = actionBase[call.method](call.args);
+          const fitted = prepareFittedPlot(base, action, finish);
+          return { ...fitted, actionBase: base, prerequisiteCalls: [...prerequisiteCalls, call] };
+        } catch (failure) {
+          if (!/^(In-plot legend(?: group)? does not fit|Horizontal legend block requires more plot width)/.test(failure.message)) throw failure;
+          lastError = failure;
+        }
+      }
+      throw lastError;
+    }
     if (!repairs.sharedLegend && actionBase.compositionSpec?.facet &&
         /^(Shared facet legend requires|Facet child .*incompatible resolved legend scale)/.test(error.message)) {
       // A shared legend is a presentation policy, not a prerequisite for color
@@ -302,21 +326,58 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
       return { ...prepared, actionBase, prerequisiteCalls };
     }
     if (!axis && !staleTicks) throw error;
-    const resources = Object.entries(actionBase.semanticSpec.guides.axis ?? {}).filter(([id, value]) =>
-      staleTicks ? actionBase.guideConfigs.axis[id]?.ticks?.mode === 'values' : (value.channel ?? id) === axis);
+    // The final createGuides suffix can own all the displayed axes. Scale edits
+    // still need to fit those axes even when the authoring prefix has none.
+    const resources = Object.entries({ ...view.semanticSpec.guides.axis,
+      ...actionBase.semanticSpec.guides.axis }).filter(([id, value]) =>
+      staleTicks ? (actionBase.guideConfigs.axis?.[id] ?? view.guideConfigs.axis?.[id])?.ticks?.mode === 'values'
+        : (value.channel ?? id) === axis);
     if (!resources.length) throw error;
-    const configs = resources.map(([id, semantic]) => ({ id, semantic, config: actionBase.guideConfigs.axis[id] }));
+    const configs = resources.map(([id, semantic]) => ({ id, semantic,
+      config: actionBase.guideConfigs.axis?.[id] ?? view.guideConfigs.axis?.[id] }));
+    // createGuides treats a partial explicit axis family as authored. Promote
+    // its unaffected displayed siblings too, or fitting Y would drop X.
+    const retainedDisplayedAxes = Object.entries(view.semanticSpec.guides.axis ?? {})
+      .filter(([id]) => !actionBase.semanticSpec.guides.axis?.[id] && !configs.some(saved => saved.id === id))
+      .map(([id, semantic]) => ({ id, semantic, config: view.guideConfigs.axis[id] }));
+    if (family === 'axis') {
+      // An axis editor must retain its target. Removing it before applying an
+      // edit turns a recoverable text collision into an unknown-target error.
+      // Fit the existing guide via native edits, then apply the requested edit.
+      let lastError = error;
+      for (const count of [6, 4, 3, 2]) {
+        let base = actionBase;
+        const calls = [];
+        try {
+          for (const saved of configs) {
+            const channel = saved.semantic.channel ?? saved.id;
+            const fitted = fittedAxisOptions(base, undefined, channel, saved, count);
+            const call = sourceCall(channel === 'x' ? 'editXAxis' : 'editYAxis', {
+              target: saved.id,
+              ...(saved.config.labels && saved.config.title ? { title: { offset: { from: 'labels', gap: 4 } } } : {}),
+              ...(fitted.ticksAndLabels ? { ticksAndLabels: fitted.ticksAndLabels } : {}),
+            });
+            base = base[call.method](call.args); calls.push(call);
+          }
+          const result = prepareFittedPlot(base, action, finish);
+          return { ...result, actionBase: base, prerequisiteCalls: [...prerequisiteCalls, ...calls] };
+        } catch (failure) { lastError = failure; }
+      }
+      throw lastError;
+    }
     for (const { id, semantic } of configs) {
+      if (!actionBase.semanticSpec.guides.axis?.[id]) continue;
       const call = sourceCall((semantic.channel ?? id) === 'x' ? 'removeXAxis' : 'removeYAxis', { target: id });
       actionBase = actionBase[call.method](call.args); prerequisiteCalls.push(call);
     }
     const edited = prepareAction(actionBase, action);
     let lastError = error;
     for (const count of [6, 4, 3, 2]) {
-      const calls = configs.map(saved => {
+      const calls = [...configs, ...retainedDisplayedAxes].map(saved => {
         const channel = saved.semantic.channel ?? saved.id;
         return sourceCall(channel === 'x' ? 'createXAxis' : 'createYAxis',
-          fittedAxisOptions(edited.preview, sourceAction.args.target, channel, saved, count));
+          fittedAxisOptions(edited.preview, configs.includes(saved) ? sourceAction.args.target : undefined, channel, saved,
+            configs.includes(saved) ? count : undefined));
       });
       try { prepared = finish(edited, calls); break; } catch (error) { lastError = error; }
     }
@@ -350,22 +411,26 @@ function fittedPolarAxisOptions(program, target, axis, semantic, config, count) 
 // calls are returned so code, Apply, and persistence replay the same ordering.
 function fittedAxisOptions(program, target, axis, { id, semantic, config }, count) {
   const pick = (object, names) => Object.fromEntries(names.filter(name => object?.[name] !== undefined).map(name => [name, structuredClone(object[name])]));
-  const layer = program.semanticSpec.layers.find(layer => layer.id === target) ?? program.semanticSpec.layers.find(layer => layer.coordinate === semantic.coordinate);
+  const layer = program.semanticSpec.layers.find(layer => layer.id === target) ??
+    program.semanticSpec.layers.find(layer => layer.encoding[axis]?.scale === semantic.scale) ??
+    program.semanticSpec.layers.find(layer => layer.coordinate === semantic.coordinate);
   const scale = layer?.encoding[axis]?.scale ?? semantic.scale;
   const domain = program.resolvedScales[scale]?.domain ?? [];
   const discrete = ['nominal', 'ordinal'].includes(layer?.encoding[axis]?.fieldType);
   const labels = pick(config.labels, ['offset', 'format', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'maxWidth', 'wrap', 'lineHeight', 'alongOffset', 'labelMap', 'flush', 'colorMap', 'align']);
-  labels.rotation = axis === 'x' && discrete ? { value: 90, unit: 'degrees' } : { value: config.labels?.rotation ?? 0, unit: 'radians' };
+  labels.rotation = count !== undefined && axis === 'x' && discrete ? { value: 90, unit: 'degrees' } : { value: config.labels?.rotation ?? 0, unit: 'radians' };
   const title = pick(config.title, ['text', 'at', 'offset', 'color', 'fontSize', 'fontFamily', 'fontWeight', 'alongOffset', 'align', 'baseline']);
   if (config.title?.inferredOffset) delete title.offset;
   if (config.title?.inferredText) delete title.text;
   else if (semantic.title !== undefined) title.text = semantic.title;
   if (!config.title?.inferredRotation) title.rotation = { value: config.title?.rotation ?? 0, unit: 'radians' };
+  const tickSelection = count === undefined ? pick(config.ticks ?? config.labels, ['count', 'values', 'rounding'])
+    : discrete ? { values: domain.filter((_, index) => index % Math.ceil(domain.length / count) === 0) }
+      : count <= 2 && domain.length === 2 ? { values: [...new Set(domain)] } : { count };
   return { id, scale, coordinate: semantic.coordinate, position: config.line?.position ?? config.labels?.position,
     ...(config.frame?.offset !== undefined ? { offset: config.frame.offset } : {}),
     line: config.line ? pick(config.line, ['color', 'lineWidth']) : false,
-    ticksAndLabels: config.labels || config.ticks ? { ...(discrete ? { values: domain.filter((_, index) => index % Math.ceil(domain.length / count) === 0) }
-      : count <= 2 && domain.length === 2 ? { values: [...new Set(domain)] } : { count }),
+    ticksAndLabels: config.labels || config.ticks ? { ...tickSelection,
       ticks: config.ticks ? pick(config.ticks, ['length', 'color', 'lineWidth', 'alongOffset', 'strokeDash', 'strokeDashMap']) : false,
       labels: config.labels ? labels : false } : false, title: config.title ? title : false };
 }

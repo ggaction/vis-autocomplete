@@ -221,7 +221,8 @@ export function createRecommendationEngine(model) {
       const validate = candidate => {
         if (!options.authoringProgram) return validateCandidate(program, candidate);
         try {
-          const prepared = prepareGuidedAction(options.authoringProgram, { method: candidate.method, args: candidate.args }, program);
+          const prepared = prepareGuidedAction(options.authoringProgram, { method: candidate.method, args: candidate.args,
+            ...(candidate.allowUnchanged ? { allowUnchanged: true } : {}) }, program);
           return { ok: true, next: prepared.authoringPreview, prepared, validation: prepared.recommendation.validation };
         } catch (error) { return { ok: false, reason: error.reason ?? 'execution', message: error.message }; }
       };
@@ -256,6 +257,13 @@ export function createRecommendationEngine(model) {
           const key = callText(variant);
           if (!checks.has(key)) checks.set(key, validate(variant));
           if (checks.get(key).ok) { candidate = variant; check = checks.get(key); break; }
+        }
+        // Eager and lazy decks both retain an existing action's editor even
+        // when its only viable default matches the chart. It remains behind
+        // new actions; applying the unchanged value adds no duplicate history.
+        if (check.reason === 'no-change' && previouslyApplied) {
+          check = validate({ ...candidate, allowUnchanged: true });
+          if (check.ok) check = { ...check, validation: { ...check.validation, status: 'unchanged', changed: false } };
         }
         if (!check.ok) {
           exclude(check.reason);
@@ -321,8 +329,8 @@ export function createRecommendationEngine(model) {
             label: c.label, validation: v.validation,
             parameters: c.parameters ? structuredClone(c.parameters) : undefined,
             guideContext: c.guideContext ? structuredClone(c.guideContext) : undefined,
-            nextContext: c.groupTarget ? { data: c.args.id }
-              : context.layer ? { target: context.layer.id } : { data: context.profile.id },
+            nextContext: c.nextContext ?? (c.groupTarget ? { data: c.args.id }
+              : context.layer ? { target: context.layer.id } : { data: context.profile.id }),
           })),
         });
         // Ranked candidates are proposals, never executable issued tokens.

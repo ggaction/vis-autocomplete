@@ -1,3 +1,5 @@
+import { bucketTime } from '../vendor/ggaction/src/grammar/timeUnit.js';
+import { normalizeTemporalValue } from '../vendor/ggaction/src/grammar/scales/fields.js';
 import { rolePlotDefinitions } from './role-plots.js';
 import { withInitialScales } from './initial-scales.js';
 import { getPlotDefinitions, defaultValues } from './plot-catalog.js';
@@ -148,7 +150,21 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
       x.type === 'quantitative' && y.type === 'quantitative';
     if (binsX) controls.unshift(xBinControl());
     const calendar = ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) && x.type === 'temporal' && y.type === 'quantitative';
-    if (calendar) controls.unshift(choice('timeUnit', 'Calendar interval (UTC)', [{ value: 'raw', label: 'Original dates' }, ...['year', 'quarter', 'month', 'week', 'day'].map(value => ({ value, label: value }))], 'raw'));
+    if (calendar) {
+      const calendarChoices = ['year', 'quarter', 'month', 'week', 'day'].map(value => {
+        // Only Horizon needs this extra feasibility check. Stop once a second
+        // bucket exists instead of reprocessing the dataset for every chart.
+        const buckets = new Set();
+        if (method === 'createHorizonPlot') for (const row of complete) {
+          buckets.add(bucketTime(normalizeTemporalValue(row[x.name], x.name), { unit: value, timeZone: 'UTC', weekStartsOn: 1 }));
+          if (buckets.size >= 2) break;
+        }
+        const insufficient = method === 'createHorizonPlot' && buckets.size < 2;
+        return { value, label: value, ...(insufficient ? { disabled: true,
+          reason: `This interval leaves ${buckets.size} date. A horizon plot needs at least two dates; choose a finer interval.` } : {}) };
+      });
+      controls.unshift(choice('timeUnit', 'Calendar interval (UTC)', [{ value: 'raw', label: 'Original dates' }, ...calendarChoices], 'raw'));
+    }
     if (binnedColor) controls.push({ key: 'colorBins', label: `${color.name} color bins (maximum)`,
       type: 'number', value: 3, min: 2, max: 6, step: 1 });
     if (aggregatedHeatmap) controls.push(choice('aggregate', 'Color aggregation',

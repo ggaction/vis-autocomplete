@@ -22,7 +22,9 @@ export function initialParameters(spec) {
   const controls = spec.controls.map(c => conditional(c, path => path));
   const resolveFlatControls = values => {
     const scales = spec.resolveScaleControls?.(values) ?? [];
-    return controls.map(c => ({ ...c, ...(scales.find(control => control.key === c.key) ?? {}), ...(c.distinctFrom ? {
+    const dynamic = spec.resolveControls?.(values) ?? [];
+    return controls.map(c => ({ ...c, ...(scales.find(control => control.key === c.key) ?? {}),
+      ...(dynamic.find(control => control.key === c.key) ?? {}), ...(c.distinctFrom ? {
     choices: c.choices.map(choice => ({ ...choice,
       disabled: Boolean(choice.disabled || choice.value === values[c.distinctFrom]),
       reason: choice.value === values[c.distinctFrom] ? 'These roles must use different fields.' : choice.reason })),
@@ -102,7 +104,14 @@ export function recommendationParameters(recommendation, profile) {
   const quantitative = usable.filter(f => f.type === 'quantitative').map(f => f.name);
   const categories = usable.filter(f => ['nominal', 'ordinal'].includes(f.type)).map(f => f.name);
   const clone = () => structuredClone(args);
+  const legendContextFor = values => alternatives.find(option => option.args.channel === (values.channel ?? args.channel))?.guideContext ?? recommendation.guideContext ?? {};
   const forField = field => structuredClone(alternatives.find(option => fieldOf(option.args) === field)?.args ?? args);
+  const statisticAxis = values => recommendation.statisticalContext?.axes?.[values.axis ?? args.axis];
+  const statisticGroups = values => {
+    const populations = statisticAxis(values)?.populations;
+    if (!populations) return recommendation.statisticalContext?.groupFields ?? [];
+    return [...new Map(populations.flatMap(population => population.groups).map(field => [field.name, field])).values()];
+  };
   let controls, build;
   let normalize = values => ({ ...values });
   let resolve = () => controls;
@@ -148,6 +157,29 @@ export function recommendationParameters(recommendation, profile) {
         return out;
       };
     }
+  } else if (recommendation.guideContext?.colorScale) {
+    const context = recommendation.guideContext.colorScale, quantitative = context.fieldType === 'quantitative';
+    const domain = context.resolvedDomain?.filter(Number.isFinite) ?? [];
+    const lo = domain.length ? Math.min(...domain) : 0, hi = domain.length ? Math.max(...domain) : 1;
+    const span = Math.max(hi - lo, Math.abs(hi) * .01, .01), step = Number((span / 100).toPrecision(2));
+    const custom = Array.isArray(context.domain);
+    controls = [select('palette', 'Palette', paletteChoices(context.fieldType), args.palette),
+      select('reverse', 'Direction', [{ value: false, label: 'Normal' }, { value: true, label: 'Reversed' }], context.reverse),
+      ...(quantitative ? [select('scaleType', 'Scale', [{ value: 'sequential', label: 'Linear' },
+        { value: 'log', label: 'Log', disabled: !context.valuesPositive || lo <= 0,
+          reason: !context.valuesPositive || lo <= 0 ? 'Log requires a strictly positive domain.' : undefined },
+        { value: 'sqrt', label: 'Square root' }, { value: 'symlog', label: 'Symmetric log' }], context.type),
+      { key: 'colorDomain', label: 'Domain & center', type: 'group', controls: [
+        select('domainMode', 'Domain', [{ value: 'auto', label: 'Automatic' }, { value: 'custom', label: 'Custom' }], custom ? 'custom' : 'auto'),
+        { ...numeric('domainMin', 'Minimum', custom ? Math.min(...context.domain) : lo, lo - span, hi + span, step), when: v => v.domainMode === 'custom' },
+        { ...numeric('domainMax', 'Maximum', custom ? Math.max(...context.domain) : hi, lo - span, hi + span, step), when: v => v.domainMode === 'custom' },
+        { ...select('centerMode', 'Center', [{ value: 'auto', label: 'Automatic' }, { value: 'custom', label: 'Custom' }], Number.isFinite(context.midpoint) ? 'custom' : 'auto'), when: v => v.scaleType === 'sequential' },
+        { ...numeric('midpoint', 'Midpoint', Number.isFinite(context.midpoint) ? context.midpoint : lo < 0 && hi > 0 ? 0 : (lo + hi) / 2, lo, hi, step),
+          when: v => v.scaleType === 'sequential' && v.centerMode === 'custom' },
+      ] }] : [])];
+    build = v => ({ ...clone(), palette: v.palette, reverse: v.reverse,
+      ...(quantitative ? { type: v.scaleType, domain: v.domainMode === 'custom' ? [v.domainMin, v.domainMax] : 'auto',
+        midpoint: v.scaleType === 'sequential' && v.centerMode === 'custom' ? v.midpoint : 'auto' } : {}) });
   } else if (recommendation.binRecipe) {
     const recipe = recommendation.binRecipe;
     controls = [numeric('bins', 'X bins (maximum)', recipe.bins, 2, 24)];
@@ -171,15 +203,16 @@ export function recommendationParameters(recommendation, profile) {
       { value: 'mean', label: 'Mean' }, { value: 'median', label: 'Median' },
       { value: 'min', label: 'Minimum' }, { value: 'max', label: 'Maximum' },
       { value: 'middle50', label: 'Middle 50%' }, { value: 'middle95', label: 'Middle 95%' },
-    ], initial), select('population', 'Population', [{ value: 'visibleItems', label: 'Visible marks',
+    ], initial), select('population', 'Population', statisticAxis(args)?.populations ?? [{ value: 'visibleItems', label: 'Visible marks',
       disabled: recommendation.statisticalContext?.series, reason: recommendation.statisticalContext?.series ? 'A line or area represents a series. Use its bound rows.' : undefined },
       { value: 'boundData', label: 'All bound rows' }], args.population ?? 'visibleItems'),
       select('groupBy', 'Group by', [{ value: '', label: 'None' },
-        ...(recommendation.statisticalContext?.groupFields ?? []).map(field => ({ value: field.name, label: field.name }))], args.groupBy ?? '')];
+        ...statisticGroups(args).map(field => ({ value: field.name, label: field.name }))], args.groupBy ?? '')];
     build = v => {
+      const population = statisticAxis(v)?.populations.find(population => population.value === v.population);
       const common = { ...(args.id ? { id: args.id } : {}), source: args.source, axis: v.axis,
-        population: v.population, ...(v.groupBy ? { groupBy: v.groupBy } : {}),
-        ...(args.field ? { field: args.field } : {}) };
+        population: v.population === 'observations' ? 'boundData' : v.population, ...(v.groupBy ? { groupBy: v.groupBy } : {}),
+        ...(population?.field ?? args.field ? { field: population?.field ?? args.field } : {}) };
       if (isInterval(v.statistic)) {
         const p = v.statistic === 'middle95' ? .025 : .25;
         return { ...common, statistics: [{ op: 'quantile', p }, { op: 'quantile', p: 1 - p }],
@@ -214,7 +247,10 @@ export function recommendationParameters(recommendation, profile) {
       const out = clone();
       for (const [i, parameter] of recommendation.parameters.entries()) {
         if (controls[i].when && !controls[i].when(values)) {
-          delete out[parameter.path]; continue;
+          const path = parameter.path.split('.'), key = path.pop();
+          const parent = path.reduce((value, part) => value?.[part], out);
+          if (parent) delete parent[key];
+          continue;
         }
         if (parameter.omitUnchanged && at(args, parameter.path) === undefined &&
             JSON.stringify(values[`p${i}`]) === JSON.stringify(parameter.value)) continue;
@@ -238,6 +274,10 @@ export function recommendationParameters(recommendation, profile) {
       if (method === 'editECDFPlot') {
         const group = out.groupBy;
         out.color = group === false ? false : { field: Array.isArray(group) ? group[0] : group, fieldType: 'nominal' };
+      }
+      if (method === 'editBoxPlot' && out.width) {
+        if (recommendation.parameters.some(parameter => parameter.path === 'width.band')) delete out.width.pixels;
+        else if (recommendation.parameters.some(parameter => parameter.path === 'width.pixels')) delete out.width.band;
       }
       return out;
     };
@@ -317,17 +357,28 @@ export function recommendationParameters(recommendation, profile) {
     const context = recommendation.regressionContext;
     const groups = context ? Object.keys(context.groups).filter(Boolean) : categories;
     const group = Object.hasOwn(args, 'groupBy') ? args.groupBy || '' : context?.defaultGroup ?? '';
-    const canEstimateInterval = v => !context || context.groups[v.group || '']?.minRows >= (v.method === 'polynomial' ? (args.degree ?? 2) + 2 : 3);
+    const canEstimateInterval = v => !context || context.groups[v.group || '']?.minRows >= (v.method === 'polynomial' ? (v.degree ?? 2) + 2 : 3);
     controls = [select('method', 'Model', ['linear', 'polynomial', 'loess', 'exp'], args.method ?? 'linear'),
-      { ...numeric('level', 'Confidence level', 0.95, 0.5, 0.99, 0.01), when: v => ['linear', 'polynomial'].includes(v.method) && canEstimateInterval(v) },
-      { ...select('group', 'Group', [{ value: '', label: 'All observations' }, ...groups.map(value => ({ value, label: value }))], group), defaultPolicy: 'context' }];
+      { ...select('group', 'Group', [{ value: '', label: 'All observations' }, ...groups.map(value => ({ value, label: value }))], group), defaultPolicy: 'context' },
+      { key: 'modelSettings', label: 'Model settings', type: 'group', when: v => ['polynomial', 'loess'].includes(v.method), controls: [
+        { ...numeric('degree', 'Degree', args.degree ?? 2, 1, 6), when: v => v.method === 'polynomial' },
+        { ...numeric('span', 'Span', args.span ?? .5, .1, 1, .05), when: v => v.method === 'loess' },
+        { ...numeric('robustIterations', 'Robust iterations', args.robustIterations ?? 0, 0, 5), when: v => v.method === 'loess' },
+      ] },
+      { key: 'uncertainty', label: 'Interval', type: 'group', when: v => ['linear', 'polynomial'].includes(v.method), controls: [
+        select('interval', 'Interval', [{ value: false, label: 'None' }, { value: 'mean', label: 'Mean confidence' },
+          { value: 'prediction', label: 'Prediction' }], args.interval ?? 'mean'),
+        { ...numeric('level', 'Confidence level', args.level ?? .95, .5, .99, .01), when: v => v.interval !== false && canEstimateInterval(v) },
+      ] }];
     build = v => {
       const out = { ...clone(), method: v.method, groupBy: v.group || false };
       delete out.level; delete out.interval; delete out.confidence; delete out.confidenceMethod; delete out.band;
-      if (v.method !== 'polynomial') delete out.degree;
-      if (v.method !== 'loess') { delete out.span; delete out.robustIterations; }
+      if (v.method === 'polynomial') out.degree = v.degree;
+      else delete out.degree;
+      if (v.method === 'loess') { out.span = v.span; out.robustIterations = v.robustIterations; }
+      else { delete out.span; delete out.robustIterations; }
       if (['linear', 'polynomial'].includes(v.method)) {
-        if (canEstimateInterval(v)) out.level = v.level;
+        if (canEstimateInterval(v) && v.interval !== false) { out.level = v.level; out.interval = v.interval; }
         else out.interval = false;
       }
       else if (v.method === 'exp') out.interval = false;
@@ -383,12 +434,20 @@ export function recommendationParameters(recommendation, profile) {
       labels: { ...args.labels, fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset } });
   } else if (method === 'editLegend') {
     const channels = [...new Set(alternatives.map(option => option.args.channel))];
+    const legendContext = legendContextFor({});
     controls = [select('channel', 'Legend', channels, args.channel),
       select('position', 'Position', ['right', 'left', 'top', 'bottom', 'top-right', 'top-left', 'bottom-right', 'bottom-left'], args.position ?? 'right'),
-      numeric('fontSize', 'Label size', args.labels?.fontSize ?? 12, 8, 18),
-      numeric('itemGap', 'Item gap', args.itemGap ?? 18, 4, 30)];
+      { key: 'appearance', label: 'Appearance', type: 'group', controls: [
+        numeric('fontSize', 'Label size', args.labels?.fontSize ?? 12, 8, 18),
+        numeric('itemGap', 'Item gap', args.itemGap ?? 18, 4, 30)] },
+      ...([recommendation, ...alternatives].some(option => option.guideContext?.categorical) ? [{ key: 'entries', label: 'Entries', type: 'group', when: v => legendContextFor(v).categorical, controls: [
+        { ...select('showAll', 'Entries', [{ value: true, label: 'Show all' }, { value: false, label: 'Limit' }], !legendContext.overflow), defaultPolicy: 'context' },
+        { ...numeric('maxItems', 'Maximum entries', legendContext.overflow?.maxItems ?? Math.min(6, legendContext.itemCount ?? 6), 1,
+          Math.max(1, legendContext.itemCount ?? 30)), when: v => !v.showAll, defaultPolicy: 'context' },
+      ] }] : [])];
     build = v => ({ ...structuredClone(alternatives.find(option => option.args.channel === v.channel)?.args ?? args),
-      channel: v.channel, position: v.position, itemGap: v.itemGap, labels: { fontFamily: 'Arial', fontSize: v.fontSize } });
+      channel: v.channel, position: v.position, itemGap: v.itemGap, labels: { fontFamily: 'Arial', fontSize: v.fontSize },
+      ...(legendContextFor(v).categorical ? { overflow: v.showAll ? false : { maxItems: v.maxItems, summary: 'ellipsis-count' } } : {}) });
   } else if (method === 'editGrid') {
     const direction = recommendation.guideContext?.direction ?? Object.keys(args)[0];
     const cartesian = ['vertical', 'horizontal'].includes(direction);
@@ -510,11 +569,28 @@ export function recommendationParameters(recommendation, profile) {
   const channelVariant = values => alternatives.find(a => a.args.channel === values[`p${channelIndex}`]);
   resolve = values => {
     let resolved = controls.map(c => ({ ...c, ...(c.controls ? { controls: c.controls.map(child => ({ ...child })) } : {}) }));
+    if (method === 'editLegend') resolved = resolved.map(control => control.key === 'entries'
+      ? { ...control, controls: control.controls.map(child => child.key === 'maxItems'
+        ? { ...child, max: Math.max(1, legendContextFor(values).itemCount ?? 30) } : child) } : control);
+    if (recommendation.guideContext?.sharedFacetLegend) resolved = resolved.map(control => control.key === 'position' || control.path === 'position'
+      ? { ...control, choices: control.choices.map(choice => ({ ...choice, disabled: choice.value.includes('-'),
+        ...(choice.value.includes('-') ? { reason: 'A shared facet legend is placed outside the panels: left, right, top, or bottom.' } : {}) })) } : control);
+    if (recommendation.guideContext?.colorScale?.fieldType === 'quantitative') {
+      const context = recommendation.guideContext.colorScale;
+      const domain = values.domainMode === 'custom' ? [values.domainMin, values.domainMax] : context.resolvedDomain;
+      const epsilon = Math.max(Math.abs(domain?.[1] - domain?.[0]) || 0, .000001) / 1000;
+      resolved = resolved.map(c => c.key === 'colorDomain' ? { ...c, controls: c.controls.map(child => child.key === 'midpoint'
+        ? { ...child, min: domain[0] + epsilon, max: domain[1] - epsilon }
+        : child.key === 'domainMin' ? { ...child, max: values.domainMax - epsilon, ...(values.scaleType === 'log' ? { min: epsilon } : {}) }
+          : child.key === 'domainMax' ? { ...child, min: values.domainMin + epsilon } : child) } : c);
+    }
     if (method === 'createStatisticalReference') {
-      const group = recommendation.statisticalContext?.groupFields?.find(field => field.name === values.groupBy);
+      const axis = statisticAxis(values);
+      const group = (axis?.populations.find(p => p.value === 'visibleItems')?.groups ?? recommendation.statisticalContext?.groupFields)?.find(field => field.name === values.groupBy);
       const requiresRows = recommendation.statisticalContext?.series || group?.visibleItems === false;
-      resolved = resolved.map(c => c.key === 'population' ? { ...c, choices: c.choices.map(choice => choice.value === 'visibleItems'
-        ? { ...choice, disabled: Boolean(requiresRows), reason: requiresRows ? 'This grouping needs the bound rows because a visible mark can contain several group values.' : undefined } : choice) } : c);
+      resolved = resolved.map(c => c.key === 'population' ? { ...c, choices: (axis?.populations ?? c.choices).map(choice => choice.value === 'visibleItems'
+        ? { ...choice, disabled: Boolean(choice.disabled || requiresRows || values.groupBy && !group), reason: requiresRows || values.groupBy && !group ? 'This grouping needs the bound rows because a visible mark can contain several group values.' : choice.reason } : choice) }
+        : c.key === 'groupBy' && axis ? { ...c, choices: [{ value: '', label: 'None' }, ...statisticGroups(values).map(field => ({ value: field.name, label: field.name }))] } : c);
     }
     if (method === 'facet') resolved = resolved.map(c => c.key === 'columns' ? { ...c, max: Math.max(6, facetCount(values.field)) } : c);
     for (const [i, parameter] of generic.entries()) {
@@ -557,10 +633,11 @@ export function recommendationParameters(recommendation, profile) {
       const groupKey = method === 'editRegression' ? `p${groupIndex}` : 'group';
       const current = context.groups[(values[groupKey] ?? context.currentGroup) || ''];
       const modelKey = method === 'createRegression' ? 'method' : `p${generic.findIndex(parameter => parameter.path === 'method')}`;
-      const degreeKey = `p${generic.findIndex(parameter => parameter.path === 'degree')}`;
-      const intervalKey = `p${generic.findIndex(parameter => parameter.path === 'interval')}`;
-      resolved = resolved.map(c => c.key === modelKey ? { ...c, choices: c.choices.map(choice => {
-        const reason = current?.minDistinctX < (choice.value === 'polynomial' ? (values[degreeKey] ?? 2) + 1 : 2) ? 'Each regression group needs more distinct X values for this model.'
+      const degreeKey = method === 'createRegression' ? 'degree' : `p${generic.findIndex(parameter => parameter.path === 'degree')}`;
+      const intervalKey = method === 'createRegression' ? 'interval' : `p${generic.findIndex(parameter => parameter.path === 'interval')}`;
+      const resolveRegression = c => c.controls ? { ...c, controls: c.controls.map(resolveRegression) }
+        : c.key === modelKey ? { ...c, choices: c.choices.map(choice => {
+        const reason = current?.minDistinctX < 2 ? 'Each regression group needs more distinct X values for this model.'
           : choice.value === 'exp' && !current?.positiveY ? 'Exponential regression requires strictly positive Y values.'
           : choice.value === 'loess' && current?.loessWork > context.workLimit ? 'LOESS exceeds the computation budget for these rows. Choose grouped fits, linear, or polynomial regression.' : undefined;
         return { ...choice, disabled: Boolean(reason), reason };
@@ -572,7 +649,8 @@ export function recommendationParameters(recommendation, profile) {
         : c.key === intervalKey ? { ...c, choices: c.choices.map(choice => ({ ...choice, ...(choice.value !== false &&
           current?.minRows < (values[modelKey] === 'polynomial' ? (values[degreeKey] ?? 2) + 2 : 3) ? {
             disabled: true, reason: 'Each fit needs an additional observation to estimate an interval.',
-          } : {}) })) } : c);
+          } : {}) })) } : c;
+      resolved = resolved.map(resolveRegression);
     }
     if (['encodeColor', 'encodeStroke'].includes(method)) {
       resolved = resolved.map(c => c.key === 'palette' ? { ...c, choices: paletteChoices(fields.get(values.field)?.type, { auto: true }) } : c);
@@ -584,7 +662,42 @@ export function recommendationParameters(recommendation, profile) {
   };
   normalize = (input, changedKey) => {
     const values = { ...input };
-    if (method === 'createStatisticalReference' && values.population === 'visibleItems' &&
+    if (method === 'editLegend' && changedKey === 'channel') {
+      const context = legendContextFor(values);
+      values.showAll = !context.overflow;
+      values.maxItems = context.overflow?.maxItems ?? Math.min(6, context.itemCount ?? 6);
+    }
+    if (['createRegression', 'editRegression'].includes(method) && recommendation.regressionContext) {
+      const create = method === 'createRegression';
+      const key = path => create ? path === 'groupBy' ? 'group' : path : `p${generic.findIndex(parameter => parameter.path === path)}`;
+      const group = recommendation.regressionContext.groups[(values[key('groupBy')] ?? recommendation.regressionContext.currentGroup) || ''];
+      if (group && Number.isFinite(values[key('degree')])) values[key('degree')] = Math.min(values[key('degree')],
+        Math.max(1, group.minDistinctX - 1), Math.max(1, group.minRows - (values[key('interval')] === false ? 1 : 2)));
+    }
+    if (method === 'createStatisticalReference') {
+      const choices = controls.find(control => control.key === 'axis').choices;
+      if (choices.some(choice => choice.value === values.axis && choice.disabled)) values.axis = choices.find(choice => !choice.disabled)?.value;
+    }
+    if (recommendation.guideContext?.colorScale?.fieldType === 'quantitative') {
+      const context = recommendation.guideContext.colorScale;
+      const domain = values.domainMode === 'custom' ? [values.domainMin, values.domainMax] : context.resolvedDomain;
+      const span = Math.max(Math.abs(domain?.[1] - domain?.[0]) || 0, .000001), epsilon = span / 1000;
+      if (values.domainMin >= values.domainMax) {
+        if (changedKey === 'domainMax') values.domainMin = values.domainMax - epsilon;
+        else values.domainMax = values.domainMin + epsilon;
+      }
+      if (values.scaleType === 'log' && values.domainMode === 'custom' && values.domainMin <= 0) values.domainMin = Math.min(values.domainMax / 2, epsilon);
+      const current = values.domainMode === 'custom' ? [values.domainMin, values.domainMax] : domain;
+      if (current?.length === 2) values.midpoint = Math.max(current[0] + epsilon, Math.min(current[1] - epsilon, values.midpoint));
+    }
+    if (method === 'createStatisticalReference' && statisticAxis(values)) {
+      const axis = statisticAxis(values);
+      if (!axis.populations.some(p => p.value === values.population && !p.disabled)) values.population = axis.defaultPopulation;
+      if (values.groupBy && !statisticGroups(values).some(field => field.name === values.groupBy)) values.groupBy = '';
+      const eligible = population => !population.disabled && (!values.groupBy || population.groups.some(field => field.name === values.groupBy &&
+        (population.value !== 'visibleItems' || field.visibleItems)));
+      if (!eligible(axis.populations.find(p => p.value === values.population))) values.population = axis.populations.find(eligible)?.value ?? axis.defaultPopulation;
+    } else if (method === 'createStatisticalReference' && values.population === 'visibleItems' &&
         (recommendation.statisticalContext?.series || recommendation.statisticalContext?.groupFields?.some(field => field.name === values.groupBy && !field.visibleItems))) {
       values.population = 'boundData';
     }

@@ -17,7 +17,7 @@ function write(object, path, value) {
 
 // Describe the public creation function's own scale options. These are native
 // plot arguments, never hidden editScale calls following the selected action.
-function positions(method, args, fields) {
+export function initialPositionBindings(method, args, fields) {
   const result = [];
   const add = (axis, paths, encoding, extra = {}) => {
     const field = fieldName(encoding);
@@ -53,7 +53,7 @@ function positions(method, args, fields) {
 export function withInitialScales(definition, profile, rows) {
   const fields = new Map(profile.fields.map(field => [field.name, field]));
   const defaults = defaultValues(definition), initial = definition.build(defaults);
-  const bindings = positions(definition.method, initial, fields);
+  const bindings = initialPositionBindings(definition.method, initial, fields);
   const implicitColor = ['createPiePlot', 'createRosePlot', 'createRadialBarPlot'].includes(definition.method)
     ? { field: fieldName(initial.category), fieldType: 'nominal' } : null;
   const color = initial.color ?? implicitColor;
@@ -67,12 +67,15 @@ export function withInitialScales(definition, profile, rows) {
   let cachedKey, cachedControls;
   const controlsFor = values => {
     const args = definition.build({ ...defaults, ...values });
-    const currentBindings = positions(definition.method, args, fields);
+    const currentBindings = initialPositionBindings(definition.method, args, fields);
     const key = JSON.stringify(currentBindings);
     if (key === cachedKey) return cachedControls;
     cachedKey = key;
     return cachedControls = bindings.map(binding => {
-      const current = currentBindings.find(item => item.axis === binding.axis) ?? binding;
+      // A univariate plot can move its measure to another physical axis
+      // (e.g. a rug edge). Keep the control value, but resolve its current path.
+      const current = currentBindings.find(item => item.axis === binding.axis)
+        ?? (bindings.length === 1 && currentBindings.length === 1 ? currentBindings[0] : binding);
       const values = [current.field, ...(current.extraFields ?? [])].flatMap(numbers);
       let positive = values.length > 0 && values.every(value => value > 0);
       if (positive && current.bin) {
@@ -87,7 +90,7 @@ export function withInitialScales(definition, profile, rows) {
         ? [{ value: 'time', label: 'Time' }]
         : [{ value: 'linear', label: 'Linear' }, { value: 'log', label: 'Log', disabled: Boolean(logReason), reason: logReason },
           { value: 'sqrt', label: 'Sqrt' }, { value: 'symlog', label: 'Symlog' }];
-      return { key: `${binding.axis}Scale`, label: `${binding.axis.toUpperCase()} scale`, type: 'select', section: 'scales',
+      return { key: `${binding.axis}Scale`, label: `${current.axis.toUpperCase()} scale`, type: 'select', section: 'scales',
         defaultPolicy: 'context', value: at(initial, binding.paths[0])?.type ?? (binding.type === 'temporal' ? 'time' : 'linear'), choices };
     });
   };
@@ -100,9 +103,12 @@ export function withInitialScales(definition, profile, rows) {
     resolveScaleControls: values => controlsFor(values),
     build(values = {}) {
       const args = definition.build(values);
+      const currentBindings = initialPositionBindings(definition.method, args, fields);
       for (const binding of bindings) {
+        const current = currentBindings.find(item => item.axis === binding.axis)
+          ?? (bindings.length === 1 && currentBindings.length === 1 ? currentBindings[0] : binding);
         const type = values[`${binding.axis}Scale`] ?? scaleControls.find(c => c.key === `${binding.axis}Scale`).value;
-        for (const path of binding.paths) {
+        for (const path of current.paths) {
           const scale = { ...at(args, path), type };
           if (['log', 'time'].includes(type)) delete scale.zero;
           write(args, path, scale);

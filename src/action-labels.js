@@ -44,6 +44,6 @@ export function actionTitle(recommendation) {
   const properties = Object.keys(args).filter(key => !['target', 'id'].includes(key));
   const propertyNames = { opacity: 'opacity', radius: 'radius', fill: 'fill', stroke: 'border color', strokeWidth: 'border width', strokeDash: 'dash' };
   if (marks[method] && properties.length === 1 && propertyNames[properties[0]]) return `Edit ${marks[method].toLowerCase()} ${propertyNames[properties[0]]}`;
-  if (['createStatisticalReference', 'editGradientPlot'].includes(method) || recommendation.category === 'transform' && ['encodeX', 'encodeY', 'createComputedData', 'editComputedData', 'editSummaryData', 'editTimeUnitData', 'editFilterData'].includes(method)) return recommendation.label;
+  if (['createStatisticalReference', 'editGradientPlot', 'editCompositionScales'].includes(method) || recommendation.category === 'transform' && ['encodeX', 'encodeY', 'createComputedData', 'editComputedData', 'editSummaryData', 'editTimeUnitData', 'editFilterData'].includes(method)) return recommendation.label;
   return ACTION_LABELS[method] ?? recommendation.label;
 }

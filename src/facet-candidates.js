@@ -2,6 +2,7 @@ import { describeAction } from 'ggaction/inspection';
 import { hasChartContext } from './chart-context.js';
 import { profileDataset, preferVisualFields } from './profile.js';
 import { defaultFacetColumns } from './facet-layout.js';
+import { chartOwner } from './chart-owner.js';
 const select = (path, label, value, values) => ({ path, label, type: 'select', value,
   choices: values.map(value => ({ value, label: String(value) })) });
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -41,7 +42,11 @@ export function facetCandidates(program, { layer, profile }) {
   if (program.compositionSpec || !hasChartContext(program, layer)) return [];
   const datasets = new Map(program.semanticSpec.datasets.map(d => [d.id, d]));
   const fields = [], seen = new Set(), visited = new Set();
-  let data = datasets.get(profile.id);
+  const owner = chartOwner(program, layer);
+  // A radar's folded dimension is a coordinate within every polygon, not a
+  // partition of observations. Partition its source rows so each child retains
+  // every dimension. This also follows edits that change the dimension list.
+  let data = datasets.get(owner?.radar ? owner.source : profile.id);
   while (data && !visited.has(data.id)) {
     visited.add(data.id);
     for (const field of profileDataset(program, data.id).fields) {

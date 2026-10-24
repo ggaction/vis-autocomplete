@@ -59,7 +59,9 @@ export function positionCandidates(program, { layer, profile }) {
       return true;
     });
     for (const field of allowed) {
-      if (field.name === current?.field && !measured) continue;
+      // The Cartesian editor also changes aggregation, bins and scale. Keep
+      // its current variable available so those edits do not rebind the data.
+      if (field.name === current?.field && !measured && (!['x', 'y'].includes(channel) || regression)) continue;
       const args = { target, field: field.name, fieldType: field.type };
       if (current?.aggregate && field.type === 'quantitative') args.aggregate = current.aggregate;
       if (mark === 'bar' && channel === 'y' && encoding.x?.bin && args.aggregate === 'count' && field.name !== encoding.x.field) args.aggregate = 'mean';

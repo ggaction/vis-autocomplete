@@ -7,6 +7,21 @@ export function chartViews(program, childPath = []) {
   }
   return [{ program, childPath }];
 }
+// Composition policies apply to every descendant; a nested local 'independent'
+// policy does not cancel a shared axis owned by an ancestor.
+export function compositionContainers(program, childPath = []) {
+  if (!program.compositionSpec || program.compositionSpec.facet) return [];
+  return [{ program, childPath, label: childPath.length ? `Group: ${childPath.join(' / ')}` : 'All charts' },
+    ...Object.entries(program.children).flatMap(([id, child]) => compositionContainers(child, [...childPath, id]))];
+}
+export function inheritedCompositionShares(program, childPath = []) {
+  return compositionContainers(program).filter(container => container.childPath.length < childPath.length &&
+    container.childPath.every((id, index) => childPath[index] === id))
+    .map(container => ({ childPath: container.childPath, label: container.label,
+      channels: ['x', 'y', 'color'].filter(channel => container.program.compositionSpec.share?.[channel]) }))
+    .filter(container => container.channels.length);
+}
+
 export function chartAtPath(program, path = []) {
   for (const id of path) {
     if (program.compositionSpec?.facet || !program.children[id]) throw new Error('The selected chart no longer exists.');

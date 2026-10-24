@@ -4,10 +4,18 @@ const choice = (path, label, value, values) => ({ path, label, type: 'select', v
 export function overlayCandidates(program, layer) {
   if (!layer) return [];
   const binding = layer.derivedBindings?.overlay;
-  if (binding) return [{ method: 'editOverlay', category: 'encoding', feature: 'action.editOverlay',
-    label: 'Edit overlay', args: { target: layer.id, missing: binding.missing === 'break' ? 'connect' : 'break' },
-    parameters: [choice('missing', 'Missing values', binding.missing, ['break', 'connect']),
-      choice('orderBy', 'Order by', binding.orderBy ?? 'x', ['x', 'y'])] }];
+  if (binding) {
+    const source = program.semanticSpec.layers.find(item => item.id === binding.source);
+    const stacked = source?.mark.type === 'bar' && ['stack', 'fill', 'diverging'].includes(source.layout?.mode);
+    const series = choice('series', 'Follow', binding.series ?? 'source', ['source', 'total']);
+    series.choices = series.choices.map(option => ({ ...option,
+      ...(option.value === 'total' && !stacked ? { disabled: true,
+        reason: 'Total follows the combined endpoint of stacked bars. Stack the source series first.' } : {}) }));
+    return [{ method: 'editOverlay', category: 'encoding', feature: 'action.editOverlay',
+      label: 'Edit overlay', args: { target: layer.id, missing: binding.missing === 'break' ? 'connect' : 'break' },
+      parameters: [series, choice('missing', 'Missing values', binding.missing, ['break', 'connect']),
+        choice('orderBy', 'Order by', binding.orderBy ?? 'x', ['x', 'y'])] }];
+  }
   if (layer.source || !['point', 'bar', 'line', 'area'].includes(layer.mark.type) ||
       !layer.encoding?.x || !layer.encoding?.y ||
       program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type !== 'cartesian') return [];

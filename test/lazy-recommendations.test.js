@@ -73,6 +73,12 @@ test('opening every group/page preserves the full eager order and scores and eve
         const action = { method: rec.method, args: editor.build(valuesFor(editor.controls)) };
         const service = createCalculationService(null);
         service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(raw), guideCall: { method: 'createGuides', args: {} } });
+        if (rec.validation.status === 'unchanged') {
+          assert.ok(rec.previouslyApplied);
+          assert.doesNotThrow(() => raw[action.method](action.args));
+          assert.throws(() => service.execute({ type: 'prepare', stateId: 1, action }), error => error.reason === 'no-change');
+          continue;
+        }
         const prepared = service.execute({ type: 'prepare', stateId: 1, action });
         assert.equal(prepared.recommendation.validation.topLevelActions, 1);
       }

@@ -24,6 +24,24 @@ export function ownedChartCandidates(program, { layer, profile, owner }) {
         value: dimensions, choices: q.map(field => ({ value: field.name, label: field.name })) }],
       'encoding.radarDimensions', 'Edit radar dimensions');
   }
+  if (owner?.method === 'editBoxPlot') {
+    const box = owner.config;
+    // Statistical decisions and appearance remain separate cards, but corpus
+    // recipes use these same explicit controls instead of opaque object labels.
+    if (!box.summary) add('editBoxPlot', 'transform', { target, whisker: { type: box.whisker.type, ...(box.whisker.type === 'tukey' ? { factor: box.whisker.factor } : {}) } }, [
+      select('whisker.type', 'Whiskers', box.whisker.type, [{ value: 'tukey', label: 'Tukey (IQR)' }, { value: 'minmax', label: 'Minimum / maximum' }]),
+      { ...number('whisker.factor', 'IQR factor', box.whisker.factor ?? 1.5, .1, 5, .1), whenPath: { path: 'whisker.type', values: ['tukey'] } },
+      { ...select('outliers', 'Outliers', box.outliers, [{ value: true, label: 'Show' }, { value: false, label: 'Hide' }]), whenPath: { path: 'whisker.type', values: ['tukey'] } },
+      select('whisker.caps', 'Whisker caps', box.whisker.caps ?? true, [{ value: true, label: 'Show' }, { value: false, label: 'Hide' }]),
+    ], 'action.editBoxPlot', 'Adjust box statistics');
+    const pixelWidth = typeof box.width === 'object';
+    add('editBoxPlot', 'style', { target, box: { opacity: box.box.opacity } }, [
+      number(pixelWidth ? 'width.pixels' : 'width.band', pixelWidth ? 'Box width (px)' : 'Box width (band)', pixelWidth ? box.width.pixels : box.width, pixelWidth ? 1 : .05, pixelWidth ? 60 : .95, pixelWidth ? 1 : .05),
+      number('box.opacity', 'Box opacity', box.box.opacity, .05, 1, .05),
+      number('box.strokeWidth', 'Box outline width', box.box.strokeWidth, 0, 6, .25),
+      number('median.strokeWidth', 'Median line width', box.median.strokeWidth, 0, 6, .25),
+    ], 'action.editBoxPlot', 'Edit box appearance');
+  }
   if (owner?.method === 'editHorizon') {
     const t = owner.transform;
     const values = program.semanticSpec.datasets.find(d => d.id === owner.source)?.values.map(r => r[t.y.field]).filter(Number.isFinite) ?? [0, 1];

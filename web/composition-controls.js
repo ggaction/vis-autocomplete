@@ -145,8 +145,15 @@ export function overlaySpecs(adding) {
 }
 
 export function initializeCompositionControls({ select, overlayButton, host, adjacentHost, read, onTarget, onAdd, onOverlay, onChange, onCancel }) {
-  let highlight, revision, placements = [], bounds, buttons = [], frame;
+  let highlight, revision, placements = [], bounds, buttons = [], frame, available = false, pointer, positioned = [];
   const clearHighlight = () => { highlight?.remove(); highlight = null; };
+  function revealNearby() {
+    const nearest = pointer && available ? positioned.reduce((best, item) => {
+      const distance = Math.hypot(item.x - pointer.x, item.y - pointer.y);
+      return distance <= 48 && (!best || distance < best.distance) ? { ...item, distance } : best;
+    }, null) : null;
+    for (const button of buttons) button.classList.toggle('nearby', button === nearest?.button);
+  }
   function viewport() {
     const canvas = host.querySelector('.canvas-stage > canvas');
     if (!canvas) return null;
@@ -170,15 +177,26 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
       const view = viewport();
       if (!view || !bounds) return;
       const handles = adjacentHandlePositions(placements, bounds, view, { width: host.clientWidth, height: host.clientHeight });
-      for (const [index, handle] of handles.entries()) {
-        const button = buttons[index];
-        if (button) Object.assign(button.style, { left: `${handle.x - 13}px`, top: `${handle.y - 13}px` });
+      positioned = [];
+      for (const button of buttons) {
+        const handle = handles.find(item => item.position === button.dataset.position && JSON.stringify(item.choice.childPath) === button.dataset.childPath);
+        button.hidden = !available || !handle;
+        if (handle) {
+          Object.assign(button.style, { left: `${handle.x - 13}px`, top: `${handle.y - 13}px` });
+          positioned.push({ ...handle, button });
+        }
       }
+      revealNearby();
     });
   }
   new ResizeObserver(layout).observe(host);
   host.addEventListener('pointerenter', layout);
-  host.addEventListener('pointerleave', clearHighlight);
+  host.addEventListener('pointermove', event => {
+    const box = host.getBoundingClientRect();
+    pointer = event.target.closest('.resize-handle, [data-guide-operation]') ? null : { x: event.clientX - box.left, y: event.clientY - box.top };
+    revealNearby();
+  });
+  host.addEventListener('pointerleave', () => { pointer = null; revealNearby(); clearHighlight(); });
   function refreshHandles(state, ready, busy) {
     const displayed = state.view ?? state.program;
     if (revision !== displayed) {
@@ -188,6 +206,7 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
       bounds = ready ? adjacentPlacementBounds(displayed) : null;
       for (const position of ['left', 'right', 'top', 'bottom']) for (const choice of placements) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'add-adjacent'; button.textContent = '+';
+        button.hidden = true;
         button.dataset.position = position; button.dataset.childPath = JSON.stringify(choice.childPath);
         button.dataset.grouped = String(choice.grouped);
         const label = `Add chart ${position}${placements.length > 1 ? `: ${choice.label}` : ''}`;
@@ -199,8 +218,10 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
         host.append(button); buttons.push(button);
       }
     }
+    available = Boolean(ready && !busy && state.adding?.kind !== 'overlay');
     for (const button of buttons) {
-      button.hidden = !ready || busy || state.adding?.kind === 'overlay'; button.disabled = busy;
+      if (!available) button.hidden = true;
+      button.disabled = busy;
       button.setAttribute('aria-pressed', String(Boolean(state.adding && state.adding.position === button.dataset.position &&
         JSON.stringify(state.adding.receivingPath) === button.dataset.childPath)));
     }

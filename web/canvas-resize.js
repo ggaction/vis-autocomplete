@@ -39,6 +39,7 @@ export function createCanvasResize(host, callbacks) {
       top: (host.clientHeight - display.height * gesture.viewport.scale) / 2,
     } : fitCanvasViewport(display, host.clientWidth, host.clientHeight);
     const { scale, left, top } = viewport;
+    host.style.setProperty('--control-inset', `${viewport.inset ?? fitCanvasViewport(display, host.clientWidth, host.clientHeight).inset}px`);
     const focusedHandle = gesture && gesture.pointerId === undefined ? gesture.handle
       : host.contains(document.activeElement) ? document.activeElement.dataset.resize : null;
     if (!stage?.isConnected) { stage = document.createElement('div'); stage.className = 'canvas-stage'; }

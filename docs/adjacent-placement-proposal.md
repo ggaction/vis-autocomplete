@@ -141,3 +141,22 @@ per program revision. The option-card heading retains a text placement label.
 Validation: 15 placement/geometry tests, the 24-case browser matrix with spatial
 ordering checks, and saved-project/Undo/Redo/nested-handle restoration. The 1350 px
 vertical layout was visually inspected; its twelve edge buttons do not overlap.
+
+### Resize-handle clearance
+
+Add controls now anchor outside each panel's canvas, including its guides, rather
+than outside only its plot. Display fitting reserves a fixed 44 px clearance;
+nesting never adds more whitespace or shrinks the chart further. Authored canvas
+dimensions and exports do not change. Transition previews and the
+Preview-to-Current transfer use the same fit.
+Shared-guide extensions are included when avoiding the outer canvas resize strip.
+When a narrow nested layout puts multiple buttons on the same edge, they separate
+along that edge instead of covering one another. Placement regression checks also
+verify button visibility, clearance from resize hit areas and independent clicks.
+
+Equivalent exposed edges (same plot boundary and span) retain only the enclosing
+group's button: the top of a vertical stack has one outer add control. Distinct
+panel and whole-row spans remain separate. Controls appear only within 48 px of
+their individual location, with only the closest one shown. Leaving the view
+hides them; keyboard focus still reveals a control. Invisible controls cannot
+intercept pointer events, and hovering a resize handle takes priority.

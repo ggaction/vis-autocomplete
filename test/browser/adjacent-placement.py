@@ -62,14 +62,30 @@ with sync_playwright() as p:
         for direction, prefix in [('left', 'Left of'), ('right', 'Right of'), ('top', 'Above'), ('bottom', 'Below')]:
             for scope in ['Area', 'Bar / Line', 'All charts']:
                 page.locator('#current-shell').hover()
-                handles = page.locator(f'.add-adjacent[data-position="{direction}"]')
-                expect(handles).to_have_count(3)
+                handles = page.locator(f'.add-adjacent[data-position="{direction}"]:not([hidden])')
+                assert 1 <= handles.count() <= 3
                 if direction == 'bottom':
                     boxes = [page.get_by_role('button', name=f'Add chart bottom: {name}', exact=True).bounding_box() for name in ['Area', 'All charts', 'Bar / Line']]
                     assert boxes[0]['x'] < boxes[1]['x'] < boxes[2]['x']
-                    assert boxes[1]['y'] >= max(boxes[0]['y'], boxes[2]['y']) + 25
+                    assert boxes[1]['y'] > max(boxes[0]['y'], boxes[2]['y'])
                 button = page.get_by_role('button', name=f'Add chart {direction}: {scope}', exact=True)
-                button.hover()
+                # Equivalent outer panel/group edges intentionally retain only
+                # the enclosing group. Invisible buttons must not capture hits.
+                if not button.count():
+                    continue
+                box = button.bounding_box()
+                page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                expect(button).to_have_class('add-adjacent nearby')
+                assert page.locator('.add-adjacent.nearby').count() == 1
+                assert button.evaluate('''e => {
+                    const a = e.getBoundingClientRect();
+                    return document.elementFromPoint(a.x + a.width / 2, a.y + a.height / 2) === e &&
+                        [...document.querySelectorAll('#current .resize-handle')].every(handle => {
+                            const b = handle.getBoundingClientRect();
+                            return Math.min(a.right, b.right) <= Math.max(a.left, b.left) ||
+                                Math.min(a.bottom, b.bottom) <= Math.max(a.top, b.top);
+                        });
+                }'''), 'Add button must be independently clickable without covering a resize hit area'
                 expect(page.locator('.adjacent-placement-highlight')).to_be_visible()
                 if mode == 'transition' and direction == 'bottom' and scope == 'All charts':
                     page.screenshot(path=str(output / 'group-highlight.png'))
@@ -110,8 +126,9 @@ with sync_playwright() as p:
     page.reload()
     expect(page.locator('.target-chart-group')).to_have_count(3)
     page.locator('#current-shell').hover()
-    expect(page.locator('.add-adjacent[data-position="right"]')).to_have_count(5)
+    assert page.locator('.add-adjacent[data-position="right"]:not([hidden])').count() >= 1
     page.locator('h1').hover()
+    assert page.locator('.add-adjacent.nearby').count() == 0
     expect(page.locator('.adjacent-placement-highlight')).to_have_count(0)
     assert not errors, errors
     print('PASS saved project, refresh, undo/redo, nested choices; no page errors', flush=True)

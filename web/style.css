@@ -440,7 +440,8 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .current-shell { position: relative; min-height: 0; flex: 1; display: flex; }
 .current-shell > .chart-view { flex: 1; min-width: 0; width: 100%; }
 .add-adjacent { position: absolute; z-index: 14; width: 26px; height: 26px; padding: 0; font-size: 22px; line-height: 24px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; opacity: 0; transition: opacity 120ms; cursor: pointer; }
-.current-shell:hover > .add-adjacent, .add-adjacent:focus-visible { opacity: 1; }
+.add-adjacent { pointer-events: none; }
+.add-adjacent.nearby, .add-adjacent:focus-visible { opacity: 1; pointer-events: auto; }
 .adjacent-placement-highlight { position: absolute; z-index: 13; pointer-events: none; outline: 2px solid #287cbd; background: #287cbd0c; border-radius: 2px; }
 .add-adjacent:hover, .add-adjacent:focus-visible, .add-adjacent[aria-pressed="true"] { color: #086bb9; border-color: #5991c7; background: #edf5ff; }
 .editing-target, .adjacent-controls, .adjacent-controls label { display: flex; align-items: center; gap: 6px; }

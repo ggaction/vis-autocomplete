@@ -11,12 +11,55 @@ import { createInitialChartRecommender } from '../src/initial-recommender.js';
 import { prepareGuidedAction } from '../src/prepare.js';
 import { chartAtPath, editableChartTargets } from '../src/composition-context.js';
 import { compositionPlotBounds } from '../vendor/ggaction/src/materialization/composition.js';
+import { canvasGeometry, fitCanvasViewport } from '../src/canvas-geometry.js';
 
 const engine = createInitialChartRecommender(JSON.parse(readFileSync(new URL('../data/initial-model.json', import.meta.url))));
 const rows = Array.from({ length: 12 }, (_, i) => ({ x: i % 3 + 1, y: i + 2, g: i % 2 ? 'A' : 'B' }));
 const unit = () => chart().createCanvas({ plot: { width: 220, height: 220 }, margin: 90 })
   .createData({ id: 'data', values: rows }).createBarPlot({ id: 'bar', x: 'x', y: 'y', color: 'g' });
 const pair = () => unit().createAdjacentPlot({ id: 'line', source: 'bar', position: 'right' });
+
+test('equivalent outer insertion edges have one button, while distinct spans remain available', () => {
+  for (const position of ['bottom', 'right']) {
+    const program = unit().createAdjacentPlot({ id: 'line', source: 'bar', position });
+    const geometry = canvasGeometry(program), bounds = adjacentPlacementBounds(program);
+    const handles = adjacentHandlePositions(adjacentPlacements(program), bounds, fitCanvasViewport(geometry, 700, 500), { width: 700, height: 500 });
+    for (const edge of position === 'bottom' ? ['top', 'bottom'] : ['left', 'right']) {
+      const outer = handles.filter(h => h.position === edge && h.choice.childPath.length === 0);
+      assert.equal(outer.length, 1);
+      const root = bounds.get('[]'), horizontal = ['left', 'right'].includes(edge), before = ['top', 'left'].includes(edge);
+      const coordinate = box => horizontal ? box.x + (before ? 0 : box.width) : box.y + (before ? 0 : box.height);
+      assert.equal(handles.filter(h => h.position === edge && Math.abs(coordinate(bounds.get(JSON.stringify(h.choice.childPath))) - coordinate(root)) < .01).length, 1);
+    }
+    const broadEdge = position === 'bottom' ? 'right' : 'bottom';
+    assert.equal(handles.filter(h => h.position === broadEdge).length, 3, 'two panels plus their wider/taller enclosing group');
+    assert.equal(geometry.controlInset, 44, 'control space never grows with nesting');
+  }
+});
+
+test('fitted add controls clear canvas resize edges, including shared guides and nested groups', () => {
+  const nested = pair().createAdjacentPlot({ id: 'third', source: { childPath: ['bar'], id: 'bar' }, position: 'bottom' });
+  for (const program of [unit(), pair(), nested, unit().facet({ field: 'g', columns: 2 })]) {
+    const geometry = canvasGeometry(program), bounds = adjacentPlacementBounds(program);
+    for (const [width, height] of [[510, 245], [510, 640], [600, 340], [900, 700]]) {
+      const view = fitCanvasViewport(geometry, width, height);
+      const handles = adjacentHandlePositions(adjacentPlacements(program), bounds, view, { width, height });
+      const right = view.left + geometry.width * view.scale, bottom = view.top + geometry.height * view.scale;
+      for (const h of handles) {
+        assert.ok(h.x >= 13 && h.x <= width - 13 && h.y >= 13 && h.y <= height - 13, 'button remains visible');
+        // Canvas resize hit strips extend 6px outside the line. Keep at least
+        // another 5px between the strips and a button's 13px half-width.
+        if (h.y > view.top - 13 && h.y < bottom + 13) assert.ok(Math.abs(h.x - right) >= 24, `${h.position} clears right handle`);
+        if (h.x > view.left - 13 && h.x < right + 13) assert.ok(Math.abs(h.y - bottom) >= 24, `${h.position} clears bottom handle`);
+      }
+      for (let i = 0; i < handles.length; i++) for (let j = i + 1; j < handles.length; j++) {
+        assert.ok(Math.hypot(handles[i].x - handles[j].x, handles[i].y - handles[j].y) >= 16, JSON.stringify({ width, height, first: handles[i], second: handles[j] }));
+      }
+      assert.equal(view.left + geometry.width * view.scale / 2, width / 2);
+      assert.equal(view.top + geometry.height * view.scale / 2, height / 2);
+    }
+  }
+});
 
 test('spatial handles distinguish left, whole-row and right placement, including tight viewports', () => {
   const program = pair(), placements = adjacentPlacements(program), bounds = adjacentPlacementBounds(program);
@@ -25,9 +68,9 @@ test('spatial handles distinguish left, whole-row and right placement, including
     const bottom = handles.filter(h => h.position === 'bottom');
     assert.equal(bottom.length, 3);
     assert.ok(bottom[0].x < bottom[2].x && bottom[2].x < bottom[1].x);
-    assert.ok(bottom[2].y >= Math.max(bottom[0].y, bottom[1].y) + 29);
+    assert.ok(bottom[2].y >= Math.max(bottom[0].y, bottom[1].y) + 3);
     const top = handles.filter(h => h.position === 'top');
-    assert.ok(top[2].y <= Math.min(top[0].y, top[1].y) - 29);
+    assert.ok(top[2].y <= Math.min(top[0].y, top[1].y) - 3);
     assert.ok(handles.every(h => h.x >= 13 && h.y >= 13 && h.x <= 900 * scale - 13 && h.y <= 400 * scale - 13));
   }
 });

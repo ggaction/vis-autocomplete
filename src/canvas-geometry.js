@@ -32,6 +32,7 @@ export function canvasGeometry(program) {
     height: Math.max(...panels.map(p => p.y + p.height)) - Math.min(...panels.map(p => p.y)),
   } : null;
   const geometry = {
+    controlInset: 44,
     content: resolveConcreteGraphicBounds(program.graphicSpec, 'canvas', program.materializationConfigs.textMetrics),
     spacing: composition?.spacing,
     width: canvas.width, height: canvas.height,
@@ -103,8 +104,9 @@ function resizePair(start, margin, padding, first, second, delta, length) {
 // Always refit, even when shrinking: native dimensions and exported code remain
 // independent of the uniform display scale. Reserve space for resize handles.
 export function fitCanvasViewport(geometry, width, height) {
-  const scale = Math.min(Math.max(0, width - 24) / geometry.width, Math.max(0, height - 24) / geometry.height);
-  return { scale, left: (width - geometry.width * scale) / 2, top: (height - geometry.height * scale) / 2 };
+  const inset = geometry.controlInset ?? 12;
+  const scale = Math.min(Math.max(0, width - inset * 2) / geometry.width, Math.max(0, height - inset * 2) / geometry.height);
+  return { scale, left: (width - geometry.width * scale) / 2, top: (height - geometry.height * scale) / 2, inset };
 }
 
 // Every gesture is relative to its original state, never to its last preview.

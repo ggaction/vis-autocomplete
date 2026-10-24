@@ -30,6 +30,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     const current=getBaseline();if(!current)return false;
     if(!player){
       surface=document.createElement('div');surface.className='transition-surface';host.append(surface);
+      surface.style.padding = 'var(--control-inset, 12px)';
       player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,render:renderTransitionScene});
       player.set(createTransitionScene(current,{format:'canvas'}));
     }else if(!surface.isConnected)host.append(surface);

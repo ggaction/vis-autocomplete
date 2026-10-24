@@ -60,9 +60,9 @@ const state = { initialEngine: null, rows: [], name: '', program: null, base: nu
 const compositionControls = initializeCompositionControls({
   select: $('editing-target'), overlayButton: $('add-overlay'), host: $('current-shell'), adjacentHost: $('adjacent-controls'), read: () => state,
   onTarget: context => { if (state.committing || state.resizing) return; state.context = focus(state.program, context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
-  onAdd: position => {
+  onAdd: (position, placementPath, source) => {
     if (state.committing || state.resizing) return;
-    try { state.adding = adjacentContext(state.program, state.context, position, datasets.get(state.datasetId)?.imported.fieldTypes); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); }
+    try { state.adding = adjacentContext(state.program, state.context, position, datasets.get(state.datasetId)?.imported.fieldTypes, placementPath, source); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); }
     catch (error) { notice(error.message, true); }
   },
   onOverlay: () => { if (state.committing || state.resizing) return; state.adding = overlayContext(state.program, state.context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
@@ -380,6 +380,9 @@ async function restoreHistory(direction) {
   elements.current.dataset.lastMethod = state.calls.at(-1)?.method ?? '';
   elements['current-note'].textContent = currentNote;
   elements['current-note'].title = currentNote;
+  // Persist the chosen history position immediately. Recommendation preparation
+  // can be slow for compositions and must not delay saving an Undo/Redo.
+  scheduleSave();
   try {
     if (state.phase === 'initial') mountDataTable();
     else {
@@ -395,7 +398,7 @@ async function restoreHistory(direction) {
     state.committing = false;
     // Transition mode suppresses hover updates during restoration. Rebuild the
     // committed code after that guard is released, even if the pointer is idle.
-    showCode(); updateHistoryButtons(); updateGalleryNavigation(); scheduleSave();
+    showCode(); updateHistoryButtons(); updateGalleryNavigation();
   }
 }
 

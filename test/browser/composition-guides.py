@@ -51,6 +51,7 @@ with sync_playwright() as p:
  page.locator('#view-mode [data-mode="transition"]').click()
  page.locator('#workspace-layout [data-layout="vertical"]').click()
  page.locator('#current-shell').hover();page.get_by_role('button',name='Add chart right',exact=True).click()
+ page.get_by_role('dialog',name='Add chart right: placement').get_by_role('button',name='Right of Bar',exact=True).click()
  page.locator('#adjacent-controls').wait_for();page.wait_for_timeout(1500)
  for width in [1700,1350]:
   page.set_viewport_size({'width':width,'height':1080});page.wait_for_timeout(500)

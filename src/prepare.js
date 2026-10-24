@@ -100,7 +100,13 @@ function prepareScopedAction(program, action, view, setupCalls) {
       allowUnchanged: targets.length > 1 || action.allowUnchanged };
     const localSetup = setupCalls.map(setup => {
       const { target: _target, ...args } = setup.args;
-      return { ...setup, args };
+      const selectors = nativeActionTargets(setup);
+      if (!selectors) return setup;
+      const relative = selectors.map(selector => {
+        if (!target.childPath.every((id, index) => selector.childPath[index] === id)) throw new Error('Plot setup must belong to the receiving view.');
+        return { ...selector, childPath: selector.childPath.slice(target.childPath.length) };
+      });
+      return { ...setup, args: { ...args, target: relative.length === 1 ? relative[0] : relative } };
     });
     const prepared = prepareGuidedAction(local, call, displayed, localSetup);
     // Local fitting may revise constructor guide options. Replay that fitted

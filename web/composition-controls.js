@@ -4,6 +4,7 @@ import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
 import { initialPositionBindings } from '../src/initial-scales.js';
 import { overlayCandidates } from '../src/overlay-candidates.js';
+import { adjacentPlacements, adjacentPlacementBounds, placementLabel } from '../src/adjacent-placement.js';
 import { initialParameters, recommendationParameters } from './parameters.js';
 
 const fieldName = value => typeof value === 'string' ? value : value?.field;
@@ -16,9 +17,13 @@ function write(object, path, value) {
 const sharedChannels = adding => [...new Set([...(adding.share === 'none' ? [] : [adding.share]),
   ...(adding.inheritedSharing ?? []).flatMap(policy => policy.channels)])];
 
-export function adjacentContext(program, context, position, fieldTypes) {
-  const targets = editableChartTargets(program).filter(t => !t.overlay);
-  const target = targets.find(t => targetKey(t) === targetKey({ childPath: context.childPath ?? [], id: context.target })) ?? targets[0];
+export function adjacentContext(program, context, position, fieldTypes, placementPath, source) {
+  const placement = placementPath && adjacentPlacements(program).find(choice => JSON.stringify(choice.childPath) === JSON.stringify(placementPath));
+  if (placementPath && !placement) throw new Error('The selected placement no longer exists.');
+  const targets = placement?.sources ?? editableChartTargets(program).filter(t => !t.overlay);
+  const selected = source ?? { childPath: context.childPath ?? [], id: context.target };
+  const target = targets.find(t => targetKey(t) === targetKey(selected)) ??
+    targets.find(t => JSON.stringify(t.childPath) === JSON.stringify(selected.childPath)) ?? targets[0];
   if (!target) throw new Error('Choose a source chart first.');
   const local = chartAtPath(program, target.childPath), layer = local.semanticSpec.layers.find(l => l.id === target.id);
   const data = chartOwner(local, layer)?.source ?? layer.data;
@@ -36,13 +41,17 @@ export function adjacentContext(program, context, position, fieldTypes) {
     scales.color.palette = scales.color.range.palette;
     delete scales.color.range;
   }
-  return { ...target, position, rows, profile, selection: { x: field('x'), y: field('y'), color: field('color') },
+  const receivingPath = placement?.childPath ?? target.childPath;
+  return { ...target, receivingPath, placementLabel: placement?.label ?? target.label,
+    sources: placement?.sources ?? [target], grouped: placement?.grouped ?? false,
+    position, rows, profile, selection: { x: field('x'), y: field('y'), color: field('color') },
     sourceSelection: { x: field('x'), y: field('y'), color: field('color') }, scales,
-    inheritedSharing: inheritedCompositionShares(program, target.childPath),
+    inheritedSharing: inheritedCompositionShares(program, receivingPath),
     aggregation: layer.encoding.y?.aggregate, bins: layer.encoding.x?.bin?.maxBins,
     share: ['left', 'right'].includes(position) ? 'y' : 'x' };
 }
 export function adjacentSpecs(engine, adding, root) {
+  const receivingPath = adding.receivingPath ?? adding.childPath;
   const allIds = new Set(editableChartTargets(root).flatMap(t => [...t.childPath, t.id]));
   let id = 'chart2';
   for (let n = 3; allIds.has(id); n++) id = `chart${n}`;
@@ -78,7 +87,7 @@ export function adjacentSpecs(engine, adding, root) {
     return { ...editor, method: 'createAdjacentPlot', chartChoice: true,
       ...(mismatch ? { requirement: `Shared ${mismatch.toUpperCase()} requires ${adding.sourceSelection[mismatch]}. Change the selected field or release sharing.` }
         : unavailable ? { requirement: `This chart does not expose a compatible ${unavailable.toUpperCase()} axis for sharing. Choose another chart or release sharing.` } : {}),
-      title: `Add ${editor.title}`, original: { nextContext: { childPath: [...adding.childPath, id], target: id } },
+      title: `Add ${editor.title}`, original: { nextContext: { childPath: [...receivingPath, id], target: id } },
       build: values => {
         const { id: _id, ...options } = editor.build(values);
         const bindings = initialPositionBindings(spec.method, options, fields);
@@ -93,10 +102,11 @@ export function adjacentSpecs(engine, adding, root) {
           fieldName(color) === adding.sourceSelection.color &&
           (color.scale?.palette ?? adding.scales.color?.palette) === adding.scales.color?.palette;
         if (shareColor && typeof color === 'object') color.scale = { ...adding.scales.color, ...color.scale };
-        return { id, source: adding.id, position: adding.position, plot: { action: spec.method, options },
+        return { id, source: adding.grouped ? { childPath: adding.childPath.slice(receivingPath.length), id: adding.id } : adding.id,
+          position: adding.position, plot: { action: spec.method, options },
           share: { ...(adding.share === 'none' ? {} : { [adding.share]: true }), ...(shareColor ? { color: true } : {}) }, align: 'plot',
           ...(['left', 'right'].includes(adding.position) ? { gap: 8 } : {}),
-          ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) };
+          ...(receivingPath.length ? { target: { childPath: receivingPath } } : {}) };
       },
       setup: values => (editor.setup?.(values) ?? []).map(call => ({ ...call, args: { ...call.args,
         ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) } })),
@@ -135,15 +145,61 @@ export function overlaySpecs(adding) {
 }
 
 export function initializeCompositionControls({ select, overlayButton, host, adjacentHost, read, onTarget, onAdd, onOverlay, onChange, onCancel }) {
+  let chooser, highlight, chooserProgram;
+  const closeChooser = () => { chooser?.remove(); highlight?.remove(); chooser = highlight = null; chooserProgram = null; };
+  function choosePlacement(position, anchor) {
+    closeChooser();
+    const state = read(), placements = adjacentPlacements(state.program);
+    if (placements.length === 1) { onAdd(position, placements[0].childPath); return; }
+    chooserProgram = state.program;
+    const bounds = adjacentPlacementBounds(state.view ?? state.program);
+    chooser = document.createElement('div'); chooser.className = `adjacent-placement-chooser placement-${position}`;
+    chooser.setAttribute('role', 'dialog'); chooser.setAttribute('aria-label', `Add chart ${position}: placement`);
+    const heading = document.createElement('strong'); heading.textContent = 'Attach to'; chooser.append(heading);
+    const mark = choice => {
+      highlight?.remove();
+      const frame = bounds.get(JSON.stringify(choice.childPath));
+      const canvas = host.querySelector('.canvas-stage > canvas');
+      if (!frame || !canvas) return;
+      const rect = canvas.getBoundingClientRect(), shell = host.getBoundingClientRect();
+      const scale = rect.width / Number(canvas.dataset.logicalWidth);
+      if (!Number.isFinite(scale)) return;
+      highlight = document.createElement('div'); highlight.className = 'adjacent-placement-highlight';
+      Object.assign(highlight.style, { left: `${rect.left - shell.left + frame.x * scale}px`,
+        top: `${rect.top - shell.top + frame.y * scale}px`, width: `${frame.width * scale}px`, height: `${frame.height * scale}px` });
+      host.append(highlight);
+    };
+    for (const choice of placements) {
+      const button = document.createElement('button'); button.type = 'button';
+      button.textContent = placementLabel(position, choice.label); button.dataset.childPath = JSON.stringify(choice.childPath);
+      button.dataset.grouped = String(choice.grouped);
+      button.addEventListener('pointerenter', () => mark(choice));
+      button.addEventListener('focus', () => mark(choice));
+      button.addEventListener('click', () => { closeChooser(); onAdd(position, choice.childPath); });
+      chooser.append(button);
+    }
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => { closeChooser(); anchor.focus(); }); chooser.append(cancel);
+    host.append(chooser);
+    chooser.querySelector('button').focus({ preventScroll: true });
+  }
+  document.addEventListener('pointerdown', event => {
+    if (chooser && !chooser.contains(event.target) && !event.target.closest('.add-adjacent, .adjacent-placement-change')) closeChooser();
+  });
+  document.addEventListener('keydown', event => {
+    if (chooser && event.key === 'Escape') { closeChooser(); event.preventDefault(); }
+  });
+  window.addEventListener('resize', closeChooser);
   const buttons = ['left', 'right', 'top', 'bottom'].map(position => {
     const button = document.createElement('button'); button.type = 'button'; button.className = `add-adjacent add-adjacent-${position}`;
     button.textContent = '+'; button.setAttribute('aria-label', `Add chart ${position}`); button.title = `Add chart ${position}`;
-    button.addEventListener('click', () => onAdd(position)); host.append(button); return button;
+    button.addEventListener('click', () => choosePlacement(position, button)); host.append(button); return button;
   });
   overlayButton.addEventListener('click', onOverlay);
   return { refresh() {
     const { program, context, phase, committing, resizing, adding } = read();
     const ready = phase !== 'initial' && program, busy = committing || resizing;
+    if (!ready || busy || chooserProgram && chooserProgram !== program) closeChooser();
     select.parentElement.hidden = !ready;
     const groups = ready ? editableChartTargetGroups(program) : [];
     const current = context.scope === 'all' ? 'all' : JSON.stringify({ childPath: context.childPath ?? [], target: context.target });
@@ -182,7 +238,22 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
       const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy;
       cancel.addEventListener('click', onCancel); adjacentHost.append(heading, cancel); return;
     }
-    const heading = document.createElement('span'); heading.textContent = `Add chart ${adding.position}`; adjacentHost.append(heading);
+    const heading = document.createElement('span');
+    const placement = document.createElement('button'); placement.type = 'button'; placement.className = 'adjacent-placement-change';
+    placement.textContent = placementLabel(adding.position, adding.placementLabel ?? adding.label);
+    placement.title = 'Change chart placement'; placement.disabled = busy;
+    placement.addEventListener('click', () => choosePlacement(adding.position, placement));
+    heading.append(placement); adjacentHost.append(heading);
+    if (adding.sources?.length > 1) {
+      const label = document.createElement('label'); label.className = 'adjacent-source'; label.textContent = 'Data from';
+      const input = document.createElement('select'); input.setAttribute('aria-label', 'Adjacent data source'); input.disabled = busy;
+      for (const source of adding.sources) {
+        const option = document.createElement('option'); option.value = targetKey(source); option.textContent = source.label; input.append(option);
+      }
+      input.value = targetKey(adding);
+      input.addEventListener('change', () => onAdd(adding.position, adding.receivingPath, adding.sources.find(source => targetKey(source) === input.value)));
+      label.append(input); heading.append(label);
+    }
     for (const channel of ['x', 'y', 'color']) {
       const label = document.createElement('label');
       label.textContent = `${channel === 'color' ? 'Color' : channel.toUpperCase()}${sharedChannels(adding).includes(channel) ? ' (shared)' : ''}`;

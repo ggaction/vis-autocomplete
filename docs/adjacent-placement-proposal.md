@@ -1,6 +1,8 @@
 # Adjacent chart placement: panels and groups
 
-Status: proposed; public API approval pending. Existing behavior is unchanged.
+Status: implemented following the user's explicit approval on 2026-10-24 ("이 API 확장으로 진행할까? -> 이것도 ㅇㅇ").
+
+Library checkpoint: `d5b7f59df14a8519d9ad056443e939662b6f9b12` on `codex/overlay-composition-v025`; pushed and remote hash verified.
 
 ## User-facing behavior
 
@@ -30,7 +32,7 @@ These diagrams show containment, not exact canvas padding. Native plot alignment
 continues to reserve space for axes, titles, and legends. The new chart spans the
 chosen group's plot extent rather than stretching a rendered bitmap.
 
-## Proposed public API extension
+## Approved public API extension
 
 Keep `createAdjacentPlot` as the single public function for each recommendation.
 Keep all existing leaf calls compatible. Extend `source` from `string` to
@@ -83,7 +85,7 @@ program.createAdjacentPlot({
 For an inner group, pass its path as `target.childPath`, and a source path relative
 to that group. UI placement and data-source choices are separate and visible.
 
-## Implementation and verification checklist
+## Implementation and verification
 
 1. Native action: resolve explicit group/source ownership, reuse native concat and
    plot sizing, synchronize types, inspection metadata, contract, API docs, and
@@ -99,3 +101,26 @@ to that group. UI placement and data-source choices are separate and visible.
    each edge in both layouts/modes, including rapid hover and cancel.
 5. Push verified library changes first, then the app/submodule checkpoint; verify
    remote hashes. This proposal does not authorize an npm release.
+
+
+### Verified evidence
+
+- Native: 50 composition, inspection, and TypeScript checks passed; 28 API reference,
+  documentation coverage, and executable example checks passed. Generated descriptors,
+  action cards/catalogs, signatures, search, and machine references were checked.
+- App: 34 targeted composition/placement/target tests passed; 21 placement and composition
+  audit tests passed after the final source-selection adjustment; 19 project/history/draft
+  tests passed. These suites overlap.
+- `test/browser/adjacent-placement.py`: all 24 combinations of four edges, three
+  placement scopes, and Preview/Transition modes passed on the Stocks Area + Bar/Line
+  composition. Hover highlights and repeated card transitions were exercised.
+- Narrow vertical controls were visually checked at 1350 px, with no horizontal
+  overflow; explicit source changes and Escape/cancel cleanup passed.
+- Saved project reopening and Undo/Redo passed. Immediate refresh exposed a delayed
+  history-save path; persistence now starts before recommendation preparation. The
+  saved-project/refresh/Undo/Redo/nested-chooser checks passed after that correction.
+- Native fixtures also cover nested groups, explicit alternate sources, facet sources,
+  invalid sources, retained local titles, a single shared color guide, and replay.
+- Local browser evidence is under ignored `output/adjacent-placement/`; no exported
+  project/data files are committed. Existing transition APIs handle the new compositions;
+  no transition package change or npm publication was needed.

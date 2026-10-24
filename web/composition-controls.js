@@ -3,6 +3,7 @@ import { getDatasetSchema } from 'ggaction/inspection';
 import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
 import { initialPositionBindings } from '../src/initial-scales.js';
+import { axisValueMeaning, creationAxisMeanings, sameAxisMeaning } from '../src/axis-sharing.js';
 import { overlayCandidates } from '../src/overlay-candidates.js';
 import { adjacentPlacements, adjacentPlacementBounds, adjacentHandlePositions, placementLabel } from '../src/adjacent-placement.js';
 import { initialParameters, recommendationParameters } from './parameters.js';
@@ -16,6 +17,7 @@ function write(object, path, value) {
 }
 const sharedChannels = adding => [...new Set([...(adding.share === 'none' ? [] : [adding.share]),
   ...(adding.inheritedSharing ?? []).flatMap(policy => policy.channels)])];
+const inheritedChannels = adding => [...new Set((adding.inheritedSharing ?? []).flatMap(policy => policy.channels))];
 
 export function adjacentContext(program, context, position, fieldTypes, placementPath, source) {
   const placement = placementPath && adjacentPlacements(program).find(choice => JSON.stringify(choice.childPath) === JSON.stringify(placementPath));
@@ -42,12 +44,14 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
     delete scales.color.range;
   }
   const receivingPath = placement?.childPath ?? target.childPath;
+  const datasets = local.semanticSpec.datasets;
+  const axisMeanings = Object.fromEntries(['x', 'y'].map(axis => [axis, axisValueMeaning(layer.encoding[axis], layer.data, datasets)]));
   return { ...target, receivingPath, placementLabel: placement?.label ?? target.label,
     sources: placement?.sources ?? [target], grouped: placement?.grouped ?? false,
     position, rows, profile, selection: { x: field('x'), y: field('y'), color: field('color') },
-    sourceSelection: { x: field('x'), y: field('y'), color: field('color') }, scales,
+    sourceSelection: { x: field('x'), y: field('y'), color: field('color') }, scales, datasets, axisMeanings,
     inheritedSharing: inheritedCompositionShares(program, receivingPath),
-    aggregation: layer.encoding.y?.aggregate, bins: layer.encoding.x?.bin?.maxBins,
+    aggregation: axisMeanings.y?.operations.at(-1) ?? axisMeanings.x?.operations.at(-1), bins: layer.encoding.x?.bin?.maxBins,
     share: ['left', 'right'].includes(position) ? 'y' : 'x' };
 }
 export function adjacentSpecs(engine, adding, root) {
@@ -57,20 +61,26 @@ export function adjacentSpecs(engine, adding, root) {
   for (let n = 3; allIds.has(id); n++) id = `chart${n}`;
   const shared = sharedChannels(adding), fields = new Map(adding.profile.fields.map(field => [field.name, field]));
   return engine.recommend(adding.rows, adding.profile, { selection: adding.selection }).recommendations.map(spec => {
+    const compatibleChannels = values => {
+      const meanings = creationAxisMeanings(spec.method, spec.build(values), fields, adding.datasets, spec.setup?.(values));
+      return shared.filter(channel => !['x', 'y'].includes(channel) || sameAxisMeaning(adding.axisMeanings[channel], meanings[channel]));
+    };
+    const effectiveChannels = values => [...new Set([...compatibleChannels(values), ...inheritedChannels(adding)])];
     const inherited = { ...spec.values };
     for (const control of spec.controls) {
       if (/palette/i.test(control.key) && control.choices?.some(c => c.value === adding.scales.color?.palette)) inherited[control.key] = adding.scales.color.palette;
       if (/aggregate/i.test(control.key) && adding.aggregation && control.choices?.some(c => c.value === adding.aggregation)) inherited[control.key] = adding.aggregation;
       if (/bin/i.test(control.key) && control.type === 'number' && adding.bins) inherited[control.key] = adding.bins;
       const channel = ['x', 'y'].find(channel => control.key === `${channel}Scale`);
-      if (channel && shared.includes(channel) && adding.scales[channel]) inherited[control.key] = adding.scales[channel].type;
+      if (channel && effectiveChannels(inherited).includes(channel) && adding.scales[channel]) inherited[control.key] = adding.scales[channel].type;
     }
     const constrainControls = values => {
       const current = spec.resolveScaleControls?.(values) ?? [];
+      const sharing = effectiveChannels(values);
       return spec.controls.map(control => {
         const c = { ...control, ...(current.find(item => item.key === control.key) ?? {}) };
         const channel = ['x', 'y'].find(channel => c.key === `${channel}Scale`);
-        if (!channel || !shared.includes(channel) || !adding.scales[channel]) return c;
+        if (!channel || !sharing.includes(channel) || !adding.scales[channel]) return c;
         const type = adding.scales[channel].type;
         return { ...c, value: type, label: `${channel.toUpperCase()} scale · shared`,
           choices: c.choices.map(choice => ({ ...choice, ...(choice.value !== type ? { disabled: true,
@@ -80,18 +90,25 @@ export function adjacentSpecs(engine, adding, root) {
     const constrained = { ...spec, values: inherited, controls: constrainControls(inherited), resolveControls: constrainControls };
     const editor = initialParameters(constrained);
     const initialArgs = editor.build(inherited);
-    const mismatch = shared.find(channel => ['x','y'].includes(channel) && adding.sourceSelection[channel] &&
+    const required = inheritedChannels(adding);
+    const mismatch = required.find(channel => ['x','y'].includes(channel) && adding.sourceSelection[channel] &&
       adding.selection[channel] !== adding.sourceSelection[channel]);
-    const unavailable = shared.find(channel => ['x','y'].includes(channel) && initialArgs[channel] === undefined &&
+    const unavailable = required.find(channel => ['x','y'].includes(channel) && initialArgs[channel] === undefined &&
       !initialPositionBindings(spec.method, initialArgs, fields).some(binding => binding.axis === channel));
+    const inheritedMismatch = required.find(channel => ['x', 'y'].includes(channel) && !compatibleChannels(inherited).includes(channel));
     return { ...editor, method: 'createAdjacentPlot', chartChoice: true,
       ...(mismatch ? { requirement: `Shared ${mismatch.toUpperCase()} requires ${adding.sourceSelection[mismatch]}. Change the selected field or release sharing.` }
-        : unavailable ? { requirement: `This chart does not expose a compatible ${unavailable.toUpperCase()} axis for sharing. Choose another chart or release sharing.` } : {}),
+        : unavailable ? { requirement: `This chart does not expose a compatible ${unavailable.toUpperCase()} axis for sharing. Choose another chart or release sharing.` }
+          : inheritedMismatch ? { requirement: `The parent group already shares ${inheritedMismatch.toUpperCase()}. Use the same aggregation or release that group's shared scale first.` } : {}),
       title: `Add ${editor.title}`, original: { nextContext: { childPath: [...receivingPath, id], target: id } },
       build: values => {
+        values = editor.normalizeValues(values);
         const { id: _id, ...options } = editor.build(values);
+        const compatible = compatibleChannels(values), sharing = effectiveChannels(values);
+        const inheritedMismatch = required.find(channel => ['x', 'y'].includes(channel) && !compatible.includes(channel));
+        if (inheritedMismatch) throw new Error(`The parent group already shares ${inheritedMismatch.toUpperCase()}. Use the same field and aggregation, or release that group's shared scale first.`);
         const bindings = initialPositionBindings(spec.method, options, fields);
-        for (const channel of shared) {
+        for (const channel of sharing) {
           if (!adding.scales[channel]) continue;
           const paths = options[channel] !== undefined ? [`${channel}.scale`]
             : bindings.find(binding => binding.axis === channel)?.paths ?? [];
@@ -104,7 +121,7 @@ export function adjacentSpecs(engine, adding, root) {
         if (shareColor && typeof color === 'object') color.scale = { ...adding.scales.color, ...color.scale };
         return { id, source: adding.grouped ? { childPath: adding.childPath.slice(receivingPath.length), id: adding.id } : adding.id,
           position: adding.position, plot: { action: spec.method, options },
-          share: { ...(adding.share === 'none' ? {} : { [adding.share]: true }), ...(shareColor ? { color: true } : {}) }, align: 'plot',
+          share: { ...(adding.share === 'none' || !compatible.includes(adding.share) ? {} : { [adding.share]: true }), ...(shareColor ? { color: true } : {}) }, align: 'plot',
           ...(['left', 'right'].includes(adding.position) ? { gap: 8 } : {}),
           ...(receivingPath.length ? { target: { childPath: receivingPath } } : {}) };
       },
@@ -286,12 +303,12 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     }
     for (const channel of ['x', 'y', 'color']) {
       const label = document.createElement('label');
-      label.textContent = `${channel === 'color' ? 'Color' : channel.toUpperCase()}${sharedChannels(adding).includes(channel) ? ' (shared)' : ''}`;
+      label.textContent = `${channel === 'color' ? 'Color' : channel.toUpperCase()}${inheritedChannels(adding).includes(channel) ? ' (shared)' : ''}`;
       const input = document.createElement('select'); input.setAttribute('aria-label', `Adjacent ${channel}`);
       const values = [...(channel === 'color' ? [''] : []), ...adding.profile.fields.filter(f => f.usable).map(f => f.name)];
       for (const field of values) {
         const option = document.createElement('option'); option.value = field; option.textContent = field || 'None';
-        option.disabled = sharedChannels(adding).includes(channel) && Boolean(adding.sourceSelection?.[channel]) && field !== adding.sourceSelection[channel];
+        option.disabled = inheritedChannels(adding).includes(channel) && Boolean(adding.sourceSelection?.[channel]) && field !== adding.sourceSelection[channel];
         if (option.disabled) option.title = `Shared ${channel.toUpperCase()} retains the source field; release its sharing policy to change it.`;
         input.append(option);
       }

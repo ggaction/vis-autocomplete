@@ -90,7 +90,7 @@ test('placement enumerates real panels and groups in visual order, without dupli
 for (const position of ['left', 'right', 'top', 'bottom']) {
   for (const receivingPath of [['bar'], ['line'], []]) test(`${position} insertion at ${JSON.stringify(receivingPath)} prepares, replays and produces valid Canvas scenes`, () => {
     const p = pair(), adding = adjacentContext(p, { target: 'line', childPath: ['line'] }, position, undefined, receivingPath);
-    const spec = adjacentSpecs(engine, adding, p).find(spec => spec.build(spec.values).plot.action === 'createLinePlot');
+    const spec = adjacentSpecs(engine, adding, p).find(spec => /^Add Scatter/i.test(spec.title));
     assert.ok(spec);
     const args = spec.build(spec.values), action = { method: spec.method, args };
     assert.deepEqual(args.target?.childPath ?? [], receivingPath);
@@ -124,7 +124,7 @@ test('nested group setup retains its source path and a different explicit source
   assert.deepEqual(adding.childPath, ['line', 'third']);
   adding = adjacentContext(p, context, 'right', undefined, ['line'], { childPath: ['line', 'line'], id: 'line' });
   assert.deepEqual(adding.childPath, ['line', 'line']);
-  const spec = adjacentSpecs(engine, adding, p).find(spec => spec.build(spec.values).plot.action === 'createLinePlot');
+  const spec = adjacentSpecs(engine, adding, p).find(spec => /^Add Scatter/i.test(spec.title));
   const args = spec.build(spec.values);
   assert.deepEqual(args.source, { childPath: ['line'], id: 'line' });
   // A real dataset prerequisite belongs to the source child, not the receiving concat.

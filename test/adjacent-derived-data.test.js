@@ -17,7 +17,7 @@ test('third and fourth charts can use summarized child data with original import
  for(let count=3;count<=4;count++) {
   const adding=adjacentContext(p,context,'right',{x:'nominal',y:'quantitative',name:'nominal'});
   assert.deepEqual(adding.profile.fields.map(f=>f.name).sort(),['x','y']);
-  const spec=adjacentSpecs(engine,adding,p).find(s=>s.build(s.values).plot.action==='createLinePlot');assert.ok(spec);
+  const spec=adjacentSpecs(engine,adding,p).find(s => /^Add Line plot$/i.test(s.title));assert.ok(spec);
   p=prepareGuidedAction(p,{method:spec.method,args:spec.build(spec.values)},p,spec.setup?.(spec.values)??[]).authoringPreview;
   context=spec.original.nextContext;assert.equal(editableChartTargets(p).length,count);
  }
@@ -28,7 +28,7 @@ test('matching inherited color palettes share one native legend, explicit palett
   .createData({id:'d',values:[{x:'a',y:2,g:'one'},{x:'b',y:3,g:'one'},{x:'a',y:4,g:'two'},{x:'b',y:5,g:'two'}]})
   .createBarPlot({id:'plot',data:'d',x:'x',y:'y',color:'g',guides:false}).editColorScale({target:'plot',palette:'set1'});
  const adding=adjacentContext(p,{target:'plot'},'right');
- const spec=adjacentSpecs(engine,adding,p).find(s=>s.build(s.values).plot.action==='createLinePlot');
+ const spec=adjacentSpecs(engine,adding,p).find(s => /^Add Line plot$/i.test(s.title));
  assert.equal(spec.values.palette,'set1');
  const args=spec.build(spec.values);assert.equal(args.share.color,true);
  const result=prepareGuidedAction(p,{method:spec.method,args},p,spec.setup?.(spec.values)??[]).preview;

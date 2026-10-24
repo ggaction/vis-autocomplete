@@ -93,7 +93,9 @@ with sync_playwright() as p:
                 expect(page.get_by_role('dialog')).to_have_count(0)
                 controls = page.locator('#adjacent-controls')
                 shared = 'Y' if direction in ['left', 'right'] else 'X'
-                expect(controls.locator('label').filter(has_text=f'{shared} (shared)')).to_have_count(1)
+                # Local sharing depends on the candidate's aggregation; only an
+                # inherited ancestor policy labels the field picker as shared.
+                expect(controls.get_by_role('combobox', name=f'Adjacent {shared.lower()}', exact=True)).to_be_visible()
                 assert controls.get_by_role('combobox', name='Adjacent share', exact=True).count() == 0
                 if scope == 'All charts':
                     source = controls.get_by_role('combobox', name='Adjacent data source')

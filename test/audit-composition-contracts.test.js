@@ -40,7 +40,7 @@ test('shared adjacent scales inherit mapping and make incompatible choices expli
  for(const scale of ['sqrt','symlog']) {
   const p=bars(scale).editYScale({target:'plot',reverse:true,domain:[0,50]});
   const adding=adjacentContext(p,{target:'plot'},'right');
-  const rec=adjacentSpecs(initial,adding,p).find(r=>r.build(r.values).plot.action==='createLinePlot');assert.ok(rec);
+  const rec=adjacentSpecs(initial,adding,p).find(r => /^Add Line plot$/i.test(r.title));assert.ok(rec);
   assert.equal(rec.values.yScale,scale);
   const control=activeControls(rec.resolveControls(rec.values),rec.values).find(c=>c.key==='yScale');
   assert.ok(control.choices.find(c=>c.value==='linear').disabled);assert.match(control.choices.find(c=>c.value==='linear').reason,/Shared Y/);

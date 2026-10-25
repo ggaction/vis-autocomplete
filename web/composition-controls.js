@@ -1,6 +1,6 @@
 import { selectionFields } from '../src/field-selection.js';
 import { getPlotDefinitions, defaultValues } from '../src/plot-catalog.js';
-import { editableChartTargetGroups, editableChartTargets, chartViews, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
+import { editableChartTargetGroups, editableChartTargets, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
 import { getDatasetSchema, getPlotComposition, describeAction } from 'ggaction/inspection';
 import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
@@ -10,6 +10,7 @@ import { overlayCandidates } from '../src/overlay-candidates.js';
 import { adjacentPlacements, adjacentPlacementBounds, adjacentHandlePositions, placementLabel } from '../src/adjacent-placement.js';
 import { initialParameters, recommendationParameters } from './parameters.js';
 import { instantiatePlotData } from '../src/plot-setup.js';
+import { adjacentColorContext } from '../src/adjacent-color.js';
 
 const fieldName = value => typeof value === 'string' ? value : value?.field;
 const at = (object, path) => path.split('.').reduce((node, key) => node?.[key], object);
@@ -21,28 +22,6 @@ function write(object, path, value) {
 const sharedChannels = adding => [...new Set([...(adding.share === 'none' ? [] : [adding.share]),
   ...(adding.inheritedSharing ?? []).flatMap(policy => policy.channels)])];
 const inheritedChannels = adding => [...new Set((adding.inheritedSharing ?? []).flatMap(policy => policy.channels))];
-
-// A placement can contain several independent color measures (for example a
-// point classification above a density heatmap). Auto sharing describes the
-// complete receiving view, not just the currently selected mark.
-function uniformPlacementColor(program, selectedRole, selectedScale) {
-  if (!selectedRole?.scale || !selectedScale) return false;
-  const meaning = role => JSON.stringify([role.field ?? null, role.fields ?? null, role.fieldType,
-    role.measurement.unit === 'sum' ? 'value' : role.measurement.unit, role.temporalUnit ?? null]);
-  const definition = scale => JSON.stringify(Object.fromEntries(Object.entries(scale)
-    .filter(([key]) => !['id','domain','emptyDomain','nice','zero'].includes(key)).sort(([a],[b]) => a.localeCompare(b))));
-  const expectedMeaning = meaning(selectedRole), expectedDefinition = definition(selectedScale);
-  return chartViews(program).every(({ program: view }) => {
-    const roles = editableChartTargets(view).filter(target => !target.overlay)
-      .map(target => getPlotComposition(view, { target: target.id }).channels.color).filter(Boolean);
-    return roles.length > 0 && roles.every(role => {
-      const scale = view.semanticSpec.scales.find(scale => scale.id === role.scale);
-      return scale && meaning(role) === expectedMeaning && definition(scale) === expectedDefinition &&
-        (!Array.isArray(scale.domain) || !Array.isArray(selectedScale.domain) ||
-          JSON.stringify(scale.domain) === JSON.stringify(selectedScale.domain));
-    });
-  });
-}
 
 export function adjacentContext(program, context, position, fieldTypes, placementPath, source, previousSelection, inputData) {
   const placement = placementPath && adjacentPlacements(program).find(choice => JSON.stringify(choice.childPath) === JSON.stringify(placementPath));
@@ -63,14 +42,16 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
   const names = new Set(getDatasetSchema(local, { data }).schema.fields.map(field => field.name));
   const localTypes = Object.fromEntries(Object.entries(fieldTypes ?? {}).filter(([name]) => names.has(name)));
   const profile = profileDataset(local, data, localTypes);
-  const channelRoles={x:composition.channels.x??composition.channels.theta,y:composition.channels.y??composition.channels.radius,color:composition.channels.color};
+  const receivingPath = placement?.childPath ?? target.childPath;
+  const colorContext = adjacentColorContext(chartAtPath(program, receivingPath), local, composition.channels.color);
+  const channelRoles={x:composition.channels.x??composition.channels.theta,y:composition.channels.y??composition.channels.radius,color:colorContext.role};
   const field = channel => profile.fields.find(f => f.name === channelRoles[channel]?.field)?.name ??
     (channel === 'color' ? '' : composition.dimensions?.[channel==='x'?0:1]?.field ??
       composition.channels.theta?.fields?.[channel==='x'?0:1] ?? '');
   const selectedFields={x:field('x'),y:field('y'),color:field('color')};
   if(selectedFields.x===selectedFields.y) selectedFields.y=profile.fields.find(f=>f.usable&&f.name!==selectedFields.x&&f.type==='quantitative')?.name??'';
   const scales = Object.fromEntries(['x', 'y', 'color'].flatMap(channel => {
-    const scale = local.semanticSpec.scales.find(scale => scale.id === channelRoles[channel]?.scale);
+    const scale = channel === 'color' ? colorContext.scale : local.semanticSpec.scales.find(scale => scale.id === channelRoles[channel]?.scale);
     return scale ? [[channel, Object.fromEntries(Object.entries(scale).filter(([key]) => key !== 'id' &&
       (channel === 'color' || key !== 'range')))]] : [];
   }));
@@ -82,10 +63,8 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
       ? palette.name : palette;
     delete scales.color.range;
   }
-  const receivingPath = placement?.childPath ?? target.childPath;
   const datasets = local.semanticSpec.datasets;
-  const colorSharingCompatible = uniformPlacementColor(chartAtPath(program, receivingPath), channelRoles.color,
-    local.semanticSpec.scales.find(scale => scale.id === channelRoles.color?.scale));
+  const colorSharingCompatible = colorContext.compatible;
   const axisMeanings = Object.fromEntries(['x', 'y'].map(axis => [axis, composition.channels[axis]?.field ? {field:composition.channels[axis].field,operations:composition.channels[axis].measurement.operations} : null]));
   return { ...target, receivingPath, placementLabel: placement?.label ?? target.label,
     sources: placement?.sources ?? [target], grouped: placement?.grouped ?? false,
@@ -94,7 +73,8 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
       ...(composition.dimensions ?? []).map(d => d.field),
       ...(composition.channels.theta?.fields ?? [])
     ].filter(name => profile.fields.some(f => f.name === name && f.usable)))] },
-    sourceSelection: selectedFields, scales, datasets, colorSharingCompatible, colorOperations: channelRoles.color?.measurement.operations ?? [], faceted: Boolean(local.compositionSpec?.facet), axisMeanings,
+    sourceSelection: selectedFields, scales, datasets, colorSharingCompatible, colorFieldType: channelRoles.color?.fieldType,
+    colorOperations: channelRoles.color?.measurement.operations ?? [], faceted: Boolean(local.compositionSpec?.facet), axisMeanings,
     inheritedSharing: inheritedCompositionShares(program, receivingPath),
     aggregation: axisMeanings.y?.operations.at(-1) ?? axisMeanings.x?.operations.at(-1), bins: layer.encoding.x?.bin?.maxBins,
     share: ['left', 'right'].includes(position) ? 'y' : 'x' };
@@ -113,7 +93,10 @@ export function adjacentSpecs(engine, adding, root) {
     // Preserve the source arrangement as the starting proposal when the chart
     // supports it. These are card-level choices, not roles in field selection.
     for (const channel of ['x', 'y', 'color']) {
-      const key = `mapping_${channel}`, control = flat(editor.resolveControls(inherited)).find(c => c.key === key);
+      const controls = flat(editor.resolveControls(inherited));
+      const control = controls.find(c => c.key === `mapping_${channel}`) ??
+        (channel === 'color' && adding.sourceSelection.color ? controls.find(c => c.key === 'color') : undefined);
+      const key = control?.key;
       if (control?.choices.some(choice => choice.value === adding.sourceSelection[channel] && !choice.disabled)) {
         Object.assign(inherited, editor.normalizeValues({ ...inherited, [key]: adding.sourceSelection[channel], __previousMapping: inherited }, key));
       }
@@ -190,7 +173,10 @@ export function adjacentSpecs(engine, adding, root) {
           options.guides = { ...options.guides, legend: { channels: ['color'],
             ...options.guides?.legend } };
         }
-        if (shareColor && typeof color === 'object') color.scale = { ...adding.scales.color, ...color.scale };
+        if (shareColor && typeof color === 'object') {
+          color.fieldType = adding.colorFieldType;
+          color.scale = { ...adding.scales.color, ...color.scale };
+        }
         return { id, source: adding.grouped ? { childPath: adding.childPath.slice(receivingPath.length), id: adding.id } : adding.id,
           position: adding.position, plot: { action: spec.method, options, inherit: { color: false } },
           share: { ...Object.fromEntries(['x', 'y'].filter(channel => sharing.includes(channel)).map(channel => [channel, true])), ...(shareColor ? { color: true } : {}) }, align: 'plot',

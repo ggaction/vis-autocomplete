@@ -19,6 +19,12 @@ deployment are separate release operations.
   plots align using their actual frames. Edit shared scales can release sharing.
 - Adjacent data is an independent snapshot. A later source data edit updates its
   linked overlays, not the independently authored neighbor's data.
+- Automatic adjacent color sharing inspects every independent chart layer in the
+  receiving view. A fixed-gray beeswarm can therefore reuse its colored box
+  layer's variable, categorical type and palette in a new parallel-coordinate
+  chart, with one shared legend. Conflicting fields, palettes or explicit domains
+  stay independent, as does an explicit Independent choice. Existing authored
+  compositions are preserved; this changes the defaults for new additions.
 - Preview and Transition modes, interrupted Canvas transitions, code, history,
   Undo/Redo, saved projects and exports keep the same native action sequence.
 - Facets remain source-editable; generated facet cells are not independent targets.

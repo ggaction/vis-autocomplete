@@ -1,6 +1,6 @@
 {
   "name": "ggaction-autocomplete",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "private": true,
   "type": "module",
   "description": "Single-action visualization recommendations for ggaction, ranked by corpus co-occurrence.",

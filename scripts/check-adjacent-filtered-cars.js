@@ -64,6 +64,11 @@ export async function checkAdjacentFilteredCars(page) {
     await page.locator('#undo').click(); await expect(page.locator('#redo')).toBeEnabled();
     await page.locator('#redo').click();
     await expect(page.locator('#current')).toHaveAttribute('data-last-method', restoredMethod);
+    // Rendering the restored history entry precedes its asynchronous durable
+    // save. Reload the saved state, rather than racing an in-flight write.
+    await expect(page.locator('#reset')).toBeEnabled();
+    await expect(page.locator('#draft-status')).toHaveText('Draft saved on this device');
+    await expect(page.locator('#cloud-status')).toHaveText('Saved');
     await page.reload(); await page.locator('#current canvas').waitFor();
     await expect(page.locator('#current')).toHaveAttribute('data-last-method', restoredMethod);
     await expect(page.locator(`#view-mode [data-mode="${mode}"]`)).toHaveAttribute('aria-pressed', 'true');

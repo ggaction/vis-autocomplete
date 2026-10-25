@@ -150,11 +150,17 @@ export async function checkElementSelection(page) {
     assert.equal(all.entry.program.titleConfig.titleStyle.fontSize, 21);
     await page.screenshot({ path: `${output}/${mode}-all-legends.png` });
     await page.keyboard.press('Escape'); await expect(selected).toHaveCount(0);
-    // Dragging legend items still moves the whole legend, not its labels only.
+    // Item-body drags move symbols and labels independently from the title.
     const labels = hit('legend:color:items'), box = await labels.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2 + 12, { steps: 5 }); await page.mouse.up();
-    await ready(); assert.equal((await saved()).session.entries.length, all.session.entries.length + 1);
+    await ready();
+    const movedItems = await saved();
+    assert.equal(movedItems.session.entries.length, all.session.entries.length + 1);
+    const { itemsOffset: oldOffset, ...oldLegend } = all.entry.program.guideConfigs.legend.color;
+    const { itemsOffset: newOffset, ...newLegend } = movedItems.entry.program.guideConfigs.legend.color;
+    assert.deepEqual(newLegend, oldLegend, 'Moving items must preserve the whole-legend position and title');
+    assert.ok(newOffset.x > (oldOffset?.x ?? 0) && newOffset.y > (oldOffset?.y ?? 0));
     // The existing bottom-right resize handle remains reachable above item hits.
     await labels.hover();
     const handle = page.locator('.guide-control[data-guide-key="legend:color"] .guide-size');
@@ -197,7 +203,10 @@ export async function checkElementSelection(page) {
       const plot = compositionPlotBounds(view);
       assert.ok(target.bounds.left >= plot.x + plot.width, 'Independent size legend must start beside the final panel');
       assert.equal(target.childPath, undefined, 'Drag coordinates must address the parent');
-      const items = hit(`${target.key}:items`), box = await items.boundingBox();
+      const items = hit(`${target.key}:items`);
+      await items.click(); await scope('legend');
+      await expect(page.locator(`.guide-control[data-guide-key="${target.key}"]`)).toHaveClass(/selected/);
+      const box = await items.boundingBox();
       const stage = await page.locator('#current .canvas-stage').boundingBox();
       const scale = stage.width / view.graphicSpec.objects.canvas.properties.width;
       const dx = plot.x + plot.width / 2 - (target.bounds.left + target.bounds.right) / 2;

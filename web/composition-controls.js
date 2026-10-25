@@ -349,6 +349,15 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     const picker = adjacentHost.querySelector('.adjacent-field-picker[open]');
     if (picker && !picker.contains(event.target)) picker.open = false;
   });
+  document.addEventListener('keydown', event => {
+    const { adding, committing, resizing } = read();
+    if (event.key !== 'Escape' || event.isComposing || !adding || adding.kind === 'overlay' ||
+        committing || resizing || document.querySelector('dialog[open]')) return;
+    // Cancel the entire addition even when a variable/parameter menu has focus.
+    // Reuse Cancel so pending previews and recommendations are invalidated too.
+    event.preventDefault(); event.stopPropagation();
+    onCancel();
+  }, { capture: true });
   return { layout, refresh() {
     const { program, context, phase, committing, resizing, adding } = read();
     const ready = phase !== 'initial' && program, busy = committing || resizing;
@@ -442,6 +451,6 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     picker.addEventListener('keydown', event => { if (event.key === 'Escape') { picker.open = false; toggle.focus(); } });
     toggle.addEventListener('click', event => { if (busy) event.preventDefault(); });
     picker.append(toggle, menu); variables.append(picker); adjacentHost.append(variables);
-    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy; cancel.addEventListener('click', onCancel); adjacentHost.append(cancel);
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.title = 'Cancel (Esc)'; cancel.disabled = busy; cancel.addEventListener('click', onCancel); adjacentHost.append(cancel);
   } };
 }

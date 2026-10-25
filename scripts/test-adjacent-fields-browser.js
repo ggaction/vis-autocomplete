@@ -52,6 +52,15 @@ try {
       assert.equal(await page.locator('.adjacent-field-menu input').count(), 0);
       assert.equal(await page.locator('#current .dataset-table').count(), 0);
       await page.screenshot({ path: new URL(`${mode}-cars-area-picker.png`, output).pathname });
+      const historyCount = await page.locator('.history-item').count();
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('#adjacent-controls').isVisible(), false, 'Escape cancels even with the variable menu open');
+      assert.equal(await page.locator('.history-item').count(), historyCount);
+      await page.waitForFunction(() => document.querySelector('#cards .card-row[aria-busy="false"]'));
+      assert.equal(await page.locator('#cards .card[data-method="createAdjacentPlot"]').count(), 0);
+      await addRight(page);
+      assert.deepEqual(await chips(page), ['Displacement', 'Year', 'Origin']);
+      await page.getByLabel('Add variable', { exact: true }).click();
       await page.getByRole('button', { name: 'Add variable Horsepower', exact: true }).click();
       for (const field of ['Displacement', 'Year']) await page.getByRole('button', { name: `Remove variable ${field}`, exact: true }).click();
       await page.getByLabel('Add variable', { exact: true }).click();
@@ -109,8 +118,9 @@ try {
       await page.waitForFunction(() => document.querySelectorAll('#cards .card').length === 0);
       await page.getByLabel('Add variable', { exact: true }).click();
       await page.getByRole('button', { name: 'Add variable Petal.Width', exact: true }).click();
-      await findCard(page, /Histogram/i);
-      await page.locator('#adjacent-controls').getByRole('button', { name: 'Cancel', exact: true }).click();
+      const histogram = await findCard(page, /Histogram/i);
+      await histogram.locator('.apply-button').focus();
+      await page.keyboard.press('Escape');
       assert.equal(await page.locator('#adjacent-controls').isVisible(), false);
       await page.keyboard.press('Control+Shift+z');
       const lastMethod = record.session.entries.at(-1).calls.at(-1).method;

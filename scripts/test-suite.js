@@ -6,10 +6,10 @@ import { parse } from 'acorn';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const exhaustive = new Set(['action-availability.test.js', 'facet-action-availability.test.js',
   'recommendation-coverage.test.js', 'encoding-suppression-coverage.test.js']);
-const jobs = [];
+const discovered = [];
 for (const name of (await readdir(new URL('../test/', import.meta.url))).filter(name => name.endsWith('.test.js')).sort()) {
   const file = `test/${name}`;
-  if (!exhaustive.has(name)) { jobs.push({ file }); continue; }
+  if (!exhaustive.has(name)) { discovered.push({ file }); continue; }
   // These cases materialize every candidate, unlike the lazy UI. Give each
   // audit its own process so millions of temporary immutable chart objects and
   // their weak ownership tables are reclaimed between cases on every platform.
@@ -28,9 +28,17 @@ for (const name of (await readdir(new URL('../test/', import.meta.url))).filter(
   for (const { expression } of calls) {
     const name = expression.arguments[0]?.value;
     if (typeof name !== 'string') throw new Error(`Exhaustive cases need literal names: ${file}`);
-    jobs.push({ file, name });
+    discovered.push({ file, name });
   }
 }
+const shards = Number(process.env.TEST_SHARD_COUNT ?? 1), shard = Number(process.env.TEST_SHARD_INDEX ?? 0);
+const concurrency = Number(process.env.TEST_CONCURRENCY ?? 4);
+if (!Number.isInteger(shards) || shards < 1 || !Number.isInteger(shard) || shard < 0 || shard >= shards ||
+  !Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) throw new Error('Invalid test shard or concurrency configuration.');
+const jobs = discovered.filter((_, index) => index % shards === shard);
+if (!jobs.length) throw new Error('The test shard is empty.');
+if (process.argv.includes('--list')) { console.log(JSON.stringify(jobs)); process.exit(0); }
+console.log(`Test shard ${shard + 1}/${shards}: ${jobs.length}/${discovered.length} processes, concurrency ${concurrency}`);
 let cursor = 0, completed = 0, passed = 0, failed = 0;
 const run = job => new Promise(resolve => {
   const pattern = job.name?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -56,7 +64,7 @@ const run = job => new Promise(resolve => {
     resolve();
   });
 });
-await Promise.all(Array.from({ length: Math.min(4, jobs.length) }, async () => {
+await Promise.all(Array.from({ length: Math.min(concurrency, jobs.length) }, async () => {
   while (cursor < jobs.length) await run(jobs[cursor++]);
 }));
 console.log(`${passed} tests passed; ${failed} test processes failed.`);

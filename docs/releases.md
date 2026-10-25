@@ -28,6 +28,8 @@ Production release jobs are serialized. Push one release tag at a time and wait 
 
 `npm test` discovers every `test/*.test.js` file and runs four processes at a time with a 512 MB heap per process. The exhaustive recommendation audits additionally isolate each named test case; every case still runs, but millions of temporary immutable chart objects and their weak ownership tables are reclaimed between cases. Each process has a ten-minute failure timeout and reports its result immediately. Keep these bounds instead of invoking all files in one unbounded Node run. Production CI and Docker both use Node 22.23.4.
 
+CI partitions the same discovered processes into four disjoint shards, each with two concurrent processes. `TEST_SHARD_INDEX` is zero-based; `TEST_SHARD_COUNT` and `TEST_CONCURRENCY` are validated by the runner. Use `node scripts/test-suite.js --list` to inspect a partition. All four shards and the separate browser/container job must pass before the release job can run.
+
 Tags do **not** automatically apply database migrations or Blueprint configuration changes. Review and apply backward-compatible infrastructure/schema changes separately before releasing a version that needs them. This avoids granting deployment code database-owner access. Changes to runtime assets are included by the normal Docker build.
 
 Native favicon source: `web/icons/favicon.svg`. Regenerate the committed PNG fallbacks with `node scripts/build-icons.js`; these are required runtime assets, not audit output.

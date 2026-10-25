@@ -7,6 +7,28 @@ on:
 permissions:
   contents: read
 jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+        env:
+          TEST_SHARD_INDEX: ${{ matrix.shard }}
+          TEST_SHARD_COUNT: 4
+          TEST_CONCURRENCY: 2
   verify:
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +46,6 @@ jobs:
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
-      - run: npm test
       - run: npx playwright install --with-deps chromium
       - name: Browser checks
         run: |
@@ -49,7 +70,7 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:5185/api/export/png)" = 401
   release:
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: verify
+    needs: [verify, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 40
     concurrency:

@@ -554,9 +554,9 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .chart-panning .guide-editor, .chart-panning .canvas-resize-overlay { pointer-events: none; visibility: hidden; }
 .chart-viewport-clip:focus-visible { outline: 1px solid #7ca5d3; outline-offset: -1px; }
 
-/* Visibility switches share the existing parameter caption, not another row. */
-.control > .control-caption {display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.parameter-toggles {display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+/* Keep each visibility switch directly beside its owning heading. */
+.control > .control-caption {display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:nowrap}
+.parameter-toggles {display:inline-flex;align-items:center;gap:4px;flex:none}
 .parameter-toggle {min-width:30px;padding:2px 5px;font-size:10px;line-height:1.2;white-space:nowrap}
 .parameter-toggle[aria-checked="true"] {background:rgba(var(--group-rgb,48,95,153),.12);border-color:var(--group-accent,#305f99);color:var(--group-accent,#305f99)}
 .parameter-toggle[aria-checked="false"] {background:#f4f5f7;color:#737b87;border-color:#d7dce3}

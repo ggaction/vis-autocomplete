@@ -15,6 +15,15 @@ test('inline guide switches keep four groups and produce one native action with 
     const p=fixture(), e=editor(p,method), values=valuesFor(e.controls);
     assert.ok(e.controls.length<=4);assert.equal(values.guideVisible,true);
     assert.ok(activeControls(e.controls,values).some(c=>c.key==='guideVisible'));
+    // Visibility switches must be beside their scope, never on an unrelated slider.
+    const headings = list => list.flatMap(c => [c, ...(c.type==='group' ? headings(c.controls) : [])]);
+    const owners = headings(e.resolveControls(values));
+    for (const [key,label] of [['guideVisible',method==='editLegend'?'Legend':method==='editGrid'?'Grid':'Axes'],
+      ['labelsVisible','Labels'],['titlesVisible',method==='editLegend'?'Title':'Titles']]) {
+      if (!Object.hasOwn(values,key)) continue;
+      const owner = owners.filter(c=>c.toggles?.some(t=>t.key===key));
+      assert.equal(owner.length,1,key);assert.equal(owner[0].label,label,key);
+    }
     const call={method,args:e.build({...values,guideVisible:false})};
     const prepared=prepareGuidedAction(p,{...call,allowUnchanged:true});
     assert.equal(prepared.recommendation.validation.topLevelActions,1);

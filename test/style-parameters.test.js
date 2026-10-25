@@ -24,7 +24,7 @@ test('axis cards expose line width alongside labels and preserve category tick p
     for (const action of ['editAxes', 'editXAxis', 'editYAxis']) {
       const rec = list.find(c => c.method === action), editor = recommendationParameters(rec, profile);
       assert.equal(editor.controls.length, 4, action);
-      const control = editor.controls.find(c => c.label === 'Axis width');
+      const control = activeControls(editor.controls, valuesFor(editor.controls)).find(c => c.label === 'Axis width');
       assert.ok(control, action);
       const values = { ...valuesFor(editor.controls), [control.key]: 3 };
       const args = editor.build(values);
@@ -145,7 +145,7 @@ test('facet source wrappers retain expanded axis controls and one public action'
   const wrapper = { ...axes, method: 'editFacetSource', args: { action: { method: axes.method, options: axes.args } } };
   const editor = recommendationParameters(wrapper, profile);
   assert.equal(editor.controls.length, 4);
-  const width = editor.controls.find(c => c.label === 'Axis width');
+  const width = activeControls(editor.controls, valuesFor(editor.controls)).find(c => c.label === 'Axis width');
   const args = editor.build({ ...valuesFor(editor.controls), [width.key]: 2.5 });
   const faceted = source.facet({ field: 'Group', columns: 3 });
   const next = prepareGuidedAction(faceted, { method: wrapper.method, args }).authoringPreview;

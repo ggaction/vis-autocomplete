@@ -635,8 +635,8 @@ export function recommendationParameters(recommendation, profile) {
     build = clone;
   }
   // Keep argument construction flat; grouping only changes the visible editor.
-  // Inline visibility switches share the existing parameter rows. All builders
-  // still emit exactly one public action; presets and generic cards use this too.
+  // Visibility values stay flat for argument construction. The display grouping
+  // below moves each switch to the heading for the part it actually controls.
   const axisEditors = ['editAxes', 'editXAxis', 'editYAxis', 'editThetaAxis', 'editRadialAxis', 'editParallelAxis'];
   const toggle = (control, key, label, caption, value = true) => {
     if (!control) return;
@@ -699,6 +699,39 @@ export function recommendationParameters(recommendation, profile) {
       const position = grouped.findIndex(control => control.key === 'section-Position' || control.key === 'position' || control.path === 'position');
       if (position > 1) grouped.splice(1, 0, grouped.splice(position, 1)[0]);
     }
+    const allControls = list.flatMap(c => c.type === 'group' ? c.controls : [c]);
+    const switches = new Map(allControls.flatMap(c => c.toggles ?? []).map(toggle => [toggle.key, { ...toggle, caption: '' }]));
+    if (!switches.size) return grouped;
+    const without = (control, keys) => ({ ...control,
+      toggles: control.toggles?.filter(toggle => !keys.includes(toggle.key)),
+      ...(control.type === 'group' ? { controls: control.controls.map(child => without(child, keys)) } : {}),
+    });
+    const section = (key, label, children, toggleKey) => ({ key, label, type: 'group', controls: children,
+      ...(switches.has(toggleKey) ? { toggles: [switches.get(toggleKey)] } : {}),
+    });
+    if (axisEditors.includes(method)) {
+      const clean = allControls.map(c => without(c, ['guideVisible', 'labelsVisible', 'titlesVisible']));
+      const labels = clean.filter(c => /Label size|Label offset/i.test(c.label));
+      const positions = clean.filter(c => /position/i.test(c.label));
+      const axes = clean.filter(c => !labels.includes(c) && !positions.includes(c));
+      return [section('axes', 'Axes', axes, 'guideVisible'),
+        ...(positions.length ? [section('section-Position', 'Position', positions)] : []),
+        ...(labels.length ? [section('section-Labels', 'Labels', labels, 'labelsVisible')] : []),
+        section('axis-titles', 'Titles', [], 'titlesVisible')];
+    }
+    if (method === 'editLegend') {
+      return grouped.map(control => {
+        const clean = without(control, ['guideVisible', 'labelsVisible', 'titlesVisible']);
+        if (control.key === 'channel') return { ...clean, toggles: [switches.get('guideVisible')] };
+        if (control.key !== 'appearance') return clean;
+        return { ...clean, controls: clean.controls.map(child => child.key === 'fontSize'
+          ? section('legend-labels', 'Labels', [child], 'labelsVisible') : child).concat(
+          section('legend-title', 'Title', [], 'titlesVisible')) };
+      });
+    }
+    // A grid's visibility belongs to Grid, not its Direction or Color control.
+    if (switches.has('guideVisible')) return [section('grid', 'Grid',
+      [without(grouped[0], ['guideVisible'])], 'guideVisible'), ...grouped.slice(1)];
     return grouped;
   };
   const defaultDecisions = applyParameterDefaults(controls, build, recommendation);

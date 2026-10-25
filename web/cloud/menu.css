@@ -17,6 +17,19 @@
 .account-dialog input[type=checkbox] {margin-top:4px;cursor:pointer}
 .account-dialog a {display:block;color:#24639d;margin:10px 0}
 .account-status {color:#596575}
+.account-dialog.about-dialog {box-sizing:border-box;width:min(600px,calc(100vw - 32px))}
+.about-dialog .account-status:empty {display:none}
+.about-benefits {padding-left:20px;margin:16px 0 22px}
+.about-benefits li {padding-left:3px;margin:9px 0}
+.about-dialog section {border-top:1px solid #e7eaee;margin-top:20px}
+.about-software {display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 16px;margin:9px 0}
+.about-software strong {font-weight:400}
+.about-software span {display:flex;gap:14px}
+.about-software a {display:inline;margin:0}
+.about-paper {margin:15px 0}
+.about-paper a {margin:0;text-underline-offset:3px}
+.about-paper p {font-size:12px;color:#626b78;margin:4px 0 2px}
+.about-paper small {display:block;font-size:12px;color:#626b78}
 .account-dialog.workspace-drawer {position:fixed;inset:0 auto 0 0;margin:0;height:100dvh;max-height:100dvh;width:320px;border-radius:0;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:18px}
 .workspace-drawer footer {margin-top:auto;display:flex;flex-direction:column;padding-top:20px;border-top:1px solid #e4e7eb}
 .cloud-projects {overflow:auto;flex:1;min-height:100px}

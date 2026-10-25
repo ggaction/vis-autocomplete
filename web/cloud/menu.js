@@ -64,19 +64,34 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
   }
   function about() {
     const d = dialog('About Visualization Autocomplete');
-    d.box.append(element('p', 'Build visualizations through stepwise recommendations powered by ggaction.'),
-      element('h3', 'Contributors'), element('p', 'Hyeon Jeon · Sungbok Shin · Jinwook Seo · Niklas Elmqvist'), element('h3', 'Research and software'));
-    for (const [title, href] of [
-      ['ggaction documentation', 'https://ggaction.github.io/ggaction/'],
-      ['ggaction source', 'https://github.com/ggaction/ggaction'],
-      ['Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations', 'https://arxiv.org/abs/2607.15608'],
-      ['ggaction: A Grammar of Graphical Actions', 'https://arxiv.org/abs/2609.14353'],
-      ['Visualization Autocomplete source', 'https://github.com/ggaction/vis-autocomplete']]) {
-      const a = element('a', title); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; d.box.append(a);
+    d.box.classList.add('about-dialog');
+    const link = (title, href) => {
+      const a = element('a', title); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a;
+    };
+    d.box.append(element('p', 'Create and refine visualizations through stepwise recommendations, powered by ggaction.'));
+    const benefits = element('ul', '', 'about-benefits');
+    for (const [title, description] of [
+      ['Know what to try next.', ' Discover actions suited to your current chart, informed by common visualization practices.'],
+      ['See changes before applying them.', ' Compare visual previews and tune parameters.'],
+      ['Keep control as charts grow.', ' Work step by step, revisit history, and reuse the generated ggaction code.']]) {
+      const item = element('li'); item.append(element('strong', title), document.createTextNode(description)); benefits.append(item);
     }
-    d.box.append(element('h3', 'Your data'), element('p', RESEARCH_NOTICE));
-    const privacy = element('a', 'Privacy and data use'); privacy.href = '/privacy.html'; privacy.target = '_blank'; privacy.rel = 'noopener noreferrer';
-    d.box.append(privacy); d.open();
+    const software = element('section'); software.append(element('h3', 'Software'));
+    for (const [name, links] of [
+      ['Visualization Autocomplete', [['Source', 'https://github.com/ggaction/vis-autocomplete']]],
+      ['ggaction', [['Documentation', 'https://ggaction.github.io/ggaction/'], ['Source', 'https://github.com/ggaction/ggaction']]]]) {
+      const row = element('div', '', 'about-software'); row.append(element('strong', name));
+      const resources = element('span'); for (const [title, href] of links) resources.append(link(title, href));
+      row.append(resources); software.append(row);
+    }
+    const papers = element('section'); papers.append(element('h3', 'Papers'), element('p', 'This tool builds on the following research:'));
+    for (const [title, href, authors, venue] of [
+      ['Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations', 'https://arxiv.org/abs/2607.15608', 'Hyeon Jeon · Sungbok Shin · Niklas Elmqvist', 'TVCG · VIS 2026'],
+      ['ggaction: A Grammar of Graphical Actions', 'https://arxiv.org/abs/2609.14353', 'Hyeon Jeon · Jinwook Seo', 'arXiv']]) {
+      const paper = element('article', '', 'about-paper');
+      paper.append(link(title, href), element('p', authors), element('small', venue)); papers.append(paper);
+    }
+    d.box.append(benefits, software, papers, element('h3', 'Contributors'), element('p', 'Hyeon Jeon · Sungbok Shin · Jinwook Seo · Niklas Elmqvist')); d.open();
   }
   function report() {
     if (!requireAccount()) return;

@@ -52,6 +52,7 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
       pending.deltas.push(options.delta);
     } else pending = { ...options, ...(options.delta ? { deltas: [options.delta] } : {}) };
     clearTimeout(timer); timer = setTimeout(flush, 120);
+    if (options.delta) refresh();
   }
   async function flush() {
     if (working || !pending) return;
@@ -138,8 +139,13 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
     if (document.activeElement !== size || busy) size.value = sizes.length === 1 ? sizes[0] : '';
     size.placeholder = sizes.length > 1 ? 'Mixed' : '—';
     size.disabled = busy || !sizes.length;
-    decrease.disabled = size.disabled || sizes.every(value => value <= 6);
-    increase.disabled = size.disabled || sizes.every(value => value >= 96);
+    // Only our own typography transaction may accept more size steps while
+    // committing. Queue them against the next committed view, not stale sizes.
+    // Bounds are enforced per step by typographyCalls; until the queue settles,
+    // either direction must remain available (e.g. 6 → + → − during rendering).
+    const stepsBlocked = !available || !sizes.length || state.loading || state.resizing || state.committing && !working;
+    decrease.disabled = stepsBlocked || !working && !pending && sizes.every(value => value <= 6);
+    increase.disabled = stepsBlocked || !working && !pending && sizes.every(value => value >= 96);
     highlight();
   }
   return { refresh, mount: highlight };

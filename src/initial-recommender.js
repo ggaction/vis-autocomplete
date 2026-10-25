@@ -151,7 +151,7 @@ export function createInitialChartRecommender(model) {
     const values = Object.fromEntries(controls.map(control => [control.key, control.value]));
     return { ...values, ...definition.semanticDefaults };
   };
-  const recommend = (rows, authoringProfile, options = {}) => {
+  const queryFor = (rows, authoringProfile, options) => {
       const availableProfile = authoringProfile, availableRows = rows;
       const free = Array.isArray(options.selection?.fields);
       const selected = free ? projectFields(rows, authoringProfile, options.selection.fields)
@@ -159,6 +159,9 @@ export function createInitialChartRecommender(model) {
       if (selected) { rows = selected.rows; authoringProfile = selected.profile; }
       const profile = describeDataset(rows, Object.fromEntries(authoringProfile.fields.map(f => [f.name, { type: f.type, ...(f.order ? { order: f.order } : {}) }])));
       const retrieval = retrieveInitialEvidence(free ? fieldModel : model, profile, options);
+      return { availableProfile, availableRows, rows, authoringProfile, free, selected, profile, retrieval };
+  };
+  const rank = ({ availableProfile, availableRows, rows, authoringProfile, free, selected, profile, retrieval }, options) => {
       const chartEligibility = options.fieldEligibility ?? [];
       const definitions = free ? (options.fieldDefinitions ?? (profile.fields.length ? fieldSetPlotDefinitions(authoringProfile, rows, { roleScore: roleMatcher(profile, retrieval), parameterDefaults: defaultsFor, onEligibility: item => chartEligibility.push(item) }) : [])) : selected ? selectedPlotDefinitions(authoringProfile, options.selection, availableRows, chartEligibility, { availableProfile }) : getPlotDefinitions(authoringProfile);
       const recommendations = definitions.map(definition => {
@@ -195,12 +198,14 @@ export function createInitialChartRecommender(model) {
         effectiveNeighbors: retrieval.effectiveNeighbors,
         explanation: 'Similarity-weighted chart fractions; each distinct source family supplies at most one dataset neighbor.' };
   };
+  const recommend = (rows, authoringProfile, options = {}) => rank(queryFor(rows, authoringProfile, options), options);
   return Object.freeze({ recommend,
     async recommendAsync(rows, authoringProfile, options = {}) {
       if (!Array.isArray(options.selection?.fields)) return recommend(rows, authoringProfile, options);
-      const selected = projectFields(rows, authoringProfile, options.selection.fields);
-      const profile = describeDataset(selected.rows, Object.fromEntries(selected.profile.fields.map(field => [field.name, field.type])));
-      const retrieval = retrieveInitialEvidence(fieldModel, profile, options);
+      // Reuse this exact profile and neighbor search after generating the plots.
+      // Large uploaded tables used to be projected and statistically profiled twice.
+      const query = queryFor(rows, authoringProfile, options);
+      const { selected, profile, retrieval } = query;
       const definitions = [], fieldEligibility = [], cancelled = options.cancelled ?? (() => false);
       const yieldFrame = options.yieldFrame ?? (() => new Promise(resolve => setTimeout(resolve, 0)));
       let start = performance.now();
@@ -211,7 +216,7 @@ export function createInitialChartRecommender(model) {
         if (performance.now() - start >= 8) { await yieldFrame(); start = performance.now(); }
       }
       if (cancelled()) return { cancelled: true };
-      return recommend(rows, authoringProfile, { ...options, fieldDefinitions: definitions, fieldEligibility });
+      return rank(query, { ...options, fieldDefinitions: definitions, fieldEligibility });
     },
   });
 }

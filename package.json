@@ -9,7 +9,7 @@
   },
   "exports": "./src/index.js",
   "scripts": {
-    "dev": "npm run build:workers && node scripts/dev-server.js",
+    "dev": "node scripts/dev-server.js",
     "build:workers": "node scripts/build-workers.js",
     "benchmark:performance": "node scripts/benchmark-performance.js",
     "benchmark:recommendations": "node scripts/benchmark-lazy-recommendations.js",

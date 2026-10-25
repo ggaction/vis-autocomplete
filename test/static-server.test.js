@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdir, writeFile, rm } from 'node:fs/promises';
+import { createDevServer } from '../scripts/dev-server.js';
+
+test('static assets compress and revalidate while edits and model manifests stay fresh', async t => {
+  const dir = new URL('../output/static-server-test/', import.meta.url);
+  await mkdir(dir, { recursive: true });
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = new URL('asset.json', dir);
+  const original = JSON.stringify({ payload: 'x'.repeat(20000) });
+  await writeFile(file, original);
+  const server = createDevServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const url = `${base}/output/static-server-test/asset.json`;
+  const first = await fetch(url, { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.equal(first.headers.get('cache-control'), 'no-cache');
+  assert.equal(first.headers.get('content-encoding'), 'gzip');
+  assert.ok(Number(first.headers.get('content-length')) < original.length / 10);
+  assert.equal(await first.text(), original);
+  const etag = first.headers.get('etag');
+  const cached = await fetch(url, { headers: { 'If-None-Match': etag } });
+  assert.equal(cached.status, 304);
+  assert.equal(await cached.text(), '');
+  await writeFile(file, original.replace('xxx', 'yyy'));
+  const changed = await fetch(url, { headers: { 'If-None-Match': etag } });
+  assert.equal(changed.status, 200);
+  assert.notEqual(changed.headers.get('etag'), etag);
+  assert.match(await changed.text(), /yyy/);
+  const identity = await fetch(url, { headers: { 'Accept-Encoding': 'gzip;q=0' } });
+  assert.equal(identity.headers.get('content-encoding'), null);
+  const head = await fetch(url, { method: 'HEAD' });
+  assert.equal(head.status, 200); assert.equal(await head.text(), '');
+  assert.equal((await fetch(`${base}/data/model-manifest.json`)).headers.get('cache-control'), 'no-store');
+});

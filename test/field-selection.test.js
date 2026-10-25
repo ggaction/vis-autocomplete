@@ -165,10 +165,21 @@ test('async search matches synchronous ranking and cancels obsolete selections b
   let frames = 0;
   const asyncResult = await engine.recommendAsync(rows, profile, { selection, yieldFrame: async () => { frames++; } });
   assert.ok(frames > 0);
-  assert.deepEqual(asyncResult.recommendations.map(r => [r.method, r.values]), sync.recommendations.map(r => [r.method, r.values]));
+  assert.deepEqual(asyncResult.recommendations.map(r => [r.method, r.score, r.values]), sync.recommendations.map(r => [r.method, r.score, r.values]));
+  assert.deepEqual(asyncResult.query, sync.query);
+  assert.deepEqual(asyncResult.neighbors, sync.neighbors);
   let stale = false;
   const cancelled = await engine.recommendAsync(rows, profile, { selection, yieldFrame: async () => { stale = true; }, cancelled: () => stale });
   assert.equal(cancelled.cancelled, true);
+});
+
+test('async profiling preserves explicit ordinal order when reusing retrieval', async () => {
+  const rows = [{ Level: 'high', Value: 3 }, { Level: 'low', Value: 1 }, { Level: 'medium', Value: 2 }];
+  const profile = profileDataset(base(rows), 'dataset', { Level: { type: 'ordinal', order: ['low', 'medium', 'high'] } });
+  const options = { selection: { fields: ['Level', 'Value'] } };
+  const sync = engine.recommend(rows, profile, options), asyncResult = await engine.recommendAsync(rows, profile, options);
+  assert.deepEqual(asyncResult.query, sync.query);
+  assert.deepEqual(asyncResult.recommendations.map(r => [r.method, r.score, r.values]), sync.recommendations.map(r => [r.method, r.score, r.values]));
 });
 
 test('derived corpus roles retain source lineage and unresolved charts remain audited in the index', () => {
@@ -185,4 +196,26 @@ test('derived corpus roles retain source lineage and unresolved charts remain au
   assert.deepEqual(derived.charts[0].views[0].sourceRoles.y, ['raw']);
   assert.equal(report.fieldProfileFallbacks[0].basis, 'dataset-fallback');
   assert.equal(new Set(model.viewGroups.flatMap(g => g.charts.map(c => c.id))).size, 2);
+});
+
+test('candidate data caches preserve missing-value populations across mappings and datasets', async () => {
+  const { selectedPlotDefinitions } = await import('../src/selected-plots.js');
+  const { defaultValues } = await import('../src/plot-catalog.js');
+  const dataCache = new Map();
+  const summarize = definitions => definitions.map(def => {
+    const values = defaultValues(def);
+    return [def.method, def.requirement, def.controls, def.build(values), def.setup?.(values)];
+  });
+  for (const rows of [
+    [{ X: 1, Y: 8, G: 'A' }, { X: 2, Y: null, G: 'B' }, { X: null, Y: 7, G: 'A' }, { X: 3, Y: 9, G: null }],
+    [{ X: -2, Y: 3, G: 'Z' }, { X: 8, Y: 6, G: 'Z' }, { X: 10, Y: 2, G: 'W' }],
+  ]) {
+    const profile = profileDataset(base(rows), 'dataset');
+    for (const selection of [{ x: 'X', y: 'Y' }, { x: 'Y', y: 'X' }, { x: 'X', y: 'Y', color: 'G' }, { x: 'G', y: 'Y' }]) {
+      for (const method of ['createScatterPlot', 'createBarPlot', 'createBoxPlot', 'createLinePlot', 'createAreaPlot', 'createHeatmap']) {
+        assert.deepEqual(summarize(selectedPlotDefinitions(profile, selection, rows, [], { method, dataCache })),
+          summarize(selectedPlotDefinitions(profile, selection, rows, [], { method })));
+      }
+    }
+  }
 });

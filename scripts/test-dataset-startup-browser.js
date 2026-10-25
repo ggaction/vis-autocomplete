@@ -9,10 +9,13 @@ const errors = [];
 async function open() {
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   const page = await context.newPage();
+  const exampleRequests = [];
+  page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/web/data/')) exampleRequests.push(request.url()); });
   page.setDefaultTimeout(60000);
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(process.env.APP_URL ?? 'http://127.0.0.1:5173/');
   await ready(page);
+  assert.deepEqual(exampleRequests, [], 'fresh visits do not fetch unselected example datasets');
   return { context, page };
 }
 async function ready(page) {
@@ -51,11 +54,21 @@ try {
     await card.hover(); await card.locator('.apply-button').click();
     await page.waitForFunction(() => document.querySelectorAll('.history-item').length === 2 && !document.querySelector('#reset').disabled);
     await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+    const saved = await page.evaluate(async () => {
+      const { createDraftStore } = await import('/web/project.js');
+      return createDraftStore().read();
+    });
+    assert.deepEqual(saved.datasets.map(record => record.id), ['iris'], 'only loaded tables enter the project');
     await page.reload(); await ready(page);
     assert.equal(await page.locator('#dataset').inputValue(), 'iris');
     assert.equal(await page.locator('.history-item').count(), 2);
     assert.ok(await page.locator('#current canvas').count());
     assert.match(await page.locator('#code-content').innerText(), /createScatterPlot/);
+    await page.locator('#cards-next').click();
+    await page.waitForFunction(() => {
+      const row = document.querySelector('#cards .card-row[data-page="2"]');
+      return row?.querySelector('.card') && row.getAttribute('aria-busy') === 'false';
+    });
     await context.close(); console.log('PASS fresh visit, explicit example selection, and chart restoration');
   }
   {

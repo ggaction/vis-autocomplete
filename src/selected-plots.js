@@ -34,24 +34,45 @@ export function projectSelection(rows, profile, selection) {
 // The chosen roles are constraints, not corpus-generated defaults. Plots that
 // cannot represent these roles (e.g. a univariate histogram, or a count heatmap
 // with an unrelated color variable) are omitted rather than silently rebound.
-export function selectedPlotDefinitions(profile, selection, rows, eligibility = [], options = {}) {
-  const selectedFields = [...new Set([selection.x, selection.y, selection.color].filter(Boolean))];
+function selectedData(profile, selection, rows, cache) {
+  const selectedFields = [...new Set([selection.x, selection.y, selection.color].filter(Boolean))].sort();
+  const key = JSON.stringify(selectedFields), cached = cache?.get(key);
+  if (cached?.sourceRows === rows && cached.sourceProfile === profile) return cached;
   const complete = rows.filter(row => selectedFields.every(field => row[field] !== null && row[field] !== undefined));
-  if (!complete.length) return [];
   // Plot domains/tick samples must match the explicit complete-case data view.
   // Neighbor statistics above still include every original row and missing value.
-  profile = { ...profile, rowCount: complete.length, fields: profile.fields.map(field => {
+  const completeProfile = { ...profile, rowCount: complete.length, fields: profile.fields.map(field => {
     const domain = [...new Set(complete.map(row => row[field.name]))];
     return { ...field, distinct: domain.length, missing: 0, complete: true,
       guideValues: categorical(field) && domain.length > 12
         ? domain.filter((_, i) => i % Math.ceil(domain.length / 6) === 0) : undefined };
   }) };
+  const result = { sourceRows: rows, sourceProfile: profile, complete, profile: completeProfile, numericFields: new Map(), statistics: new Map() };
+  if (cache) {
+    cache.set(key, result);
+    if (cache.size > 64) cache.delete(cache.keys().next().value);
+  }
+  return result;
+}
+
+export function selectedPlotDefinitions(profile, selection, rows, eligibility = [], options = {}) {
+  // All candidate methods for the same selected columns have the same complete
+  // rows and domains. The optional cache belongs to one immutable query, never
+  // a global dataset name; changing data/types cannot reuse an old summary.
+  const prepared = selectedData(profile, selection, rows, options.dataCache);
+  const { complete, numericFields } = prepared;
+  if (!complete.length) return [];
+  profile = prepared.profile;
+  const statistic = (key, calculate) => {
+    if (!prepared.statistics.has(key)) prepared.statistics.set(key, calculate());
+    return prepared.statistics.get(key);
+  };
   const fields = new Map(profile.fields.map(field => [field.name, field]));
   const x = fields.get(selection.x), y = fields.get(selection.y), color = fields.get(selection.color);
   const ySelected = fields.get(selection.y);
   if (!ySelected) return rolePlotDefinitions(profile, selection, complete, options)
     .filter(definition => !options.method || definition.method === options.method)
-    .map(definition => withInitialScales(definition, profile, complete));
+    .map(definition => withInitialScales(definition, profile, complete, numericFields));
   const grouped = categorical(x) && y.type === 'quantitative' || categorical(y) && x.type === 'quantitative';
   const aggregateBar = barCategory(x) && y.type === 'quantitative' || barCategory(y) && x.type === 'quantitative';
   const category = categorical(x) ? x : y, measure = categorical(x) ? y : x;
@@ -122,11 +143,15 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
       ? (categorical(x) && categorical(y) || binnedHeatmap) && isContinuousField(color)
       : x.type === 'quantitative' && y.type === 'quantitative')) { omit('heatmap-requires-binnable-xy-or-categorical-grid-with-continuous-color'); continue; }
 
-    const groupCounts = new Map();
-    if (grouped) for (const row of complete) {
-      const key = JSON.stringify([row[category.name], ...(color && color.name !== category.name && categorical(color) ? [row[color.name]] : [])]);
-      groupCounts.set(key, (groupCounts.get(key) ?? 0) + 1);
-    }
+    const groupFields = [category.name, ...(color && color.name !== category.name && categorical(color) ? [color.name] : [])];
+    const groupCounts = grouped ? statistic(JSON.stringify(['groups', ...groupFields]), () => {
+      const counts = new Map();
+      for (const row of complete) {
+        const key = JSON.stringify(groupFields.map(field => row[field]));
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      return counts;
+    }) : new Map();
     const singletonGroups = grouped && [...groupCounts.values()].every(count => count < 2);
     const densityMethods = ['createViolinPlot', 'createGradientPlot', 'createRaincloudPlot'];
     const denseSteps = Math.min(100, Math.floor(10000 / Math.max(1, groupCounts.size)));
@@ -138,7 +163,7 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
     const textGroups = [...new Set([category.name, color && categorical(color) ? color.name : undefined].filter(Boolean))];
     const textCount = summarizedText ? new Set(complete.map(row => JSON.stringify(textGroups.map(field => row[field])))).size : complete.length;
     if (method === 'createTextPlot' && textCount > 60) requirement = `This selection would place ${textCount} text labels in one chart. Use a scatter plot with selected value labels, or fewer categories, for readable labels.`;
-    const eventCounts = complete.every(row => row[y.name] === 1);
+    const eventCounts = statistic(JSON.stringify(['events', y.name]), () => complete.every(row => row[y.name] === 1));
     const defaults = { ...defaultValues(definition), x: x.name, y: y.name, category: category.name,
       value: measure.name, color: color?.name ?? '', text: color?.name ?? y.name,
       aggregate: eventCounts ? 'sum' : 'mean', radius: 3, width: 2, opacity: method === 'createAreaPlot' ? .65 : method === 'createBarPlot' ? .85 : .8 };
@@ -323,5 +348,5 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
     else eligibility.push({ method: definition.method, eligible: true });
   }
   return [...definitions.filter(d => !extraDefinitions.some(e => e.method === d.method)), ...extraDefinitions]
-    .map(definition => withInitialScales(definition, profile, complete));
+    .map(definition => withInitialScales(definition, profile, complete, numericFields));
 }

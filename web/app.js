@@ -7,7 +7,9 @@ import { parameterTransitionDuration } from './parameter-motion.js';
 import { createTransitionMode } from './transition-mode.js';
 import { renderChartCanvas, copyChartCanvas, holdChartCanvasDensity } from './chart-canvas.js';
 import { chart } from 'ggaction';
-import { createInitialChartRecommender, profileDataset } from '../src/index.js';
+import { createInitialChartRecommender } from '../src/initial-recommender.js';
+import { profileDataset } from '../src/profile.js';
+import { exampleDatasets, loadExampleDataset } from './example-datasets.js';
 import { recommendationParameters, initialParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
 import { primaryChartLayer } from '../src/chart-owner.js';
 import { programCode, renderCode, resetCodeView, displayedCode } from './code-view.js';
@@ -49,23 +51,17 @@ const elements = Object.fromEntries(['current', 'preview', 'cards', 'notice',
 initializeCodeToolbar({ panel: $('code-content').closest('.code-panel'),
   decrease: $('code-font-decrease'), increase: $('code-font-increase'), copy: $('code-copy'), status: $('code-tools-status'),
   source: () => displayedCode($('code-content')), onError: message => notice(message, true) });
-const sales = Array.from({ length: 36 }, (_, i) => ({
-  Month: `${2023 + Math.floor(i / 12)}-${String(i % 12 + 1).padStart(2, '0')}-01`,
-  Sales: Math.round(100 + i * 3 + Math.sin(i / 2) * 24),
-  Cost: Math.round(55 + i * 1.5 + Math.cos(i / 3) * 10),
-  Orders: 30 + i * 2, Region: ['North', 'South', 'West'][i % 3],
-}));
 
-const state = { initialEngine: null, rows: [], name: '', program: null, base: null,
+const state = { loading: true, initialEngine: null, rows: [], name: '', program: null, base: null,
   phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [],
   committing: false, resizing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
   selection: { fields: [] }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
   optionGroup: 'encoding', searchQuery: '', datasetId: null, adding: null };
 const compositionControls = initializeCompositionControls({
   select: $('editing-target'), overlayButton: $('add-overlay'), host: $('current-shell'), adjacentHost: $('adjacent-controls'), read: () => state,
-  onTarget: context => { if (state.committing || state.resizing) return; state.context = focus(state.program, context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
+  onTarget: context => { if (state.loading || state.committing || state.resizing) return; state.context = focus(state.program, context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onAdd: (position, placementPath, source) => {
-    if (state.committing || state.resizing) return;
+    if (state.loading || state.committing || state.resizing) return;
     try {
       const previousSelection = !state.program.compositionSpec || state.program.compositionSpec.facet ? state.selection : undefined;
       state.adding = adjacentContext(state.program, state.context, position,
@@ -74,16 +70,16 @@ const compositionControls = initializeCompositionControls({
     }
     catch (error) { notice(error.message, true); }
   },
-  onOverlay: () => { if (state.committing || state.resizing) return; state.adding = overlayContext(state.program, state.context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
+  onOverlay: () => { if (state.loading || state.committing || state.resizing) return; state.adding = overlayContext(state.program, state.context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onChange: patch => { Object.assign(state.adding, patch); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onCancel: () => { state.adding = null; showPreview(null); updateCards().catch(error => notice(error.message, true)); },
 });
 const chartZoom = createChartZoom(elements.current, document.querySelector('.current-view-tools'), {
-  busy: () => state.committing || state.resizing,
+  busy: () => state.loading || state.committing || state.resizing,
   onChange: () => compositionControls.layout(),
 });
 $('reset-view-sizes').addEventListener('click', () => chartZoom.reset());
-const datasets = new Map();
+const datasets = new Map(exampleDatasets().map(record => [record.id, record]));
 const datasetBases = createLRU(4);
 const drafts = createDraftStore();
 let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = false;
@@ -99,7 +95,7 @@ const renderedCharts = new WeakMap();
 let lastPreview = null;
 const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
   getCurrent: () => state.phase === 'initial' ? null : { program: state.resizing ? state.view : renderedCharts.get(elements.current)?.program, name: state.name },
-  isBusy: () => state.committing || state.resizing, onError: message => notice(message, true) });
+  isBusy: () => state.loading || state.committing || state.resizing, onError: message => notice(message, true) });
 let historyInspection = null;
 const historyView = createHistoryView($('history'), {
   renderChart, meta: $('history-meta'),
@@ -110,7 +106,7 @@ const historyView = createHistoryView($('history'), {
 const parameterIntents = new WeakMap(), cardElements = new WeakMap();
 const rangeIntents = new WeakMap();
 const sliderHover = createSliderHover({ valid: (control, event) =>
-  control?.isConnected && !state.committing && !state.resizing &&
+  control?.isConnected && !state.loading && !state.committing && !state.resizing &&
   document.elementFromPoint(event.clientX, event.clientY)?.closest('.slider-control') === control });
 const cardMotion = createCardMotion();
 let selectedPreviewFrame = null;
@@ -130,7 +126,7 @@ const transitionMode = createTransitionMode({
   getBaseline:()=>state.phase==='initial'?state.selectionAxes?.program:state.view,
   getCandidate:card=>calculations.transitionScene(card.base,card.view,card.guideCall,
     card.prepared.recommendation,card.transitionSetup ?? card.setup?.(card.values) ?? []),
-  busy:()=>state.committing||state.resizing,
+  busy:()=>state.loading||state.committing||state.resizing,
   onChange:()=>{
     workspaceLayout.setMode(transitionMode.enabled ? 'transition' : 'preview');
     cancelChartTransfer();showPreview(pointerCard);
@@ -167,7 +163,7 @@ function rebaseCard(card) {
   card.prepared = null; card.preparedSignature = null; card.needsResizeRefresh = true;
 }
 const canvasResize = createCanvasResize(elements.current, {
-  canStart: () => state.phase !== 'initial' && !state.committing && !state.resizing && !transitionMode.active,
+  canStart: () => state.phase !== 'initial' && !state.loading && !state.committing && !state.resizing && !transitionMode.active,
   start(handle) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish();
@@ -240,7 +236,7 @@ const canvasResize = createCanvasResize(elements.current, {
 const guideEditor = createGuideEditor(elements.current, {
   program: () => state.view,
   available: () => state.phase !== 'initial' && !transitionMode.active,
-  canStart: () => !state.committing && !state.resizing,
+  canStart: () => !state.loading && !state.committing && !state.resizing,
   async remove(target, action) {
     leaveGallery(); cardMotion.finish(); resizeHistory.reset();
     await commit({ base: state.program, view: state.view, guideCall: state.guideCall,
@@ -290,7 +286,7 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 }
 
 function updateHistoryButtons() {
-  const busy = state.committing || state.resizing;
+  const busy = state.loading || state.committing || state.resizing;
   chartDownloads.refresh(); compositionControls.refresh();
   for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
   for (const id of ['edit-schema', 'reset', 'save-project', 'code-export']) $(id).disabled = busy || !state.datasetId;
@@ -390,7 +386,7 @@ function mountDataTable() {
 }
 
 async function restoreHistory(direction) {
-  if (state.committing || state.resizing) return;
+  if (state.loading || state.committing || state.resizing) return;
   resizeHistory.reset(); state.adding = null;
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
@@ -900,7 +896,7 @@ async function createCard(spec, index) {
   card.values = card.normalizeValues?.(card.values) ?? card.values;
   card.controls = card.resolveControls?.(card.values) ?? card.controls;
   card.interaction = createPreviewInteraction({ readPinned: () => card.values,
-    render: values => { if (!state.committing && !state.resizing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
+    render: values => { if (!state.loading && !state.committing && !state.resizing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
     requestFrame: requestAnimationFrame, cancelFrame: cancelAnimationFrame });
   if ((state.phase === 'initial' || card.chartChoice) && !card.disabled) {
     // Corpus role transfer proposes parameters; the real library decides whether
@@ -1009,8 +1005,8 @@ function updateGalleryNavigation() {
   const page = currentGalleryPage(), count = state.galleryRows.length;
   const pending = mountedGallery?.phase === 'recommendations' && !mountedGallery.pagination.complete;
   $('cards-page').textContent = `${page + 1} / ${pending ? '…' : Math.max(1, count)}`;
-  $('cards-prev').disabled = page === 0 || state.committing || state.resizing;
-  $('cards-next').disabled = page >= count - 1 || state.committing || state.resizing;
+  $('cards-prev').disabled = page === 0 || state.loading || state.committing || state.resizing;
+  $('cards-next').disabled = page >= count - 1 || state.loading || state.committing || state.resizing;
   $('cards-prev').closest('nav').hidden = count <= 1;
 }
 
@@ -1339,7 +1335,7 @@ function emptyActionsMessage() {
 }
 
 async function commit(card, { direct = false, refresh = false } = {}) {
-  if (state.committing || card.base !== state.program) return;
+  if (state.loading || state.committing || card.base !== state.program) return;
   const datasetId = state.datasetId;
   clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
   // Apply always uses the pinned settings, never a queued hover from a control
@@ -1491,7 +1487,7 @@ function rememberDataset() {
 }
 function projectSnapshot() {
   rememberDataset();
-  return createProject([...datasets.values()], state.datasetId, sourceVersion);
+  return createProject([...datasets.values()].filter(record => record.imported), state.datasetId, sourceVersion);
 }
 function flushSave() {
   if (restoringProject || !state.datasetId) return;
@@ -1628,7 +1624,7 @@ async function openProject(value) {
 // particular, mouseleave/pointerenter caused by animation never collapse or
 // reopen the gallery. All screen positions are tracked, even outside it.
 function routePointer(event) {
-  if (state.committing || state.resizing) { sliderHover.reset(); return; }
+  if (state.loading || state.committing || state.resizing) { sliderHover.reset(); return; }
   if (!event.target?.closest?.('.slider-control')) sliderHover.reset();
   if ($('history').contains(event.target)) {
     if (pointerInGallery) leaveGallery();
@@ -1731,7 +1727,7 @@ function afterWorkspaceChange() {
 const workspaceLayout = initializeWorkspaceLayout({
   workspace: document.querySelector('.workspace'), toggle: $('workspace-layout'),
   initialMode: transitionMode.enabled ? 'transition' : 'preview',
-  header: document.querySelector('.app-header'), busy: () => state.committing || state.resizing,
+  header: document.querySelector('.app-header'), busy: () => state.loading || state.committing || state.resizing,
   beforeChange: beforeWorkspaceChange, afterChange: afterWorkspaceChange,
 });
 initializePanelLayout({
@@ -1747,7 +1743,7 @@ initializePanelLayout({
   afterChange: afterWorkspaceChange,
 });
 initializeWorkspaceResize({ workspace: document.querySelector('.workspace'), reset: $('reset-view-sizes'),
-  busy: () => state.committing || state.resizing,
+  busy: () => state.loading || state.committing || state.resizing,
   beforeChange: beforeWorkspaceChange, afterChange: afterWorkspaceChange });
 window.addEventListener('resize', () => cardMotion.finish(), { passive: true });
 
@@ -1763,16 +1759,19 @@ $('file').addEventListener('change', async event => {
   event.target.value = '';
 });
 $('dataset').addEventListener('change', async event => {
-  if (state.committing) { $('dataset').value = state.datasetId; return; }
-  try { await activateDataset(datasets.get(event.target.value)); }
-  catch (error) { $('dataset').value = state.datasetId; notice(error.message, true); }
+  if (state.loading || state.committing) { $('dataset').value = state.datasetId; return; }
+  state.loading = true; elements.current.inert = true; elements.cards.inert = true; updateHistoryButtons();
+  notice('Loading dataset…');
+  try { await activateDataset(await loadExampleDataset(datasets.get(event.target.value))); }
+  catch (error) { $('dataset').value = state.datasetId ?? ''; notice(error.message, true); }
+  finally { state.loading = false; elements.current.inert = false; elements.cards.inert = false; updateHistoryButtons(); updateGalleryNavigation(); }
 });
 $('edit-schema').addEventListener('click', () => editSchema().catch(error => notice(error.message, true)));
 $('reset').addEventListener('click', resetVisualization);
 $('undo').addEventListener('click', () => restoreHistory('undo'));
 $('redo').addEventListener('click', () => restoreHistory('redo'));
 initializeHistoryShortcuts({ run: restoreHistory,
-  busy: () => state.committing || state.resizing, dataset: () => state.datasetId,
+  busy: () => state.loading || state.committing || state.resizing, dataset: () => state.datasetId,
   cancelGesture() {
     const dragging = state.resizing;
     canvasResize.cancel(); guideEditor.cancel();
@@ -1817,21 +1816,6 @@ try {
   if (workers.some(worker => worker.generation && worker.generation !== initialModel.provenance.generation)) throw new Error('Recommendation models updated during loading. Reload to use one version.');
   state.initialEngine = createInitialChartRecommender(initialModel);
   if (sourceResponse.ok) sourceVersion = await sourceResponse.json();
-  const examples = [
-    ['cars', 'Cars', '/web/data/cars.json'], ['tips', 'Tips', '/web/data/tips.json'],
-    ['iris', 'Iris', '/web/data/iris.json'], ['weather', 'Seattle weather', '/web/data/weather.json'],
-    ['stocks', 'Stocks', '/web/data/stocks.json'], ['gapminder', 'Gapminder', '/web/data/gapminder.json'],
-    ['barley', 'Barley', '/web/data/barley.json'], ['electricity', 'Iowa electricity', '/web/data/electricity.json'],
-  ];
-  for (const [id, name, url] of examples) {
-    const response = await fetch(url); if (!response.ok) throw new Error(`The ${name} example dataset is missing.`);
-    const rawRows = await response.json();
-    const options = { format: 'rows', name,
-      ...(id === 'stocks' ? { fieldOverrides: { date: { type: 'temporal', dateFormat: 'month-name' } } } : {}),
-      ...(id === 'barley' ? { fieldOverrides: { year: { type: 'ordinal' } } } : {}) };
-    datasets.set(id, { id, name, imported: importDataset(rawRows, options) });
-  }
-  datasets.set('sales', { id: 'sales', name: 'Monthly sales', imported: importDataset(sales, { format: 'rows', name: 'Monthly sales' }) });
   updateDatasetOptions();
   let draft;
   try { draft = await drafts.read(); } catch { $('draft-status').textContent = 'Use Save project to keep your work.'; }
@@ -1840,4 +1824,4 @@ try {
     catch (error) { await updateCards(); notice(`Could not restore the draft: ${error.message}`, true); }
   } else await updateCards();
   updateHistoryButtons();
-} catch (error) { notice(error.message, true); }
+} catch (error) { notice(error.message, true); } finally { state.loading = false; updateHistoryButtons(); updateGalleryNavigation(); }

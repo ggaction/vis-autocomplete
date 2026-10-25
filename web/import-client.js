@@ -1,5 +1,5 @@
 // An import can be terminated without blocking the chart or replacing its data.
-export function createImportClient({ workerFactory = () => new Worker(new URL('./import-worker.js', import.meta.url), { type: 'module' }) } = {}) {
+export function createImportClient({ workerFactory = () => new Worker('/output/workers/import.js', { type: 'module' }) } = {}) {
   let worker, current, sequence = 0;
   const cancel = () => {
     worker?.terminate(); worker = null;

@@ -19,7 +19,7 @@ with sync_playwright() as p:
     card.locator('.card-top').hover(); card.locator('.apply-button').click()
     expect(page.locator('#current')).to_have_attribute('data-steps', '1', timeout=60000)
     for step, (method, key, value) in enumerate([
-        ('editColorScale', 'p0', 'set1'), ('encodeStroke', 'mode', 'fixed'),
+        ('editColorScale', 'palette', 'set1'), ('encodeStroke', 'mode', 'fixed'),
         ('encodeSize', 'value', 948), ('encodeOpacity', 'value', .25),
         ('encodeShape', 'field', 'Species'), ('facet', None, None)
     ], start=2):

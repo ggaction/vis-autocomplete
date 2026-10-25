@@ -50,7 +50,7 @@ export function initialPositionBindings(method, args, fields) {
   return result;
 }
 
-export function withInitialScales(definition, profile, rows) {
+export function withInitialScales(definition, profile, rows, numericFields = new Map()) {
   const fields = new Map(profile.fields.map(field => [field.name, field]));
   const defaults = defaultValues(definition), initial = definition.build(defaults);
   const bindings = initialPositionBindings(definition.method, initial, fields);
@@ -59,7 +59,6 @@ export function withInitialScales(definition, profile, rows) {
   const color = initial.color ?? implicitColor;
   const colorType = definition.colorBinField ? 'quantitative'
     : color?.fieldType ?? fields.get(fieldName(color))?.type ?? 'quantitative';
-  const numericFields = new Map();
   const numbers = field => {
     if (!numericFields.has(field)) numericFields.set(field, rows.map(row => row[field]).filter(Number.isFinite));
     return numericFields.get(field);

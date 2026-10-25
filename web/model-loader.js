@@ -4,7 +4,7 @@ export async function loadModel(name) {
     const manifestResponse = await fetch('/data/model-manifest.json', { cache: 'no-store' });
     if (!manifestResponse.ok) throw new Error('The model bundle is missing. Run npm run update.');
     const manifest = await manifestResponse.json();
-    const response = await fetch(`/data/${name}`, { cache: 'no-store' });
+    const response = await fetch(`/data/${name}`, { cache: 'no-cache' });
     if (!response.ok) throw new Error(`The ${name} model is missing.`);
     const bytes = await response.arrayBuffer();
     const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');

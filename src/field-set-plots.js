@@ -63,11 +63,11 @@ const replaceData = (value, source, data) => {
 // bounded and metadata-only; no chart is executed or rendered to rank mappings.
 export function* generateFieldSetPlots(profile, rows, { roleScore = () => 0, parameterDefaults = definition => defaultValues(definition), onEligibility = () => {} } = {}) {
   const names = profile.fields.map(field => field.name), fields = new Map(profile.fields.map(field => [field.name, field]));
-  const generic = getPlotDefinitions(profile), recipeCache = new Map();
+  const generic = getPlotDefinitions(profile), recipeCache = new Map(), dataCache = new Map();
   const recipe = (method, binding) => {
     const key = JSON.stringify([method, binding]);
     if (!recipeCache.has(key)) {
-      try { recipeCache.set(key, selectedPlotDefinitions(profile, binding, rows, [], { availableProfile: profile, method })); }
+      try { recipeCache.set(key, selectedPlotDefinitions(profile, binding, rows, [], { availableProfile: profile, method, dataCache })); }
       catch { recipeCache.set(key, []); }
       if (recipeCache.size > 64) recipeCache.delete(recipeCache.keys().next().value);
     }

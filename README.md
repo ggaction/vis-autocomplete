@@ -47,6 +47,16 @@ npm run dev
 
 [http://127.0.0.1:5173/](http://127.0.0.1:5173/)에서 실행한다. 준비된 `data/model.json`과 `data/initial-model.json`을 사용한다.
 
+`npm run dev`는 앱·계산 worker·업로드 worker를 같은 vendor 소스로 묶고 변경을 감시한다.
+소스를 수정하면 다시 빌드되므로 브라우저를 새로고침하면 된다. 서버는 정적 파일을 gzip으로
+전송하고 ETag로 변경을 확인한다. 모델 manifest는 매번 읽으며 모델 본문의 SHA-256·세대
+검증은 캐시 사용 시에도 수행한다. `npm run build:workers`로 세 번들을 한 번만 빌드할 수도 있다.
+예제 데이터는 선택할 때 읽고 분석하며, 프로젝트에는 실제로 불러온 데이터만 저장한다.
+초기 로딩·추천·복원 측정은 `node scripts/benchmark-loading.js`로 실행한다
+(`APP_URL`, `LABEL`, `MODE=transition` 선택 가능; 결과는 Git에서 제외된 `output/loading/`).
+큰 테이블의 초기 추천 CPU 측정은 `node scripts/benchmark-initial-loading.js`로 실행한다.
+측정 범위와 남은 비용은 [로딩 성능 기록](docs/loading-performance-2026-10-25.md)에 정리했다.
+
 - 새 방문은 데이터 없는 상태에서 시작한다. **Upload dataset** 또는 **Try example dataset**으로 시작한다.
   Cars 원본 406행·9개 열과 Iris, Barley 등 예제를 제공하며 null도 보존한다. 출처는 `web/data/SOURCE.md`에 기록했다.
 - ggaction Code 오른쪽 위의 **− / +**는 코드 글자 크기를 8–20px 범위에서 1px씩 조절한다.

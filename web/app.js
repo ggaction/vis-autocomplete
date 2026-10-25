@@ -150,7 +150,7 @@ function visibleCards() {
 const transitionMode = createTransitionMode({
   host:elements.current,layout:document.querySelector('.visualizations'),toggle:$('view-mode'),
   getBaseline:()=>state.phase==='initial'?state.selectionAxes?.program:state.view,
-  getCandidate:card=>calculations.transitionScene(card.base,card.view,card.guideCall,
+  getCandidate:card=>card.prepared.scene ?? calculations.transitionScene(card.base,card.view,card.guideCall,
     card.prepared.recommendation,card.transitionSetup ?? card.setup?.(card.values) ?? []),
   busy:()=>state.loading||state.committing||state.resizing,
   onChange:()=>{

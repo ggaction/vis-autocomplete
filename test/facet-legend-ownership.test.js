@@ -95,3 +95,28 @@ test('partition controls retain explicit independent policies and label child le
     .find(c => c.method === 'editFacetGuides');
   assert.equal(guides.parameters.find(p => p.path === 'legend').choices.find(c => c.value === false).label, 'Per facet');
 });
+
+for (const type of ['scatter', 'parallel']) for (const field of ['Group', 'Amount']) {
+  test(`first color after ${type} faceting has one shared owner without gap search (${field})`, () => {
+    const base = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: rows });
+    const p = (type === 'scatter' ? base.createScatterPlot({ id: 'plot', x: 'X', y: 'Y' })
+      : base.createParallelCoordinates({ id: 'plot', dimensions: ['X', 'Y', 'Amount'] }))
+      .facet({ field: 'Panel', columns: 2, spacing: 'plot', gap: 33, guides: { axes: type === 'parallel' ? 'each' : 'outer', legend: false } });
+    const action = { method: 'editFacetSource', args: { action: { method: 'encodeColor', options: {
+      target: 'plot', field, fieldType: field === 'Group' ? 'nominal' : 'quantitative',
+      scale: { palette: field === 'Group' ? 'tableau10' : 'viridis' } } } } };
+    const prepared = prepareGuidedAction(p, action, p.createGuides());
+    assert.equal(prepared.preview.compositionSpec.gap, 33, 'a shared legend must not widen the gap');
+    assert.equal(prepared.prerequisiteCalls.length, 0, 'no guessed-gap retries');
+    assert.equal(prepared.postActionCalls.filter(c => c.method === 'editFacetGuides').length, 1);
+    const titles = Object.keys(prepared.preview.graphicSpec.objects).filter(id => /(?:Legend|Gradient)Title$/.test(id));
+    assert.equal(titles.length, 1);
+    assert.equal(prepared.guideCall.args.legend, undefined, 'do not recreate an owned parent legend in each cell');
+    let replay = p;
+    for (const call of [...prepared.prerequisiteCalls, action, ...prepared.postActionCalls, prepared.guideCall]) replay = replay[call.method](call.args);
+    assert.deepEqual(replay.graphicSpec, prepared.preview.graphicSpec);
+    const followup = prepareGuidedAction(prepared.authoringPreview, { method: 'editFacetSource',
+      args: { action: { method: 'encodeOpacity', options: { target: 'plot', value: .4 } } } }, prepared.preview);
+    assert.equal(Object.keys(followup.preview.graphicSpec.objects).filter(id => /(?:Legend|Gradient)Title$/.test(id)).length, 1);
+  });
+}

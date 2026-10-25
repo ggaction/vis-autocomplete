@@ -61,6 +61,7 @@ test('worker display artifacts and transition scenes contain concrete graphics w
   assert.ok(artifact.preview.graphicSpec.objects.canvas);
   assert.equal('svg' in artifact.preview, false);
   const scene = service.execute({type:'scene',stateId:'canvas',action});
+  assert.deepEqual(artifact.scene, scene, 'the ready thumbnail carries the exact transition endpoint');
   assert.equal(scene.version,2);
   assert.ok(scene.nodes.every(node => node.properties && !('svg' in node)));
   assert.ok(scene.nodes.some(node => node.type==='circle' && node.properties.opacity===.4));

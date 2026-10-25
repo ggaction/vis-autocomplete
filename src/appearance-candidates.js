@@ -19,6 +19,7 @@ export function appearanceCandidates(program, { layer, profile }) {
   if (!layer) return [];
   const target = layer.id, inspectionTarget = { kind: 'mark', id: target };
   const encoding = layer.encoding ?? {}, mark = layer.mark.type;
+  const coordinate = program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type;
   const owner = chartOwner(program, layer);
   const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
   if (!hasChartContext(program, layer)) return [];
@@ -53,7 +54,9 @@ export function appearanceCandidates(program, { layer, profile }) {
       if (channel === 'shape' && (field.distinct < 2 || field.distinct > 6)) continue;
       if (mark === 'text' && layer.source) continue;
       // A line/area appearance describes a complete path, not individual rows.
-      if (['line', 'area'].includes(mark)) {
+      // A parallel path represents one observation. Ordinary line/area paths
+      // represent a whole series and need one appearance value per group.
+      if (['line', 'area'].includes(mark) && coordinate !== 'parallel') {
         if (mark === 'line' && ['color', 'strokeDash'].includes(channel) && !encoding.group) {
           // These two native line encodings define series. Without an explicit
           // group they must agree when both are mapped. Area does not infer this.

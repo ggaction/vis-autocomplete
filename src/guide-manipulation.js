@@ -17,8 +17,10 @@ const annotationCall = (target, method, args = {}) => {
   const options = { ...target.args, ...args };
   return target.facet ? { method: 'editFacetSource', args: { action: { method, options } } } : { method, args: options };
 };
+const facetSourceCall = call => ({ method: 'editFacetSource', args: { action: { method: call.method, options: call.args } } });
 export function guideMoveHistoryKey(target) {
   if (target.childPath) return `${JSON.stringify(target.childPath)}/${guideMoveHistoryKey(target.localTarget)}`;
+  if (target.facetTarget) return `facet/legend:${target.config.target}:${target.family}`;
   if (target.kind === 'title') return 'move:title';
   if (target.kind === 'axis') return `move:axis:${target.channel}:${JSON.stringify(target.args)}`;
   if (target.kind === 'annotation') return `move:annotation:${JSON.stringify(target.args)}`;
@@ -106,9 +108,23 @@ export function editableGuides(program) {
         ids: [item.id ?? id], facet: Boolean(program.compositionSpec?.facet) });
     }
   }
-  const configs = program.guideConfigs.legend ?? Object.values(program.children ?? {}).find(child => child.guideConfigs.legend)?.guideConfigs.legend ?? {};
+  // Each retained cell legend is one visible object. Never union its namespaced
+  // replicas into a bounding box spanning the plots between them. They still
+  // edit the one authored facet source, just like repeated axis titles.
+  if (program.compositionSpec?.facet) {
+    for (const [childId, child] of Object.entries(program.children)) {
+      const prefix = `${program.compositionSpec.id}-${childId}`;
+      const canvas = objects[namespaceGraphicId(prefix, 'canvas')];
+      for (const local of editableGuides(child).filter(target => target.kind === 'legend')) {
+        add({ ...local, key: `${childId}/${local.key}`, ids: local.ids.map(id => namespaceGraphicId(prefix, id)),
+          facetTarget: local, localProgram: child,
+          offset: { x: canvas?.properties.x ?? 0, y: canvas?.properties.y ?? 0 } });
+      }
+    }
+  }
+  const configs = program.guideConfigs.legend ?? {};
   for (const [kind, config] of Object.entries(configs)) {
-    const ids = findIds(legendGraphicIds(kind));
+    const ids = legendGraphicIds(kind).filter(id => objects[id]);
     if (!ids.length) continue;
     add({ key: `legend:${kind}`, label: `${config.title || 'Legend'} legend`, kind: 'legend', family: kind,
       config, placement: localLegendPlacement(config) ?? program.guideConfigs.legendGroups?.[config.target]?.placement ?? config,
@@ -138,6 +154,7 @@ export function selectableGuides(program) {
     const ids = legend.ids.flatMap(descendants);
     for (const [part, label, scope] of [['titleStyle', 'title', 'title'], ['labels', 'items', 'items']]) {
       const existing = guides.find(g => g.kind === 'legend' && g.part === part && g.family === legend.family &&
+        g.ids.every(id => legend.ids.includes(id)) &&
         JSON.stringify(ownerPath(g)) === JSON.stringify(ownerPath(legend)) && JSON.stringify(g.editTargets) === JSON.stringify(legend.editTargets));
       if (existing) { existing.legendKey = legend.key; existing.legendPart = scope; continue; }
       const partIds = ids.filter(id => part === 'titleStyle' ? id.endsWith('Title') : !/Title$|Border$/.test(id));
@@ -163,6 +180,8 @@ export function selectedGuideTextTargets(program, keys) {
     if (target.members) return target.members.flatMap(visit);
     if (target.childPath) return visit(target.localTarget).map(item => ({ ...item,
       call: style => scopedCall(item.call(style), [{ childPath: target.childPath }]) }));
+    if (target.facetTarget) return visit({ ...target.facetTarget, part: target.part }).map(item => ({ ...item,
+      call: style => facetSourceCall(item.call(style)) }));
     const config = target.config;
     const entry = (style, method, args, slot) => style ? [{ config: style, call: value => ({ method,
       args: { ...args, ...(slot ? { [slot]: value } : value) } }) }] : [];
@@ -186,6 +205,7 @@ export function selectedGuideTextTargets(program, keys) {
 
 export function removeGuide(target) {
   if (target.childPath) return scopedCall(removeGuide(target.localTarget), [{ childPath: target.childPath }]);
+  if (target.facetTarget) return facetSourceCall(removeGuide({ ...target.facetTarget, part: target.part }));
   if (target.remove) return target.remove;
   if (target.kind === 'annotation') return annotationCall(target, 'removeMark');
   if (target.kind === 'title') return target.part === 'subtitleStyle'
@@ -208,6 +228,7 @@ export function removeGuide(target) {
 // margin fitting, collisions, guide refresh and facet source replay.
 export function resizeGuide(target, factor) {
   if (target.childPath) return scopedCall(resizeGuide(target.localTarget, factor), [{ childPath: target.childPath }]);
+  if (target.facetTarget) return facetSourceCall(resizeGuide({ ...target.facetTarget, part: target.part }, factor));
   factor = clamp(factor, .25, 4);
   const config = target.config;
   const font = style => ({ fontSize: clamp(round(style.fontSize * factor), 6, 96) });
@@ -252,6 +273,7 @@ export function resizeGuide(target, factor) {
 
 export function moveGuide(program, target, x, y, drag) {
   if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y, drag), [{ childPath: target.childPath }]);
+  if (target.facetTarget) return facetSourceCall(moveGuide(target.localProgram, target.facetTarget, x - target.offset.x, y - target.offset.y, drag));
   if (target.kind === 'annotation') return annotationCall(target, 'editTextMark', {
     dx: round((target.config.dx ?? 0) + (drag?.dx ?? x - (target.bounds.left + target.bounds.right) / 2)),
     dy: round((target.config.dy ?? 0) + (drag?.dy ?? y - (target.bounds.top + target.bounds.bottom) / 2)),

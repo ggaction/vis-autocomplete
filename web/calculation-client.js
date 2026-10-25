@@ -101,6 +101,7 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
   const preview = latestQueue(prepareJob);
   const sceneJobs = latestQueue(async ({context, action, setupCalls}) => {
     const prepared=context.cache.get(signature([action,setupCalls]));
+    if (prepared?.scene) return prepared.scene;
     const endpoint=await ensure(prepared?.workerRole ?? 'preview',context);
     return endpoint.send({type:'scene',stateId:context.id,action,setupCalls});
   });
@@ -120,7 +121,12 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       return context.checkpoint;
     },
     transitionScene(program,view,guideCall,action,setupCalls=[]) {
-      return sceneJobs({context:contextFor(program,view,guideCall),action,setupCalls});
+      const context = contextFor(program, view, guideCall);
+      const prepared = context.cache.get(signature([action, setupCalls]));
+      // Bypass even an in-flight older scene request. The caller's generation
+      // guard prevents that stale result from replacing the current hover.
+      if (prepared?.scene) { sceneJobs.cancelPending(); return Promise.resolve(prepared.scene); }
+      return sceneJobs({context,action,setupCalls});
     },
     cancelRecommendations() {
       recommendationRequest++;

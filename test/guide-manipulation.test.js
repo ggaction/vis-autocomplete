@@ -92,7 +92,7 @@ for (const channel of ['color', 'stroke']) for (const faceted of [false, true]) 
    const action = resizeGuide(target,factor);
    assert.equal('itemGap' in action.args,false);
    const result = prepareGuidedAction(program,action,view), config = result.preview.guideConfigs.legend[target.family];
-   assert.equal(config.gradient.length,target.config.gradient.length*factor);
+   assert.ok(Math.abs(config.gradient.length-target.config.gradient.length*factor)<1e-9);
    assert.equal(config.gradient.thickness,Math.round(target.config.gradient.thickness*factor*4)/4);
    assert.ok(factor<1 ? config.labels.fontSize<target.config.labels.fontSize : config.labels.fontSize>target.config.labels.fontSize);
    const bounds=guideBounds(result.preview,target.ids);
@@ -126,4 +126,31 @@ test('a move rebased to its run baseline retains the current legend title placem
  const result=prepareGuidedAction(baseline,action,baseline).preview;
  assert.equal(result.guideConfigs.legend.color.blockOverrides['["color"]'].position,'top');
  assert.equal(result.guideConfigs.legend.color.titlePosition,'top');
+});
+
+test('per-cell legend boxes wrap physical replicas and edit the facet source once', async () => {
+ const { selectableGuides, selectedGuideTextTargets, removeGuide } = await import('../src/guide-manipulation.js');
+ const { manipulationTargets } = await import('../src/guide-group.js');
+ const p = base().facet({field:'g',columns:3,guides:{legend:false,axes:'each'}});
+ const guides = selectableGuides(p), legends = guides.filter(t=>t.kind==='legend'&&!t.part);
+ assert.equal(legends.length,3);
+ for(const legend of legends){
+  assert.ok(legend.bounds.right-legend.bounds.left<200, 'a box must not span separate panels');
+  assert.ok(legend.facetTarget);
+  const title = guides.find(t=>t.legendKey===legend.key&&t.legendPart==='title');
+  assert.ok(title);
+  assert.ok(title.bounds.left>=legend.bounds.left && title.bounds.right<=legend.bounds.right);
+  const action = resizeGuide(legend,1.5);
+  assert.equal(action.method,'editFacetSource');
+  const resized=prepareGuidedAction(p,action,p).preview;
+  for(const child of Object.values(resized.children)) assert.equal(child.guideConfigs.legend.color.labels.fontSize,18);
+  assert.deepEqual(resized.graphicSpec,replayPrepared(prepareGuidedAction(p,action,p)).graphicSpec);
+  const moved=moveGuide(p,legend,legend.bounds.left,legend.bounds.top,{dx:0,dy:10});
+  assert.equal(moved.method,'editFacetSource');
+  assert.ok(prepareGuidedAction(p,moved,p).preview);
+  assert.equal(removeGuide(legend).method,'editFacetSource');
+  assert.ok(selectedGuideTextTargets(p,[title.key]).every(t=>t.call({fontSize:18}).method==='editFacetSource'));
+ }
+ assert.equal(manipulationTargets(guides,new Set(legends.map(l=>l.key)),legends[0],'resize').length,1);
+ assert.equal(manipulationTargets(guides,new Set(guides.filter(g=>g.kind==='legend').map(l=>l.key)),legends[0],'resize').length,1);
 });

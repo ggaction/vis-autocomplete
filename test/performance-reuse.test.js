@@ -264,3 +264,27 @@ test('typography retains the completed worker state and transfers it to the othe
   assert.equal(result.view.guideConfigs.axis.x.labels.fontSize,16);
   assert.equal(result.view.trace.children.at(-1).op,'createGuides');
 });
+
+test('ready card scenes bypass busy workers and stale scene requests', async () => {
+  const messages = [], scene = { version: 2, nodes: [] };
+  let releaseOldScene;
+  const client = createCalculationClient({ workerFactory: role => {
+    let receive;
+    return { addEventListener(type, callback) { if (type === 'message') receive = callback; },
+      postMessage({ id, request }) {
+        messages.push({ role, type: request.type });
+        const reply = value => queueMicrotask(() => receive({ data: { id, value } }));
+        if (request.type === 'scene') { releaseOldScene = () => reply({ version: 2, nodes: ['old'] }); return; }
+        reply(request.type === 'prepare' ? { scene } : { exists: true });
+      } };
+  } });
+  const p = scatter(), view = p.createGuides(), guideCall = { method: 'createGuides', args: {} };
+  const action = { method: 'encodeOpacity', args: { target: 'plot', value: .4 } };
+  const prepared = await client.prepare(p, view, guideCall, action);
+  const old = client.transitionScene(p, view, guideCall, { ...action, args: { ...action.args, value: .5 } });
+  while (!releaseOldScene) await new Promise(resolve => setImmediate(resolve));
+  const before = messages.length;
+  assert.equal(await client.transitionScene(p, view, guideCall, action), prepared.scene);
+  assert.equal(messages.length, before, 'cached hover must require no worker round trip');
+  releaseOldScene(); await old;
+});

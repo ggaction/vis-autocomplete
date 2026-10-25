@@ -25,6 +25,9 @@ export function createCalculationService(model) {
     if (artifacts.has(prepared)) return artifacts.get(prepared);
     const value = { recommendation: prepared.recommendation, guideCall: prepared.guideCall,
       prerequisiteCalls: prepared.prerequisiteCalls, postActionCalls: prepared.postActionCalls,
+      // Deliver the exact transition endpoint with the thumbnail. Hover must
+      // never queue behind the recommendation worker's next expensive chart.
+      scene: createTransitionScene(prepared.preview, { format: 'canvas' }),
       preview: { canvasGeometry: canvasGeometry(prepared.preview), graphicSpec: prepared.preview.graphicSpec,
         semanticSpec: { layers: prepared.preview.semanticSpec.layers, coordinates: prepared.preview.semanticSpec.coordinates } } };
     artifacts.set(prepared, value); return value;

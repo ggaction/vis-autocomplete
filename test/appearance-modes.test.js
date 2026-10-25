@@ -80,3 +80,18 @@ test('continuous mapping ranges normalize reversed endpoints and disabled field 
   const fixedOnly = recommendationParameters({ method: 'encodeColor', args: { target: 'plot', value: '#555555' } }, profileDataset(view, 'cars'));
   assert.equal(fixedOnly.controls.find(c => c.key === 'mode').choices.find(c => c.value === 'variable').disabled, true);
 });
+
+test('parallel paths expose per-observation appearance fields, including numeric color', async () => {
+  const { appearanceCandidates } = await import('../src/appearance-candidates.js');
+  const rows = [{ a:1,b:2,c:3,group:'A' },{ a:4,b:5,c:6,group:'B' }];
+  let p = chart().createCanvas({ plot: { width: 314, height: 314 }, margin: 100 })
+    .createData({ id:'data',values:rows }).createParallelCoordinates({ id:'plot',dimensions:['a','b','c'] });
+  for (const facet of [false,true]) {
+    if(facet) p=p.facet({field:'group',columns:2});
+    const candidates=appearanceCandidates(p,{layer:p.semanticSpec.layers[0],profile:profileDataset(p,'data')});
+    for(const method of ['encodeColor','encodeOpacity','encodeStrokeWidth']) {
+      assert.ok(candidates.some(c=>c.method===method&&c.args.field==='a'),`${method} must accept a row value`);
+    }
+    assert.ok(candidates.some(c=>c.method==='encodeColor'&&c.args.field==='group'));
+  }
+});

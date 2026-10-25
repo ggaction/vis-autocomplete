@@ -36,6 +36,9 @@ function defaultGuideCall(program) {
     }
   };
   collectScales(program.semanticSpec.guides.legend);
+  // Parent-owned facet legends are materialization intent, not unit semantic
+  // guides. Asking createGuides for those scales again creates cell legends.
+  collectScales(program.guideConfigs.legend);
   const root = program.semanticSpec.layers.find(layer => layer.id === 'plot') ?? program.semanticSpec.layers[0];
   if (program.markConfigs[root?.id]?.compositionRole === 'pie') { args.axes = false; args.grid = false; }
   const channels = ['color', 'size', 'shape', 'stroke', 'strokeWidth', 'strokeDash',
@@ -251,6 +254,23 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
     for (const call of guideSetup) {
       authoringPreview = authoringPreview[call.method](call.args);
       postActionCalls.push(call);
+    }
+    // A facet created before any appearance encoding has no legend to share.
+    // When its first shared mapping arrives, give that explanation one parent
+    // owner before creating guides (which would otherwise duplicate it per cell).
+    // Existing per-cell legends and explicitly independent scales keep their policy.
+    if (authoringPreview.compositionSpec?.facet?.guides.legend === false &&
+        ![view, ...Object.values(view.children)].some(p => Object.keys(p.guideConfigs.legend ?? {}).length)) {
+      const legend = defaultGuideCall(authoringPreview).args.legend;
+      const channels = legend?.channels.filter(channel =>
+        !authoringPreview.guideConfigs.suppressedLegends?.[legend.target]?.channels.includes(channel));
+      const previous = view.semanticSpec.layers.find(layer => layer.id === legend?.target);
+      if (channels?.length && channels.every(channel => !previous?.encoding[channel]?.scale &&
+          authoringPreview.compositionSpec.facet.scales[channel] !== 'independent')) {
+        const call = { method: 'editFacetGuides', args: { legend: { ...legend, channels } } };
+        authoringPreview = authoringPreview.editFacetGuides(call.args);
+        postActionCalls.push(call);
+      }
     }
     // The same series can gain another visual channel. Updating the existing
     // legend is explicit native setup, so its symbols represent both mappings.

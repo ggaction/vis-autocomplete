@@ -15,7 +15,7 @@ export function manipulationTargets(guides, keys, grabbed, operation) {
     .filter(t => operation === 'move' ? t.movable : t.kind !== 'panel' && (t.resizable !== false || t.legendPart === 'items'));
   const owners = new Map();
   for (const target of candidates) {
-    const owner = target.kind === 'legend' ? target.legendKey ?? target.key : guideMoveHistoryKey(target);
+    const owner = target.kind === 'legend' && !target.facetTarget ? target.legendKey ?? target.key : guideMoveHistoryKey(target);
     const group = owners.get(owner) ?? [];
     if (operation === 'move') { if (!group.length) group.push(target); }
     else if (!target.part) { group.splice(0, group.length, target); }

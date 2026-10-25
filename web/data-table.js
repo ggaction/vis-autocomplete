@@ -1,3 +1,4 @@
+import { selectionFields } from '../src/field-selection.js';
 // The chart uses all rows. The table mounts only the visible row/column window.
 const mounted = new WeakMap();
 export const TABLE_ROW_HEIGHT = 24, TABLE_COLUMN_WIDTH = 58, TABLE_HEADER_HEIGHT = 30;
@@ -10,6 +11,10 @@ export function tableWindow({ rowCount, columnCount, scrollTop = 0, scrollLeft =
     bottom: (rowCount - rowEnd) * TABLE_ROW_HEIGHT, left: columnStart * TABLE_COLUMN_WIDTH, right: (columnCount - columnEnd) * TABLE_COLUMN_WIDTH };
 }
 export function columnSelectionChange(selection, name) {
+  if (Array.isArray(selection.fields)) {
+    const fields = selectionFields(selection);
+    return { fields: fields.includes(name) ? fields.filter(field => field !== name) : [...fields, name] };
+  }
   const assigned = ['x', 'y', 'color'].filter(channel => selection[channel] === name);
   if (assigned.length) return Object.fromEntries(assigned.map(channel => [channel, '']));
   const next = ['x', 'y', 'color'].find(channel => !selection[channel]);
@@ -20,10 +25,11 @@ export function renderDataTable(host, { rows, profile, selection, onChange, cont
   mounted.get(host)?.destroy(); host.replaceChildren(); host.classList.add('data-view');
   let currentSelection = selection, fieldIndexes = profile.fields.map((_, index) => index), previousWindow, frame, disposed = false;
   const fields = new Map(profile.fields.map((field, index) => [field.name, { field, index }]));
+  const freeSelection = Array.isArray(selection.fields);
   const nextChannel = () => ['x', 'y', 'color'].find(channel => !currentSelection[channel]);
   const create = (tag, className, text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = text; return element; };
   const controls = create('div', 'selection-controls'), inputs = {}, slots = {};
-  for (const [channel, title] of [['x', 'X'], ['y', 'Y'], ['color', 'Color']]) {
+  for (const [channel, title] of freeSelection ? [] : [['x', 'X'], ['y', 'Y'], ['color', 'Color']]) {
     const label = create('label'), caption = create('span', 'selection-caption', title); label.append(caption);
     const select = create('select'); select.id = `select-${channel}`; select.setAttribute('aria-label', `Encode ${channel === 'color' ? channel : title}`);
     const blank = create('option', '', channel === 'color' ? 'None' : 'Select variable'); blank.value = ''; select.append(blank);
@@ -58,17 +64,18 @@ export function renderDataTable(host, { rows, profile, selection, onChange, cont
     role.fullLabel.style.setProperty('--column-label-shift', `${left - cell.left}px`);
   };
   const paintRole = role => {
-    const { field, index, col, cell, button, badge, fullBadge } = role, assigned = ['x', 'y', 'color'].filter(channel => currentSelection[channel] === field.name);
-    badge.textContent = assigned.map(channel => channel === 'color' ? 'C' : channel.toUpperCase()).join(' · '); fullBadge.textContent = badge.textContent;
+    const { field, index, col, cell, button, badge, fullBadge } = role, assigned = freeSelection ? (selectionFields(currentSelection).includes(field.name) ? ['selected'] : [])
+      : ['x', 'y', 'color'].filter(channel => currentSelection[channel] === field.name);
+    badge.textContent = assigned.map(channel => channel === 'selected' ? '✓' : channel === 'color' ? 'C' : channel.toUpperCase()).join(' · '); fullBadge.textContent = badge.textContent;
     for (const node of [col, cell]) {
       node.classList.toggle('encoded-column', assigned.length > 0);
       for (const [kind, value] of Object.entries(feedback)) node.classList.toggle(`column-${kind}`, value === index);
     }
     button.setAttribute('aria-pressed', String(assigned.length > 0));
-    button.title = !field.usable ? `${field.name} · ${field.reason || 'Review field type and missing values.'}` : assigned.length
+    button.title = freeSelection && field.usable ? `${field.name} · ${assigned.length ? 'Deselect' : 'Select'}` : !field.usable ? `${field.name} · ${field.reason || 'Review field type and missing values.'}` : assigned.length
       ? `${field.name} · Clear ${assigned.map(channel => channel === 'color' ? 'Color' : channel.toUpperCase()).join(' / ')}`
       : nextChannel() ? `${field.name} · Encode ${nextChannel()}` : field.name;
-    button.disabled = !field.usable || !assigned.length && !nextChannel();
+    button.disabled = !field.usable || !freeSelection && !assigned.length && !nextChannel();
     cell.title = button.title;
   };
   const setFeedback = (kind, index) => {
@@ -128,7 +135,7 @@ export function renderDataTable(host, { rows, profile, selection, onChange, cont
   const filterFields = () => {
     const query = search.value.trim().toLocaleLowerCase(), filter = typeFilter.value;
     fieldIndexes = profile.fields.flatMap((field, index) => field.name.toLocaleLowerCase().includes(query) &&
-      (filter === 'all' || filter === 'selected' && Object.values(currentSelection).includes(field.name) || filter === field.type) ? [index] : []);
+      (filter === 'all' || filter === 'selected' && selectionFields(currentSelection).includes(field.name) || filter === field.type) ? [index] : []);
     count.textContent = query || filter !== 'all' ? `${fieldIndexes.length} fields` : '';
     table.style.setProperty('--data-column-count', Math.max(1, fieldIndexes.length));
     scroll.scrollLeft = 0; previousWindow = null; draw(true);
@@ -162,6 +169,19 @@ export function renderDataTable(host, { rows, profile, selection, onChange, cont
   scroll.addEventListener('scroll', schedule, { passive: true }); search.addEventListener('input', filterFields); search.addEventListener('search', filterFields); typeFilter.addEventListener('change', filterFields);
   const update = value => {
     currentSelection = value;
+    if (freeSelection) {
+      controls.classList.add('field-selection');
+      controls.replaceChildren();
+      const names = selectionFields(value);
+      if (!names.length) controls.append(create('span', 'selection-hint', 'Select variables'));
+      for (const name of names) {
+        const chip = create('button', 'selected-field', name); chip.type = 'button';
+        chip.title = name; chip.setAttribute('aria-label', `Deselect ${name}`);
+        chip.append(create('span', 'selected-field-remove', '×'));
+        chip.addEventListener('click', () => onChange(columnSelectionChange(currentSelection, name)));
+        controls.append(chip);
+      }
+    }
     for (const [channel, input] of Object.entries(inputs)) {
       input.value = value[channel] ?? ''; input.hidden = !value[channel]; slots[channel].empty.hidden = Boolean(value[channel]);
       slots[channel].label.classList.toggle('next-selection', nextChannel() === channel);

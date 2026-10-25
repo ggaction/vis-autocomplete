@@ -118,6 +118,7 @@ export async function trainCorpus({ corpusRoot = CORPUS_ROOT, outputRoot = join(
   }
   const provenance = {
     repository: 'https://github.com/ggaction/chart-datasets', commit,
+    initialProfileUnit: 'chart-field-subsets-v2',
     ggactionVersion: ggactionPackage.version, ggactionSource: ggactionSource(), trainingUnit: 'one-chart-id',
     stagePolicy: 'union-of-every-accepted-stage-deduplicated-per-chart',
     extraction: 'static-public-ggaction-program-graph-v6', corpusRuntime,

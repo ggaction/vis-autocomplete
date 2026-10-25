@@ -1,3 +1,4 @@
+import { selectionFields } from '../src/field-selection.js';
 import { loadModel } from './model-loader.js';
 import { initializeCompositionControls, adjacentContext, adjacentSpecs, overlayContext, overlaySpecs } from './composition-controls.js';
 import { editableChartTargets, chartAtPath } from '../src/composition-context.js';
@@ -56,7 +57,7 @@ const sales = Array.from({ length: 36 }, (_, i) => ({
 const state = { initialEngine: null, rows: [], name: '', program: null, base: null,
   phase: 'initial', cards: [], active: null, context: {}, generation: 0, steps: 0, setupCalls: [], calls: [],
   committing: false, resizing: false, view: null, guideCall: null, galleryRows: [], galleryObserver: null,
-  selection: { x: '', y: '', color: '' }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
+  selection: { fields: [] }, profile: null, selectionAxes: null, tableView: null, baseCalls: [], plotData: 'dataset',
   optionGroup: 'encoding', searchQuery: '', datasetId: null, adding: null };
 const compositionControls = initializeCompositionControls({
   select: $('editing-target'), overlayButton: $('add-overlay'), host: $('current-shell'), adjacentHost: $('adjacent-controls'), read: () => state,
@@ -355,6 +356,11 @@ $('action-search').addEventListener('keydown', event => {
 });
 
 function mountDataTable() {
+  state.selection = { fields: selectionFields(state.selection) };
+  const setup = selectionData(state.base, state.profile, state.rows, state.selection);
+  state.program = setup.program; state.view = setup.program; state.plotData = setup.data;
+  state.setupCalls = [...state.baseCalls, ...setup.calls];
+  state.selectionAxes = { program: setup.program, calls: [] };
   transitionMode.reset();
   canvasResize.clear();
   state.tableView?.destroy?.();
@@ -593,6 +599,11 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
     const action = buildRecommendationCall(card, values);
     if (card.methodElement) card.methodElement.textContent = `${action.method}(…)`;
     const setupCalls = card.setup?.(values) ?? [];
+    if (card.usageElement) {
+      const used = card.usage(values);
+      card.usageElement.textContent = used.length < card.selectedFields.length ? `Uses ${used.length} of ${card.selectedFields.length} selected variables · ${used.join(', ')}` : '';
+      card.usageElement.title = used.join(', ');
+    }
     const signature = JSON.stringify([action, setupCalls]);
     if (!card.prepared || card.preparedSignature !== signature) {
       // Preview work never owns Apply availability. Apply validates the pinned
@@ -628,7 +639,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
 function pinValues(card, values, changedKey, rebuild = true) {
   const flatten = list => list.flatMap(c => c.type === 'group' ? flatten(c.controls) : [c]);
   card.nextTransitionDuration = parameterTransitionDuration(flatten(card.controls).find(c => c.key === changedKey));
-  card.values = card.normalizeValues?.(values, changedKey) ?? values;
+  card.values = card.normalizeValues?.(card.fieldSelection && card.normalizeMapping ? { ...values, __previousMapping: card.values } : values, changedKey) ?? values;
   const controls = card.resolveControls?.(card.values) ?? card.controls;
   if (rebuild) {
     const focusKey = document.activeElement?.closest('[data-parameter]')?.dataset.parameter;
@@ -657,6 +668,13 @@ function addControl(card, definition, parent = card.controlsElement) {
   label.append(span);
   if (definition.type === 'group') {
     for (const child of definition.controls) addControl(card, child, label);
+  } else if (definition.type === 'swap') {
+    span.remove();
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'parameter-choice';
+    button.textContent = definition.label; button.setAttribute('aria-label', definition.label);
+    const draft = () => ({ ...card.values, mapping_x: card.values.mapping_y, mapping_y: card.values.mapping_x });
+    parameterIntents.set(button, { card, draft }); card.parameterButtons.push(button);
+    button.addEventListener('click', () => pinValues(card, draft(), definition.key)); label.append(button);
   } else if (['select', 'multiselect', 'color'].includes(definition.type)) {
     const choices = document.createElement('div'); choices.className = 'parameter-options';
     choices.setAttribute('role', 'group');
@@ -701,7 +719,7 @@ function addControl(card, definition, parent = card.controlsElement) {
       const draft = () => {
         if (definition.type !== 'multiselect') {
           const values = { ...card.values, [definition.key]: choice.value };
-          return card.normalizeValues?.(values, definition.key) ?? values;
+          return card.normalizeValues?.(card.fieldSelection && card.normalizeMapping ? { ...values, __previousMapping: card.values } : values, definition.key) ?? values;
         }
         const previous = card.values[definition.key];
         const next = selected(choice.value) ? previous.filter(v => v !== choice.value) : [...previous, choice.value];
@@ -715,6 +733,26 @@ function addControl(card, definition, parent = card.controlsElement) {
         refresh();
       });
       (choice.featured === false ? moreOptions : choices).append(button);
+    }
+    if (definition.type === 'multiselect' && definition.ordered) {
+      const order = document.createElement('div'); order.className = 'dimension-order';
+      for (const [index, name] of card.values[definition.key].entries()) {
+        const item = document.createElement('div');
+        const caption = document.createElement('span'); caption.textContent = `${index + 1}. ${name}`; item.append(caption);
+        for (const direction of [-1, 1]) {
+          const button = document.createElement('button'); button.type = 'button'; button.textContent = direction < 0 ? '↑' : '↓';
+          button.setAttribute('aria-label', `Move ${name} ${direction < 0 ? 'earlier' : 'later'}`);
+          button.disabled = index + direction < 0 || index + direction >= card.values[definition.key].length;
+          button.addEventListener('click', () => {
+            const reordered = [...card.values[definition.key]];
+            [reordered[index], reordered[index + direction]] = [reordered[index + direction], reordered[index]];
+            pinValues(card, { ...card.values, [definition.key]: reordered }, definition.key);
+          });
+          item.append(button);
+        }
+        order.append(item);
+      }
+      choices.append(order);
     }
     if (definition.type === 'multiselect' && definition.selectAll) {
       const all = document.createElement('button'); all.type = 'button'; all.className = 'parameter-choice';
@@ -730,7 +768,7 @@ function addControl(card, definition, parent = card.controlsElement) {
     if (more) choices.append(more);
     refresh(); label.append(choices);
     const reasons = [...new Set(definition.choices.filter(choice => choice.disabled && choice.reason).map(choice => choice.reason))];
-    if (reasons.length) {
+    if (reasons.length && !definition.suppressChoiceHelp) {
       const help = document.createElement('p'); help.className = 'parameter-help'; help.textContent = reasons.join(' ');
       label.append(help);
     }
@@ -882,6 +920,13 @@ async function createCard(spec, index) {
   const method = document.createElement('p'); card.methodElement = method; method.className = 'method-name'; method.textContent = `${card.method}(…)`;
   const thumbnail = document.createElement('div'); thumbnail.className = 'thumbnail'; card.thumbnail = thumbnail;
   button.append(title, method, thumbnail);
+  if (card.usage) {
+    const usage = document.createElement('p'); usage.className = 'field-usage'; card.usageElement = usage;
+    const used = card.usage(card.values);
+    usage.textContent = used.length < card.selectedFields.length ? `Uses ${used.length} of ${card.selectedFields.length} selected variables · ${used.join(', ')}` : '';
+    usage.title = used.join(', '); button.append(usage);
+    element.dataset.usedFields = JSON.stringify(used);
+  }
   card.controlsElement = document.createElement('div'); card.controlsElement.className = 'card-controls';
   setCardExpanded(card, false);
   for (const definition of card.controls) addControl(card, definition);
@@ -1074,10 +1119,10 @@ async function updateCards() {
       elements['options-note'].textContent = '';
       notice(); return;
     }
-    if (!state.selection.x) {
+    if (!selectionFields(state.selection).length) {
       elements.cards.dataset.selectedFields = '[]';
       elements.cards.dataset.queryFieldCount = '0';
-      elements['step-description'].textContent = 'Select X to see chart options; add Y and Color to compare variables.';
+      elements['step-description'].textContent = 'Select variables in the table to explore chart options.';
       notice(); return;
     }
     const data = state.program.semanticSpec.datasets.find(dataset => dataset.id === state.plotData);
@@ -1100,7 +1145,9 @@ async function updateCards() {
       specs = state.adding.kind === 'overlay' ? overlaySpecs(state.adding, state.initialEngine) : adjacentSpecs(state.initialEngine, state.adding, state.program);
     } else if (state.phase === 'initial') {
       const profile = { ...state.profile, id: state.plotData };
-      const result = state.initialEngine.recommend(state.rows, profile, { selection: state.selection });
+      const result = await state.initialEngine.recommendAsync(state.rows, profile, { selection: state.selection,
+        cancelled: () => generation !== state.generation, yieldFrame: tick });
+      if (result.cancelled || generation !== state.generation) return;
       specs = result.recommendations.map(initialParameters);
       elements.cards.dataset.ranking = 'selected-columns-similar-dataset-chart-frequency';
       elements.cards.dataset.neighborCount = result.neighbors.length;
@@ -1477,7 +1524,7 @@ async function showSnapshot(snapshot) {
   updateHistoryButtons(); showPreview(null); scheduleSave(); await updateCards();
 }
 
-async function activateDataset(record, { selection = { x: '', y: '', color: '' }, restore = true } = {}) {
+async function activateDataset(record, { selection = { fields: [] }, restore = true } = {}) {
   resizeHistory.reset();
   // Do all input/native construction checks before replacing a working session.
   const rows = record.imported.rows;
@@ -1496,8 +1543,7 @@ async function activateDataset(record, { selection = { x: '', y: '', color: '' }
   state.datasetId = record.id; state.rows = rows; state.name = record.name;
   state.base = base.program; state.program = base.program; state.view = base.program; state.guideCall = null;
   state.baseCalls = base.calls; state.setupCalls = base.calls; state.profile = profile;
-  state.selection = Object.fromEntries(Object.entries(selection).map(([role, name]) =>
-    [role, profile.fields.some(field => field.name === name && field.usable) ? name : '']));
+  state.selection = { fields: selectionFields(selection).filter(name => profile.fields.some(field => field.name === name && field.usable)) };
   state.adding = null; state.phase = 'initial'; state.steps = 0; state.context = {}; state.calls = [];
   state.optionGroup = 'encoding'; clearSearch();
   resetCodeView($('code-content')); updateDatasetOptions();

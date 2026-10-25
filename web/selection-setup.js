@@ -1,4 +1,5 @@
 export function selectionData(base, profile, rows, selection) {
+  if (Array.isArray(selection.fields)) return { program: base, data: profile.id, calls: [] };
   let program = base, data = profile.id;
   const calls = [];
   if (selection.x) {
@@ -13,6 +14,7 @@ export function selectionData(base, profile, rows, selection) {
 
 // Genuine standalone ggaction axes: no mark, invisible points or renderer patch.
 export function selectionAxes(base, profile, rows, selection = {}) {
+  if (Array.isArray(selection.fields)) return { program: base, calls: [] };
   let program = base;
   const calls = [];
   const call = (method, args) => { program = program[method](args); calls.push({ method, args }); };

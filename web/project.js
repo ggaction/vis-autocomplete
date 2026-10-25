@@ -89,7 +89,12 @@ function normalizeSession(session, names) {
     if (snapshot.guideCall != null && snapshot.guideCall.method !== 'createGuides') throw new TypeError('Invalid final guide call.');
     const optionGroup = snapshot.optionGroup ?? 'encoding';
     if (!groups.has(optionGroup)) throw new TypeError('Invalid project option group.');
-    const selection = Object.fromEntries(['x', 'y', 'color'].map(role => {
+    if (snapshot.selection.fields !== undefined && (!Array.isArray(snapshot.selection.fields) ||
+        snapshot.selection.fields.some(field => typeof field !== 'string' || !names.has(field)))) {
+      throw new TypeError('Invalid project selected fields.');
+    }
+    const selection = Array.isArray(snapshot.selection.fields) ? { fields: [...new Set(snapshot.selection.fields)] }
+      : Object.fromEntries(['x', 'y', 'color'].map(role => {
       const field = snapshot.selection[role] ?? '';
       if (typeof field !== 'string' || field && !names.has(field)) throw new TypeError(`Invalid project selection for ${role}.`);
       return [role, field];

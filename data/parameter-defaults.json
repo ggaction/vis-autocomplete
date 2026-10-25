@@ -3,12 +3,13 @@
   "provenance": {
     "repository": "https://github.com/ggaction/chart-datasets",
     "commit": "58791ace7212cacb98c2b64e3f92280722ab638e",
+    "initialProfileUnit": "chart-field-subsets-v2",
     "ggactionVersion": "0.0.25",
     "ggactionSource": {
       "repository": "https://github.com/ggaction/ggaction",
       "directory": "vendor/ggaction",
       "branch": "codex/overlay-composition-v025",
-      "commit": "9a67a152f6d618a6d35b1bf433a49863f0a077bd",
+      "commit": "d45ca559fcfa6b36f77063b0383a2ba358b6ed9f",
       "modified": false
     },
     "trainingUnit": "one-chart-id",
@@ -37,7 +38,7 @@
     "programCount": 10174,
     "dataFiles": 1452,
     "dataBytes": 562448488,
-    "generation": "45014637364d490779d84b5642e32e8a296de94821ded3fa6f0722e312178004"
+    "generation": "db884ff4054893b9d5e7c491eed3b0e9ec15f792caf340a8c85fe6b409acd4fd"
   },
   "policy": "one-vote-per-chart-and-explicit-parameter-split-across-distinct-values",
   "methods": {

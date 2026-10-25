@@ -50,16 +50,19 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
   const x = fields.get(selection.x), y = fields.get(selection.y), color = fields.get(selection.color);
   const ySelected = fields.get(selection.y);
   if (!ySelected) return rolePlotDefinitions(profile, selection, complete, options)
+    .filter(definition => !options.method || definition.method === options.method)
     .map(definition => withInitialScales(definition, profile, complete));
   const grouped = categorical(x) && y.type === 'quantitative' || categorical(y) && x.type === 'quantitative';
   const aggregateBar = barCategory(x) && y.type === 'quantitative' || barCategory(y) && x.type === 'quantitative';
   const category = categorical(x) ? x : y, measure = categorical(x) ? y : x;
   const pos = field => ({ field: field.name, fieldType: field.type, ...(field.order?.length ? { scale: { domain: field.order } } : {}) });
-  const extraDefinitions = rolePlotDefinitions(profile, selection, complete, options);
+  const extraDefinitions = rolePlotDefinitions(profile, selection, complete, options)
+    .filter(definition => !options.method || definition.method === options.method);
   const definitions = [];
   if (!y) return extraDefinitions;
   for (const definition of getPlotDefinitions(profile)) {
     const method = definition.method;
+    if (options.method && method !== options.method) continue;
     const omit = reason => eligibility.push({ method, eligible: false, reason });
     if (!directXY.has(method) && !groupedXY.has(method) && !endpoints.has(method)) { omit('does-not-represent-selected-xy'); continue; }
     if ((groupedXY.has(method) || endpoints.has(method)) && !grouped) { omit('requires-categorical-and-numerical-positions'); continue; }

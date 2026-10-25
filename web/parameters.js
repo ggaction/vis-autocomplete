@@ -19,6 +19,26 @@ const conditional = (control, keyForPath) => control.whenPath ? {
 // Initial chart choices use the same dependent-control rules as follow-up
 // actions, without serializing functions through corpus/worker data.
 export function initialParameters(spec) {
+  if (spec.resolveDefinition) {
+    const editors = new Map();
+    const editorFor = values => {
+      const key = JSON.stringify(['x', 'y', 'color'].map(role => values[`mapping_${role}`] ?? spec.values[`mapping_${role}`] ?? ''));
+      if (!editors.has(key)) editors.set(key, initialParameters({ ...spec.resolveDefinition(values), fieldSelection: true }));
+      if (editors.size > 48) editors.delete(editors.keys().next().value);
+      return editors.get(key);
+    };
+    const normalizeValues = (input, changedKey) => {
+      const mapping = spec.normalizeMapping(input, changedKey), editor = editorFor(mapping);
+      return editor.normalizeValues({ ...editor.values, ...mapping }, changedKey);
+    };
+    const resolved = values => { const normalized = normalizeValues(values); return { editor: editorFor(normalized), values: normalized }; };
+    // Resolve field choices only for mounted cards, not every offscreen plot.
+    return { ...spec, controls: [], normalizeValues,
+      resolveControls: input => { const { editor, values } = resolved(input); return editor.resolveControls(values); },
+      build: input => { const { editor, values } = resolved(input); return editor.build(values); },
+      setup: input => { const { editor, values } = resolved(input); return editor.setup?.(values) ?? []; },
+      usage: input => { const { editor, values } = resolved(input); return editor.usage(values); } };
+  }
   const controls = spec.controls.map(c => conditional(c, path => path));
   const resolveFlatControls = values => {
     const scales = spec.resolveScaleControls?.(values) ?? [];
@@ -48,6 +68,15 @@ export function initialParameters(spec) {
     }));
   };
   const groupScales = controls => {
+    if (spec.fieldSelection) {
+      const mappingKeys = new Set(['dimensions', 'group', 'color', 'category', 'start', 'end']);
+      const sections = [
+        ['mapping', 'Variables', c => c.section === 'mapping' || mappingKeys.has(c.key)],
+        ['settings', 'Chart settings', c => c.section !== 'scales' && c.section !== 'mapping' && !mappingKeys.has(c.key)],
+        ['scales', 'Scales & palette', c => c.section === 'scales']];
+      return sections.flatMap(([key, label, predicate]) => { const children = controls.filter(predicate);
+        return children.length ? [{ key, label, type: 'group', controls: children }] : []; });
+    }
     const scales = controls.filter(c => c.section === 'scales');
     return [...controls.filter(c => c.section !== 'scales'), ...(scales.length ? [
       { key: 'scales', label: 'Scales & palette', type: 'group', controls: scales },
@@ -62,7 +91,8 @@ export function initialParameters(spec) {
       values[replace.key] = replace.choices.find(choice => !choice.disabled && choice.value !== values[c.key])?.value;
     }
     for (const c of resolveFlatControls(values)) {
-      if (c.type === 'select' && c.choices.some(choice => sameValue(choice.value, values[c.key]) && choice.disabled)) {
+      if (c.type === 'select' && (c.choices.some(choice => sameValue(choice.value, values[c.key]) && choice.disabled) ||
+          spec.fieldSelection && !c.choices.some(choice => sameValue(choice.value, values[c.key])))) {
         values[c.key] = c.choices.find(choice => !choice.disabled)?.value;
       }
       if (c.type === 'number' && Number.isFinite(values[c.key])) values[c.key] = Math.max(c.min, Math.min(c.max, values[c.key]));

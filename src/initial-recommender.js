@@ -1,3 +1,5 @@
+import { projectFields } from './field-selection.js';
+import { fieldSetPlotDefinitions, generateFieldSetPlots } from './field-set-plots.js';
 import { describeDataset, FEATURE_BLOCKS, FEATURE_NAMES, PROFILE_VERSION, quantile, columnDistance } from './dataset-profile.js';
 import { getPlotDefinitions, defaultValues } from './plot-catalog.js';
 import { projectSelection, selectedPlotDefinitions } from './selected-plots.js';
@@ -110,23 +112,61 @@ export function bindInitialDefaults(definition, query, retrieval) {
   return { values, contributions, exemplarChartIds: [...new Set(exemplars.map(example => example.chart))] };
 }
 
+// Role similarities transfer from the retrieved chart's actual field roles.
+// Missing corpus roles carry no fabricated evidence; semantic tie-breaks remain
+// separately identifiable in the field-set candidate builder.
+function roleMatcher(query, retrieval) {
+  const fields = new Map(query.fields.map(field => [field.name, field])), cache = new Map();
+  return (method, role, name) => {
+    const key = JSON.stringify([method, role, name]); if (cache.has(key)) return cache.get(key);
+    let sum = 0, mass = 0;
+    for (const { group, weight } of retrieval.neighbors) for (const chart of group.charts) {
+      const views = chart.views.filter(view => view.method === method);
+      for (const view of views) {
+        const aliases = role === 'x' ? ['x', 'category', 'field', 'theta'] : role === 'y' ? ['y', 'value', 'radius'] : ['color', 'group'];
+        const key = aliases.find(key => view.sourceRoles?.[key]?.length || view.roles[key]);
+        const sourceNames = view.sourceRoles?.[key]?.length ? view.sourceRoles[key] : [view.roles[key]].flat();
+        const target = fields.get(name);
+        for (const sourceName of sourceNames) {
+          const raw = group.profile.fields.find(field => field.name === sourceName);
+          if (!raw || !target) continue;
+          const type = view.roleTypes?.[key];
+          const source = type ? { ...raw, type } : raw;
+          const w = weight / group.charts.length / views.length / sourceNames.length;
+          sum += w * Math.exp(-columnDistance(target, source) * 8); mass += w;
+        }
+      }
+    }
+    const score = mass ? sum / mass : 0; cache.set(key, score); return score;
+  };
+}
+
 export function createInitialChartRecommender(model) {
   if (!model?.groups?.length) throw new Error('The initial chart corpus index is empty.');
-  return Object.freeze({
-    recommend(rows, authoringProfile, options = {}) {
+  const fieldModel = model.viewGroups?.length ? { ...model, groups: model.viewGroups, normalization: model.viewNormalization } : model;
+  const defaultsFor = definition => {
+    const controls = structuredClone(definition.controls);
+    applyParameterDefaults(controls, values => definition.build({ ...defaultValues(definition), ...values }),
+      { method: definition.method, defaultEvidence: model.parameterDefaults?.methods?.[definition.method] });
+    const values = Object.fromEntries(controls.map(control => [control.key, control.value]));
+    return { ...values, ...definition.semanticDefaults };
+  };
+  const recommend = (rows, authoringProfile, options = {}) => {
       const availableProfile = authoringProfile, availableRows = rows;
-      const selected = options.selection ? projectSelection(rows, authoringProfile, options.selection) : null;
+      const free = Array.isArray(options.selection?.fields);
+      const selected = free ? projectFields(rows, authoringProfile, options.selection.fields)
+        : options.selection ? projectSelection(rows, authoringProfile, options.selection) : null;
       if (selected) { rows = selected.rows; authoringProfile = selected.profile; }
       const profile = describeDataset(rows, Object.fromEntries(authoringProfile.fields.map(f => [f.name, { type: f.type, ...(f.order ? { order: f.order } : {}) }])));
-      const retrieval = retrieveInitialEvidence(model, profile, options);
-      const chartEligibility = [];
-      const definitions = selected ? selectedPlotDefinitions(authoringProfile, options.selection, availableRows, chartEligibility, { availableProfile }) : getPlotDefinitions(authoringProfile);
+      const retrieval = retrieveInitialEvidence(free ? fieldModel : model, profile, options);
+      const chartEligibility = options.fieldEligibility ?? [];
+      const definitions = free ? (options.fieldDefinitions ?? (profile.fields.length ? fieldSetPlotDefinitions(authoringProfile, rows, { roleScore: roleMatcher(profile, retrieval), parameterDefaults: defaultsFor, onEligibility: item => chartEligibility.push(item) }) : [])) : selected ? selectedPlotDefinitions(authoringProfile, options.selection, availableRows, chartEligibility, { availableProfile }) : getPlotDefinitions(authoringProfile);
       const recommendations = definitions.map(definition => {
-        const bound = selected ? { values: defaultValues(definition), selection: { ...options.selection }, exemplarChartIds: [] }
+        const bound = free ? { values: definition.values, selection: { fields: selected.fields }, exemplarChartIds: retrieval.neighbors.flatMap(n => n.group.charts.filter(c => c.methods.includes(definition.method)).map(c => c.id)) } : selected ? { values: defaultValues(definition), selection: { ...options.selection }, exemplarChartIds: [] }
           : bindInitialDefaults(definition, profile, retrieval);
         const method = definition.method;
         const controls = definition.controls.map(control => ({ ...structuredClone(control), value: structuredClone(bound.values[control.key]) }));
-        let defaultDecisions = applyParameterDefaults(controls, values => definition.build({ ...bound.values, ...values }),
+        let defaultDecisions = free ? [] : applyParameterDefaults(controls, values => definition.build({ ...bound.values, ...values }),
           { method, defaultEvidence: model.parameterDefaults?.methods?.[method] });
         for (const [key, value] of Object.entries(definition.semanticDefaults ?? {})) {
           const control = controls.find(control => control.key === key);
@@ -146,13 +186,32 @@ export function createInitialChartRecommender(model) {
           evidence, parameterEvidence: bound,
           evidenceStatus: evidence.length ? 'observed-in-neighbors' : 'no-neighbor-evidence' };
       }).sort((a, b) => Number(Boolean(a.requirement)) - Number(Boolean(b.requirement)) ||
-        b.score - a.score || a.method.localeCompare(b.method));
-      return { recommendations, query: profile, selectedFields: selected?.fields, diagnostics: { chartEligibility },
+        (free ? (b.usedFields?.length ?? 0) / selected.fields.length - (a.usedFields?.length ?? 0) / selected.fields.length : 0) ||
+        b.score - a.score || (free ? (b.mappingScore ?? 0) - (a.mappingScore ?? 0) : 0) || a.method.localeCompare(b.method));
+      return { recommendations, query: profile, selectedFields: selected?.fields, diagnostics: { chartEligibility, ...(free ? { selectionMode: 'fields', corpusProfiles: fieldModel === model ? 'datasets' : 'chart-field-subsets' } : {}) },
         model: { method: model.method, provenance: model.provenance },
         neighbors: retrieval.neighbors.map(n => ({ dataset: n.group.id, family: n.group.family,
           distance: n.distance, weight: n.weight, chartIds: n.group.charts.map(c => c.id) })),
         effectiveNeighbors: retrieval.effectiveNeighbors,
         explanation: 'Similarity-weighted chart fractions; each distinct source family supplies at most one dataset neighbor.' };
+  };
+  return Object.freeze({ recommend,
+    async recommendAsync(rows, authoringProfile, options = {}) {
+      if (!Array.isArray(options.selection?.fields)) return recommend(rows, authoringProfile, options);
+      const selected = projectFields(rows, authoringProfile, options.selection.fields);
+      const profile = describeDataset(selected.rows, Object.fromEntries(selected.profile.fields.map(field => [field.name, field.type])));
+      const retrieval = retrieveInitialEvidence(fieldModel, profile, options);
+      const definitions = [], fieldEligibility = [], cancelled = options.cancelled ?? (() => false);
+      const yieldFrame = options.yieldFrame ?? (() => new Promise(resolve => setTimeout(resolve, 0)));
+      let start = performance.now();
+      if (selected.fields.length) for (const definition of generateFieldSetPlots(selected.profile, selected.rows,
+        { roleScore: roleMatcher(profile, retrieval), parameterDefaults: defaultsFor, onEligibility: item => fieldEligibility.push(item) })) {
+        if (cancelled()) return { cancelled: true };
+        definitions.push(definition);
+        if (performance.now() - start >= 8) { await yieldFrame(); start = performance.now(); }
+      }
+      if (cancelled()) return { cancelled: true };
+      return recommend(rows, authoringProfile, { ...options, fieldDefinitions: definitions, fieldEligibility });
     },
   });
 }

@@ -1,12 +1,13 @@
 {
   "repository": "https://github.com/ggaction/chart-datasets",
   "commit": "58791ace7212cacb98c2b64e3f92280722ab638e",
+  "initialProfileUnit": "chart-field-subsets-v2",
   "ggactionVersion": "0.0.25",
   "ggactionSource": {
     "repository": "https://github.com/ggaction/ggaction",
     "directory": "vendor/ggaction",
     "branch": "codex/overlay-composition-v025",
-    "commit": "9a67a152f6d618a6d35b1bf433a49863f0a077bd",
+    "commit": "d45ca559fcfa6b36f77063b0383a2ba358b6ed9f",
     "modified": false
   },
   "trainingUnit": "one-chart-id",
@@ -35,9 +36,1023 @@
   "programCount": 10174,
   "dataFiles": 1452,
   "dataBytes": 562448488,
-  "generation": "45014637364d490779d84b5642e32e8a296de94821ded3fa6f0722e312178004",
+  "generation": "db884ff4054893b9d5e7c491eed3b0e9ec15f792caf340a8c85fe6b409acd4fd",
   "rawDataFileHashes": 981,
   "canonicalDatasets": 1004,
+  "chartFieldSubsets": 1189,
+  "fieldProfileChartCount": 1387,
+  "fieldProfileFallbacks": [
+    {
+      "chartIds": [
+        "vl_0435"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "down"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0392",
+        "vl_0401"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "size",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0568"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "Type"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0190"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "cumulative_count"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0606"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0152"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "Expendtiure"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0387"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "metricClean",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1557"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "birthday_bio",
+        "gender_bio"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1558"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "decade",
+        "gender_bio"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1562"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "total_sq_foot"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0942"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "__bins_count"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1832"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "ny",
+        "ny2"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0570"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val_pct",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0649"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0436",
+        "vl_0440"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "dateClean"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1245"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "key",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1785"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "Average_MPG"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1796"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "action"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0639"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1435"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "fraction",
+        "fraction_type"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0126"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "cumulative_sum"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1779"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "City"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0186"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "key",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0441"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "dateClean"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0098"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "cumulative_count"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0451"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "count"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0451"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "count"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1171"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "series",
+        "valueNum"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0529"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "venue.capacity",
+        "venue.name"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0632"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0575"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1816",
+        "vl_1817"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "key",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1822",
+        "vl_1823"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "key",
+        "sexLabel",
+        "sumValue",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0104"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "cumulative_count"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0917"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "RegionOrder"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1240"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "key",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0416"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "metric",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0389",
+        "vl_0406",
+        "vl_0407",
+        "vl_0408",
+        "vl_0409"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "metricClean",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1177"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "Count"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1174"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "EVENT"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0227"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "selectedDate"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1783"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "rank"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0400"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "metric",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0956",
+        "vl_0957"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "rolling_mean"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0684"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "b"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1818"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "key"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0043"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "x1",
+        "x2"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0344"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "metricClean",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0345"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "metricClean",
+        "valuePCT"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0616",
+        "vl_0617",
+        "vl_0619",
+        "vl_0620",
+        "vl_0621",
+        "vl_0622",
+        "vl_0624",
+        "vl_0625",
+        "vl_0626",
+        "vl_0627"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "value",
+        "variable"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0597"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "type"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0647"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0565",
+        "vl_0566"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val_bn",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0495"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "State",
+        "Value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0493",
+        "vl_0494"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "State",
+        "Value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0588"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "asset",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0585",
+        "vl_0586",
+        "vl_0587",
+        "vl_0589"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "asset",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1797"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "qurro_x"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1857"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "dstName",
+        "srcName"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1859"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "dstName",
+        "srcName"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1860"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "dstName",
+        "srcName"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1858"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "dstName",
+        "srcName"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1856"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "dstName",
+        "srcName"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0702"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "test"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1627"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "yCenter"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1008"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "Games",
+        "Points"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1278"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "Petal\\.Length",
+        "Petal\\.Width"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0615"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "country",
+        "logGDP"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0609",
+        "vl_0634",
+        "vl_0635"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "GDPpc",
+        "country"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0633"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "GDP",
+        "country"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0359"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "measure",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0364"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "redemptionYear"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0363"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "year"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0687"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "Month"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1641"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "k",
+        "v"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1695"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "id"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0581"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "val",
+        "var"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1680"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "rank"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1701"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "rolling_mean"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1771"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "month"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0576"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "city",
+        "housePrice"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1798",
+        "vl_1799",
+        "vl_1800",
+        "vl_1801",
+        "vl_1802",
+        "vl_1803",
+        "vl_1804",
+        "vl_1805"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "key",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1799",
+        "vl_1802",
+        "vl_1805"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "media_movel"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1835"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "count_cota"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1681"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "age"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0399"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "metricClean",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0397",
+        "vl_0415"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1485"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "proofSingleGroup"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1810"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "key",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1560"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "party"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1427"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "fraction",
+        "fraction_type"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0021"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "end",
+        "event",
+        "start"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1840"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "count_nome_cor"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1070"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "up_ch12_longRunMean"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1777"
+      ],
+      "basis": "dataset-fallback",
+      "unresolvedFields": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0013"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "nx",
+        "nx2"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1550"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "y",
+        "y2"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1837"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "count_idade"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1808",
+        "vl_1809",
+        "vl_1811",
+        "vl_1812",
+        "vl_1813",
+        "vl_1814",
+        "vl_1815",
+        "vl_1824"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "key",
+        "value"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_1812",
+        "vl_1815"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "media_movel"
+      ]
+    },
+    {
+      "chartIds": [
+        "vl_0034"
+      ],
+      "basis": "partial-chart-fields",
+      "unresolvedFields": [
+        "nan"
+      ]
+    }
+  ],
   "sourceFamilies": 995,
   "indexedChartIds": [
     "vl_0002",

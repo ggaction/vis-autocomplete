@@ -213,9 +213,9 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
     // The displayed suffix may own a guide absent from the authoring prefix.
     // Promote the native creation call into visible setup before editing;
     // the recommendation itself still executes exactly one public edit method.
-    const missing = Object.keys(view.semanticSpec.guides[family] ?? {})
-      .some(key => !program.semanticSpec.guides[family]?.[key] &&
-        !(family === 'legend' && program.compositionSpec?.facet && program.guideConfigs.legend?.[key]));
+    const missing = family === 'legend'
+      ? Object.keys(view.guideConfigs.legend ?? {}).some(key => !program.guideConfigs.legend?.[key])
+      : Object.keys(view.semanticSpec.guides[family] ?? {}).some(key => !program.semanticSpec.guides[family]?.[key]);
     if (missing && last?.op === 'createGuides') {
       const children = nodes => nodes.flatMap(node => [node, ...children(node.children ?? [])]);
       if (children(last.children).some(node => node.op === createMethod)) {
@@ -223,10 +223,7 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
         const option = { axis: 'axes', grid: 'grid', legend: 'legend' }[family];
         // A facet owns its shared legend; createLegend is unit-only.
         const call = family === 'legend' && actionBase.compositionSpec?.facet
-          ? { method: 'createGuides', args: { axes: false, grid: false, legend: structuredClone(suffix?.args.legend ?? {
-            ...sourceAction.args.target ? { target: sourceAction.args.target } : {},
-            ...sourceAction.args.channel ? { channels: [sourceAction.args.channel] } : {}
-          }) } }
+          ? { method: 'createGuides', args: structuredClone(suffix?.args ?? defaultGuideCall(actionBase).args) }
           : sourceCall(createMethod, structuredClone(suffix?.args[option] ?? {}));
         // Trace arguments summarize arrays as counts and cannot be replayed.
         // Keep the actual public suffix options rather than reading node.args.
@@ -289,7 +286,8 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
     let preview = addDefaultGuides(authoringPreview, call);
     // Explicit pixel placement must not be counteracted by redistributing the
     // Canvas margins. Native fitting still handles genuinely insufficient room.
-    const positionedGuide = ['editLegend', 'editLegendLayout', 'editTitle', 'editXAxisTitle', 'editYAxisTitle'].includes(sourceAction.method) && sourceAction.args.alongOffset !== undefined;
+    const positionedGuide = ['editLegend', 'editLegendLayout', 'editTitle', 'editXAxisTitle', 'editYAxisTitle'].includes(sourceAction.method) &&
+      (sourceAction.args.alongOffset !== undefined || sourceAction.args.itemsOffset !== undefined);
     const centered = positionedGuide ? { program: authoringPreview, view: preview, calls: [] }
       : sourceAction.method === 'createAdjacentPlot' && ['left', 'right'].includes(sourceAction.args.position ?? 'right')
       ? compactAdjacentCanvases(authoringPreview, preview, call)

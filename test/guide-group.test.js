@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chart, hconcat } from 'ggaction';
-import { selectableGuides } from '../src/guide-manipulation.js';
+import { selectableGuides, guideMoveHistoryKey } from '../src/guide-manipulation.js';
+import { rememberDisplayedGuides } from '../src/prepare.js';
 import { manipulationTargets, manipulationCalls, prepareGuideEdits } from '../src/guide-group.js';
 const unit = () => chart().createCanvas({plot:{width:314,height:314},margin:180})
   .createData({id:'d',values:[{x:1,y:3,g:'A'},{x:2,y:5,g:'B'}]})
@@ -50,8 +51,9 @@ test('facet duplicate axes and nested child owners keep their scopes',()=>{
   const next=edit(q,['a/title','b/title'],'resize',{factor:1.25});
   for(const id of ['a','b']) assert.equal(next.children[id].titleConfig.titleStyle.fontSize,q.children[id].titleConfig.titleStyle.fontSize*1.25);
 });
-test('two independent legend items move their whole owners together',()=>{
+test('two independent legend bodies move while their titles stay fixed',()=>{
   const p=unit(), keys=['legend:color:items','legend:size:items'], next=edit(p,keys,'move',{dx:8,dy:6});
+  for (const key of ['legend-title:color','legend-title:size']) assert.deepEqual(selectableGuides(next).find(t=>t.key===key).bounds,selectableGuides(p).find(t=>t.key===key).bounds);
   for(const key of keys){
     const a=selectableGuides(p).find(t=>t.key===key).bounds,b=selectableGuides(next).find(t=>t.key===key).bounds;
     assert.ok(Math.abs(b.left-a.left-8)<.3,`${key}: x ${b.left-a.left}`);
@@ -80,4 +82,42 @@ for(const kind of ['facet','concat']) test(`${kind}: independent selected legend
     assert.ok(Math.abs(b.left-a.left-5)<.3,`${key}: x ${b.left-a.left}`);
     assert.ok(Math.abs(b.top-a.top-4)<.3,`${key}: y ${b.top-a.top}`);
   }
+});
+for(const kind of ['unit','facet','per-cell','concat','nested']) test(`${kind}: item selection stays independent through moving, whole-legend movement and history keys`,()=>{
+  let p=unit();
+  if(kind==='facet'||kind==='per-cell')p=p.facet({field:'g',columns:2,guides:{legend:kind==='facet'?'shared':false}});
+  if(kind==='concat'||kind==='nested')p=hconcat({programs:[{id:'a',program:p},{id:'b',program:p}],share:{color:kind==='concat'}});
+  if(kind==='nested')p=hconcat({programs:[{id:'inner',program:p},{id:'last',program:unit()}]});
+  const guides=selectableGuides(p), item=guides.find(t=>t.legendPart==='items');
+  const title=guides.find(t=>t.legendPart==='title'&&t.legendKey===item.legendKey);
+  const parent=guides.find(t=>t.key===item.legendKey);
+  assert.notEqual(guideMoveHistoryKey(parent),guideMoveHistoryKey(item));
+  assert.equal(manipulationTargets(guides,new Set([item.key,parent.key]),item,'move')[0].part,undefined);
+  const next=edit(p,[item.key],'move',{dx:8,dy:6});
+  assert.deepEqual(selectableGuides(next).find(t=>t.key===title.key).bounds,title.bounds);
+  const twice=edit(next,[item.key],'move',{dx:4,dy:3});
+  const moved=selectableGuides(twice).find(t=>t.key===item.key);
+  assert.ok(Math.abs(moved.bounds.left-item.bounds.left-12)<.3);
+  assert.ok(Math.abs(moved.bounds.top-item.bounds.top-9)<.3);
+  const whole=edit(twice,[parent.key],'move',{dx:5,dy:4});
+  for(const key of [title.key,item.key]){
+    const a=selectableGuides(twice).find(t=>t.key===key), b=selectableGuides(whole).find(t=>t.key===key);
+    assert.ok(Math.abs(b.bounds.left-a.bounds.left-5)<.3,`${key} x`);
+    assert.ok(Math.abs(b.bounds.top-a.bounds.top-4)<.3,`${key} y`);
+  }
+});
+test('multi-selection promotes the complete displayed facet legend suffix before editing any block',()=>{
+  const p=chart().createCanvas({plot:{width:314,height:314},margin:180})
+    .createData({id:'d',values:[{x:1,y:3,g:'A'},{x:2,y:5,g:'B'}]})
+    .createScatterPlot({id:'plot',x:'x',y:'y',color:{field:'g',fieldType:'nominal'},guides:false})
+    .encodeSize({target:'plot',field:'x'}).facet({field:'g',columns:2,guides:{legend:'shared'}});
+  const call={method:'createGuides',args:{}};
+  const view=rememberDisplayedGuides(p.createGuides(),call), guides=selectableGuides(view);
+  const items=guides.filter(t=>t.legendPart==='items');assert.equal(items.length,2);
+  const result=prepareGuideEdits(p,view,manipulationCalls(view,items,'move',{dx:10,dy:0}));
+  assert.equal(result.calls[0].method,'createGuides');
+  for(const t of guides.filter(t=>t.legendPart==='title')) assert.deepEqual(selectableGuides(result.view).find(n=>n.key===t.key).bounds,t.bounds);
+  for(const item of items)assert.ok(Math.abs(selectableGuides(result.view).find(t=>t.key===item.key).bounds.left-item.bounds.left-10)<.3);
+  let replay=p;for(const c of result.calls)replay=replay[c.method](c.args);
+  replay=replay[result.guideCall.method](result.guideCall.args);assert.deepEqual(replay.graphicSpec,result.view.graphicSpec);
 });

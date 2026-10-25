@@ -1,20 +1,22 @@
 # Independent legend item movement
 
-Status: proposed public API; implementation awaits approval.
+Status: approved and implemented; verification recorded below.
 
 ## Reproduced failure
 
-Dragging `Legend items` currently resolves to its parent legend through
+Before this change, dragging `Legend items` resolved to its parent legend through
 `moveTarget`. The resulting `editLegend` changes the block's `offset` and
 `alongOffset`, moving its title as well as its items. A 10 px right / 6 px down
 drag also moved the title by that amount in a unit scatterplot, a shared-legend
 facet, and a shared-color adjacent composition. This is a selection-scope error,
-not a Canvas hit-testing problem.
+not a Canvas rendering problem. At small display scales, neighboring legend
+resize handles could also intercept a body drag; parent stacking contexts now
+keep those handles below subpart hit areas.
 
-The current public API has block placement and title/item spacing, but no
-two-dimensional item-only placement. It rejects `itemsOffset` today.
+The previous public API had block placement and title/item spacing, but rejected
+two-dimensional item-only placement through `itemsOffset`.
 
-## Proposed contract
+## Implemented contract
 
 ```js
 program.editLegend({
@@ -44,15 +46,29 @@ program.editLegend({
   applying the same drag twice. Consecutive Items drags coalesce independently
   from whole-Legend drags in History/code; Undo/Redo restores the exact state.
 
-## Verification before completion
+## Verification
 
-Cover categorical, sampled size, continuous gradient and combined legend
-families; shared/per-cell facets; local/shared/nested adjacent charts; title
-hidden/shown; offsets in both directions; complete and partial resets; text and
-Canvas resize; scale/filter replay; rejected input immutability; exact saved-call
-replay; multi-selection; and pointer drag/Undo/Redo in the local browser. Check
-that only the body moves relative to the title and plot, and that dragging the
-whole legend still moves both. Update ggaction declarations, inspection metadata,
-the owning contract and API documentation with the implementation.
+- ggaction unit suite: 4,584 passed, including 42 independent-body cases covering
+  categorical, sampled size, continuous gradient and combined legends;
+  shared/per-cell facets; local/shared/nested adjacent charts; visibility,
+  clipping, border bounds, partial/reset edits, scale/filter/Canvas changes,
+  immutable failures, and serialized replay.
+- App guide, typography, scope, history and resize checks: 71 passed. Tests cover
+  complete displayed-guide promotion before a multi-selection edit, parent/child
+  deduplication, independent history keys and whole-legend movement after a body edit.
+- Browser: `test/browser/legend-items-movement.py` verifies real Shift selection,
+  repeated pointer drags, title invariance, history coalescing and Undo/Redo in
+  both Preview/Transition modes on unit/facet charts. Saved facet movement also
+  survives reload. Screenshots remain ignored under `output/legend-items-movement/`.
+- Documentation suite: 157 passed. Public types, inspection metadata, current
+  contracts, generated action cards and reference documentation include the option.
+- Production asset build and package artifact checks passed. The two new native
+  modules raise the entry budget from 647 to 649; byte budgets remain unchanged.
+- Broader contract sweep: 664/666 initially passed. The new package-entry failure
+  was resolved and all 7 package tests then passed. The other failure is existing
+  `cars-origin-histogram-facet` primitive/public title drift (title Y 21 vs 19;
+  subtitle Y 47 vs 45). Loading all changed source modules from the unchanged
+  library HEAD `53a5ecbb` reproduces the exact same failure. This change does not
+  alter that fixture or claim that the entire contract suite is green.
 
 No deployment or release tag is authorized by this change.

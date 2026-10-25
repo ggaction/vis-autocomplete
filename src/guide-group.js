@@ -2,7 +2,7 @@ import { guideMoveHistoryKey, resizeGuide, moveGuide } from './guide-manipulatio
 import { prepareGuidedAction } from './prepare.js';
 
 // Resolve selection scopes to native owners before transforming. Facet copies,
-// title/subtitle movement, and a legend selected through its items share owners.
+// title/subtitle movement share owners. Legend body movement keeps its own scope.
 export function manipulationTargets(guides, keys, grabbed, operation) {
   const selected = guides.filter(t => keys.has(t.key));
   const contains = (t, target) => t.key === target.key ||
@@ -11,13 +11,13 @@ export function manipulationTargets(guides, keys, grabbed, operation) {
   const participating = selected.some(t => contains(t, grabbed) || t.key === grabbed.legendKey || t.legendKey === grabbed.key);
   const expand = t => t.members ? t.members.flatMap(expand) : [t];
   const candidates = (participating ? selected : [grabbed]).flatMap(expand)
-    .map(t => operation === 'move' ? t.moveTarget ?? t : t)
     .filter(t => operation === 'move' ? t.movable : t.kind !== 'panel' && (t.resizable !== false || t.legendPart === 'items'));
   const owners = new Map();
   for (const target of candidates) {
-    const owner = target.kind === 'legend' && !target.facetTarget ? target.legendKey ?? target.key : guideMoveHistoryKey(target);
+    const owner = target.kind === 'legend' ? target.facetTarget
+      ? guideMoveHistoryKey({ ...target, part: undefined }) : target.legendKey ?? target.key : guideMoveHistoryKey(target);
     const group = owners.get(owner) ?? [];
-    if (operation === 'move') { if (!group.length) group.push(target); }
+    if (operation === 'move' && target.kind !== 'legend') { if (!group.length) group.push(target); }
     else if (!target.part) { group.splice(0, group.length, target); }
     else if (!group.some(t => !t.part || t.part === target.part)) group.push(target);
     owners.set(owner, group);

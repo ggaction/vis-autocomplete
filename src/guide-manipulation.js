@@ -10,6 +10,7 @@ import { compositionLegends } from '../vendor/ggaction/src/materialization/compo
 import { namespaceGraphicId } from '../vendor/ggaction/src/materialization/compositionSnapshot.js';
 import { canvasGeometry } from './canvas-geometry.js';
 import { localLegendPlacement } from '../vendor/ggaction/src/grammar/legendGroups.js';
+import { restoreLegendItemsOffset } from '../vendor/ggaction/src/materialization/legendItemsOffset.js';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const round = n => Math.round(n * 4) / 4;
@@ -20,11 +21,11 @@ const annotationCall = (target, method, args = {}) => {
 const facetSourceCall = call => ({ method: 'editFacetSource', args: { action: { method: call.method, options: call.args } } });
 export function guideMoveHistoryKey(target) {
   if (target.childPath) return `${JSON.stringify(target.childPath)}/${guideMoveHistoryKey(target.localTarget)}`;
-  if (target.facetTarget) return `facet/legend:${target.config.target}:${target.family}`;
+  if (target.facetTarget) return `facet/legend:${target.config.target}:${target.family}:${target.part ?? 'legend'}`;
   if (target.kind === 'title') return 'move:title';
   if (target.kind === 'axis') return `move:axis:${target.channel}:${JSON.stringify(target.args)}`;
   if (target.kind === 'annotation') return `move:annotation:${JSON.stringify(target.args)}`;
-  return `move:${target.key}`;
+  return `move:${target.key}${target.part ? `:${target.part}` : ''}`;
 }
 export function guideBounds(program, ids) {
   const bounds = ids.filter(id => findGraphic(program.graphicSpec, id)).map(id =>
@@ -50,10 +51,13 @@ export function editableGuides(program) {
     const { children, layout } = prepareCompositionSnapshots(program);
     for (const shared of compositionLegends(program, children)) {
       const sharedId = shared.id;
+      const bounds = guideBounds(program, [sharedId]), anchor = shared.anchorBounds ?? shared.bounds;
       if (program.graphicSpec.objects[sharedId]) titles.push({
         key: sharedId.endsWith('-shared-color-legend') ? 'legend:shared-color' : `legend:${sharedId}`,
         kind: 'legend', label: `${shared.config.title || 'Legend'} legend`,
-        ids: [sharedId], bounds: guideBounds(program, [sharedId]), movable: true,
+        ids: [sharedId], bounds, movable: true,
+        anchorBounds: { left: bounds.left + anchor.left - shared.bounds.left, right: bounds.right + anchor.right - shared.bounds.right,
+          top: bounds.top + anchor.top - shared.bounds.top, bottom: bounds.bottom + anchor.bottom - shared.bounds.bottom },
         config: shared.config, placement: shared.placement, family: shared.block.kind, channels: shared.channels,
         representation: shared.block.family, editTargets: shared.targets,
         remove: { method: 'removeLegend', args: { target: shared.targets, channels: sharedId.endsWith('-shared-color-legend') ? ['color'] : shared.channels, suppress: true } },
@@ -143,7 +147,8 @@ export function selectableGuides(program) {
   if (selectableGuideCache.has(program)) return selectableGuideCache.get(program);
   const guides = editableGuides(program), legends = guides.filter(g => g.kind === 'legend' && !g.part);
   const withPart = (target, part) => ({ ...target, part,
-    ...(target.localTarget ? { localTarget: withPart(target.localTarget, part) } : {}) });
+    ...(target.localTarget ? { localTarget: withPart(target.localTarget, part) } : {}),
+    ...(target.facetTarget ? { facetTarget: withPart(target.facetTarget, part) } : {}) });
   const ownerPath = target => target.childPath ? [...target.childPath, ...ownerPath(target.localTarget)] : [];
   const descendants = id => {
     const object = findGraphic(program.graphicSpec, id)?.object;
@@ -157,11 +162,11 @@ export function selectableGuides(program) {
         g.ids.every(id => legend.ids.includes(id)) &&
         JSON.stringify(ownerPath(g)) === JSON.stringify(ownerPath(legend)) && JSON.stringify(g.editTargets) === JSON.stringify(legend.editTargets));
       if (existing) { existing.legendKey = legend.key; existing.legendPart = scope; continue; }
-      const partIds = ids.filter(id => part === 'titleStyle' ? id.endsWith('Title') : !/Title$|Border$/.test(id));
+      const partIds = ids.filter(id => part === 'titleStyle' ? id.endsWith('Title') : !/(Title|Border|Background)$/.test(id));
       const bounds = guideBounds(program, partIds);
       if (!bounds) continue;
       guides.push({ ...withPart(legend, part), key: `${legend.key}:${scope}`, label: `${legend.label} ${label}`,
-        ids: partIds, bounds, movable: part === 'labels', moveTarget: part === 'labels' ? legend : undefined,
+        ids: partIds, bounds, movable: part === 'labels',
         resizable: part !== 'labels', deletable: part !== 'labels',
         remove: undefined, legendKey: legend.key, legendPart: scope });
     }
@@ -274,6 +279,12 @@ export function resizeGuide(target, factor) {
 export function moveGuide(program, target, x, y, drag) {
   if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y, drag), [{ childPath: target.childPath }]);
   if (target.facetTarget) return facetSourceCall(moveGuide(target.localProgram, target.facetTarget, x - target.offset.x, y - target.offset.y, drag));
+  if (target.kind === 'legend' && target.part === 'labels') return { method: 'editLegend', args: {
+    target: target.editTargets ?? target.config.target, channel: target.channels[0], itemsOffset: {
+      x: round((target.config.itemsOffset?.x ?? 0) + (drag?.dx ?? x - (target.bounds.left + target.bounds.right) / 2)),
+      y: round((target.config.itemsOffset?.y ?? 0) + (drag?.dy ?? y - (target.bounds.top + target.bounds.bottom) / 2)),
+    },
+  } };
   if (target.kind === 'annotation') return annotationCall(target, 'editTextMark', {
     dx: round((target.config.dx ?? 0) + (drag?.dx ?? x - (target.bounds.left + target.bounds.right) / 2)),
     dy: round((target.config.dy ?? 0) + (drag?.dy ?? y - (target.bounds.top + target.bounds.bottom) / 2)),
@@ -306,7 +317,7 @@ export function moveGuide(program, target, x, y, drag) {
         alongOffset: round((target.config.alongOffset ?? 0) + deltaAlong) } };
       return target.facet ? { method: 'editFacetSource', args: { action: { method: action.method, options: action.args } } } : action;
     }
-    const b = target.bounds;
+    const b = target.anchorBounds ?? guideBounds(restoreLegendItemsOffset(program), target.ids) ?? target.bounds;
     if (position.includes('-')) {
       const top = position.startsWith('top'), left = position.endsWith('left');
       const offset = Math.max(0, round((top ? b.top-p.y : p.y+p.height-b.bottom) + (top ? drag.dy : -drag.dy)));

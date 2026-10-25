@@ -73,7 +73,9 @@ export function createGuideEditor(host, callbacks) {
       node.dataset.guideKind = target.kind;
       node.classList.toggle('legend-container', target.kind === 'legend' && !target.part);
       node.classList.toggle('compact-guide', (bounds.right-bounds.left)*scale < 24 || (bounds.bottom-bounds.top)*scale < 16);
-      node.style.zIndex = target.kind === 'panel' || target.kind === 'legendGroup' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' ? target.part ? '3' : 'auto' : '2';
+      // Contain parent resize handles below subpart hit areas, including those
+      // of neighboring legends when a chart is displayed at a small scale.
+      node.style.zIndex = target.kind === 'panel' || target.kind === 'legendGroup' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' && target.part ? '3' : '2';
       node.classList.toggle('panel-control', target.kind === 'panel');
       Object.assign(node.style, { left: `${bounds.left*scale-pad}px`, top: `${bounds.top*scale-pad}px`,
         width: `${(bounds.right-bounds.left)*scale+pad*2}px`, height: `${(bounds.bottom-bounds.top)*scale+pad*2}px` });
@@ -150,7 +152,7 @@ export function createGuideEditor(host, callbacks) {
     const rect = stage.getBoundingClientRect(), source = callbacks.program();
     const members = manipulationTargets(targets, selected, target, operation);
     if (!members.length) return;
-    const g = { target: target.moveTarget ?? target, members, operation, edge, source, rect, scale: rect.width/canvasGeometry(display).width,
+    const g = { target, members, operation, edge, source, rect, scale: rect.width/canvasGeometry(display).width,
       startX: event.clientX, startY: event.clientY, pointer: event.pointerId,
       pending: null, running: false, ended: false, final: null, key: null };
     gesture = g; g.context = callbacks.start(target, operation, members); host.classList.add('editing-guide');

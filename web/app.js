@@ -39,6 +39,7 @@ import { actionTitle } from '../src/action-labels.js';
 import { normalizeSearchQuery } from '../src/action-search.js';
 import { importDataset, parseCSV } from '../src/data-import.js';
 import { reviewDatasetImport } from './import-dialog.js';
+import { chooseDatasetFile } from './upload-dialog.js';
 import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore } from './project.js';
 import { initializeAccountMenu } from './cloud/menu.js';
 import { accountSession } from './cloud/session.js';
@@ -1785,20 +1786,17 @@ initializeWorkspaceResize({ workspace: document.querySelector('.workspace'), res
   beforeChange: beforeWorkspaceChange, afterChange: afterWorkspaceChange });
 window.addEventListener('resize', () => cardMotion.finish(), { passive: true });
 
-$('upload').addEventListener('click', () => $('file').click());
 async function chooseDataset(record) {
   if (!state.datasetId && !await accountMenu.nameNewProject(record.name)) { updateDatasetOptions(); return; }
   await activateDataset(record);
 }
-$('file').addEventListener('change', async event => {
-  if (state.committing) { event.target.value = ''; return; }
-  const file = event.target.files[0]; if (!file) return;
+$('upload').addEventListener('click', async () => {
+  if (state.committing) return;
   try {
-    const imported = await reviewDatasetImport(await file.text(), {
-      name: file.name, format: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json' });
+    const file = await chooseDatasetFile(); if (!file) return;
+    const imported = await reviewDatasetImport(file.text, { name: file.name, format: file.format });
     if (imported) await chooseDataset({ id: crypto.randomUUID(), name: file.name, imported });
   } catch (error) { notice(error.message, true); }
-  event.target.value = '';
 });
 $('dataset').addEventListener('change', async event => {
   if (state.committing) { $('dataset').value = state.datasetId; return; }

@@ -12,13 +12,16 @@ page.on('request', req=>assetRequests.push(new URL(req.url()).pathname));
 page.setDefaultTimeout(60000);
 const user={id:'11111111-1111-4111-8111-111111111111',aud:'authenticated',email:'user@example.org',app_metadata:{provider:'email',providers:['email']},user_metadata:{},identities:[],created_at:new Date().toISOString()};
 const token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:user.id,role:'authenticated',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url'),'signature'].join('.');
-await context.route('https://cloud-test.supabase.co/**',async route=>{
+const mockTransport = async route=>{
  const req=route.request(),u=new URL(req.url());const body=req.headers()['content-type']?.includes('application/json') ? req.postDataJSON() : {};
  const json=(value,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(value),headers:{'Access-Control-Allow-Origin':origin}});
  if(u.pathname==='/auth/v1/token' && body.password==='wrong-password')return json({message:'Invalid login credentials'},400);
  if(u.pathname==='/auth/v1/token')return json({access_token:token,refresh_token:'refresh',expires_in:3600,token_type:'bearer',user});
  if(u.pathname==='/auth/v1/signup')return json({user});
- if(u.pathname==='/auth/v1/user')return json(user);
+ if(u.pathname==='/auth/v1/user'){
+  if(req.method()==='PUT' && body.data) user.user_metadata={...user.user_metadata,...body.data};
+  return json(user);
+ }
  if(u.pathname==='/auth/v1/logout')return json({});
  if(u.pathname==='/auth/v1/recover')return json({});
  if(u.pathname==='/rest/v1/profiles')return json(profile?[profile]:[]);
@@ -37,7 +40,8 @@ await context.route('https://cloud-test.supabase.co/**',async route=>{
  if(u.pathname==='/rest/v1/bug_reports'){reports.push(body);return json({id:'report-1'},201);}
  if(u.pathname.startsWith('/storage/v1/object/')){uploads.set(u.pathname,req.postData());return json({Key:u.pathname},200);}
  throw new Error(`Unhandled ${req.method()} ${u.pathname}`);
-});
+};
+await context.route('https://cloud-test.supabase.co/**',mockTransport);
 page.on('pageerror',e=>errors.push(e.message));
 const dialog=()=>page.locator('dialog[open]').last();
 async function close(){await dialog().getByRole('button',{name:'Close',exact:true}).click();}
@@ -84,6 +88,41 @@ try{
  assert.ok([...projects.values()][0].thumbnail.startsWith('data:image/png;base64,'));
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download current visualization as SVG',exact:true}).click();
  assert.match((await download).suggestedFilename(),/\.svg$/);
+ // View preferences belong to the account, not to the current chart/history.
+ const revisionBeforeViews=[...projects.values()][0].revision;
+ await page.locator('#view-mode [data-mode="transition"]').click();
+ await page.locator('#workspace-layout [data-layout="horizontal"]').click();
+ await page.locator('#workspace-layout [data-layout="vertical"]').click();
+ await page.locator('#code-font-increase').click();
+ const divider=page.locator('[data-divider="primary"]');
+ await divider.focus(); await divider.press('ArrowRight');
+ await page.locator('#toggle-history').click();await page.locator('#toggle-code').click();
+ await expect.poll(()=>user.user_metadata.vis_panel_layout).toEqual({history:true,code:true});
+ assert.equal(user.user_metadata.vis_view_mode,'transition');
+ assert.equal(user.user_metadata.vis_workspace_layout.transition,'vertical');
+ assert.equal(user.user_metadata.vis_code_font_size,12);
+ assert.ok(user.user_metadata.vis_workspace_sizes['transition:vertical'].primary>0);
+ assert.equal([...projects.values()][0].revision,revisionBeforeViews,'View settings must not create project revisions');
+ await page.reload();await expect(page.locator('#editor-root')).not.toHaveClass(/editor-loading/);
+ await expect(page.locator('#toggle-history')).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('#toggle-code')).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('html')).toHaveAttribute('data-view-mode','transition');
+ await expect(page.locator('html')).toHaveAttribute('data-workspace-layout','vertical');
+ // A second device has no cookies, localStorage or IndexedDB from this one.
+ const device=await browser.newContext({viewport:{width:1440,height:1000}});
+ await device.route('https://cloud-test.supabase.co/**',mockTransport);
+ const other=await device.newPage();await other.goto(origin);
+ await other.getByLabel('Email',{exact:true}).fill(user.email);
+ await other.getByLabel('Password',{exact:true}).fill('valid-password-example');
+ await other.locator('#auth-submit').click();await expect(other.locator('#auth-gate')).toBeHidden();
+ await expect(other.locator('#toggle-history')).toHaveAttribute('aria-expanded','false');
+ await expect(other.locator('#toggle-code')).toHaveAttribute('aria-expanded','false');
+ await expect(other.locator('html')).toHaveAttribute('data-view-mode','transition');
+ await expect(other.locator('html')).toHaveAttribute('data-workspace-layout','vertical');
+ await expect(other.locator('.code-panel')).toHaveCSS('--code-font-size','12px');
+ await expect(other.locator('.authoring-area')).toHaveAttribute('style',/grid-template-columns/);
+ await other.screenshot({path:'output/cloud-testing/account-layout-restored.png'});
+ await device.close();
  const second=await context.newPage();await second.goto(origin);await second.locator('#current canvas').waitFor();
  await expect(second.locator('#auth-gate')).toBeHidden();
  await page.locator('#workspace-menu').click();await page.getByRole('button',{name:'Rename current visualization',exact:true}).click();await dialog().getByLabel('Name',{exact:true}).fill('My saved cars');await dialog().getByRole('button',{name:'Save name',exact:true}).click();
@@ -112,5 +151,5 @@ try{
  await page.getByLabel('Password',{exact:true}).fill('new-test-password-only');
  await page.getByRole('button',{name:'Update password',exact:true}).click();
  await page.locator('#current canvas').waitFor();
- assert.deepEqual(errors,[]);console.log('Mock transport: signup, signin, consent, autosave, rename, reports, reload, signout isolation passed.');
+ assert.deepEqual(errors,[]);console.log('Mock transport: signup, signin, consent, autosave, account view settings, fresh-device restore, rename, reports, reload, signout isolation passed.');
 }catch(error){console.error('UI failure',error,errors);await page.screenshot({path:'output/cloud-testing/auth-failure.png',fullPage:true}).catch(()=>{});throw error;}finally{await browser.close();await new Promise(r=>server.close(r));}

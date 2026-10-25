@@ -247,7 +247,19 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
       return fail(await client.from('bug_reports').insert({ owner_id: user.id, kind, title, description, context,
         share_data: Boolean(shareData), release }).select('id').single());
     },
-    async signOut() { await packing; await drain(); fail(await client.auth.signOut()); },
+    async saveViewPreferences(patch, owner) {
+      const { session: authSession } = fail(await client.auth.getSession());
+      if (!owner || user?.id !== owner || authSession?.user?.id !== owner) throw new Error('Account changed.');
+      // Capture this owner's bearer token before the request so a cross-tab
+      // account switch can never send the old preferences to the new account.
+      const response = await fetch(`${config.supabaseUrl}/auth/v1/user`, {
+        method: 'PUT', headers: { apikey: config.supabaseKey, Authorization: `Bearer ${authSession.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: patch }), signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error('View settings will sync when the connection returns.');
+      if (user?.id === owner) user = { ...user, user_metadata: { ...user.user_metadata, ...patch } };
+    },
+    async signOut() { await packing; await drain(); await this.flushViewPreferences?.(); fail(await client.auth.signOut()); },
     google: async () => fail(await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } })),
     signIn: async (email, password) => fail(await client.auth.signInWithPassword({ email, password })),
     signUp: async (email, password) => fail(await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } })),

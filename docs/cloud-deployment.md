@@ -22,10 +22,11 @@ The initial schema was applied manually, not through the CLI. When linking the C
 
 - A sign-in landing page with a short introduction, Google OAuth, email/password signup, email confirmation and password recovery. The editor, recommendation workers and datasets load only after authentication; persisted sessions are verified by Supabase before restoring a draft. Sign-out (including in another tab) returns to the landing page and unloads the editor. Missing authentication configuration fails closed.
 - A workspace menu with private projects, imported datasets, rename/duplicate/delete, settings, reports and About.
+- Account-scoped view preferences: Preview/Transition mode, each mode's horizontal/vertical layout, panel divider ratios, History/ggaction Code folds, and code font size. These small presentation settings live in Supabase Auth user metadata under allowlisted `vis_*` keys; they are never authorization/consent inputs or research events. Restore happens before the editor mounts. Local pending edits survive reload and retry when connectivity returns; clean reloads use the server's settings, including another device's changes. Writes are debounced and capture the owner's bearer token to isolate account switches. Legacy browser-only settings migrate once to the first verified account. No database migration is needed.
 - Local-first automatic saving. Each committed edit, undo/redo or direct manipulation is queued durably before sync; datasets are content-addressed and uploaded once. A project snapshot plus revision deltas preserves branches discarded by Undo and coalesced resize entries. Revisions are operational private project storage, **not research records**.
 - Research collection starts only after an explicit Continue/Save preferences. The initial checkbox is checked, as requested; closing the dialog is not consent. Withdrawal immediately stops new client events, discards queued events, and the database rejects stale consent epochs, including after re-consent.
 - General/feature reports and project-context reports. Project context includes code, field names and chart text. Dataset rows and private storage attachments are excluded unless the author separately checks the report's dataset-sharing box.
-- A production asset build, bounded server-side PNG/PDF/SVG export, a Docker image, Render Blueprint, and CI checks before auto-deploy.
+- A production asset build, bounded server-side PNG/PDF/SVG export, a Docker image, Render Blueprint, and tag-gated release checks; ordinary pushes do not deploy.
 
 ## One-time setup: new FREE Supabase project
 
@@ -51,7 +52,7 @@ The initial schema was applied manually, not through the CLI. When linking the C
 
 Choose the connected GitHub repository, `codex/cloud-deployment`, and `render.yaml`. Review the service before creating it. The Blueprint specifies one `0.5c-512mb` paid web instance in Frankfurt; the existing Render subscription does not imply compute is included. It creates **no Render database**. Enter only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` when prompted. SMTP and Google secrets stay in Supabase. HTTPS is supplied by Render.
 
-Link the repository through the GitHub integration (not merely an unauthenticated public repository URL) so the `checksPass` auto-deploy trigger receives CI status. After this first setup, pushes to the deployment branch deploy when all checks pass. [Render deployment rules](https://render.com/docs/deploys)
+Keep the GitHub integration linked, but set service Auto-Deploy to **Off** and Blueprint Auto Sync to **No**. Ordinary pushes run checks only. Releases and deployments happen after the user specifies a version and that version tag is pushed. See [Batched releases](releases.md) for the one-time deploy-hook secret and release procedure.
 
 Before opening registration, run a **live** smoke test: sign up with an address outside the project team; follow the confirmation link; use Google sign-in; reset the password; create a chart; reload and reopen it on another device; change consent; submit both report types. Automated transport mocks do not verify provider credentials, OAuth console setup, deliverability, or hosted RLS deployment.
 

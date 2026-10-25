@@ -1,9 +1,10 @@
+import { readViewPreference, writeViewPreference } from './view-preferences.js';
 const fontStorageKey = 'vis-autocomplete.code-font-size';
 const minFontSize = 8, maxFontSize = 20, defaultFontSize = 11;
 
 function storedFontSize() {
   try {
-    const value = Number.parseInt(localStorage.getItem(fontStorageKey), 10);
+    const value = Number.parseInt(readViewPreference(fontStorageKey), 10);
     if (Number.isInteger(value) && value >= minFontSize && value <= maxFontSize) return value;
   } catch { /* The toolbar still works when browser storage is unavailable. */ }
   return defaultFontSize;
@@ -39,7 +40,7 @@ export function initializeCodeToolbar({ panel, decrease, increase, copy, status,
   const resize = delta => {
     fontSize = Math.max(minFontSize, Math.min(maxFontSize, fontSize + delta));
     applyFontSize(); status.textContent = `Code font size: ${fontSize} pixels.`;
-    try { localStorage.setItem(fontStorageKey, String(fontSize)); } catch { /* Optional preference persistence. */ }
+    try { writeViewPreference(fontStorageKey, String(fontSize)); } catch { /* Optional preference persistence. */ }
   };
   decrease.addEventListener('click', () => resize(-1));
   increase.addEventListener('click', () => resize(1));

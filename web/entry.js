@@ -1,9 +1,11 @@
 import { accountSession } from './cloud/session.js';
+import { initializeAccountViewPreferences } from './view-preferences.js';
 
 const $ = id => document.getElementById(id);
 const gate = $('auth-gate'), root = $('editor-root'), fields = $('auth-fields');
 const status = $('auth-status');
 let account, mode = 'signin', loadingEditor = false, editorOwner = null;
+let stopPreferences;
 
 function message(text = '', error = false) {
   status.textContent = text;
@@ -75,6 +77,7 @@ async function openEditor(user) {
   if (loadingEditor || !user) return;
   loadingEditor = true; editorOwner = user.id;
   fields.disabled = true; message('Opening your workspace…');
+  stopPreferences = initializeAccountViewPreferences(account);
   root.append($('editor-template').content.cloneNode(true));
   // Measure the restored chart at its real viewport size while the landing
   // page remains visible. display:none would initialize canvases at zero size.
@@ -91,6 +94,7 @@ async function openEditor(user) {
 }
 function identityChanged(state) {
   if (editorOwner && state.user?.id !== editorOwner) {
+    stopPreferences?.();
     // Unmount workers, shortcuts and in-memory private charts together. A new
     // identity always starts a fresh editor, including sign-out in another tab.
     lockEditor(); location.reload(); return;

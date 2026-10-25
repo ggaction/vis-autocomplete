@@ -9,6 +9,10 @@ test('Production serves built assets only, sets CSP, rejects abuse, and exports 
   let result=await fetch(url);assert.equal(result.status,200);assert.match(result.headers.get('content-security-policy'),/script-src 'self' 'sha256-/);
   assert.ok(result.headers.get('strict-transport-security'));assert.match(await result.text(),/assets\/entry.js/);
   result=await fetch(url+'/api/config');assert.ok(!(await result.text()).includes('never'));
+  for (const [path, type] of [['favicon.svg', 'image/svg+xml'], ['favicon.png', 'image/png'], ['apple-touch-icon.png', 'image/png']]) {
+    result=await fetch(url+'/web/icons/'+path); assert.equal(result.status,200); assert.ok(result.headers.get('content-type').startsWith(type));
+    assert.ok((await result.arrayBuffer()).byteLength>100);
+  }
   for(const path of ['/.env','/.git/config','/package.json','/web/app.js','/vendor/ggaction/AGENTS.md']) assert.ok((await fetch(url+path)).status>=400,path);
   result=await fetch(url+'/api/export/png',{method:'POST',headers:{Origin:'https://outside.example'},body:'{}'});assert.equal(result.status,403);
   for (const authorization of [undefined, 'Bearer invalid']) {

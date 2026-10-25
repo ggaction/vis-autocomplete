@@ -76,3 +76,17 @@ test('A rejected persisted session cannot restore an account or private draft',a
  try { assert.equal(a.user,null);assert.equal(a.current,null);await a.save(project(1));assert.equal(m.map.size,0); }
  finally { a.destroy(); }
 });
+test('view preference writes bind to the original bearer token across an account switch',async()=>{
+ environment();const m=mock();
+ m.client.auth.getSession=async()=>({data:{session:{user:{id:'test-user'},access_token:'owner-a-token'}}});
+ const a=await createAccount({...m,config}),previousFetch=globalThis.fetch;let finish,request;
+ try{
+  globalThis.fetch=async(url,options)=>{request={url,options};return new Promise(resolve=>{finish=()=>resolve({ok:true})})};
+  const saving=a.saveViewPreferences({vis_view_mode:'transition'},'test-user');await pause();
+  assert.equal(request.options.headers.Authorization,'Bearer owner-a-token');
+  assert.deepEqual(JSON.parse(request.options.body),{data:{vis_view_mode:'transition'}});
+  m.listener('SIGNED_IN',{user:{id:'second'}});await pause();finish();await saving;
+  assert.equal(a.user.id,'second');assert.equal(a.user.user_metadata,undefined);
+  await assert.rejects(a.saveViewPreferences({vis_view_mode:'preview'},'test-user'),/Account changed/);
+ }finally{globalThis.fetch=previousFetch;a.destroy();}
+});

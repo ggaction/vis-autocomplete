@@ -1,3 +1,4 @@
+import { readViewPreference, writeViewPreference } from './view-preferences.js';
 const storageKey = 'vis-autocomplete.workspace-layout';
 
 // Layout is a view preference, independent of chart history and recommendations.
@@ -6,7 +7,7 @@ export function initializeWorkspaceLayout({ workspace, toggle, header, busy, bef
   const choices = { preview: 'horizontal', transition: 'vertical' };
   let mode = initialMode === 'transition' ? 'transition' : 'preview';
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey));
+    const saved = JSON.parse(readViewPreference(storageKey));
     for (const key of Object.keys(choices)) {
       if (['horizontal', 'vertical'].includes(saved?.[key])) choices[key] = saved[key];
     }
@@ -28,7 +29,7 @@ export function initializeWorkspaceLayout({ workspace, toggle, header, busy, bef
     const button = event.target.closest('[data-layout]');
     if (!button || busy() || choices[mode] === button.dataset.layout) return;
     change(() => { choices[mode] = button.dataset.layout; });
-    try { localStorage.setItem(storageKey, JSON.stringify(choices)); } catch { /* Optional preference. */ }
+    try { writeViewPreference(storageKey, JSON.stringify(choices)); } catch { /* Optional preference. */ }
   });
   // Header controls wrap on smaller screens; reserve their actual height rather
   // than subtracting a fixed toolbar size from the viewport.

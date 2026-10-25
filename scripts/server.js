@@ -5,7 +5,7 @@ import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { publicConfig } from './cloud-config.js';
 import { createTokenVerifier } from './cloud-auth.js';
-const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'};
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png'};
 export async function createProductionServer({ env=process.env, directory='output/deploy', verifyToken }={}) {
   const root=resolve(directory,'public'), config=publicConfig(env), build=JSON.parse(await readFile(resolve(directory,'build.json'),'utf8'));
   if(config.release==='development')config.release=build.commit;

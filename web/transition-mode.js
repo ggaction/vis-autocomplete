@@ -1,3 +1,4 @@
+import { readViewPreference, writeViewPreference } from './view-preferences.js';
 import { CARD_TRANSITION_MS } from './parameter-motion.js';
 import { createCanvasTransitionPlayer } from '@ggaction/transition';
 import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
@@ -7,7 +8,7 @@ const storageKey = 'vis-autocomplete.view-mode';
 
 export function createTransitionMode({host,layout,toggle,getBaseline,getCandidate,busy,onChange,onError}) {
   let enabled=false,player=null,surface=null,version=0,returning=false;
-  try { enabled=localStorage.getItem(storageKey)==='transition'; } catch { /* Optional preference. */ }
+  try { enabled=readViewPreference(storageKey)==='transition'; } catch { /* Optional preference. */ }
   function paintMode() {
     document.documentElement.dataset.viewMode=enabled?'transition':'preview';
     layout.classList.toggle('transition-mode',enabled);
@@ -64,7 +65,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     const button=event.target.closest('[data-mode]');if(!button||busy())return;
     if(!['preview','transition'].includes(button.dataset.mode))return;
     clear();enabled=button.dataset.mode==='transition';paintMode();
-    try { localStorage.setItem(storageKey,enabled?'transition':'preview'); } catch { /* Optional preference. */ }
+    try { writeViewPreference(storageKey,enabled?'transition':'preview'); } catch { /* Optional preference. */ }
     onChange();
   });
   return {get enabled(){return enabled;},get active(){return Boolean(surface?.isConnected);},show,clear,

@@ -1,3 +1,4 @@
+import { sharedLegendEdit } from './shared-legend-editing.js';
 import { chartViews, chartAtPath, scopedCall, nativeActionTargets } from './composition-context.js';
 import { centerCanvasContent, compactAdjacentCanvases } from './canvas-centering.js';
 import { canvasGeometry } from './canvas-geometry.js';
@@ -76,6 +77,7 @@ export function prepareStartingPlot(program, action) {
 }
 
 export function prepareGuidedAction(program, action, view = program, setupCalls = []) {
+  action = sharedLegendEdit(view, action);
   recentPreparations.set(program, true);
   if (!preparations.has(program)) preparations.set(program, new WeakMap());
   const views = preparations.get(program);

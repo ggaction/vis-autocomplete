@@ -6,7 +6,7 @@
 ## Overlay and adjacent charts (ggaction 0.0.25)
 
 - **All → Add a title** creates one overall composition title. Selecting an individual chart creates/edits only that panel's title. Uniform child backgrounds also fill the gaps and overall title/legend lanes.
-- Adjacent charts that inherit the same color mapping share one color scale and one overall right-side color legend. Different color mappings retain independent legends. Existing compositions can enable this with **Edit shared scales → Color: Shared**.
+- Adjacent charts that inherit the same color mapping share one color scale and one overall color legend, preserving its selected position and size. Shared legends support drag movement/resizing and option-card edits from any contributing chart. Different color mappings retain independent legends. Existing compositions can enable this with **Edit shared scales → Color: Shared**.
 - **Filter series** supports multiple selected series and **Select all**. Applied filters retain the original series choices so hidden series can be restored with the same public `filterMarks({ op: 'oneOf', values, mode: 'replace' })` call.
 - `test/browser/composition-guides.py` exercises multi-series selection, restoration, overall long titles, background, a third panel, and responsive controls. Set `APP_URL` and optionally `PLAYWRIGHT_CHROMIUM_EXECUTABLE`; screenshots and exported projects go to ignored `output/composition-guides/`.
 
@@ -895,6 +895,13 @@ Data-scaled size/stroke samples retain their encoding.
 Use **Together** to resize title and subtitle as one block. Drag title or legend
 text to a plot edge to choose its position and alignment; the normal ggaction
 preparer fits margins and guides. Faceted titles support all four edges as well.
+
+Concatenated charts retain a shared legend’s authored position and typography.
+The shared block supports the same drag controls; legend option cards scoped to
+any contributor update that visible block through explicit native target selectors.
+`test/concat-legend-editing.test.js` covers nested, faceted, gradient and combined
+color/shape legends. `node scripts/test-concat-legend-browser.js` verifies card
+edits, direct resize/move and saved-draft restoration in both view modes.
 
 Both Preview and Transition modes update the chart and ggaction Code during the
 drag. Release commits one native edit/history step; Escape cancels, and Undo/Redo

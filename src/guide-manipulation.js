@@ -4,7 +4,7 @@ import { axisGraphicIds, legendGraphicIds } from '../vendor/ggaction/src/materia
 import { cartesianAxisOwners, axisTargetArgs } from '../vendor/ggaction/src/selectors/axes.js';
 import { legendBlockChannels, describeLegendBlock } from '../vendor/ggaction/src/grammar/legendBlocks.js';
 import { scopedCall } from './composition-context.js';
-import { prepareCompositionSnapshots } from '../vendor/ggaction/src/materialization/composition.js';
+import { prepareCompositionSnapshots, compositionPlotBounds } from '../vendor/ggaction/src/materialization/composition.js';
 import { sharedCompositionColorLegend } from '../vendor/ggaction/src/materialization/compositionLegends.js';
 import { namespaceGraphicId } from '../vendor/ggaction/src/materialization/compositionSnapshot.js';
 import { canvasGeometry } from './canvas-geometry.js';
@@ -37,7 +37,9 @@ export function editableGuides(program) {
     const sharedId = `${program.compositionSpec.id}-shared-color-legend`;
     if (shared && program.graphicSpec.objects[sharedId]) titles.push({
       key: 'legend:shared-color', kind: 'legend', label: 'Shared color legend',
-      ids: [sharedId], bounds: guideBounds(program, [sharedId]), movable: false, resizable: false,
+      ids: [sharedId], bounds: guideBounds(program, [sharedId]), movable: true,
+      config: shared.config, family: shared.block.kind, channels: shared.channels,
+      representation: shared.block.family, editTargets: shared.targets,
       remove: { method: 'removeLegend', args: { target: shared.targets, channels: ['color'], suppress: true } },
     });
     return [...titles, ...layout.children.flatMap(placement => editableGuides(children[placement.id]).map(localTarget => {
@@ -45,7 +47,8 @@ export function editableGuides(program) {
       const bounds = guideBounds(program, ids);
       return { ...localTarget, ids, bounds, key: `${placement.id}/${localTarget.key}`,
         childPath: [placement.id], localTarget, localProgram: children[placement.id],
-        offset: { x: placement.x, y: placement.y } };
+        offset: { x: program.graphicSpec.objects[namespaceGraphicId(`${program.compositionSpec.id}-${placement.id}`, 'canvas')]?.properties.x ?? placement.x,
+          y: program.graphicSpec.objects[namespaceGraphicId(`${program.compositionSpec.id}-${placement.id}`, 'canvas')]?.properties.y ?? placement.y } };
     }).filter(target => target.bounds))];
   }
   const objects = program.graphicSpec.objects, targets = [...titles];
@@ -116,7 +119,7 @@ export function resizeGuide(target, factor) {
   const config = target.config;
   const font = style => ({ fontSize: clamp(round(style.fontSize * factor), 6, 96) });
   if (target.kind === 'legend' && target.part === 'titleStyle') return {
-    method: 'editLegend', args: { target: config.target, channel: target.channels[0], titleStyle: font(config.titleStyle) },
+    method: 'editLegend', args: { target: target.editTargets ?? config.target, channel: target.channels[0], titleStyle: font(config.titleStyle) },
   };
   if (target.kind === 'title') {
     const args = target.part ? { [target.part]: font(config[target.part]) }
@@ -129,7 +132,7 @@ export function resizeGuide(target, factor) {
     const args = { ...target.args, ...(method === 'editParallelAxis' ? { title: font(config) } : font(config)) };
     return target.facet ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
   }
-  const args = { target: config.target, channel: target.channels[0], labels: font(config.labels), titleStyle: font(config.titleStyle) };
+  const args = { target: target.editTargets ?? config.target, channel: target.channels[0], labels: font(config.labels), titleStyle: font(config.titleStyle) };
   // Normalized gradient configs retain itemGap for layout bookkeeping, but
   // the public edit contract only accepts it for legends made of discrete items.
   if (target.representation !== 'gradient' && Number.isFinite(config.itemGap)) args.itemGap = round(config.itemGap * factor);
@@ -151,14 +154,15 @@ export function resizeGuide(target, factor) {
 export function moveGuide(program, target, x, y) {
   if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y), [{ childPath: target.childPath }]);
   const geometry = canvasGeometry(program);
-  const p = geometry.plotBounds ?? { x: geometry.x, y: geometry.y, ...geometry.plot };
+  const p = program.compositionSpec && !program.compositionSpec.facet ? compositionPlotBounds(program)
+    : geometry.plotBounds ?? { x: geometry.x, y: geometry.y, ...geometry.plot };
   const nx = (x - p.x - p.width / 2) / Math.max(1, p.width / 2);
   const ny = (y - p.y - p.height / 2) / Math.max(1, p.height / 2);
   const position = Math.abs(nx) > Math.abs(ny) ? nx < 0 ? 'left' : 'right' : ny < 0 ? 'top' : 'bottom';
   const along = ['top','bottom'].includes(position) ? (x-p.x)/p.width : (y-p.y)/p.height;
   const align = along < .33 ? 'left' : along > .67 ? 'right' : 'center';
   if (target.kind === 'title') return { method: 'editTitle', args: { position, align, offset: 0, alongOffset: 0 } };
-  const args = { target: target.config.target, channel: target.channels[0], position,
+  const args = { target: target.editTargets ?? target.config.target, channel: target.channels[0], position,
     align: ['left','right'].includes(position) ? 'center' : align,
     ...(target.config.titlePosition === undefined ? {} : { titlePosition: target.config.titlePosition }) };
   // Moving an inline horizontal title to a side requires native top placement.

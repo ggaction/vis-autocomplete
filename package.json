@@ -14,7 +14,7 @@
     "benchmark:performance": "node scripts/benchmark-performance.js",
     "benchmark:recommendations": "node scripts/benchmark-lazy-recommendations.js",
     "demo": "node examples/demo.js",
-    "test": "node --max-old-space-size=512 --test --test-concurrency=4 test/*.test.js",
+    "test": "node scripts/test-suite.js",
     "corpus:update": "node scripts/update-corpus.js",
     "corpus:train": "node scripts/train-corpus.js",
     "catalog:check": "node scripts/check-catalog.js",

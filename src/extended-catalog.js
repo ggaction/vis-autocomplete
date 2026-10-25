@@ -303,8 +303,8 @@ export function extendedCandidates(program, { layer, profile }) {
       [choices('aggregate', 'Y aggregation', op, aggregateOps)], 'transform.aggregate', 'Aggregate Y');
   }
   const coordinate = program.semanticSpec.coordinates.find(c => c.id === layer.coordinate);
-  if (coordinate?.type === 'cartesian') add('createAnnotation', 'style', { id: resourceId('annotation'), source: target, x: (program.resolvedScales[encoding.x?.scale]?.domain ?? [0])[0],
-    y: (program.resolvedScales[encoding.y?.scale]?.domain ?? [0])[0],
+  if (coordinate?.type === 'cartesian') add('createAnnotation', 'style', { id: resourceId('annotation'),
+    anchor: 'plot-center', data: layer.data, coordinate: coordinate.id,
     text: 'Note', fontSize: 13 },
     [text('text', 'Text', 'Note'), number('fontSize', 'Size', 13, 8, 24), color('fill', 'Text color'), weight('fontWeight')]);
   if (coordinate?.type === 'cartesian') style('editCoordinate', { target: coordinate.id, aspect: { mode: 'frame', ratio: 1 } },

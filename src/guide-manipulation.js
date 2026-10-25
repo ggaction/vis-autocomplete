@@ -13,10 +13,15 @@ import { localLegendPlacement } from '../vendor/ggaction/src/grammar/legendGroup
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const round = n => Math.round(n * 4) / 4;
+const annotationCall = (target, method, args = {}) => {
+  const options = { ...target.args, ...args };
+  return target.facet ? { method: 'editFacetSource', args: { action: { method, options } } } : { method, args: options };
+};
 export function guideMoveHistoryKey(target) {
   if (target.childPath) return `${JSON.stringify(target.childPath)}/${guideMoveHistoryKey(target.localTarget)}`;
   if (target.kind === 'title') return 'move:title';
   if (target.kind === 'axis') return `move:axis:${target.channel}:${JSON.stringify(target.args)}`;
+  if (target.kind === 'annotation') return `move:annotation:${JSON.stringify(target.args)}`;
   return `move:${target.key}`;
 }
 export function guideBounds(program, ids) {
@@ -64,6 +69,17 @@ export function editableGuides(program) {
   const objects = program.graphicSpec.objects, targets = [...titles];
   const add = target => { const bounds = guideBounds(program, target.ids); if (bounds) targets.push({ ...target, bounds }); };
   const findIds = ids => Object.keys(objects).filter(id => ids.some(native => id === native || id.endsWith(`_${native}`)));
+  // An annotation is a single text mark with a constant anchor, not a label
+  // repeated for every data row. Identify it by semantics, including restored
+  // programs and older data-anchored annotations, rather than by its ID.
+  for (const layer of program.semanticSpec.layers) {
+    if (layer.mark.type !== 'text' || !['text', 'x', 'y'].every(channel => Object.hasOwn(layer.encoding[channel] ?? {}, 'datum'))) continue;
+    const ids = program.compositionSpec?.facet ? Object.keys(program.children).map(child =>
+      namespaceGraphicId(`${program.compositionSpec.id}-${child}`, layer.id)) : [layer.id];
+    for (const id of ids) add({ key: `annotation:${id}`, label: 'Annotation', kind: 'annotation',
+      config: program.markConfigs[layer.id], args: { target: layer.id }, ids: [id], movable: true,
+      facet: Boolean(program.compositionSpec?.facet) });
+  }
   for (const owner of cartesianAxisOwners(program)) {
     if (!owner.config?.title) continue;
     const ids = findIds([axisGraphicIds(owner.channel, owner.id)[3]]);
@@ -152,6 +168,7 @@ export function selectedGuideTextTargets(program, keys) {
       args: { ...args, ...(slot ? { [slot]: value } : value) } }) }] : [];
     if (target.kind === 'title') return (target.part ? [target.part] : ['titleStyle', 'subtitleStyle'])
       .flatMap(part => entry(config[part], 'editTitle', {}, part));
+    if (target.kind === 'annotation') return [{ config, call: style => annotationCall(target, 'editTextMark', style) }];
     if (target.kind === 'legend') return (target.part ? [target.part] : ['titleStyle', 'labels'])
       .filter(part => part !== 'titleStyle' || config.titleVisible !== false)
       .flatMap(part => entry(config[part], 'editLegend', { target: target.editTargets ?? config.target, channel: target.channels[0] }, part));
@@ -170,6 +187,7 @@ export function selectedGuideTextTargets(program, keys) {
 export function removeGuide(target) {
   if (target.childPath) return scopedCall(removeGuide(target.localTarget), [{ childPath: target.childPath }]);
   if (target.remove) return target.remove;
+  if (target.kind === 'annotation') return annotationCall(target, 'removeMark');
   if (target.kind === 'title') return target.part === 'subtitleStyle'
     ? { method: 'editTitle', args: { subtitle: false } } : { method: 'removeTitle', args: {} };
   if (target.kind === 'axis') {
@@ -193,6 +211,9 @@ export function resizeGuide(target, factor) {
   factor = clamp(factor, .25, 4);
   const config = target.config;
   const font = style => ({ fontSize: clamp(round(style.fontSize * factor), 6, 96) });
+  if (target.kind === 'annotation') return annotationCall(target, 'editTextMark', {
+    ...font(config), ...(config.lineHeight === undefined ? {} : { lineHeight: Math.max(1, round(config.lineHeight * factor)) }),
+  });
   if (target.kind === 'legend' && target.part === 'titleStyle') return {
     method: 'editLegend', args: { target: target.editTargets ?? config.target, channel: target.channels[0], titleStyle: font(config.titleStyle) },
   };
@@ -231,6 +252,10 @@ export function resizeGuide(target, factor) {
 
 export function moveGuide(program, target, x, y, drag) {
   if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y, drag), [{ childPath: target.childPath }]);
+  if (target.kind === 'annotation') return annotationCall(target, 'editTextMark', {
+    dx: round((target.config.dx ?? 0) + (drag?.dx ?? x - (target.bounds.left + target.bounds.right) / 2)),
+    dy: round((target.config.dy ?? 0) + (drag?.dy ?? y - (target.bounds.top + target.bounds.bottom) / 2)),
+  });
   const geometry = canvasGeometry(program);
   const p = program.compositionSpec && !program.compositionSpec.facet ? compositionPlotBounds(program)
     : geometry.plotBounds ?? { x: geometry.x, y: geometry.y, ...geometry.plot };

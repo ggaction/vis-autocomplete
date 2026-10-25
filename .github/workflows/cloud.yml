@@ -25,6 +25,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
       - run: npm run test:cloud
+      - run: node --test test/data-import.test.js test/xlsx-import.test.js
       - run: npx playwright install --with-deps chromium
       - name: Browser checks
         run: |

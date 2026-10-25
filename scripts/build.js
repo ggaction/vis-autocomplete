@@ -7,7 +7,7 @@ const out = 'output/deploy';
 await rm(out, { recursive: true, force: true });
 await mkdir(`${out}/public/assets`, { recursive: true });
 await build({entryPoints:['web/entry.js'],outdir:`${out}/public/assets`,entryNames:'entry',chunkNames:'[name]-[hash]',bundle:true,splitting:true,platform:'browser',format:'esm',target:'es2022',minify:true});
-for (const [entry, outfile] of [['web/import-worker.js','assets/import-worker.js'],['web/calculation-worker.js','output/workers/calculation.js']]) {
+for (const [entry, outfile] of [['web/import-worker.js','assets/import-worker.js'],['web/calculation-worker.js','output/workers/calculation.js'],['web/workbook-worker.js','output/workers/workbook.js']]) {
   await build({entryPoints:[entry],outfile:`${out}/public/${outfile}`,bundle:true,platform:'browser',format:'esm',target:'es2022',minify:true});
 }
 for (const file of ['web/style.css','web/data-table.css','web/import-dialog.css','web/cloud/menu.css']) {

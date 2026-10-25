@@ -45,7 +45,8 @@
     "@napi-rs/canvas": "^1.0.13",
     "@supabase/supabase-js": "^2.118.0",
     "acorn": "8.19.0",
-    "ggaction": "file:vendor/ggaction"
+    "ggaction": "file:vendor/ggaction",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",

@@ -153,7 +153,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     }));
   }
   function nameNewProject(datasetName) {
-    return projectNameDialog({ value: datasetName.replace(/\.(csv|tsv|json)$/i, ''), save: name => account.newProject(name) });
+    return projectNameDialog({ value: datasetName.replace(/\.(csv|tsv|json|xlsx)$/i, ''), save: name => account.newProject(name) });
   }
   function editableProjectTitle(row, open) {
     const wrapper = element('div', '', 'cloud-project-name');

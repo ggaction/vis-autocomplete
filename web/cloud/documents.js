@@ -24,7 +24,7 @@ export async function contentHash(text) {
 // Strip all data containers when the author has not shared the dataset.
 export function reportContext(snapshot) {
   const clean = value => Array.isArray(value) ? value.map(clean) : value && typeof value === 'object'
-    ? Object.fromEntries(Object.entries(value).filter(([key]) => !['values','rows','rawRows','sample','path'].includes(key)).map(([key,v]) => [key,clean(v)]))
+    ? Object.fromEntries(Object.entries(value).filter(([key]) => !['values','rows','rawRows','sourceTable','sample','path'].includes(key)).map(([key,v]) => [key,clean(v)]))
     : value;
   return clean(snapshot);
 }

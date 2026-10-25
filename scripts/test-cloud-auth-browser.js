@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { chromium, expect } from '@playwright/test';
 import { createProductionServer } from './server.js';
 import { mkdir } from 'node:fs/promises';
+import { sampleWorkbook } from '../test/fixtures/xlsx-workbook.js';
 const server=await createProductionServer({env:{SUPABASE_URL:'https://cloud-test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test'},verifyToken:value=>value===token});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1600,height:1000}});
@@ -225,7 +226,7 @@ try{
  const dropZone=()=>page.getByRole('button',{name:'Choose a dataset file',exact:true});
  const transfer=async (files=[],text=null)=>page.evaluateHandle(({files,text})=>{
   const data=new DataTransfer();
-  for(const file of files)data.items.add(new File([file.text??'data'],file.name,{type:file.type??''}));
+  for(const file of files)data.items.add(new File([file.base64?Uint8Array.from(atob(file.base64),c=>c.charCodeAt(0)):file.text??'data'],file.name,{type:file.type??''}));
   if(text!==null)data.setData('text/plain',text);return data;
  },{files,text});
  const drop=async (data,target=dropZone())=>{
@@ -236,6 +237,8 @@ try{
  await page.locator('#upload').click();await expect(uploadDialog()).toBeVisible();
  await expect(dropZone()).toBeFocused();await expect(uploadDialog()).toContainText('CSV (.csv)');
  await expect(uploadDialog()).toContainText('JSON (.json)');
+ await expect(uploadDialog()).toContainText('Excel (.xlsx)');
+ assert.ok(!assetRequests.includes('/output/workers/workbook.js'),'The Excel parser must not load before an Excel upload');
  await page.screenshot({path:'output/cloud-testing/upload-dataset.png'});
  await page.setViewportSize({width:390,height:844});
  const uploadBox=await uploadDialog().boundingBox();assert.ok(uploadBox.x>=0&&uploadBox.x+uploadBox.width<=390);
@@ -245,7 +248,7 @@ try{
  const unsupported=await transfer([{name:'image.png',type:'image/png'}]);
  await dropZone().dispatchEvent('dragover',{dataTransfer:unsupported});
  await expect(dropZone()).toHaveAttribute('data-drag','invalid');
- await drop(unsupported);await expect(uploadDialog().getByRole('status')).toContainText('Only .csv and .json');
+ await drop(unsupported);await expect(uploadDialog().getByRole('status')).toContainText('Only .csv, .json and .xlsx');
  await drop(await transfer([{name:'one.csv'},{name:'two.json'}]));
  await expect(uploadDialog().getByRole('status')).toContainText('one dataset file');
  await drop(await transfer([],'https://example.org/data.csv'));
@@ -253,8 +256,10 @@ try{
  await drop(await transfer([{name:'empty.json',text:''}]));
  await expect(uploadDialog().getByRole('status')).toContainText('empty');
  const [wrongChooser]=await Promise.all([page.waitForEvent('filechooser'),dropZone().press('Enter')]);
- await wrongChooser.setFiles({name:'workbook.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from('not a CSV')});
- await expect(uploadDialog().getByRole('status')).toContainText('Export spreadsheets as CSV');
+ await wrongChooser.setFiles({name:'workbook.xls',mimeType:'application/vnd.ms-excel',buffer:Buffer.from('not an XLSX')});
+ await expect(uploadDialog().getByRole('status')).toContainText('Save older Excel files as .xlsx');
+ await page.locator('#file').setInputFiles({name:'broken.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from('not an XLSX')});
+ await expect(uploadDialog().getByRole('status')).toContainText('not a readable .xlsx workbook');
  const outside=await transfer([{name:'valid.csv',text:'x,y\n1,2'}]);
  assert.equal(await page.evaluate(data=>document.dispatchEvent(new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true})),outside),false);
  await outside.dispose();await expect(uploadDialog().getByRole('status')).toContainText('inside the dashed area');
@@ -277,6 +282,31 @@ try{
  await expect(dialog().getByRole('status')).toContainText('2 rows');
  await dialog().getByRole('button',{name:'Cancel',exact:true}).click();
  await expect(page.locator('#dataset')).toHaveValue('cars');assert.equal(await page.locator('#code-content').innerText(),beforeUpload);
+ const excelMime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+ const workbookData=sampleWorkbook();
+ await page.locator('#upload').click();
+ const [excelChooser]=await Promise.all([page.waitForEvent('filechooser'),dropZone().click()]);
+ await excelChooser.setFiles({name:'Research.xlsx',mimeType:excelMime,buffer:Buffer.from(workbookData)});
+ await expect(uploadDialog().getByLabel('Choose a sheet')).toHaveValue('매출 Sales');
+ await expect(uploadDialog().getByRole('columnheader',{name:'Sales',exact:true})).toBeVisible();
+ await uploadDialog().getByLabel('Choose a sheet').selectOption('Empty');
+ await expect(uploadDialog().getByRole('button',{name:'Use sheet',exact:true})).toBeDisabled();
+ await expect(uploadDialog().getByRole('status')).toContainText('no data rows');
+ await uploadDialog().getByLabel('Choose a sheet').selectOption('Inventory');
+ await expect(uploadDialog().getByRole('cell',{name:'Desk',exact:true})).toBeVisible();
+ await page.screenshot({path:'output/cloud-testing/upload-excel-sheets.png'});
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await uploadDialog().evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+ await page.screenshot({path:'output/cloud-testing/upload-excel-mobile.png'});
+ await page.setViewportSize({width:1600,height:1000});
+ await uploadDialog().getByRole('button',{name:'Choose another file',exact:true}).click();
+ await expect(dropZone()).toBeVisible();
+ await page.locator('#file').setInputFiles({name:'Single.xlsx',mimeType:excelMime,buffer:Buffer.from(sampleWorkbook({single:true}))});
+ await expect(page.getByRole('dialog',{name:'Review dataset'})).toBeVisible();
+ await expect(dialog().getByLabel('Recorded: type',{exact:true})).toHaveValue('auto');
+ await expect(dialog().getByLabel('Recorded: type',{exact:true}).locator('option:checked')).toHaveText('Auto → temporal');
+ await dialog().getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(page.locator('#dataset')).toHaveValue('cars');assert.equal(await page.locator('#code-content').innerText(),beforeUpload);
  await page.locator('#workspace-menu').click();await dialog().getByRole('button',{name:'New visualization',exact:true}).click();
  await page.locator('#upload').click();
  const [csvChooser]=await Promise.all([page.waitForEvent('filechooser'),dropZone().click()]);
@@ -288,6 +318,28 @@ try{
  await dialog().getByRole('button',{name:'Create project',exact:true}).click();
  await page.getByRole('button',{name:'Select column Sales',exact:true}).click();
  await expect.poll(()=>[...projects.values()].some(row=>row.title==='Sales study')).toBe(true);
+ // Import the chosen second sheet, author a chart, then restore it and its
+ // schema from the saved account draft. Other worksheets never enter storage.
+ await page.locator('#upload').click();
+ await drop(await transfer([{name:'Research.XLSX',type:excelMime,base64:Buffer.from(workbookData).toString('base64')}]));
+ await uploadDialog().getByLabel('Choose a sheet').selectOption('Inventory');
+ await uploadDialog().getByRole('button',{name:'Use sheet',exact:true}).click();
+ await expect(dialog().getByRole('status')).toContainText('2 rows · 3 fields');
+ await page.getByRole('button',{name:'Use dataset',exact:true}).click();
+ for(const field of ['Units','Price'])await page.getByRole('button',{name:`Select column ${field}`,exact:true}).click();
+ const excelCard=page.locator('#cards .card[data-method="createScatterPlot"]').first();
+ await excelCard.hover();await excelCard.locator('.apply-button').click();
+ await page.waitForFunction(()=>document.querySelector('#current').dataset.lastMethod==='createScatterPlot');
+ await expect.poll(()=>{
+  const project=[...projects.values()].find(row=>row.title==='Sales study');
+  return project?.snapshot.datasets.find(dataset=>dataset.id===project.snapshot.activeId)?.session?.entries.at(-1)?.calls.some(call=>call.method==='createScatterPlot');
+ },{timeout:30000}).toBe(true);
+ await page.reload();await page.locator('#current canvas').waitFor();
+ await expect(page.locator('#dataset option:checked')).toHaveText('Research — Inventory');
+ await page.locator('.project-menu summary').click();await page.locator('#edit-schema').click();
+ await expect(dialog().getByRole('status')).toContainText('2 rows · 3 fields');
+ await expect(dialog().getByLabel('Units: type',{exact:true}).locator('option:checked')).toHaveText('Auto → quantitative');
+ await dialog().getByRole('button',{name:'Cancel',exact:true}).click();
  assert.equal(projects.size,2);const salesDataset=await page.locator('#dataset').inputValue();
  await page.locator('#workspace-menu').click();
  const carsItem=page.locator('.cloud-project').filter({has:page.getByRole('button',{name:'Open My saved cars',exact:true})});

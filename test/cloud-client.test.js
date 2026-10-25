@@ -92,7 +92,7 @@ test('Save conflicts create a recovered project and offline opening uses latest 
  }finally{a.destroy();}
 });
 test('Report without dataset permission strips inline data and storage paths as well',()=>{
- const context=reportContext({datasets:[{importRef:{path:'private',hash:'abc'},session:{calls:[{method:'createData',args:{values:[{secret:1}]}}]}}]});
+ const context=reportContext({datasets:[{importRef:{path:'private',hash:'abc'},metadata:{sourceTable:[['secret']]},session:{calls:[{method:'createData',args:{values:[{secret:1}]}}]}}]});
  assert.ok(!JSON.stringify(context).includes('private'));assert.ok(!JSON.stringify(context).includes('secret'));assert.ok(JSON.stringify(context).includes('createData'));
 });
 test('A rejected persisted session cannot restore an account or private draft',async()=>{

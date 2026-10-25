@@ -1794,7 +1794,7 @@ $('upload').addEventListener('click', async () => {
   if (state.committing) return;
   try {
     const file = await chooseDatasetFile(); if (!file) return;
-    const imported = await reviewDatasetImport(file.text, { name: file.name, format: file.format });
+    const imported = await reviewDatasetImport(file.input, { name: file.name, format: file.format, ...file.options });
     if (imported) await chooseDataset({ id: crypto.randomUUID(), name: file.name, imported });
   } catch (error) { notice(error.message, true); }
 });

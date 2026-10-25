@@ -98,12 +98,12 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     const link = (title, href) => {
       const a = element('a', title); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a;
     };
-    d.box.append(element('p', 'Create and refine visualizations through stepwise recommendations, powered by ggaction.'));
+    d.box.append(element('p', 'Create and refine visualizations through stepwise recommendations, powered by ggaction. Inspired by text autocompletion, the tool helps you explore design possibilities one decision at a time, even before you have a clear picture of the final chart.'));
     const benefits = element('ul', '', 'about-benefits');
     for (const [title, description] of [
-      ['Know what to try next.', ' Discover actions suited to your current chart, informed by common visualization practices.'],
-      ['See changes before applying them.', ' Compare visual previews and tune parameters.'],
-      ['Keep control as charts grow.', ' Work step by step, revisit history, and reuse the generated ggaction code.']]) {
+      ['Know what to try next.', ' Get ranked suggestions for encodings, transformations, and styles, informed by patterns in example visualizations.'],
+      ['See changes before applying them.', ' Hover to compare outcomes, tune parameters, and apply the changes you want.'],
+      ['Keep control as charts grow.', ' Revisit earlier steps and refine the details. Each applied action is recorded as reusable ggaction code.']]) {
       const item = element('li'); item.append(element('strong', title), document.createTextNode(description)); benefits.append(item);
     }
     const software = element('section'); software.append(element('h3', 'Underlying software'));
@@ -113,16 +113,26 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       const resources = element('span'); for (const [title, href] of links) resources.append(link(title, href));
       row.append(resources); software.append(row);
     }
+    software.append(element('p', 'ggaction represents chart authoring as a sequence of explicit graphical actions, keeping each design decision connected to editable code.'));
     const papers = element('section'); papers.append(element('h3', 'Papers'), element('p', 'This tool builds on the following research:'));
     for (const [title, href, authors, venue, legacy] of [
-      ['Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations', 'https://arxiv.org/abs/2607.15608', 'Hyeon Jeon · Sungbok Shin · Niklas Elmqvist', 'TVCG · VIS 2026', 'https://oldvis.autocomplete.studio/'],
+      ['Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations', 'https://arxiv.org/abs/2607.15608', 'Hyeon Jeon · Sungbok Shin · Niklas Elmqvist', 'Transactions on Visualization and Computer Graphics (TVCG, Proc. VIS 2026)', 'https://oldvis.autocomplete.studio/'],
       ['ggaction: A Grammar of Graphical Actions', 'https://arxiv.org/abs/2609.14353', 'Hyeon Jeon · Jinwook Seo', 'arXiv']]) {
       const paper = element('article', '', 'about-paper');
       paper.append(link(title, href), element('p', authors), element('small', venue));
       if (legacy) { const note = element('p'); note.append(link('legacy version for our academic paper', legacy)); paper.append(note); }
       papers.append(paper);
     }
-    d.box.append(benefits, software, papers, element('h3', 'Contributors'), element('p', 'Hyeon Jeon · Sungbok Shin · Jinwook Seo · Niklas Elmqvist')); d.open();
+    const contributors = element('section'), people = element('ul', '', 'about-contributors');
+    contributors.append(element('h3', 'Contributors'), people);
+    for (const [name, affiliation] of [
+      ['Hyeon Jeon', 'Aarhus University'],
+      ['Sungbok Shin', 'Sogang University'],
+      ['Jinwook Seo', 'Seoul National University'],
+      ['Niklas Elmqvist', 'Aarhus University']]) {
+      const person = element('li'); person.append(element('strong', name), element('span', affiliation)); people.append(person);
+    }
+    d.box.append(benefits, software, papers, contributors); d.open();
   }
   function report() {
     if (!requireAccount()) return;

@@ -1,6 +1,20 @@
 import { canvasGeometry, resizeCanvasAction } from './canvas-geometry.js';
 
 export function centerCanvasContent(program, view, guideCall) {
+  const missingGuides = ['axis', 'legend', 'grid'].some(family => Object.keys(view.semanticSpec.guides[family] ?? {})
+    .some(id => !program.semanticSpec.guides[family]?.[id]));
+  if (!missingGuides && !program.compositionSpec && program.materializationConfigs.canvas?.plot) {
+    // Keep automatic guide space distinct from deliberate user margins. The
+    // native fitter retains that provenance across centering and persistence.
+    const fit = { method: 'fitCanvas', args: { align: 'center', padding: 6, minPlotWidth: 1, minPlotHeight: 1 } };
+    try {
+      const fitted = view.fitCanvas(fit.args);
+      if (JSON.stringify(fitted.materializationConfigs.canvas.margin) === JSON.stringify(view.materializationConfigs.canvas.margin)) return { program, view, calls: [] };
+      const calls = [fit];
+      let next = program; for (const call of calls) next = next[call.method](call.args);
+      return { program: next, view: next.createGuides(guideCall.args), calls };
+    } catch { /* Explicitly positioned guides retain their requested placement. */ }
+  }
   // Native margins sometimes retain large guide reservations after faceting.
   // Redistribute empty space through public calls, keeping exports/history
   // identical to the displayed Canvas and createGuides as the final call.

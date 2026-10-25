@@ -27,7 +27,8 @@ export function chartOwner(program, layer) {
   const transform = dataset?.transform?.[0];
   if (config.compositionRole === 'radar') return {
     method: typeof program.editRadarPlot === 'function' ? 'editRadarPlot' : null,
-    target: layer.id, source: dataset?.source ?? layer.data, dataset, transform, radar: true,
+    target: layer.id, source: config.radarPlot?.source ?? dataset?.source ?? layer.data,
+    config: config.radarPlot, dataset, transform, radar: true,
   };
   if (['bin2d', 'horizon', 'density'].includes(transform?.type)) return {
     method: { bin2d: 'editBin2DData', horizon: 'editHorizon', density: 'editDensity' }[transform.type],

@@ -1,6 +1,6 @@
 import { selectionFields } from '../src/field-selection.js';
 import { getPlotDefinitions, defaultValues } from '../src/plot-catalog.js';
-import { editableChartTargetGroups, editableChartTargets, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
+import { editableChartTargetGroups, editableChartTargets, chartViews, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
 import { getDatasetSchema, getPlotComposition, describeAction } from 'ggaction/inspection';
 import { profileDataset } from '../src/profile.js';
 import { chartOwner } from '../src/chart-owner.js';
@@ -21,6 +21,28 @@ function write(object, path, value) {
 const sharedChannels = adding => [...new Set([...(adding.share === 'none' ? [] : [adding.share]),
   ...(adding.inheritedSharing ?? []).flatMap(policy => policy.channels)])];
 const inheritedChannels = adding => [...new Set((adding.inheritedSharing ?? []).flatMap(policy => policy.channels))];
+
+// A placement can contain several independent color measures (for example a
+// point classification above a density heatmap). Auto sharing describes the
+// complete receiving view, not just the currently selected mark.
+function uniformPlacementColor(program, selectedRole, selectedScale) {
+  if (!selectedRole?.scale || !selectedScale) return false;
+  const meaning = role => JSON.stringify([role.field ?? null, role.fields ?? null, role.fieldType,
+    role.measurement.unit === 'sum' ? 'value' : role.measurement.unit, role.temporalUnit ?? null]);
+  const definition = scale => JSON.stringify(Object.fromEntries(Object.entries(scale)
+    .filter(([key]) => !['id','domain','emptyDomain','nice','zero'].includes(key)).sort(([a],[b]) => a.localeCompare(b))));
+  const expectedMeaning = meaning(selectedRole), expectedDefinition = definition(selectedScale);
+  return chartViews(program).every(({ program: view }) => {
+    const roles = editableChartTargets(view).filter(target => !target.overlay)
+      .map(target => getPlotComposition(view, { target: target.id }).channels.color).filter(Boolean);
+    return roles.length > 0 && roles.every(role => {
+      const scale = view.semanticSpec.scales.find(scale => scale.id === role.scale);
+      return scale && meaning(role) === expectedMeaning && definition(scale) === expectedDefinition &&
+        (!Array.isArray(scale.domain) || !Array.isArray(selectedScale.domain) ||
+          JSON.stringify(scale.domain) === JSON.stringify(selectedScale.domain));
+    });
+  });
+}
 
 export function adjacentContext(program, context, position, fieldTypes, placementPath, source, previousSelection, inputData) {
   const placement = placementPath && adjacentPlacements(program).find(choice => JSON.stringify(choice.childPath) === JSON.stringify(placementPath));
@@ -53,11 +75,17 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
       (channel === 'color' || key !== 'range')))]] : [];
   }));
   if (scales.color?.range?.palette) {
-    scales.color.palette = scales.color.range.palette;
+    const palette = scales.color.range.palette;
+    // A named palette is canonicalized by ggaction to {name}; the public
+    // editor value is a string. Variants retain their full semantic object.
+    scales.color.palette = typeof palette === 'object' && Object.keys(palette).every(key => key === 'name')
+      ? palette.name : palette;
     delete scales.color.range;
   }
   const receivingPath = placement?.childPath ?? target.childPath;
   const datasets = local.semanticSpec.datasets;
+  const colorSharingCompatible = uniformPlacementColor(chartAtPath(program, receivingPath), channelRoles.color,
+    local.semanticSpec.scales.find(scale => scale.id === channelRoles.color?.scale));
   const axisMeanings = Object.fromEntries(['x', 'y'].map(axis => [axis, composition.channels[axis]?.field ? {field:composition.channels[axis].field,operations:composition.channels[axis].measurement.operations} : null]));
   return { ...target, receivingPath, placementLabel: placement?.label ?? target.label,
     sources: placement?.sources ?? [target], grouped: placement?.grouped ?? false,
@@ -66,7 +94,7 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
       ...(composition.dimensions ?? []).map(d => d.field),
       ...(composition.channels.theta?.fields ?? [])
     ].filter(name => profile.fields.some(f => f.name === name && f.usable)))] },
-    sourceSelection: selectedFields, scales, datasets, faceted: Boolean(local.compositionSpec?.facet), axisMeanings,
+    sourceSelection: selectedFields, scales, datasets, colorSharingCompatible, colorOperations: channelRoles.color?.measurement.operations ?? [], faceted: Boolean(local.compositionSpec?.facet), axisMeanings,
     inheritedSharing: inheritedCompositionShares(program, receivingPath),
     aggregation: axisMeanings.y?.operations.at(-1) ?? axisMeanings.x?.operations.at(-1), bins: layer.encoding.x?.bin?.maxBins,
     share: ['left', 'right'].includes(position) ? 'y' : 'x' };
@@ -96,7 +124,10 @@ export function adjacentSpecs(engine, adding, root) {
       const meanings = creationAxisMeanings(spec.method, plan.options, fields, adding.datasets, plan.calls);
       return shared.filter(channel => !['x', 'y'].includes(channel) || sameAxisMeaning(adding.axisMeanings[channel], meanings[channel]));
     };
-    const effectiveChannels = values => [...new Set([...compatibleChannels(values), ...inheritedChannels(adding)])];
+    const shareMode = (values, channel) => values[`share_${channel}`] ?? 'auto';
+    const effectiveChannels = values => ['x', 'y', 'color'].filter(channel => shareMode(values, channel) !== 'independent' &&
+      (shareMode(values, channel) === 'shared' || compatibleChannels(values).includes(channel) || inheritedChannels(adding).includes(channel)));
+    Object.assign(inherited, { share_x: 'auto', share_y: 'auto', share_color: 'auto' });
     for (const control of flat(editor.resolveControls(inherited))) {
       if (/palette/i.test(control.key) && control.choices?.some(c => c.value === adding.scales.color?.palette)) inherited[control.key] = adding.scales.color.palette;
       if (/aggregate/i.test(control.key) && adding.aggregation && control.choices?.some(c => c.value === adding.aggregation)) inherited[control.key] = adding.aggregation;
@@ -121,48 +152,64 @@ export function adjacentSpecs(engine, adding, root) {
           choices: c.choices.map(choice => ({ ...choice, ...(choice.value !== type ? { disabled: true,
             reason: `Shared ${channel.toUpperCase()} uses the source ${type} scale. Use Edit shared scales to change the sharing policy.` } : {}) })) };
       });
-      return visit(editor.resolveControls(values));
+      return [...visit(editor.resolveControls(values)), { type: 'group', label: 'Shared scales', controls:
+        ['x', 'y', 'color'].map(channel => ({ key: `share_${channel}`, type: 'select', label: channel === 'color' ? 'Color' : channel.toUpperCase(), value: shareMode(values, channel),
+          choices: [{ value: 'auto', label: 'Auto' }, { value: 'shared', label: 'Shared' },
+            { value: 'independent', label: inheritedChannels(adding).includes(channel) ? 'Independent · release parent' : 'Independent' }] })) }];
     };
-    const initialArgs = editor.build(inherited);
     const required = inheritedChannels(adding);
-    const unavailable = required.find(channel => ['x','y'].includes(channel) && initialArgs[channel] === undefined &&
-      !initialPositionBindings(spec.method, initialArgs, fields).some(binding => binding.axis === channel));
-    const inheritedMismatch = required.find(channel => ['x', 'y'].includes(channel) && !compatibleChannels(inherited).includes(channel));
     return { ...editor, values: inherited, normalizeValues, controls: constrainControls(inherited), resolveControls: constrainControls,
       method: 'createAdjacentPlot', chartChoice: true,
-      ...(unavailable ? { requirement: `This chart does not expose a compatible ${unavailable.toUpperCase()} axis for sharing. Choose another chart or release sharing.` }
-          : inheritedMismatch ? { requirement: `The parent group already shares ${inheritedMismatch.toUpperCase()}. Use the same aggregation or release that group's shared scale first.` } : {}),
       title: `Add ${editor.title}`, original: { nextContext: { childPath: [...receivingPath, id], target: id } },
       build: values => {
         values = normalizeValues(values);
         const { id: _id, ...options } = dataPlan(values).options;
         const compatible = compatibleChannels(values), sharing = effectiveChannels(values);
-        const inheritedMismatch = required.find(channel => ['x', 'y'].includes(channel) && !compatible.includes(channel));
+        const inheritedMismatch = required.find(channel => shareMode(values, channel) !== 'independent' && ['x', 'y'].includes(channel) && !compatible.includes(channel));
         if (inheritedMismatch) throw new Error(`The parent group already shares ${inheritedMismatch.toUpperCase()}. Use the same field and aggregation, or release that group's shared scale first.`);
         const bindings = initialPositionBindings(spec.method, options, fields);
         for (const channel of sharing) {
-          if (!adding.scales[channel]) continue;
+          if (channel === 'color' || !adding.scales[channel]) continue;
           const paths = options[channel] !== undefined ? [`${channel}.scale`]
             : bindings.find(binding => binding.axis === channel)?.paths ?? [];
           for (const path of paths) write(options, path, { ...at(options, path), ...adding.scales[channel] });
         }
         const color = options.color;
-        const shareColor = adding.sourceSelection.color &&
+        const shareColor = shareMode(values, 'color') !== 'independent' && adding.colorSharingCompatible &&
+          (shareMode(values, 'color') === 'shared' || !(adding.colorOperations?.length)) && adding.sourceSelection.color &&
           fieldName(color) === adding.sourceSelection.color &&
           (color.scale?.palette ?? adding.scales.color?.palette) === adding.scales.color?.palette;
+        if (!shareColor && (shareMode(values, 'color') === 'shared' ||
+            required.includes('color') && shareMode(values, 'color') !== 'independent')) {
+          throw new Error('Shared color requires every layer to use the same field and palette. Choose Independent to release the parent color scale, or restore the source color mapping.');
+        }
+        if (color && options.guides !== false && options.guides?.legend !== false) {
+          // Constructor defaults intentionally omit some categorical point
+          // legends. This editor selected color explicitly, so keep its guide
+          // in the authored child, including when sharing is later released.
+          options.guides = { ...options.guides, legend: { channels: ['color'],
+            ...options.guides?.legend } };
+        }
         if (shareColor && typeof color === 'object') color.scale = { ...adding.scales.color, ...color.scale };
         return { id, source: adding.grouped ? { childPath: adding.childPath.slice(receivingPath.length), id: adding.id } : adding.id,
-          position: adding.position, plot: { action: spec.method, options },
-          share: { ...(adding.share === 'none' || !compatible.includes(adding.share) ? {} : { [adding.share]: true }), ...(shareColor ? { color: true } : {}) }, align: 'plot',
+          position: adding.position, plot: { action: spec.method, options, inherit: { color: false } },
+          share: { ...Object.fromEntries(['x', 'y'].filter(channel => sharing.includes(channel)).map(channel => [channel, true])), ...(shareColor ? { color: true } : {}) }, align: 'plot',
           ...(['left', 'right'].includes(adding.position) ? { gap: 8 } : {}),
           ...(receivingPath.length ? { target: { childPath: receivingPath } } : {}) };
       },
-      setup: values => dataPlan(normalizeValues(values)).calls.map(call => {
-        const local = adding.faceted
-          ? { method: 'editFacetSource', args: { action: { method: call.method, options: call.args } } } : call;
-        return { ...local, args: { ...local.args,
-          ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) } };
-      }),
+      setup: values => [
+        ...(adding.inheritedSharing ?? []).flatMap(policy => {
+          const released = policy.channels.filter(channel => shareMode(values, channel) === 'independent');
+          return released.length ? [{ method: 'editCompositionScales', args: {
+            share: Object.fromEntries(released.map(channel => [channel, false])),
+            ...(policy.childPath.length ? { target: { childPath: policy.childPath } } : {}) } }] : [];
+        }),
+        ...dataPlan(normalizeValues(values)).calls.map(call => {
+          const local = adding.faceted
+            ? { method: 'editFacetSource', args: { action: { method: call.method, options: call.args } } } : call;
+          return { ...local, args: { ...local.args,
+            ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) } };
+        })],
     };
   });
 }
@@ -211,11 +258,20 @@ function layerSpecs(adding,profile,engine) {
   const fieldKeys=new Set(['x','y','color','category','value','end','field','theta','radius','dimensions','wide','groupBy','orientation']);
   const fieldNames=new Set(profile.fields.map(f=>f.name));
   return definitions.flatMap(spec=>{
+    const pathLayer=['createLinePlot','createPolarLinePlot','createAreaPlot'].includes(spec.method);
     const controls=spec.controls.filter(c=>!fieldKeys.has(c.key)&&c.section!=='scales'&&
       !/scale|palette/i.test(c.key)&&(c.key==='start'||!c.choices?.some(choice=>fieldNames.has(choice.value)))&&
       !(adding.composition.channels.x?.bin&&/bin/i.test(c.key))).slice(0,3).map(c=>({...c}));
+    if(pathLayer) controls.push(
+      {key:'layer_color',label:'Color',type:'select',value:'auto',choices:[
+        {value:'auto',label:'Automatic'},{value:'none',label:'Single color'},
+        ...profile.fields.filter(field=>spec.method!=='createAreaPlot'||['nominal','ordinal'].includes(field.type))
+          .map(field=>({value:`field:${field.name}`,label:field.name}))]},
+      {key:'layer_group',label:'Group by',type:'select',value:'auto',choices:[
+        {value:'auto',label:'Automatic'},...profile.fields.filter(field=>['nominal','ordinal'].includes(field.type))
+          .map(field=>({value:`field:${field.name}`,label:field.name}))]});
     controls.push({key:'placement',label:'Placement',type:'select',value:'front',choices:[{value:'front',label:'In front'},{value:'back',label:'Behind'}]});
-    const values={...spec.values,placement:'front'};
+    const values={...spec.values,...(pathLayer?{layer_color:'auto',layer_group:'auto'}:{}),placement:'front'};
     const measureAxis=['nominal','ordinal'].includes(adding.composition.channels.y?.fieldType)?'x':'y';
     const start=controls.find(control=>control.key==='start');
     if(start) values.start=start.choices.find(choice=>choice.value!==adding.composition.channels[measureAxis]?.field)?.value??values.start;
@@ -241,7 +297,16 @@ function layerSpecs(adding,profile,engine) {
         if(role.aggregate && !controls.some(control=>/aggregate/i.test(control.key)))delete role.aggregate;
         if(Object.keys(role).length) options[role.aggregate||role.center||role.extent?measureAxis:axis]=role;
       }
-      return {id,source:adding.source.id,plot:{action:spec.method,options},placement:values.placement};
+      if(pathLayer) {
+        if(values.layer_color?.startsWith('field:')) {
+          const field=profile.fields.find(field=>field.name===values.layer_color.slice(6));
+          options.color={field:field.name,fieldType:field.type};
+          if(spec.method==='createAreaPlot' && ['nominal','ordinal'].includes(field.type) && values.layer_group==='auto') options.groupBy=[field.name];
+        }
+        if(values.layer_group?.startsWith('field:')) options.groupBy=[values.layer_group.slice(6)];
+      }
+      return {id,source:adding.source.id,plot:{action:spec.method,options,
+        ...(pathLayer && values.layer_color==='none'?{inherit:{color:false}}:{})},placement:values.placement};
     };
     let args,description;
     try {args=build(values);description=describeAction(adding.program,{action:'createLayerPlot',options:args});}

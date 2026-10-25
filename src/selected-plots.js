@@ -1,3 +1,4 @@
+import { withSummarySemantics } from './summary-semantics.js';
 import { bucketTime } from '../vendor/ggaction/src/grammar/timeUnit.js';
 import { normalizeTemporalValue } from '../vendor/ggaction/src/grammar/scales/fields.js';
 import { rolePlotDefinitions } from './role-plots.js';
@@ -337,10 +338,10 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
     };
     eligibility.push({ method, eligible: true, colorType: color?.type,
       colorStrategy: binnedColor ? 'ordered-intervals' : aggregatedHeatmap ? 'cell-aggregate' : 'native' });
-    definitions.push({ ...definition, controls, build, setup, binField: summarizes && binsX || binnedHeatmap ? binField : undefined,
+    definitions.push(withSummarySemantics({ ...definition, controls, build, setup, binField: summarizes && binsX || binnedHeatmap ? binField : undefined,
       yBinField: binnedHeatmap ? yBinField : undefined, colorBinField: binnedColor ? colorBinField : undefined,
       requirement, regressionOptions,
-      semanticDefaults: eventCounts && ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) ? { aggregate: 'sum' } : undefined, selection: { ...selection } });
+      semanticDefaults: eventCounts && ['createLinePlot', 'createAreaPlot', 'createBarPlot', 'createHorizonPlot'].includes(method) ? { aggregate: 'sum' } : undefined, selection: { ...selection } }, { profile, rows: complete, x, y, color, binsX }));
   }
   for (const definition of extraDefinitions) {
     const existing = eligibility.find(item => item.method === definition.method);

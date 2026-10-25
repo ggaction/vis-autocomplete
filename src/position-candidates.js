@@ -29,7 +29,31 @@ export function positionCandidates(program, { layer, profile }) {
     const descriptor = describeAction(program, { action: method, target: { kind: 'mark', id: target } });
     if (!['supported', 'needs-input'].includes(descriptor.applicability)) continue;
     const supportedTypes = descriptor.parameterDefinitions.find(p => p.path === 'fieldType')?.choices;
+    const unavailable = [];
+    const reject = (field, reason) => { unavailable.push({ value: field.name, label: field.name, disabled: true, reason }); return false; };
+    const packing = program.materializationConfigs.pointPacking?.[target];
+    const jitter = program.materializationConfigs.jitters?.[target];
+    const sourceData = program.semanticSpec.datasets.find(data => data.id === layer.data);
+    const completion = sourceData?.transform?.find(transform => transform.type === 'complete');
     const allowed = fields.filter(f => {
+      if (mark === 'area' && completion && completion.key === current?.field && f.name !== current.field &&
+          layer.layout?.mode && layer.layout.mode !== 'overlay') {
+        const opposite = channel === 'x' ? 'y' : 'x';
+        if ([encoding[opposite]?.field, encoding[`${opposite}2`]?.field].includes(f.name))
+          return reject(f, 'Stacking needs separate position and measurement fields for completed rows. Choose another field or Overlay layout.');
+        if (completion.groupBy.includes(f.name))
+          return reject(f, 'A series needs multiple positions; its grouping field cannot also be its position.');
+        const sourceRows = program.semanticSpec.datasets.find(data => data.id === sourceData.source)?.values ?? [];
+        const keys = sourceRows.map(row => JSON.stringify([...completion.groupBy, f.name].map(field => row[field])));
+        if (new Set(keys).size !== keys.length)
+          return reject(f, 'This field has duplicate positions within a series. Reaggregate the original observations first, or use Overlay layout.');
+      }
+      if ((packing?.channel === channel || jitter?.channel === channel && jitter.maxOffset?.band !== undefined) && !categorical(f.type))
+        return reject(f, 'This axis defines categorical slots for packing or band jitter. Choose a category field.');
+      if (mark === 'line' && current?.aggregate && f.type !== 'quantitative')
+        return reject(f, 'This axis summarizes numeric measurements. Choose a numeric field, or change the chart mapping.');
+      if (mark === 'arc' && channel === 'theta' && f.type === 'temporal')
+        return reject(f, 'Sectors require categories or numeric weights, not a temporal position.');
       if (regression && (f.type !== 'quantitative' || f.name === encoding[channel === 'x' ? 'y' : 'x']?.field)) return false;
       // A categorical bar position needs a quantitative opposite axis. This
       // preserves both horizontal and vertical bars without inventing a second call.
@@ -63,7 +87,7 @@ export function positionCandidates(program, { layer, profile }) {
       // its current variable available so those edits do not rebind the data.
       if (field.name === current?.field && !measured && (!['x', 'y'].includes(channel) || regression)) continue;
       const args = { target, field: field.name, fieldType: field.type };
-      if (current?.aggregate && field.type === 'quantitative') args.aggregate = current.aggregate;
+      if (current?.aggregate && field.type === 'quantitative' && !(mark === 'arc' && channel === 'theta')) args.aggregate = current.aggregate;
       if (mark === 'bar' && channel === 'y' && encoding.x?.bin && args.aggregate === 'count' && field.name !== encoding.x.field) args.aggregate = 'mean';
       if (current?.bin && field.type === 'quantitative') args.bin = { ...current.bin };
       if (measured && channel === 'radius') Object.assign(args, { aggregate: 'sum', mapping: radialScale.radialMapping });
@@ -77,8 +101,8 @@ export function positionCandidates(program, { layer, profile }) {
       }
       if (mark === 'bar' && ['x', 'y'].includes(channel) && field.type === 'quantitative' &&
           categorical(encoding[channel === 'x' ? 'y' : 'x']?.fieldType)) args.aggregate ??= 'mean';
-      if (mark === 'line' && channel === 'x' && field.type === 'quantitative' && encoding.y?.aggregate && !args.bin) args.bin = { maxBins: 10 };
       out.push({ method, args, category: 'encoding', feature: encodingFeature(channel),
+        unavailableFields: unavailable,
         label: `Encode ${channel === 'radius' ? 'R' : channel.toUpperCase()}`,
         inspectionTarget: { kind: 'mark', id: target },
         // Cartesian X/Y use their full field/scale editor; other positions use
@@ -111,7 +135,7 @@ export function ownedPositionCandidates(program, { layer, profile }) {
     if (owner.method === 'editRaincloudPlot') {
       const categoryFields = [...new Set([config.category.field, ...categories])];
       for (const category of categoryFields) for (const field of q.filter(f => f !== category)) {
-        add(owner.method, { target, category: { field: category, fieldType: category === config.category.field ? config.category.fieldType : 'nominal' },
+        add(owner.method, { target, missing: 'skip', category: { field: category, fieldType: category === config.category.field ? config.category.fieldType : 'nominal' },
           value: { field, fieldType: 'quantitative' },
           ...(config.color?.field === config.category.field ? { color: { ...config.color, field: category } } : {}) },
         [{ ...parameter('category.field', 'Category', category, categoryFields),
@@ -141,7 +165,7 @@ export function ownedPositionCandidates(program, { layer, profile }) {
         'action.editErrorBar', 'Interval variables');
     } else if (owner.method === 'editEndpointPlot') {
       const roles = config.roles, paths = roles.value ? ['value'] : ['start', 'end'];
-      for (const field of q.filter(f => paths.length === 1 || f !== roles.end.field)) add(owner.method, { target, [paths[0]]: { field, fieldType: 'quantitative' } },
+      for (const field of q.filter(f => paths.length === 1 || f !== roles.end.field)) add(owner.method, { target, missing: 'skip', [paths[0]]: { field, fieldType: 'quantitative' } },
         [parameter('category.field', 'Category', roles.category.field, categories),
           ...paths.map(path => ({ ...parameter(`${path}.field`, path === 'value' ? 'Value' : path, path === paths[0] ? field : roles[path].field, q),
             ...(paths.length === 2 ? { distinctFrom: `${path === 'start' ? 'end' : 'start'}.field` } : {}) }))], 'action.editEndpointPlot', 'Endpoint variables');

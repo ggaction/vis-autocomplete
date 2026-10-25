@@ -180,7 +180,7 @@ test('shared series legend updates are explicit native post-action setup and rep
     .createLinePlot({id:'plot',x:'x',y:'y',color:{field:'g',fieldType:'nominal'}});
   const r = prepareGuidedAction(p,{method:'encodeStrokeDash',args:{target:'plot',field:'g',fieldType:'nominal'}});
   assert.equal(r.recommendation.validation.topLevelActions,1);
-  assert.deepEqual(r.postActionCalls.filter(call => call.method !== 'editCanvas'),[{method:'editLegend',args:{target:'plot',channels:['color','strokeDash']}}]);
+  assert.deepEqual(r.postActionCalls.filter(call => !['editCanvas', 'fitCanvas'].includes(call.method)),[{method:'editLegend',args:{target:'plot',channels:['color','strokeDash']}}]);
   // Native centering may follow the legend update; replay both calls below.
   let replay=p[r.recommendation.method](r.recommendation.args);
   for(const call of r.postActionCalls)replay=replay[call.method](call.args);

@@ -48,7 +48,8 @@ function defaultGuideCall(program) {
     args.legend = { target: root.id, channels: missingChannels };
     if (['size', 'opacity', 'strokeWidth'].some(channel => missingChannels.includes(channel))) args.legend.count = 3;
     const domain = program.resolvedScales[root.encoding.color?.scale]?.domain;
-    if (['nominal', 'ordinal'].includes(root.encoding.color?.fieldType) && domain?.length > 12) {
+    if (missingChannels.every(channel => ['color', 'shape', 'stroke', 'strokeDash'].includes(channel) &&
+        ['nominal', 'ordinal'].includes(root.encoding[channel]?.fieldType)) && domain?.length > 12) {
       // Use native legend overflow for many categories; keep every data row.
       Object.assign(args.legend, { position: 'top-right', overflow: { maxItems: 6, summary: 'ellipsis-count' } });
     }
@@ -96,32 +97,31 @@ export function prepareGuidedAction(program, action, view = program, setupCalls 
 function prepareScopedAction(program, action, view, setupCalls) {
   const targets = nativeActionTargets(action), prerequisites = [], posts = [];
   let resolvedAction = action;
+  for (const setup of setupCalls) {
+    validateSetupCall(setup);
+    const call = structuredClone(setup);
+    program = program[call.method](call.args);
+    prerequisites.push(call);
+  }
   const { target: _target, ...options } = action.args;
   for (const target of targets) {
     const local = compositionTargetProgram(program, target.childPath), displayed = compositionTargetProgram(view, target.childPath);
-    const call = { ...action, args: { ...options, ...(target.id === undefined ? {} : { target: target.id }) },
-      allowUnchanged: targets.length > 1 || action.allowUnchanged };
-    const localSetup = setupCalls.map(setup => {
-      const { target: _target, ...args } = setup.args;
-      const selectors = nativeActionTargets(setup);
-      if (!selectors) return setup;
-      const relative = selectors.map(selector => {
-        if (!target.childPath.every((id, index) => selector.childPath[index] === id)) throw new Error('Plot setup must belong to the receiving view.');
-        return { ...selector, childPath: selector.childPath.slice(target.childPath.length) };
-      });
-      return { ...setup, args: { ...args, target: relative.length === 1 ? relative[0] : relative } };
-    });
-    const prepared = prepareGuidedAction(local, call, displayed, localSetup);
+    const nativeArgs = { ...options, ...(target.id === undefined ? {} : { target: target.id }) };
+    const call = { ...action, ...(target.facetSource
+      ? { method: 'editFacetSource', args: { action: { method: action.method, options: nativeArgs } } }
+      : { args: nativeArgs }), allowUnchanged: targets.length > 1 || action.allowUnchanged };
+    const prepared = prepareGuidedAction(local, call, displayed);
     // Local fitting may revise constructor guide options. Replay that fitted
     // call at its explicit path, not the original options that already failed.
-    if (targets.length === 1) resolvedAction = { ...action, args: { ...prepared.recommendation.args, target: action.args.target } };
+    if (targets.length === 1) resolvedAction = { ...action, args: { ...(target.facetSource
+      ? prepared.recommendation.args.action.options : prepared.recommendation.args), target: action.args.target } };
     for (const entry of prepared.prerequisiteCalls) prerequisites.push(scopedCall(entry, [{ childPath: target.childPath }]));
     for (const entry of prepared.postActionCalls) posts.push(scopedCall(entry, [{ childPath: target.childPath }]));
   }
   const unique = calls => [...new Map(calls.map(call => [signature(call), call])).values()];
   const prerequisiteCalls = unique(prerequisites), postActionCalls = unique(posts);
   let base = program;
-  for (const call of prerequisiteCalls) base = base[call.method](call.args);
+  for (const call of unique(prerequisites.slice(setupCalls.length))) base = base[call.method](call.args);
   const prepared = prepareAction(base, resolvedAction);
   let authoringPreview = prepared.preview;
   for (const call of postActionCalls) authoringPreview = authoringPreview[call.method](call.args);
@@ -130,16 +130,20 @@ function prepareScopedAction(program, action, view, setupCalls) {
     guideCall, preview: addDefaultGuides(authoringPreview, guideCall) };
 }
 
+function validateSetupCall(setup) {
+  const method = setup.method === 'editFacetSource' ? setup.args.action?.method : setup.method;
+  if (!['createBinData', 'createComputedData', 'createSummaryData', 'createTimeUnitData', 'createCompleteData', 'filterData', 'editCompositionLayout', 'editCompositionScales'].includes(method)) {
+    throw new Error(`Unsupported plot setup: ${setup.method}`);
+  }
+}
+
 function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   let actionBase = program;
   const prerequisiteCalls = [];
   for (const setup of setupCalls) {
     // Explicit native data preparation, replayed in the code view and on Apply.
     // The recommendation below still executes exactly one public chart method.
-    const setupMethod = setup.method === 'editFacetSource' ? setup.args.action?.method : setup.method;
-    if (!['createBinData', 'createComputedData', 'createSummaryData', 'createTimeUnitData', 'createCompleteData', 'filterData', 'editCompositionLayout'].includes(setupMethod)) {
-      throw new Error(`Unsupported plot setup: ${setup.method}`);
-    }
+    validateSetupCall(setup);
     const call = structuredClone(setup);
     actionBase = actionBase[call.method](call.args);
     prerequisiteCalls.push(call);
@@ -147,6 +151,22 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   const sourceAction = action.method === 'editFacetSource' ? { method: action.args.action.method, args: action.args.action.options } : action;
   const sourceCall = (method, args) => action.method === 'editFacetSource'
     ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
+  if (sourceAction.method === 'createAdjacentPlot' &&
+      (!actionBase.compositionSpec || actionBase.compositionSpec.facet)) {
+    // The displayed suffix may be the only owner of a categorical point
+    // legend. Retain that explicit native request before nesting this view;
+    // bare createGuides() deliberately keeps its historical unit defaults.
+    const suffix = displayedGuideCalls.get(view) ?? defaultGuideCall(actionBase);
+    if (suffix.args.legend) {
+      const call = { method: 'createGuides', args: { axes: false, grid: false,
+        legend: structuredClone(suffix.args.legend) } };
+      const missing = defaultGuideCall(actionBase).args.legend;
+      if (missing) {
+        actionBase = actionBase.createGuides(call.args);
+        prerequisiteCalls.push(call);
+      }
+    }
+  }
   // Initial parallel coordinates need room for each additional axis. Derive
   // each preview from the unchanged starting canvas, never the last preview.
   // An authored canvas or an existing chart keeps its user-chosen dimensions.
@@ -260,7 +280,7 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   };
   let prepared;
   try { prepared = prepareFittedPlot(actionBase, action, finish); } catch (error) {
-    if (family === 'legend' && /^(In-plot legend(?: group)? does not fit|Horizontal legend block requires more plot width)/.test(error.message)) {
+    if (/^(In-plot legend(?: group)? does not fit|Horizontal legend block requires more plot width)/.test(error.message)) {
       // An explicit Show all or larger typography request must not silently
       // truncate entries or move the legend. Enlarge its containing plot via
       // replayable native setup, retaining the requested placement and text.
@@ -503,7 +523,7 @@ function prepareFittedPlot(program, action, finish = value => value) {
   const data = program.semanticSpec.datasets.find(d => d.id === plotArgs.data) ??
     (program.semanticSpec.datasets.length === 1 ? program.semanticSpec.datasets[0] : undefined);
   const rows = data?.values ?? [];
-  for (const count of [6, 4, 3]) {
+  for (const count of [6, 4, 3, 2]) {
     const args = structuredClone(plotArgs);
     if (args.guides === false) throw lastError;
     args.guides = { ...args.guides, axes: { ...args.guides?.axes } };
@@ -511,6 +531,11 @@ function prepareFittedPlot(program, action, finish = value => value) {
     if (plotMethod === 'createHistogram') {
       bindings.x = { field: args.field, fieldType: 'quantitative' };
       bindings.y = { field: args.field, fieldType: 'quantitative' };
+    }
+    if (['createDensityPlot', 'createECDFPlot'].includes(plotMethod)) {
+      const valueAxis = args.orientation === 'horizontal' ? 'y' : 'x';
+      bindings[valueAxis] = { field: args.field, fieldType: 'quantitative' };
+      bindings[valueAxis === 'x' ? 'y' : 'x'] = { fieldType: 'quantitative' };
     }
     if (['createDotPlot', 'createLollipopPlot', 'createDumbbellPlot', 'createRaincloudPlot'].includes(plotMethod)) {
       bindings[args.orientation === 'horizontal' ? 'y' : 'x'] = { field: args.category, fieldType: 'nominal' };
@@ -520,6 +545,16 @@ function prepareFittedPlot(program, action, finish = value => value) {
       bindings.theta = args.theta ?? { field: args.category, fieldType: 'nominal' };
       bindings.radius = args.radius ?? args.value ?? { field: '__count' };
     }
+    // A nice-tick count is a hint, and nonlinear value-space ticks can still
+    // cluster near one end even at count=2. For the final fitting attempt use
+    // the actual resolved endpoints, including aggregation and shared domains.
+    // Probe only on this failure path; replay records the explicit tick values.
+    let resolvedPlot;
+    if (count === 2) try {
+      const bare = prepareAction(program, proposed({ ...plotArgs, guides: false })).preview;
+      const views = adjacent ? chartViews(bare).filter(view => view.childPath.at(-1) === action.args.id) : [{ program: bare }];
+      if (views.length === 1) resolvedPlot = views[0].program;
+    } catch { /* Some constructors require a guide; keep their count fallback. */ }
     for (const axis of Object.keys(bindings)) {
       const binding = bindings[axis];
       if (!binding || plotMethod === 'createHorizonPlot' && axis === 'y') continue;
@@ -528,9 +563,19 @@ function prepareFittedPlot(program, action, finish = value => value) {
       const discrete = ['nominal', 'ordinal'].includes(binding.fieldType);
       const previous = args.guides.axes[axis] ?? {};
       const ticks = previous.ticksAndLabels ?? {};
-      const values = discrete ? domain.filter((_, i) => i % Math.ceil(domain.length / count) === 0) : undefined;
-      args.guides.axes[axis] = { ...previous, ticksAndLabels: { ...ticks,
-        ...(discrete ? { values } : { count }),
+      const layer = resolvedPlot?.semanticSpec.layers.find(layer => layer.id === (adjacent ? action.args.id : plotArgs.id ?? 'plot'));
+      const extent = resolvedPlot?.resolvedScales[layer?.encoding[axis]?.scale]?.domain;
+      const values = discrete ? domain.filter((_, i) => i % Math.ceil(domain.length / count) === 0)
+        : extent?.length === 2 && extent.every(Number.isFinite) ? [...new Set(extent)] : undefined;
+      const fittedTicks = { ...ticks };
+      // Tick generation and exact values are exclusive native contracts.
+      // Retrying an authored count must not carry it (or its rounding policy)
+      // into endpoint sampling; likewise a count retry replaces old values.
+      delete fittedTicks.count;
+      delete fittedTicks.values;
+      if (values) delete fittedTicks.rounding;
+      args.guides.axes[axis] = { ...previous, ticksAndLabels: { ...fittedTicks,
+        ...(values ? { values } : { count }),
         labels: { ...ticks.labels, fontSize: 9,
           ...(['theta', 'radius'].includes(axis) ? {} : discrete && axis === 'x' ? { rotation: { value: 90, unit: 'degrees' }, maxWidth: 120, wrap: 'word' } : { maxWidth: 120, wrap: 'word' }) } } };
     }

@@ -31,5 +31,6 @@ export function overlayCandidates(program, layer) {
       ...(stacked ? [choice('series', 'Follow', 'source', ['source', 'total'])] : []),
       choice('missing', 'Missing values', 'break', ['break', 'connect']),
       choice('orderBy', 'Order by', orderBy, ['x', 'y']),
-    ] }));
+    ] })).filter(candidate => describeAction(program, { action: candidate.method, options: candidate.args }).applicability === 'supported');
 }
+import { describeAction } from 'ggaction/inspection';

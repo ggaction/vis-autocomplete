@@ -3,10 +3,11 @@
 import assert from 'node:assert/strict';
 import { chromium, expect } from '@playwright/test';
 import { createProductionServer } from './server.js';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { sampleWorkbook } from '../test/fixtures/xlsx-workbook.js';
 import { checkAdjacentFilteredCars } from './check-adjacent-filtered-cars.js';
 import { checkElementSelection } from './check-element-selection.js';
+const { version: releaseVersion } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const server=await createProductionServer({env:{SUPABASE_URL:'https://cloud-test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test'},verifyToken:value=>value===token});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1600,height:1000}});
@@ -127,10 +128,10 @@ try{
  await expect(page.locator('html')).toHaveAttribute('data-workspace-layout','vertical');
  assert.deepEqual(assetRequests.filter(path=>path.startsWith('/web/data/')),[],'Signed-in startup must not eagerly download example datasets');
  await page.locator('#workspace-menu').click();await page.getByRole('button',{name:'About',exact:true}).click();
- await expect(dialog().locator('.about-version')).toHaveText('Version v0.0.1');
+ await expect(dialog().locator('.about-version')).toHaveText(`Version v${releaseVersion}`);
  await expect(dialog().getByRole('heading',{name:'Underlying software',exact:true})).toBeVisible();
  await expect(dialog().getByRole('link',{name:'legacy version for our academic paper',exact:true})).toHaveAttribute('href','https://oldvis.autocomplete.studio/');
- await page.screenshot({path:'output/cloud-testing/about-v0.0.1.png'});await close();await close();
+ await page.screenshot({path:`output/cloud-testing/about-v${releaseVersion}.png`});await close();await close();
  await page.locator('#dataset').selectOption('cars');
  await expect(dialog().getByLabel('Project name',{exact:true})).toHaveValue('Cars');
  await dialog().getByLabel('Project name',{exact:true}).fill('   ');
@@ -400,6 +401,9 @@ try{
   return project?.snapshot.datasets.find(dataset=>dataset.id===project.snapshot.activeId)?.session?.entries.at(-1)?.calls.some(call=>call.method==='createScatterPlot');
  },{timeout:30000}).toBe(true);
  await page.reload();await page.locator('#current canvas').waitFor();
+ // Account restore must render committed code without a hover or pointer event.
+ await expect(page.locator('html')).toHaveAttribute('data-view-mode','transition');
+ await expect(page.locator('#code-content')).toContainText('createScatterPlot');
  await expect(page.locator('#dataset option:checked')).toHaveText('Research — Inventory');
  await page.locator('.project-menu summary').click();await page.locator('#edit-schema').click();
  await expect(dialog().getByRole('status')).toContainText('2 rows · 3 fields');

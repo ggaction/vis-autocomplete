@@ -7,6 +7,7 @@ import {overlayContext,overlaySpecs,adjacentContext,adjacentSpecs} from '../web/
 import {createInitialChartRecommender} from '../src/initial-recommender.js';
 import {prepareGuidedAction} from '../src/prepare.js';
 import {editableChartTargets} from '../src/composition-context.js';
+import {parseCSV} from '../src/data-import.js';
 const engine=createInitialChartRecommender(JSON.parse(readFileSync(new URL('../data/initial-model.json',import.meta.url))));
 const rows=Array.from({length:36},(_,i)=>({group:['A','B','C'][i%3],series:i%2?'I':'II',value:3+i%11,x:i+1,id:`r${i}`,a:i+2,b:i+3,c:i+4}));
 const base=()=>chart().createCanvas({plot:{width:400,height:360},margin:100}).createData({id:'data',values:rows});
@@ -32,6 +33,7 @@ for(const [name,build] of cases)test(`${name}: every offered layer default execu
    catch(e){throw new Error(`${name}: ${spec.title}: ${e.message}`,{cause:e});}
    const target=spec.original.nextContext.target;
    assert.equal(getPlotComposition(q,{target}).data,'data');
+   assert.deepEqual(q.semanticSpec.datasets.find(d=>d.id==='data').values,rows);
    assert.ok(editableChartTargets(q).some(t=>t.id===target));
    assert.ok(spec.controls.length<=4);
  }
@@ -94,4 +96,19 @@ test('layer statistical parameters follow the source measure axis in both orient
   assert.ok(dumbbell.controls.some(control=>control.key==='start'));
   assert.ok(prepareGuidedAction(p,{method:dumbbell.method,args:dumbbell.build(dumbbell.values)},p).preview);
  }
+});
+
+test('numeric-year Area offers a Line layer at the same aggregate grain without adding bins',()=>{
+ const values=parseCSV(readFileSync(new URL('../web/data/global-temp.csv',import.meta.url),'utf8'));
+ const p=chart().createCanvas({plot:{width:400,height:360},margin:100}).createData({id:'data',values})
+   .createSummaryData({id:'summary',source:'data',groupBy:['year'],aggregates:[{op:'mean',field:'temp',as:'temp'}]})
+   .createAreaPlot({id:'p',data:'summary',x:{field:'year',fieldType:'quantitative'},y:'temp'});
+ const line=overlaySpecs(overlayContext(p,{target:'p'}),engine).find(spec=>/Line plot/.test(spec.title));
+ assert.ok(line,'a compatible Line layer is offered');
+ const args=line.build(line.values),prepared=prepareGuidedAction(p,{method:line.method,args},p);
+ const info=getPlotComposition(prepared.preview,{target:line.original.nextContext.target});
+ assert.equal(info.channels.x.field,'year');
+ assert.equal(info.channels.x.bin,undefined);
+ assert.equal(info.channels.y.field,'temp');
+ assert.deepEqual(info.channels.y.measurement.operations,['mean']);
 });

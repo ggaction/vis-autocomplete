@@ -13,15 +13,30 @@ const round = value => Number(value.toPrecision(3));
 // selection. Each returned card still invokes exactly one public action.
 export function ownedChartCandidates(program, { layer, profile, owner }) {
   const out = [], target = owner?.target ?? layer.id;
-  const source = owner?.source ? profileDataset(program, owner.source) : profile;
+  const sourceNames = new Set(Object.keys(program.semanticSpec.datasets.find(d => d.id === owner?.source)?.values?.[0] ?? {}));
+  const sourceHints = Object.fromEntries([...profile.fields.filter(f => sourceNames.has(f.name)).map(f =>
+    [f.name, { type: f.type, ...(f.order ? { order: f.order } : {}) }]),
+    ...Object.entries(profile.sourceFieldTypes ?? {}).filter(([name]) => sourceNames.has(name))]);
+  const source = owner?.source ? profileDataset(program, owner.source, sourceHints) : profile;
   const fields = source.fields.filter(f => f.usable), q = fields.filter(f => f.type === 'quantitative');
   const groups = fields.filter(f => ['nominal', 'ordinal'].includes(f.type) && f.distinct > 1);
   const add = (method, category, args, parameters, feature, label) => out.push({ method, category, args, parameters, feature, label });
-  if (owner?.radar && owner.method && owner.transform?.type === 'fold') {
-    const dimensions = [...owner.transform.fields].reverse();
-    add('editRadarPlot', 'encoding', { target, wide: { fields: dimensions } },
-      [{ path: 'wide.fields', label: 'Dimensions and order', type: 'multiselect', minimum: 2,
-        value: dimensions, choices: q.map(field => ({ value: field.name, label: field.name })) }],
+  if (owner?.radar && owner.method && (owner.config?.wide || owner.transform?.type === 'fold')) {
+    const wide = owner.config?.wide ?? owner.transform;
+    const theta = program.semanticSpec.scales.find(scale => scale.id === layer.encoding.theta?.scale);
+    const dimensions = Array.isArray(theta?.domain) ? [...theta.domain] : [...wide.fields];
+    const group = layer.encoding.group, groupFields = group?.fields ?? (group?.field ? [group.field] : []);
+    const rows = program.semanticSpec.datasets.find(d => d.id === owner.source)?.values ?? [];
+    const uniqueSeries = new Set(rows.map(row => JSON.stringify(groupFields.map(field => row[field])))).size === rows.length;
+    add('editRadarPlot', 'encoding', { target, wide: { fields: dimensions,
+      summary: wide.summary ?? false, normalize: wide.normalize ?? false } },
+      [{ path: 'wide.fields', label: 'Dimensions and order', type: 'multiselect', minimum: 2, ordered: true,
+        value: dimensions, choices: q.map(field => ({ value: field.name, label: field.name })) },
+      select('wide.summary', 'Profile', wide.summary ?? false, [{ value: 'mean', label: 'Mean by group' },
+        { value: 'median', label: 'Median by group' }, { value: false, label: 'Individual observations',
+          disabled: !uniqueSeries, reason: !uniqueSeries ? 'Individual observations need a unique series identity.' : undefined }]),
+      select('wide.normalize', 'Dimension scale', wide.normalize ?? false,
+        [{ value: false, label: 'Original values (shared units)' }, { value: 'minmax', label: 'Normalize each dimension (0–1)' }])],
       'encoding.radarDimensions', 'Edit radar dimensions');
   }
   if (owner?.method === 'editBoxPlot') {

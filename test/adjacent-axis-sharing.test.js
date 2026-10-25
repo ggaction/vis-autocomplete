@@ -68,7 +68,10 @@ test('an inherited explicit shared axis is not silently changed by an incompatib
   const p = source('y').createAdjacentPlot({ id: 'line', source: 'plot', position: 'right', plot: { action: 'createLinePlot', options: { guides: false } } });
   const adding = adjacentContext(p, { target: 'line', childPath: ['line'] }, 'right', { year: 'ordinal' });
   const scatter = adjacentSpecs(engine, adding, p).find(spec => /^Add Scatter/i.test(spec.title));
-  assert.match(scatter.requirement, /parent group already shares Y/i);
+  assert.ok(!scatter.requirement, 'the card stays editable so independent sharing can recover it');
+  const sharing = scatter.resolveControls(scatter.values).find(control => control.label === 'Shared scales');
+  assert.ok(sharing.controls.some(control => control.key === 'share_y' &&
+    control.choices.some(choice => choice.value === 'independent' && !choice.disabled)));
   assert.throws(() => scatter.build(scatter.values), /parent group already shares Y/i);
   assert.equal(p.compositionSpec.share.y, true);
 });

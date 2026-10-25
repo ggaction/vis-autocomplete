@@ -167,7 +167,7 @@ export function createCalculationService(model) {
             const data = target?.data ?? localOptions?.data;
             const names = new Set(getDatasetSchema(localView, { ...(data ? { data } : {}) }).schema.fields.map(field => field.name));
             const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => names.has(name)));
-            const ranked = engine.rank(localView, { ...localOptions, fieldTypes, group, hierarchy: false });
+            const ranked = engine.rank(localView, { ...localOptions, fieldTypes, sourceFieldTypes: options?.fieldTypes, group, hierarchy: false });
             original = rankings.set(rankingKey, { ...ranked, recommendations: [...compositionTitleRecommendations(ranked.recommendations, program, model, editing.scope?.all), ...compositionRecommendations(program, model, group)]
               .sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) || (a.previouslyApplied ? a.appliedOrder - b.appliedOrder : 0) || b.score - a.score || a.id.localeCompare(b.id, 'en')) });
           }

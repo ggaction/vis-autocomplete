@@ -68,7 +68,7 @@ export function initialParameters(spec) {
     }));
   };
   const groupScales = controls => {
-    if (spec.fieldSelection) {
+    if (spec.fieldSelection || spec.method === 'createRadarPlot') {
       const mappingKeys = new Set(['dimensions', 'group', 'color', 'category', 'start', 'end']);
       const sections = [
         ['mapping', 'Variables', c => c.section === 'mapping' || mappingKeys.has(c.key)],
@@ -108,7 +108,35 @@ export function recommendationParameters(recommendation, profile) {
   if (recommendation.editingScope) {
     const local = recommendation.localRecommendation ?? recommendation;
     const editor = recommendationParameters({ ...local, editingScope: undefined, localRecommendation: undefined }, profile);
-    return { ...editor, editingScope: recommendation.editingScope };
+    const scope = recommendation.editingScope;
+    if (!scope.all || !scope.fields) return { ...editor, parameterMethod: local.method, editingScope: scope };
+    const permitted = new Set(scope.fields);
+    const flatten = controls => controls.flatMap(control => control.controls ? flatten(control.controls) : [control]);
+    const restrict = controls => {
+      const field = flatten(controls).find(control => control.key === 'field');
+      if (!field?.choices) return controls;
+      const available = field.choices.some(choice => !choice.disabled && permitted.has(choice.value));
+      const visit = control => control.controls ? { ...control, controls: control.controls.map(visit) } :
+        !['field', 'mode'].includes(control.key) ? control : { ...control, choices: control.choices.map(choice => {
+          const unavailable = control.key === 'field' ? !permitted.has(choice.value) : choice.value === 'variable' && !available;
+          return unavailable ? { ...choice, disabled: true, reason: 'Choose one chart to use variables that are not shared by every target.' } : choice;
+        }) };
+      return controls.map(visit);
+    };
+    const resolveControls = values => restrict(editor.resolveControls(values));
+    const normalizeValues = (values, key) => {
+      const next = editor.normalizeValues(values, key), controls = flatten(resolveControls(next));
+      const field = controls.find(control => control.key === 'field');
+      if (field?.choices.some(choice => choice.value === next.field && choice.disabled))
+        next.field = field.choices.find(choice => !choice.disabled)?.value;
+      const mode = controls.find(control => control.key === 'mode');
+      if (mode?.choices.some(choice => choice.value === next.mode && choice.disabled))
+        next.mode = mode.choices.find(choice => !choice.disabled)?.value;
+      return next;
+    };
+    const values = normalizeValues(editor.values ?? valuesFor(editor.controls));
+    return { ...editor, parameterMethod: local.method, editingScope: scope, values, controls: resolveControls(values),
+      resolveControls, normalizeValues, build: values => editor.build(normalizeValues(values)) };
   }
   const { method, args } = recommendation;
   if (method === 'editFacetSource' && args.action) {
@@ -140,7 +168,7 @@ export function recommendationParameters(recommendation, profile) {
   const statisticGroups = values => {
     const populations = statisticAxis(values)?.populations;
     if (!populations) return recommendation.statisticalContext?.groupFields ?? [];
-    return [...new Map(populations.flatMap(population => population.groups).map(field => [field.name, field])).values()];
+    return [...new Map(populations.filter(population => !population.disabled).flatMap(population => population.groups).map(field => [field.name, field])).values()];
   };
   let controls, build;
   let normalize = values => ({ ...values });
@@ -322,9 +350,17 @@ export function recommendationParameters(recommendation, profile) {
       const out = forField(v.field); out.field = v.field; out.fieldType = fields.get(v.field)?.type ?? args.fieldType;
       if (v.aggregate && out.aggregate) out.aggregate = v.aggregate;
       if (v.scale !== 'auto') {
-        let id = `${args.target ?? 'plot'}-${method === 'encodeX' ? 'x' : 'y'}-${v.scale}`;
-        const ids = recommendation.scaleIds ?? [];
-        for (let suffix = 2; ids.includes(id); suffix++) id = `${args.target ?? 'plot'}-${method === 'encodeX' ? 'x' : 'y'}-${v.scale}-${suffix}`;
+        const axis = method === 'encodeX' ? 'x' : 'y';
+        const binding = recommendation.positionScaleContext?.bindings?.[axis];
+        // A scale edit for the same positional meaning retains its identity,
+        // including source marks and statistical references sharing that axis.
+        let id = binding?.field === v.field ? binding.scale : undefined;
+        if (!id) {
+          const stem = `${args.target ?? 'plot'}-${axis}-${v.scale}`;
+          id = stem;
+          const ids = recommendation.scaleIds ?? [];
+          for (let suffix = 2; ids.includes(id); suffix++) id = `${stem}-${suffix}`;
+        }
         out.scale = { ...out.scale, id, type: v.scale };
         if (['log', 'time', 'utc'].includes(v.scale)) delete out.scale.zero;
       }
@@ -750,9 +786,13 @@ export function recommendationParameters(recommendation, profile) {
       const axis = statisticAxis(values);
       if (!axis.populations.some(p => p.value === values.population && !p.disabled)) values.population = axis.defaultPopulation;
       if (values.groupBy && !statisticGroups(values).some(field => field.name === values.groupBy)) values.groupBy = '';
-      const eligible = population => !population.disabled && (!values.groupBy || population.groups.some(field => field.name === values.groupBy &&
+      const eligible = population => population && !population.disabled && (!values.groupBy || population.groups.some(field => field.name === values.groupBy &&
         (population.value !== 'visibleItems' || field.visibleItems)));
-      if (!eligible(axis.populations.find(p => p.value === values.population))) values.population = axis.populations.find(eligible)?.value ?? axis.defaultPopulation;
+      if (!eligible(axis.populations.find(p => p.value === values.population))) {
+        const compatible = axis.populations.find(eligible);
+        if (compatible) values.population = compatible.value;
+        else { values.groupBy = ''; values.population = axis.defaultPopulation; }
+      }
     } else if (method === 'createStatisticalReference' && values.population === 'visibleItems' &&
         (recommendation.statisticalContext?.series || recommendation.statisticalContext?.groupFields?.some(field => field.name === values.groupBy && !field.visibleItems))) {
       values.population = 'boundData';
@@ -818,5 +858,5 @@ export function buildRecommendationCall(editor, values) {
     return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'fontFamily')
       .map(([key, child]) => [key, key === 'theme' ? child : inheritFont(child)]));
   };
-  return scopeRecommendationCall({ method: editor.method, args: fontControl ? args : inheritFont(args) }, editor.editingScope);
+  return scopeRecommendationCall({ method: editor.parameterMethod ?? editor.method, args: fontControl ? args : inheritFont(args) }, editor.editingScope);
 }

@@ -1,4 +1,5 @@
 import { chart } from 'ggaction';
+import { resolveHistogramBins } from '../vendor/ggaction/src/grammar/histogram.js';
 
 export const xBinControl = () => ({ key: 'bins', label: 'X bins (maximum)',
   type: 'number', value: 10, min: 2, max: 24, step: 1 });
@@ -98,4 +99,15 @@ export function binnedPositionExpression(field, domain, bins) {
   const bin = planner.createBinData({ id: 'planned-bins', source: 'bin-plan', field, maxBins: bins, nice: true, zero: false, includeEmpty: true });
   const boundaries = bin.semanticSpec.datasets.find(d => d.id === 'planned-bins').transform[0].resolved.boundaries;
   return binCenterExpression(field, boundaries);
+}
+
+// Coordinates share the native bin resolution. Native binned encodings infer
+// boundary ticks; computed summaries expose their center semantics in the title.
+// Do not freeze a center→label map: subsequent native bin edits must update the
+// guide using its current domain rather than display stale intervals.
+export function numericBinGuide({ rows, field, bins }) {
+  const { boundaries } = resolveHistogramBins({ values: rows.map(row => row[field]).filter(Number.isFinite), maxBins: bins, nice: true, zero: false });
+  const centers = boundaries.slice(0, -1).map((a, i) => a + (boundaries[i + 1] - a) / 2);
+  return { boundaries, centers, axis: { title: { text: `${field} (binned)` }, ticksAndLabels: {
+    labels: { fontSize: 9, rotation: -25, overlap: 'allow' } } } };
 }

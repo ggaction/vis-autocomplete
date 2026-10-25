@@ -67,8 +67,15 @@ test('unselected columns cannot affect initial chart ranking, neighbors or fixed
     assert.deepEqual(a.query.fields.map(field => field.name).sort(), a.selectedFields.toSorted());
     assert.deepEqual(a.recommendations.map(r => [r.method, r.score, r.build(r.values)]),
       b.recommendations.map(r => [r.method, r.score, r.build(r.values)]));
-    assert.ok(a.recommendations.every(r => activeControls(initialParameters(r).controls, r.values).filter(c => c.section !== 'scales').length <= 4 &&
-      !r.controls.some(control => ['x', 'y', 'category', 'value', 'color'].includes(control.key))));
+    for (const rec of a.recommendations) {
+      const editor = initialParameters(rec), visible = editor.resolveControls(rec.values).filter(c => !c.when || c.when(rec.values));
+      assert.ok(visible.filter(c => c.section !== 'scales').length <= 4, rec.method);
+      if (rec.method === 'createRadarPlot') {
+        assert.deepEqual(visible.filter(c => c.type === 'group' && c.key !== 'scales').map(c => c.label), ['Variables', 'Chart settings']);
+        assert.ok(activeControls(visible, rec.values).some(c => c.key === 'summary'));
+        assert.ok(activeControls(visible, rec.values).some(c => c.key === 'normalize'));
+      } else assert.ok(!rec.controls.some(control => ['x', 'y', 'category', 'value', 'color'].includes(control.key)));
+    }
     assert.deepEqual(a.recommendations.map(r => r.setup(r.values)), b.recommendations.map(r => r.setup(r.values)));
     for (const r of a.recommendations) if (color) assert.equal(r.build(r.values).color.field, r.colorBinField ?? color);
     if (color === 'Origin') assert.ok(!a.recommendations.some(r => r.method === 'createHeatmap'));

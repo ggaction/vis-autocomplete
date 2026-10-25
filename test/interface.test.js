@@ -6,7 +6,7 @@ import { chart } from 'ggaction';
 import { renderToSVG } from 'ggaction/svg';
 import { createRecommendationEngine, prepareAction, configureRecommendation, applyRecommendation, profileDataset } from '../src/index.js';
 import { INITIAL_PLOT_METHODS, getPlotDefinitions, defaultValues } from '../src/plot-catalog.js';
-import { recommendationParameters, valuesFor } from '../web/parameters.js';
+import { recommendationParameters, initialParameters, valuesFor } from '../web/parameters.js';
 import { cars, makeScenarios } from '../examples/scenarios.js';
 import { parse } from 'acorn';
 import { preferVisualFields } from '../src/profile.js';
@@ -33,7 +33,9 @@ test('the UI uses all original Cars rows and retains nulls through every availab
   assert.equal(preferVisualFields(profile.fields.filter(f => f.usable), 'color')[0].name, 'Origin');
   const definitions = getPlotDefinitions(profile);
   assert.equal(definitions.length, 29);
-  assert.equal(definitions.filter(d => d.requirement).length, 2); // No unique X or unique radar series identity.
+  assert.deepEqual(definitions.filter(d => d.requirement).map(d => d.method), ['createHorizonPlot']);
+  // Radar summarizes repeated categories into profiles and no longer requires unique row identities.
+  assert.equal(definitions.find(d => d.method === 'createRadarPlot').requirement, null);
   for (const definition of definitions.filter(d => !d.requirement)) {
     const prepared = prepareStartingPlot(p, { method: definition.method, args: definition.build(defaultValues(definition)) });
     const { preview } = prepared; assertPreparedTrace(prepared);
@@ -78,7 +80,10 @@ test('all 29 starting plots execute one existing public function, render, and us
   assert.equal(definitions.length, INITIAL_PLOT_METHODS.length);
   for (const definition of definitions) {
     assert.equal(definition.requirement, null, definition.method);
-    assert.ok(definition.controls.length > 0 && definition.controls.length <= 3);
+    const editor = initialParameters({ ...definition, values: defaultValues(definition) });
+    const visible = editor.resolveControls(editor.values).filter(c => !c.when || c.when(editor.values));
+    assert.ok(visible.length > 0 && visible.length <= 4, definition.method);
+    for (const group of visible.filter(c => c.type === 'group')) assert.ok(group.controls.length <= 4, group.label);
     const { recommendation, preview } = prepareAction(p, {
       method: definition.method, args: definition.build(defaultValues(definition)),
     });

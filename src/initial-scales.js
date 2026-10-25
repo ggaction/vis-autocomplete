@@ -113,7 +113,7 @@ export function withInitialScales(definition, profile, rows, numericFields = new
           write(args, path, scale);
         }
       }
-      if (color && color !== false) {
+      if (color && color !== false && args.color !== false && (args.color || implicitColor)) {
         args.color ??= { ...implicitColor };
         write(args, 'color.scale.palette', values.palette ?? scaleControls.find(c => c.key === 'palette').value);
         delete args.color.palette;

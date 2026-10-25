@@ -76,7 +76,9 @@ const expected = Object.fromEntries(Object.entries({
     editHorizontalGrid editLegendBlock editLegendBorder editLegendLabels editLegendLayout editLegendSymbols editLegendTitle
     editLineMark editPointMark editRectMark editRuleMark editTextMark editTickMark editVerticalGrid
     editXAxis editXAxisLabels editXAxisLine editXAxisTicks editXAxisTicksAndLabels editXAxisTitle
-    editYAxis editYAxisLabels editYAxisLine editYAxisTicks editYAxisTicksAndLabels editYAxisTitle`,
+    editYAxis editYAxisLabels editYAxisLine editYAxisTicks editYAxisTicksAndLabels editYAxisTitle
+    editParallelAxis editThetaAxis editThetaAxisLabels editThetaAxisLine editThetaAxisTicks editThetaAxisTitle
+    editRadialAxis editRadialAxisLabels editRadialAxisLine editRadialAxisTicks editRadialAxisTitle`,
 }).flatMap(([group, names]) => names.trim().split(/\s+/).map(method => [method, group])));
 
 test('all generated chart-family recipes have an audited semantic category', () => {

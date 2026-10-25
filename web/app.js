@@ -1626,6 +1626,10 @@ async function showSnapshot(snapshot, onReady) {
     transitionMode.reset();
     renderChart(elements.current, view, 'Current visualization');
   }
+  // Account restoration keeps hover previews suspended while loading. The
+  // committed code must restore with the chart, independently of that guard
+  // and of the recommendations that are prepared next.
+  showCode();
   onReady?.();
   updateHistoryButtons(); showPreview(null); scheduleSave(); await updateCards();
 }

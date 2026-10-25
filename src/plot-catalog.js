@@ -70,10 +70,11 @@ export function getPlotDefinitions(profile) {
   const colored = value => value ? { color: value } : {};
   const definitions = [];
   const add = (method, controls, build, requirement = null) => {
-    if (controls.length > 4) throw new Error('A starting chart exposes at most four controls.');
+    if (controls.length > 4 && method !== 'createRadarPlot') throw new Error('A starting chart exposes at most four controls.');
     definitions.push({ method, title: names[method][0], description: names[method][1],
       controls, requirement,
-      build: values => ({ id: 'plot', data: profile.id, ...build(values) }) });
+      build: values => ({ id: 'plot', data: profile.id,
+        ...(['createStripPlot', 'createBeeswarmPlot', 'createRaincloudPlot', 'createDotPlot', 'createLollipopPlot', 'createDumbbellPlot'].includes(method) ? { missing: 'skip' } : {}), ...build(values) }) });
   };
   const xy = () => [select('x', 'X axis', qc, first), select('y', 'Y axis', qc, second)];
   const orderedXY = () => [select('x', 'X axis', oc), select('y', 'Y axis', qc, second)];
@@ -151,11 +152,26 @@ export function getPlotDefinitions(profile) {
   }
   const dimensions = minimum => ({ key: 'dimensions', label: `Dimensions (at least ${minimum})`, type: 'multiselect',
     choices: qc, value: qc.slice(0, Math.max(minimum, 3)).map(c => c.value), minimum });
-  const identities = choices(usable.filter(f => f.distinct === profile.rowCount));
-  add('createRadarPlot', [dimensions(3), select('group', 'Series identity', identities), number('width', 'Line width', 1.5, 0.5, 4, 0.5)],
-    v => ({ wide: { fields: v.dimensions }, groupBy: v.group,
-      color: { field: v.group, fieldType: 'nominal' }, line: { strokeWidth: v.width } }),
-    q.length >= 3 && identities.length ? null : 'Needs three numerical columns and a unique series identity.');
+  // Observation identity and color are independent roles. A category can also
+  // define one explicit summary profile; high-cardinality IDs never imply color.
+  const radarGroups = usable.filter(f => ['nominal', 'ordinal'].includes(f.type) || f.distinct === profile.rowCount);
+  const defaultGroup = categories.find(f => f.distinct > 1 && f.distinct <= 20) ?? radarGroups.find(f => f.distinct === profile.rowCount);
+  const defaultColor = categories.find(f => f.distinct > 1 && f.distinct <= 20)?.name ?? '';
+  const summaryChoices = [{ value: 'mean', label: 'Mean by group' }, { value: 'median', label: 'Median by group' },
+    { value: false, label: 'Individual observations' }];
+  add('createRadarPlot', [{ ...dimensions(3), ordered: true },
+    select('group', 'Series / group', [{ value: '', label: 'All observations' }, ...choices(radarGroups)], defaultGroup?.name ?? ''),
+    select('color', 'Color', optional(cc), defaultColor),
+    { ...select('summary', 'Profile', summaryChoices, defaultGroup?.distinct === profile.rowCount ? false : 'mean'), defaultPolicy: 'context' },
+    { ...select('normalize', 'Dimension scale', [{ value: false, label: 'Original values (shared units)' },
+      { value: 'minmax', label: 'Normalize each dimension (0–1)' }], false), defaultPolicy: 'context' }],
+    v => ({ wide: { fields: v.dimensions, summary: v.summary ?? false, normalize: v.normalize ?? false },
+      ...(v.group ? { groupBy: v.group } : {}), ...(v.color ? { color: cat(v.color) } : {}), line: { strokeWidth: 1.5 },
+      guides: { axes: { theta: { title: false }, radius: { title: false } } } }),
+    q.length >= 3 ? null : 'Needs three numerical columns.');
+  definitions.at(-1).resolveControls = values => [{ key: 'summary', choices: summaryChoices.map(choice => ({ ...choice,
+    ...(choice.value === false && profile.rowCount > 1 && fields.get(values.group)?.distinct !== profile.rowCount ? {
+      disabled: true, reason: 'Individual observations need a unique series identity. Choose a summary or a unique ID.' } : {}) })) }];
   const uniqueOrdered = ordered.filter(f => f.distinct === profile.rowCount);
   add('createHorizonPlot', [select('x', 'X axis', choices(uniqueOrdered)), select('y', 'Y axis', qc, second),
     number('bands', 'Bands', 3, 1, 6)], v => ({ x: pos(v.x), y: { field: v.y }, bands: v.bands }),
@@ -169,4 +185,32 @@ export function getPlotDefinitions(profile) {
 
 export function defaultValues(definition) {
   return Object.fromEntries(definition.controls.map(control => [control.key, structuredClone(control.value)]));
+}
+
+// One color must identify an entire Radar series, never vary within its closed
+// path. Validate the actual dependency rather than equating color with identity.
+export function withRadarDataControls(definition, rows) {
+  const colors = definition.controls.find(c => c.key === 'color')?.choices;
+  if (definition.method !== 'createRadarPlot' || !colors) return definition;
+  const cache = new Map();
+  return { ...definition, resolveControls(values) {
+    const key = JSON.stringify([values.group, values.dimensions]);
+    if (!cache.has(key)) cache.set(key, colors.map(choice => {
+      if (!choice.value) return choice;
+      const seen = new Map(); let conflict = false;
+      for (const row of rows) {
+        if ((values.dimensions ?? []).some(field => row[field] == null) || row[choice.value] == null || values.group && row[values.group] == null) continue;
+        const group = values.group ? row[values.group] : '';
+        if (seen.has(group) && seen.get(group) !== row[choice.value]) { conflict = true; break; }
+        seen.set(group, row[choice.value]);
+      }
+      return { ...choice, disabled: conflict, ...(conflict ? { reason: 'A profile needs one color. Choose a color constant within each series / group.' } : {}) };
+    }));
+    if (cache.size > 32) cache.delete(cache.keys().next().value);
+    const validRows = rows.filter(row => (values.dimensions ?? []).every(field => row[field] != null));
+    const profiles = new Set(validRows.map(row => values.group ? row[values.group] : '')).size;
+    return [...(definition.resolveControls?.(values) ?? []), { key: 'color', choices: cache.get(key) },
+      { key: 'normalize', choices: definition.controls.find(c => c.key === 'normalize').choices.map(choice => ({ ...choice,
+        ...(choice.value && profiles < 2 ? { disabled: true, reason: 'Per-dimension normalization needs at least two profiles to compare.' } : {}) })) }];
+  } };
 }

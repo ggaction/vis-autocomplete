@@ -31,12 +31,15 @@ export function facetCandidates(program, { layer, profile }) {
           choices: ['#000000', '#555555', '#9ca3af', '#4c78a8'].map(value => ({ value, label: value })) }], 'Facet headers');
     const axes = facet.guides.axes === 'outer' ? 'each' : 'outer';
     const legend = facet.guides.legend;
-    add('editFacetGuides', 'style', cartesian ? { axes } : { legend: legend === false ? 'shared' : false },
+    const hasLegend = Object.values(program.guideConfigs.legend ?? {}).length > 0 ||
+      Object.values(program.children).some(child => Object.keys(child.guideConfigs.legend ?? {}).length > 0);
+    if (cartesian || hasLegend) add('editFacetGuides', 'style', cartesian ? { axes } : { legend: legend === false ? 'shared' : false },
       [...(cartesian ? [select('axes', 'Axes', axes, ['each', 'outer'])] : []),
         { path: 'legend', label: 'Legend', type: 'select', value: legend,
           choices: [{ value: false, label: 'Per facet' }, { value: 'shared', label: 'Shared · right' },
             { value: { position: 'bottom' }, label: 'Shared · bottom' },
-            { value: { position: 'top' }, label: 'Shared · top' }] }], 'Facet guides');
+            { value: { position: 'top' }, label: 'Shared · top' }].map(choice => ({ ...choice,
+            ...(choice.value !== false && !hasLegend ? { disabled: true, reason: 'Add a legend before sharing it across facets.' } : {}) })) }], 'Facet guides');
     return out;
   }
   if (program.compositionSpec || !hasChartContext(program, layer)) return [];

@@ -1,5 +1,5 @@
 import { selectedPlotDefinitions } from './selected-plots.js';
-import { getPlotDefinitions, defaultValues, INITIAL_PLOT_METHODS } from './plot-catalog.js';
+import { getPlotDefinitions, defaultValues, INITIAL_PLOT_METHODS, withRadarDataControls } from './plot-catalog.js';
 import { withInitialScales } from './initial-scales.js';
 
 const categorical = field => ['nominal', 'ordinal'].includes(field?.type);
@@ -99,7 +99,7 @@ export function* generateFieldSetPlots(profile, rows, { roleScore = () => 0, par
         ...(control.key === 'color' ? { value: color } : {}) })) };
       if (method === 'createDumbbellPlot') definition.controls = definition.controls.map(c => ['start', 'end'].includes(c.key)
         ? { ...c, distinctFrom: c.key === 'start' ? 'end' : 'start' } : c);
-      const bound = withInitialScales(definition, profile, rows);
+      const bound = withInitialScales(withRadarDataControls(definition, rows), profile, rows);
       onEligibility({ method, eligible: true });
       yield { ...wrap(bound), fieldSelection: true, mappingScore: 0 };
       continue;

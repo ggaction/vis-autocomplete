@@ -45,7 +45,7 @@ export function positionScaleContext(program, layer, profile) {
       try { return resolveHistogramBins({ values, bin }).boundaries.some(value => value <= 0); }
       catch { return true; } // An incompatible explicit bin domain cannot become a valid Log mapping.
     }).map(field => field.name)]));
-  return { zeroBaseline: Object.fromEntries(['x', 'y'].map(axis => [axis,
+  return { bindings: Object.fromEntries(['x', 'y'].map(axis => [axis, { field: encoding[axis]?.field, scale: encoding[axis]?.scale }])), zeroBaseline: Object.fromEntries(['x', 'y'].map(axis => [axis,
     mark === 'bar' && (grain === 'aggregate' && Boolean(encoding[axis]?.aggregate) || grain === 'histogram' && axis === 'y') || mark === 'area' && axis === 'y' ||
     endpoint?.kind === 'lollipop' && axis === (endpoint.orientation === 'horizontal' ? 'x' : 'y') && endpoint.roles.baseline <= 0])),
     nonPositiveBins,

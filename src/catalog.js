@@ -1,3 +1,4 @@
+import { getPlotComposition } from 'ggaction/inspection';
 import { overlayCandidates } from './overlay-candidates.js';
 import { positionCandidates, ownedPositionCandidates } from './position-candidates.js';
 // Every entry yields ONE public ChartProgram method and ONE options object.
@@ -127,11 +128,20 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
         { [direction]: { color: '#cbd5e1', lineWidth: 1.5 } });
       candidates.at(-1).guideContext = { direction, directions: directions.map(([key]) => key) };
     }
-    const distribution = program.markConfigs[target]?.gradientPlot;
-    const x = distribution ? (distribution.orientation === 'vertical' ? distribution.category : distribution.measure) :
-      encoding.x?.title ?? encoding.x?.field ?? encoding.theta?.field;
-    const y = distribution ? (distribution.orientation === 'vertical' ? distribution.measure : distribution.category) :
-      encoding.y?.title ?? encoding.y?.field ?? encoding.r?.field ?? encoding.radius?.field;
+    // Titles describe the public measurement roles, never materialized aliases
+    // such as a violin's density sampling value or an endpoint's summary field.
+    const composition = getPlotComposition(program, { target: layer.derivedBindings?.overlay?.source ?? target });
+    const role = channel => {
+      if (encoding[channel]?.title) return encoding[channel].title;
+      const semantic = composition.channels[channel], operations = semantic?.measurement?.operations ?? [];
+      if (operations.includes('density')) return 'Density';
+      if (operations.includes('probability')) return 'Cumulative probability';
+      if (operations.includes('cumulative-count')) return 'Cumulative count';
+      if (operations.includes('count')) return 'Count';
+      return semantic?.field ?? encoding[channel]?.field;
+    };
+    const x = role('x') ?? role('theta');
+    const y = role('y') ?? role('radius');
     if (program.semanticSpec.title.text) {
       add('editTitle', 'action.editTitle', 'guide', '기존 차트 제목 수정',
         { text: program.semanticSpec.title.text, position: program.titleConfig?.position ?? 'top',
@@ -140,7 +150,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
           titleStyle: { ...program.titleConfig?.titleStyle,
             fontSize: program.titleConfig?.titleStyle?.fontSize ?? DEFAULT_TITLE_FONT_SIZE } });
     } else add('createTitle', 'guide.title', 'guide', '현재 변수로 차트 제목 추가',
-      { text: x && y ? `${y} by ${x}` : profile.id,
+      { text: x && y ? `${y} ${['Density', 'Cumulative probability', 'Cumulative count'].includes(y) ? 'of' : 'by'} ${x}` : profile.id,
         titleStyle: { fontSize: DEFAULT_TITLE_FONT_SIZE } });
   };
   if (!supported || (layer.coordinate && program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type !== 'cartesian')) {

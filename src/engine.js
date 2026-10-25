@@ -150,6 +150,7 @@ function resolveContext(program, options) {
     (program.semanticSpec.datasets.length === 1 ? program.semanticSpec.datasets[0].id : undefined);
   if (!data) throw new Error('Provide one dataset, or specify { data: "dataset-id" }.');
   const profile = profileDataset(program, data, options.fieldTypes);
+  profile.sourceFieldTypes = options.sourceFieldTypes ?? options.fieldTypes ?? {};
   if (options.fields !== undefined) {
     if (!Array.isArray(options.fields) || options.fields.some(name =>
       !profile.fields.some(field => field.name === name))) throw new TypeError('fields must list existing field names.');

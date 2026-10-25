@@ -1,4 +1,4 @@
-import { getPlotComposition } from 'ggaction/inspection';
+import { getPlotComposition, getDatasetSchema } from 'ggaction/inspection';
 import { chartOwner, primaryChartLayer } from './chart-owner.js';
 
 // Facets retain one editable source. Generated facet cells never become targets.
@@ -52,7 +52,7 @@ export function editableChartTargets(program) {
       const id = primary.id;
       if (owners.has(id) || layer.source && !owner || layer.derivedBindings?.statisticalReference) return [];
       owners.add(id);
-      return [{ childPath, id, overlay: Boolean(layer.derivedBindings?.overlay),
+      return [{ childPath, id, ...(view.compositionSpec?.facet ? { facetSource: true } : {}), overlay: Boolean(layer.derivedBindings?.overlay),
         label: chartTypeLabel(view, primary, chartOwner(view,primary)??owner) }];
     });
   });
@@ -79,6 +79,17 @@ export function editableChartTargetGroups(program) {
   };
   return visit(program);
 }
+function commonTargetFields(program, targets) {
+  const schemas = targets.map(target => {
+    const local = chartAtPath(program, target.childPath);
+    const layer = primaryChartLayer(local, target.id);
+    return layer?.data ? getDatasetSchema(local, { data: layer.data }).schema.fields : [];
+  });
+  return (schemas[0] ?? []).filter(field => schemas.every(schema => schema.some(other =>
+    other.name === field.name && other.storageType === field.storageType)))
+    .map(field => field.name);
+}
+
 export function resolveEditingContext(program, options = {}) {
   const targets = editableChartTargets(program);
   const requested = options.childPath ? { childPath: options.childPath, id: options.target } : null;
@@ -89,7 +100,7 @@ export function resolveEditingContext(program, options = {}) {
   const owner = primaryChartLayer(local, selected.id);
   const { childPath: _path, scope: _scope, ...rest } = options;
   return { program: local, options: { ...rest, target: owner.id, data: undefined }, targets,
-    selected, scope: options.scope === 'all' ? { all: true, anchor: selected.id, targets } : { anchor: selected.id, targets: [selected] } };
+    selected, scope: options.scope === 'all' ? { all: true, anchor: selected.id, targets, fields: commonTargetFields(program, targets) } : { anchor: selected.id, targets: [selected] } };
 }
 export function scopedCall(call, targets) {
   const { target, ...args } = call.args;
@@ -101,22 +112,28 @@ export function scopedCall(call, targets) {
     return { ...call, args: { ...args, target: selectors.length === 1 ? selectors[0] : selectors } };
   }
   const selectors = targets.map(entry => ({ childPath: entry.childPath ?? [],
+    ...(entry.facetSource ? { facetSource: true } : {}),
     ...(typeof target === 'string' ? { id: entry.id ?? target } : {}) }));
   const unique = [...new Map(selectors.map(t => [targetKey(t), t])).values()];
-  if (unique.length === 1 && !unique[0].childPath.length) {
+  if (unique.length === 1 && !unique[0].childPath.length && !unique[0].facetSource) {
     return { ...call, args: { ...args, ...(unique[0].id === undefined ? {} : { target: unique[0].id }) } };
   }
   return { ...call, args: { ...args, target: unique.length === 1 ? unique[0] : unique } };
 }
 export function scopeRecommendationCall(call, scope) {
   if (!scope) return call;
+  if (scope.all && call.method === 'editFacetSource' && call.args.action) {
+    return scopeRecommendationCall({ ...call, method: call.args.action.method, args: call.args.action.options }, scope);
+  }
   const targets = scope.all && /^(encode[XYR]|edit[XYR]Scale|layoutSeries|jitter|pack|filterMarks|encodeGroup|encodePathOrder)/.test(call.method)
     ? scope.targets.filter(target => !target.overlay) : scope.targets;
   if (scope.all && typeof call.args.target !== 'string' &&
       (call.args.source || call.args.data || call.method === 'editFacetSource')) {
     throw new Error('This action edits one chart source. Select a chart or overlay first.');
   }
-  return scopedCall(call, targets.map(target => ({ ...target, id: call.args.target === scope.anchor ? target.id : undefined })));
+  return scopedCall(call, targets.map(target => ({ ...target,
+    facetSource: target.facetSource && !/^(?:editFacet|createTitle$|editTitle$|editLegend)/.test(call.method),
+    id: call.args.target === scope.anchor ? target.id : undefined })));
 }
 export function nativeActionTargets(action) {
   const value = action.args?.target;

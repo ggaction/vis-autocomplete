@@ -1,3 +1,4 @@
+import { specializedAxisCandidates } from './specialized-axis-candidates.js';
 import { paletteChoices } from './palette-options.js';
 import { canGroupBar, barGrain, positionScaleContext } from './mark-grain.js';
 import { hasChartContext } from './chart-context.js';
@@ -6,6 +7,7 @@ import { binnedPositionExpression } from './plot-aggregation.js';
 import { dataEditors } from './action-capabilities.js';
 import { arcMarkCandidates } from './arc-candidates.js';
 import { chartOwner } from './chart-owner.js';
+import { estimatorFilterLimits } from './estimator-filter-limits.js';
 import { regressionFilterLimits } from './regression-context.js';
 import { editableFilterRows } from './filter-context.js';
 import { labelPlacementCandidates } from './label-placement-candidates.js';
@@ -31,7 +33,7 @@ const aggregateOps = ['mean', 'median', 'sum', 'min', 'max'];
 // editors. Corpus frequencies still supply every score, without a coverage bonus.
 export function extendedCandidates(program, { layer, profile }) {
   if (!hasChartContext(program, layer)) return [];
-  const out = [], target = layer.id, encoding = layer.encoding ?? {}, mark = layer.mark?.type;
+  const out = specializedAxisCandidates(program, layer), target = layer.id, encoding = layer.encoding ?? {}, mark = layer.mark?.type;
   out.push(...labelPlacementCandidates(program, layer));
   const owner = chartOwner(program, layer);
   const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
@@ -80,17 +82,42 @@ export function extendedCandidates(program, { layer, profile }) {
     }
   }
   const radarSourceFields = owner?.radar ? new Set(profileDataset(program, owner.source).fields.map(f => f.name)) : null;
-  const groupFields = categories.filter(f => f.complete && (mark !== 'bar' || canGroupBar(program, layer, f.name)) &&
-    (!radarSourceFields || radarSourceFields.has(f.name) &&
+  const incompatibleSeries = new Map();
+  const compatibleSeries = field => {
+    if (!['line', 'area'].includes(mark)) return true;
+    const reject = reason => { incompatibleSeries.set(field, reason); return false; };
+    const groups = new Map();
+    for (const row of rows) {
+      const key = row[field]; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row);
+    }
+    const partitions = [...groups.values()];
+    if (partitions.some(group => group.length < 2)) return reject('Each series needs at least two observations.');
+    if (partitions.some(group => ['color', 'stroke', 'strokeDash', 'opacity', 'strokeWidth'].some(channel =>
+        encoding[channel]?.field && new Set(group.map(row => row[encoding[channel].field])).size > 1)))
+      return reject('A path needs one appearance per series. This grouping mixes the current mapped colors or styles.');
+    if (mark === 'area' && layer.layout?.mode && layer.layout.mode !== 'overlay') {
+      const position = encoding.y2 ? encoding.x.field : encoding.y.field;
+      const domain = new Set(rows.map(row => row[position]));
+      if (partitions.some(group => group.length !== domain.size || new Set(group.map(row => row[position])).size !== domain.size))
+        return reject('Stacking requires one aligned row per position in every series. Reaggregate at this grouping first, or use Overlay layout.');
+    }
+    return true;
+  };
+  // Check role ownership before collecting explanations for invalid source
+  // groups. Radar's folded dimension is never a user series, even disabled.
+  const groupFields = categories.filter(f => (!radarSourceFields || radarSourceFields.has(f.name)) &&
+    f.complete && compatibleSeries(f.name) && (mark !== 'bar' || canGroupBar(program, layer, f.name)) &&
+    (!radarSourceFields ||
       // A series must retain its full polygon and one value per paint channel.
       [...new Set(rows.map(row => row[f.name]))].every(value => {
         const group = rows.filter(row => row[f.name] === value);
         return new Set(group.map(row => row[encoding.theta?.field])).size >= 2 &&
           ['color', 'stroke'].every(channel => !encoding[channel]?.field || new Set(group.map(row => row[encoding[channel].field])).size <= 1);
       })));
-  if (['bar', 'line', 'area'].includes(mark)) for (const field of groupFields) {
+  if (['bar', 'line', 'area'].includes(mark) && owner?.method !== 'editHorizon') for (const field of groupFields) {
     add('encodeGroup', 'encoding', { target, field: field.name },
-      [choices('field', 'Series', field.name, groupFields.map(f => f.name))], 'encoding.group');
+      [choices('field', 'Series', field.name, [...groupFields.map(f => f.name),
+        ...[...incompatibleSeries].map(([value, reason]) => ({ value, label: value, disabled: true, reason }))])], 'encoding.group');
   }
   if (['point', 'bar', 'rect', 'arc', 'rule'].includes(mark) &&
       !program.semanticSpec.layers.some(l => l.source === target && program.markConfigs[l.id]?.labelAuthoring)) {
@@ -352,9 +379,16 @@ export function extendedCandidates(program, { layer, profile }) {
         const types = ['linear', { value: 'log', label: 'Log', disabled: baseline || !positive, reason: baseline ? 'This mark requires a zero baseline. Use symlog to retain zero.' : 'Log requires a strictly positive field.' }, 'sqrt', 'symlog'];
         add(method, 'encoding', { target, type: scale.type, reverse: !scale.reverse }, [choices('type', 'Scale', scale.type, types), direction]);
       } else add(method, 'encoding', { target, reverse: !scale.reverse }, [direction]);
-    } else if (channel === 'shape') add(method, 'encoding', { target, range: ['square', 'circle', 'diamond', 'cross', 'triangle-up', 'triangle-down'].slice(0,
-      program.resolvedScales[binding.scale]?.domain?.length ?? 3) });
-    else if (channel === 'strokeDash') add(method, 'encoding', { target, reverse: !scale.reverse });
+    } else if (['shape', 'strokeDash'].includes(channel)) {
+      const count = program.resolvedScales[binding.scale]?.domain?.length ?? 3;
+      const defaults = channel === 'shape' ? ['circle', 'square', 'diamond', 'cross', 'triangle-up', 'triangle-down']
+        : [[], [6, 4], [2, 3], [8, 3, 2, 3], [1, 2], [10, 4]];
+      const ranges = [0, 1, 2, 3].map(offset => Array.from({ length: count }, (_, i) => defaults[(i + offset) % defaults.length]));
+      const labels = channel === 'shape' ? ['Circles first', 'Squares first', 'Diamonds first', 'Crosses first']
+        : ['Solid first', 'Dashed first', 'Dotted first', 'Mixed dashes'];
+      add(method, 'encoding', { target, range: ranges[1] }, [choices('range', channel === 'shape' ? 'Shapes' : 'Line patterns', ranges[1],
+        ranges.map((value, i) => ({ value, label: labels[i] })))]);
+    }
     else {
       const range = channel === 'size' ? [20, 240] : channel === 'opacity' ? [.25, .9] : [1, 5];
       add(method, 'encoding', { target, range }, [number('range.0', 'Minimum', range[0], channel === 'opacity' ? .05 : 0, channel === 'size' ? 1600 : channel === 'opacity' ? 1 : 10, channel === 'opacity' ? .05 : 1),
@@ -417,7 +451,8 @@ export function extendedCandidates(program, { layer, profile }) {
         const usableRows = editableFilterRows(program, dataset.id, owner?.source ?? layer.data);
         const values = usableRows.map(r => r[field?.name]).filter(Number.isFinite).sort((a, b) => a - b);
         if (field && values[0] < values.at(-1)) {
-          const limits = regressionFilterLimits(program, layer, field.name, usableRows);
+          const limits = regressionFilterLimits(program, layer, field.name, usableRows)
+            ?? estimatorFilterLimits(program, dataset.id, field.name, usableRows);
           const min = limits?.gte.min ?? values[0], max = limits?.gte.max ?? values.at(-1);
           const threshold = Math.max(min, Math.min(max, values[Math.floor(values.length / 4)]));
           add(method, 'transform', { ...args, field: field.name, predicate: { op: 'gte', value: threshold }, nulls: 'exclude' },

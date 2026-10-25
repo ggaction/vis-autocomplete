@@ -1,7 +1,7 @@
 // Role-aware native recipes. Extra inputs remain explicit card parameters;
 // retrieval still sees only the fields selected in the data table.
 import { binnedFieldSetup } from './plot-aggregation.js';
-import { getPlotDefinitions, defaultValues } from './plot-catalog.js';
+import { getPlotDefinitions, defaultValues, withRadarDataControls } from './plot-catalog.js';
 const cat = f => ['nominal', 'ordinal'].includes(f?.type);
 const choose = (key, label, fields, value = fields[0]?.name) => ({key,label,type:'select',value,choices:fields.map(f=>({value:f.name,label:f.name}))});
 export function rolePlotDefinitions(profile, selection, rows, { availableProfile = profile } = {}) {
@@ -21,7 +21,7 @@ export function rolePlotDefinitions(profile, selection, rows, { availableProfile
       if(method==='createDensityPlot')controls.push(
         {key:'kernel',label:'Kernel',type:'select',value:'gaussian',choices:['gaussian','epanechnikov','uniform','triangular'].map(value=>({value,label:value}))},
         {key:'normalization',label:'Density',type:'select',value:'unit',choices:[{value:'unit',label:'Normalized density'},{value:'count',label:'Count weighted density'}]});
-      add(method,controls,v=>({ ...d.build({...defaults,...v}), ...(method === 'createDensityPlot' ? { steps: Math.max(2, Math.min(100, Math.floor(10000 / (color?.distinct || 1)))), ...(color ? { color: pos(color) } : {}) } : {}), ...(method === 'createECDFPlot' ? { guides: { axes: { x: { title: { text: x.name } }, y: { title: { text: 'Cumulative probability' } } } } } : {}) }));
+      add(method,controls,v=>({ ...d.build({...defaults,...v}), ...(method === 'createDensityPlot' ? { steps: Math.max(2, Math.min(100, Math.floor(10000 / (color?.distinct || 1)))), ...(color ? { color: pos(color) } : {}) } : {}), ...(method === 'createECDFPlot' ? { ...(color ? { groupBy: color.name, color: pos(color) } : {}), guides: { axes: { x: { title: { text: x.name } }, y: { title: { text: 'Cumulative probability' } } } } } : {}) }));
     }
     if(cat(x)) {
       const setup=()=>[{method:'createSummaryData',args:{id:`${profile.id}-counts`,source:profile.id,groupBy:[...new Set([x.name,color?.name].filter(Boolean))],aggregates:[{op:'count',as:countField}]}}];
@@ -51,9 +51,15 @@ export function rolePlotDefinitions(profile, selection, rows, { availableProfile
     } else add('createPolarLinePlot',[],()=>({theta:x.name,radius:y.name,...(color?{color:pos(color),groupBy:[color.name]}:{})}));
     const selected=[x.name,y.name];const dimensions={key:'dimensions',label:'Dimensions',type:'multiselect',choices:q.map(f=>({value:f.name,label:f.name})),value:selected,minimum:2};
     add('createParallelCoordinates',[dimensions],v=>({dimensions:v.dimensions,...(color?{color:pos(color)}:{}),line:{opacity:.5}}));
-    const ids=all.filter(f=>f.distinct===profile.rowCount&&cat(f));
-    if(q.length>=3&&ids.length&&(!color||cat(color)))add('createRadarPlot',[{...dimensions,minimum:3,value:[...new Set([...selected,...q.map(f=>f.name)])].slice(0,3)},choose('identity','Series identity',ids)],v=>({wide:{fields:v.dimensions},groupBy:v.identity,...(color?{color:pos(color)}:{}),line:{opacity:.5},
-      guides:{axes:{theta:{title:{text:'Dimension'},ticksAndLabels:{values:v.dimensions,labels:{format:'auto',fontSize:11}}},radius:{title:{text:'Value'}}}}}));
+    if(q.length>=3&&(!color||cat(color))) {
+      const radar=withRadarDataControls(definitions.find(d=>d.method==='createRadarPlot'),rows);
+      const controls=radar.controls.map(c=>({...c,
+        ...(c.key==='dimensions'?{value:[...new Set([...selected,...q.map(f=>f.name)])].slice(0,3)}:{}),
+        ...(c.key==='color'?{value:color?.name??''}:{})}));
+      add('createRadarPlot',controls,v=>radar.build(v));
+      out.at(-1).resolveControls=radar.resolveControls;
+    }
+
   }
   if(x&&y&&y.type==='quantitative'&&!color) {
     const lower=q.filter(f=>/lower|low|ci0|lo(?:wer)?bound/i.test(f.name)&&f.name!==y.name),upper=q.filter(f=>/upper|high|ci1|up(?:per)?bound/i.test(f.name)&&f.name!==y.name);

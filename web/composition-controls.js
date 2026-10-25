@@ -354,7 +354,7 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
   });
   document.addEventListener('keydown', event => {
     const { adding, committing, resizing } = read();
-    if (event.key !== 'Escape' || event.isComposing || !adding || adding.kind === 'overlay' ||
+    if (event.key !== 'Escape' || event.isComposing || !adding ||
         committing || resizing || document.querySelector('dialog[open]')) return;
     // Cancel the entire addition even when a variable/parameter menu has focus.
     // Reuse Cancel so pending previews and recommendations are invalidated too.
@@ -399,7 +399,7 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     if (!adding) return;
     if (adding.kind === 'overlay') {
       const heading = document.createElement('span'); heading.textContent = `Add overlay · ${adding.source.label}`;
-      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy;
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.title = 'Cancel (Esc)'; cancel.disabled = busy;
       cancel.addEventListener('click', onCancel);
       const modes=document.createElement('div');modes.className='overlay-modes';
       for(const [mode,label] of [['layer','Layer chart'],['follow','Follow results']]) {

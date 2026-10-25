@@ -48,18 +48,20 @@ main { padding: 14px 16px 16px; }
 .chart-view.data-view { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; }
 .current-panel-heading { justify-content: flex-start; flex-wrap: wrap; gap: 8px 12px; padding-bottom: 8px; }
 .current-panel-heading h2 { flex: none; white-space: nowrap; }
-.current-view-tools { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.typography-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; flex:none; padding:0 0 6px; font-size:11px; position:relative; z-index:7; }
+.current-chart-toolbar { display:flex; flex:1 1 560px; min-width:0; flex-wrap:wrap; align-items:center; gap:6px 8px; }
+.current-chart-toolbar:not(:has(#chart-typography:not([hidden]), .chart-zoom-tools:not([hidden]), #chart-exports:not([hidden]))) { display:none; }
+.current-view-tools { display:flex; flex:none; align-items:center; gap:6px; margin-left:auto; }
+.typography-toolbar { display:flex; align-items:center; gap:4px; flex:1 1 236px; min-width:236px; max-width:330px; font-size:11px; position:relative; z-index:7; }
 .typography-toolbar select, .typography-toolbar summary, .typography-toolbar button, .typography-toolbar input[type="number"] { height:25px; font-size:11px; border:1px solid var(--border); border-radius:3px; background:#fff; color:#364152; }
-.typography-toolbar select { width:118px; padding:2px 5px; }
-.text-group-menu { position:relative; }
-.text-group-menu summary { cursor:pointer; min-width:115px; padding:4px 7px; white-space:nowrap; }
+.typography-toolbar select { flex:1 1 110px; min-width:0; width:110px; padding:2px 5px; }
+.text-group-menu { position:relative; flex:1 1 110px; min-width:0; }
+.text-group-menu summary { cursor:pointer; padding:4px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .text-group-list { position:absolute; top:29px; left:0; width:180px; padding:5px; border:1px solid var(--border); border-radius:4px; background:#fff; box-shadow:0 3px 12px #00000014; z-index:20; }
 .text-group-list label { display:flex; align-items:center; gap:7px; padding:6px; margin:0; cursor:pointer; font-size:11px; }
 .text-group-list label:hover, .text-group-list label:focus-within { background:#eef4fa; }
 .text-group-list label:has(input:disabled) { color:#a5a9b0; cursor:default; }
 .text-group-list input { margin:0; cursor:inherit; accent-color:#3377b4; }
-.chart-font-size { display:flex; align-items:center; gap:2px; }
+.chart-font-size { display:flex; flex:none; align-items:center; gap:2px; }
 .chart-font-size button { width:24px; padding:0; }
 .chart-font-size input { width:46px; text-align:center; padding:0 2px; appearance:textfield; -moz-appearance:textfield; }
 .chart-font-size input::-webkit-inner-spin-button { appearance:none; }
@@ -67,7 +69,7 @@ main { padding: 14px 16px 16px; }
 .text-underlines { position:absolute; inset:0; pointer-events:none; z-index:8; }
 .text-underlines span { position:absolute; height:0; border-bottom:1.5px solid #3276b6; }
 .chart-exports { display: flex; align-items: center; gap: 3px; }
-.chart-exports button { height: 23px; padding: 0 5px; white-space: nowrap; }
+.chart-exports button { height: 25px; padding: 0 5px; white-space: nowrap; }
 .chart-exports button:hover:not(:disabled) { background: #f3f5f7; border-color: #b6bcc5; color: #303944; }
 #selection-controls { flex: 1 1 320px; min-width: 0; max-width: 420px; }
 .selection-controls { flex: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; gap: 8px; padding: 0; }
@@ -523,7 +525,7 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .chart-viewport-clip > .chart-view { width: 100%; flex: 1; min-width: 0; }
 .chart-zoom-tools { display: inline-flex; align-items: center; gap: 3px; flex: none; }
 .chart-zoom-tools[hidden] { display: none; }
-.chart-zoom-tools button { min-width: 23px; padding: 3px 5px; font: 11px Arial, sans-serif; }
+.chart-zoom-tools button { height: 25px; min-width: 23px; padding: 3px 5px; font: 11px Arial, sans-serif; }
 .chart-zoom-value { min-width: 33px; text-align: center; font: 10px Arial, sans-serif; color: var(--muted); font-variant-numeric: tabular-nums; }
 .chart-pannable .chart-view { cursor: grab; }
 .chart-panning, .chart-panning * { cursor: grabbing !important; user-select: none; }

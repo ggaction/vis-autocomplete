@@ -65,7 +65,12 @@ const compositionControls = initializeCompositionControls({
   onTarget: context => { if (state.committing || state.resizing) return; state.context = focus(state.program, context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onAdd: (position, placementPath, source) => {
     if (state.committing || state.resizing) return;
-    try { state.adding = adjacentContext(state.program, state.context, position, datasets.get(state.datasetId)?.imported.fieldTypes, placementPath, source); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); }
+    try {
+      const previousSelection = !state.program.compositionSpec || state.program.compositionSpec.facet ? state.selection : undefined;
+      state.adding = adjacentContext(state.program, state.context, position,
+        datasets.get(state.datasetId)?.imported.fieldTypes, placementPath, source, previousSelection);
+      clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true));
+    }
     catch (error) { notice(error.message, true); }
   },
   onOverlay: () => { if (state.committing || state.resizing) return; state.adding = overlayContext(state.program, state.context); clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true)); },

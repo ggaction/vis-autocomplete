@@ -1,3 +1,4 @@
+import { selectionFields } from '../src/field-selection.js';
 import { getPlotDefinitions, defaultValues } from '../src/plot-catalog.js';
 import { editableChartTargetGroups, editableChartTargets, chartAtPath, targetKey, inheritedCompositionShares } from '../src/composition-context.js';
 import { getDatasetSchema, getPlotComposition, describeAction } from 'ggaction/inspection';
@@ -20,7 +21,7 @@ const sharedChannels = adding => [...new Set([...(adding.share === 'none' ? [] :
   ...(adding.inheritedSharing ?? []).flatMap(policy => policy.channels)])];
 const inheritedChannels = adding => [...new Set((adding.inheritedSharing ?? []).flatMap(policy => policy.channels))];
 
-export function adjacentContext(program, context, position, fieldTypes, placementPath, source) {
+export function adjacentContext(program, context, position, fieldTypes, placementPath, source, previousSelection) {
   const placement = placementPath && adjacentPlacements(program).find(choice => JSON.stringify(choice.childPath) === JSON.stringify(placementPath));
   if (placementPath && !placement) throw new Error('The selected placement no longer exists.');
   const targets = placement?.sources ?? editableChartTargets(program).filter(t => !t.overlay);
@@ -55,7 +56,11 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
   const axisMeanings = Object.fromEntries(['x', 'y'].map(axis => [axis, composition.channels[axis]?.field ? {field:composition.channels[axis].field,operations:composition.channels[axis].measurement.operations} : null]));
   return { ...target, receivingPath, placementLabel: placement?.label ?? target.label,
     sources: placement?.sources ?? [target], grouped: placement?.grouped ?? false,
-    position, rows, profile, selection: selectedFields,
+    position, rows, profile, selection: { fields: [...new Set([
+      ...selectionFields(previousSelection), ...Object.values(selectedFields),
+      ...(composition.dimensions ?? []).map(d => d.field),
+      ...(composition.channels.theta?.fields ?? [])
+    ].filter(name => profile.fields.some(f => f.name === name && f.usable)))] },
     sourceSelection: selectedFields, scales, datasets, axisMeanings,
     inheritedSharing: inheritedCompositionShares(program, receivingPath),
     aggregation: axisMeanings.y?.operations.at(-1) ?? axisMeanings.x?.operations.at(-1), bins: layer.encoding.x?.bin?.maxBins,
@@ -68,24 +73,40 @@ export function adjacentSpecs(engine, adding, root) {
   for (let n = 3; allIds.has(id); n++) id = `chart${n}`;
   const shared = sharedChannels(adding), fields = new Map(adding.profile.fields.map(field => [field.name, field]));
   return engine.recommend(adding.rows, adding.profile, { selection: adding.selection }).recommendations.map(spec => {
+    const editor = initialParameters(spec);
+    const flat = controls => controls.flatMap(c => c.type === 'group' ? flat(c.controls) : [c]);
+    const inherited = { ...editor.values };
+    // Preserve the source arrangement as the starting proposal when the chart
+    // supports it. These are card-level choices, not roles in field selection.
+    for (const channel of ['x', 'y', 'color']) {
+      const key = `mapping_${channel}`, control = flat(editor.resolveControls(inherited)).find(c => c.key === key);
+      if (control?.choices.some(choice => choice.value === adding.sourceSelection[channel] && !choice.disabled)) {
+        Object.assign(inherited, editor.normalizeValues({ ...inherited, [key]: adding.sourceSelection[channel], __previousMapping: inherited }, key));
+      }
+    }
+    Object.assign(inherited, editor.normalizeValues(inherited));
     const compatibleChannels = values => {
-      const meanings = creationAxisMeanings(spec.method, spec.build(values), fields, adding.datasets, spec.setup?.(values));
+      const meanings = creationAxisMeanings(spec.method, editor.build(values), fields, adding.datasets, editor.setup?.(values));
       return shared.filter(channel => !['x', 'y'].includes(channel) || sameAxisMeaning(adding.axisMeanings[channel], meanings[channel]));
     };
     const effectiveChannels = values => [...new Set([...compatibleChannels(values), ...inheritedChannels(adding)])];
-    const inherited = { ...spec.values };
-    for (const control of spec.controls) {
+    for (const control of flat(editor.resolveControls(inherited))) {
       if (/palette/i.test(control.key) && control.choices?.some(c => c.value === adding.scales.color?.palette)) inherited[control.key] = adding.scales.color.palette;
       if (/aggregate/i.test(control.key) && adding.aggregation && control.choices?.some(c => c.value === adding.aggregation)) inherited[control.key] = adding.aggregation;
       if (/bin/i.test(control.key) && control.type === 'number' && adding.bins) inherited[control.key] = adding.bins;
-      const channel = ['x', 'y'].find(channel => control.key === `${channel}Scale`);
-      if (channel && effectiveChannels(inherited).includes(channel) && adding.scales[channel]) inherited[control.key] = adding.scales[channel].type;
     }
+    const normalizeValues = (values, key) => {
+      const normalized = editor.normalizeValues(values, key);
+      for (const channel of effectiveChannels(normalized)) {
+        if (['x', 'y'].includes(channel) && adding.scales[channel] && `${channel}Scale` in normalized) normalized[`${channel}Scale`] = adding.scales[channel].type;
+      }
+      return normalized;
+    };
+    Object.assign(inherited, normalizeValues(inherited));
     const constrainControls = values => {
-      const current = spec.resolveScaleControls?.(values) ?? [];
       const sharing = effectiveChannels(values);
-      return spec.controls.map(control => {
-        const c = { ...control, ...(current.find(item => item.key === control.key) ?? {}) };
+      const visit = controls => controls.map(c => {
+        if (c.type === 'group') return { ...c, controls: visit(c.controls) };
         const channel = ['x', 'y'].find(channel => c.key === `${channel}Scale`);
         if (!channel || !sharing.includes(channel) || !adding.scales[channel]) return c;
         const type = adding.scales[channel].type;
@@ -93,23 +114,20 @@ export function adjacentSpecs(engine, adding, root) {
           choices: c.choices.map(choice => ({ ...choice, ...(choice.value !== type ? { disabled: true,
             reason: `Shared ${channel.toUpperCase()} uses the source ${type} scale. Use Edit shared scales to change the sharing policy.` } : {}) })) };
       });
+      return visit(editor.resolveControls(values));
     };
-    const constrained = { ...spec, values: inherited, controls: constrainControls(inherited), resolveControls: constrainControls };
-    const editor = initialParameters(constrained);
     const initialArgs = editor.build(inherited);
     const required = inheritedChannels(adding);
-    const mismatch = required.find(channel => ['x','y'].includes(channel) && adding.sourceSelection[channel] &&
-      adding.selection[channel] !== adding.sourceSelection[channel]);
     const unavailable = required.find(channel => ['x','y'].includes(channel) && initialArgs[channel] === undefined &&
       !initialPositionBindings(spec.method, initialArgs, fields).some(binding => binding.axis === channel));
     const inheritedMismatch = required.find(channel => ['x', 'y'].includes(channel) && !compatibleChannels(inherited).includes(channel));
-    return { ...editor, method: 'createAdjacentPlot', chartChoice: true,
-      ...(mismatch ? { requirement: `Shared ${mismatch.toUpperCase()} requires ${adding.sourceSelection[mismatch]}. Change the selected field or release sharing.` }
-        : unavailable ? { requirement: `This chart does not expose a compatible ${unavailable.toUpperCase()} axis for sharing. Choose another chart or release sharing.` }
+    return { ...editor, values: inherited, normalizeValues, controls: constrainControls(inherited), resolveControls: constrainControls,
+      method: 'createAdjacentPlot', chartChoice: true,
+      ...(unavailable ? { requirement: `This chart does not expose a compatible ${unavailable.toUpperCase()} axis for sharing. Choose another chart or release sharing.` }
           : inheritedMismatch ? { requirement: `The parent group already shares ${inheritedMismatch.toUpperCase()}. Use the same aggregation or release that group's shared scale first.` } : {}),
       title: `Add ${editor.title}`, original: { nextContext: { childPath: [...receivingPath, id], target: id } },
       build: values => {
-        values = editor.normalizeValues(values);
+        values = normalizeValues(values);
         const { id: _id, ...options } = editor.build(values);
         const compatible = compatibleChannels(values), sharing = effectiveChannels(values);
         const inheritedMismatch = required.find(channel => ['x', 'y'].includes(channel) && !compatible.includes(channel));
@@ -122,7 +140,7 @@ export function adjacentSpecs(engine, adding, root) {
           for (const path of paths) write(options, path, { ...at(options, path), ...adding.scales[channel] });
         }
         const color = options.color;
-        const shareColor = adding.selection.color && adding.selection.color === adding.sourceSelection.color &&
+        const shareColor = adding.sourceSelection.color &&
           fieldName(color) === adding.sourceSelection.color &&
           (color.scale?.palette ?? adding.scales.color?.palette) === adding.scales.color?.palette;
         if (shareColor && typeof color === 'object') color.scale = { ...adding.scales.color, ...color.scale };
@@ -317,6 +335,10 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     layout();
   }
   overlayButton.addEventListener('click', onOverlay);
+  document.addEventListener('pointerdown', event => {
+    const picker = adjacentHost.querySelector('.adjacent-field-picker[open]');
+    if (picker && !picker.contains(event.target)) picker.open = false;
+  });
   return { layout, refresh() {
     const { program, context, phase, committing, resizing, adding } = read();
     const ready = phase !== 'initial' && program, busy = committing || resizing;
@@ -366,9 +388,6 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
       adjacentHost.append(heading,modes,cancel); return;
     }
     const heading = document.createElement('span');
-    const placement = document.createElement('span');
-    placement.textContent = placementLabel(adding.position, adding.placementLabel ?? adding.label);
-    heading.append(placement); adjacentHost.append(heading);
     if (adding.sources?.length > 1) {
       const label = document.createElement('label'); label.className = 'adjacent-source'; label.textContent = 'Data from';
       const input = document.createElement('select'); input.setAttribute('aria-label', 'Adjacent data source'); input.disabled = busy;
@@ -377,23 +396,43 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
       }
       input.value = targetKey(adding);
       input.addEventListener('change', () => onAdd(adding.position, adding.receivingPath, adding.sources.find(source => targetKey(source) === input.value)));
-      label.append(input); heading.append(label);
+      label.append(input); heading.append(label); adjacentHost.append(heading);
     }
-    for (const channel of ['x', 'y', 'color']) {
-      const label = document.createElement('label');
-      label.textContent = `${channel === 'color' ? 'Color' : channel.toUpperCase()}${inheritedChannels(adding).includes(channel) ? ' (shared)' : ''}`;
-      const input = document.createElement('select'); input.setAttribute('aria-label', `Adjacent ${channel}`);
-      const values = [...(channel === 'color' ? [''] : []), ...adding.profile.fields.filter(f => f.usable).map(f => f.name)];
-      for (const field of values) {
-        const option = document.createElement('option'); option.value = field; option.textContent = field || 'None';
-        option.disabled = inheritedChannels(adding).includes(channel) && Boolean(adding.sourceSelection?.[channel]) && field !== adding.sourceSelection[channel];
-        if (option.disabled) option.title = `Shared ${channel.toUpperCase()} retains the source field; release its sharing policy to change it.`;
-        input.append(option);
-      }
-      input.value = adding.selection[channel]; input.disabled = busy;
-      input.addEventListener('change', () => onChange({ selection: { ...adding.selection, [channel]: input.value } }));
-      label.append(input); adjacentHost.append(label);
+    const variables = document.createElement('div'); variables.className = 'adjacent-fields';
+    variables.setAttribute('role', 'group'); variables.setAttribute('aria-label', 'Adjacent variables');
+    const selected = selectionFields(adding.selection);
+    for (const field of selected) {
+      const chip = document.createElement('span'); chip.className = 'adjacent-field';
+      const name = document.createElement('span'); name.textContent = field; name.title = field;
+      const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '−';
+      remove.setAttribute('aria-label', `Remove variable ${field}`); remove.disabled = busy;
+      remove.addEventListener('click', () => onChange({ selection: { fields: selected.filter(name => name !== field) } }));
+      chip.append(name, remove); variables.append(chip);
     }
+    const picker = document.createElement('details'); picker.className = 'adjacent-field-picker';
+    const toggle = document.createElement('summary'); toggle.textContent = '+'; toggle.setAttribute('aria-label', 'Add variable');
+    const menu = document.createElement('div'); menu.className = 'adjacent-field-menu';
+    const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'Find a variable';
+    search.setAttribute('aria-label', 'Find an adjacent variable'); menu.append(search);
+    const choices = [];
+    for (const field of adding.profile.fields.filter(field => field.usable && !selected.includes(field.name))) {
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = field.name;
+      button.disabled = busy; button.setAttribute('aria-label', `Add variable ${field.name}`);
+      button.addEventListener('click', () => onChange({ selection: { fields: [...selected, field.name] } }));
+      menu.append(button); choices.push(button);
+    }
+    if (!choices.length) { const empty = document.createElement('span'); empty.textContent = 'All variables selected'; menu.append(empty); }
+    search.addEventListener('input', () => choices.forEach(button => { button.hidden = !button.textContent.toLowerCase().includes(search.value.toLowerCase()); }));
+    picker.addEventListener('toggle', () => {
+      if (!picker.open) return;
+      const edge = adjacentHost.getBoundingClientRect().right;
+      menu.style.left = '0px';
+      menu.style.left = `${Math.min(0, edge - menu.getBoundingClientRect().right)}px`;
+      search.focus();
+    });
+    picker.addEventListener('keydown', event => { if (event.key === 'Escape') { picker.open = false; toggle.focus(); } });
+    toggle.addEventListener('click', event => { if (busy) event.preventDefault(); });
+    picker.append(toggle, menu); variables.append(picker); adjacentHost.append(variables);
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel'; cancel.disabled = busy; cancel.addEventListener('click', onCancel); adjacentHost.append(cancel);
   } };
 }

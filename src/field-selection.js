@@ -1,5 +1,5 @@
 // A field set describes interest, not an encoding. Legacy role selections are
-// still accepted for saved projects and the adjacent-chart editor.
+// still accepted for saved projects and external callers.
 export function selectionFields(selection = {}) {
   return [...new Set((Array.isArray(selection.fields) ? selection.fields
     : [selection.x, selection.y, selection.color]).filter(name => typeof name === 'string' && name))];

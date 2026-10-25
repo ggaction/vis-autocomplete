@@ -45,8 +45,8 @@ test('faceted layer choices remain one native call and all panels receive the la
 test('derived and non-Cartesian adjacent pickers use original input variables',()=>{
  for(const [,build] of cases){
   const p=build(),adding=adjacentContext(p,{target:'p'},'right',{});
-  assert.equal(adding.profile.id,'data');assert.ok(adding.selection.x);
-  assert.ok(adding.profile.fields.some(f=>f.name===adding.selection.x));
+  assert.equal(adding.profile.id,'data');assert.ok(adding.selection.fields.length);
+  assert.ok(adding.selection.fields.every(name=>adding.profile.fields.some(f=>f.name===name)));
   assert.ok(adjacentSpecs(engine,adding,p).length>0);
  }
 });

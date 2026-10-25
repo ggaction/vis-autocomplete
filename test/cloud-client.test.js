@@ -19,7 +19,7 @@ function mock() {
       if(name==='save_project') {
         if(failSave)return {error:{code:'network'}};
         if(conflict){conflict=false;return {error:{code:'40001'}};}
-        remote.set(args.project,{id:args.project,title:args.name,snapshot:args.document,revision:args.expected+1});
+        remote.set(args.project,{id:args.project,title:args.name,snapshot:args.document,revision:args.expected+1,thumbnail:args.thumbnail});
         return {data:args.expected+1};
       }return {data:args.events?.length??0};
     }};
@@ -55,6 +55,31 @@ test('No collection before choice, pending events purged on withdrawal, old epoc
   await a.consent(true);a.record('apply',{method:'encodeSize',args:imported});await pause();online(true);await a.drain();
   const events=m.calls.filter(([n])=>n==='record_interactions');assert.equal(events.length,1);assert.equal(events[0][1].consent,3);
   assert.deepEqual(events[0][1].events[0].payload,{type:'apply',method:'encodeSize'});
+ }finally{a.destroy();}
+});
+test('inline renaming is durable offline, preserves project content, and never activates another project',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  await a.newProject('First');await a.save(project(1),'first-thumbnail');const first=a.current.id;
+  online(true);await a.drain();const original=structuredClone(m.remote.get(first));
+  await a.newProject('Second');await a.save(project(2),'second-thumbnail');await a.drain();const second=a.current.id;
+  online(false);await a.rename('Renamed first',first);
+  assert.equal(a.current.id,second);assert.equal(a.current.title,'Second');
+  assert.equal((await m.local.get('active:test-user')).id,second);
+  assert.equal((await m.local.get(`head:test-user:${first}`)).title,'Renamed first');
+  online(true);await a.drain();
+  assert.equal(m.remote.get(first).title,'Renamed first');
+  assert.deepEqual(m.remote.get(first).snapshot,original.snapshot);assert.equal(m.remote.get(first).thumbnail,'first-thumbnail');
+  // A project available only from the server can also be renamed unopened.
+  await m.local.remove(`head:test-user:${first}`);await m.local.remove(`remote:test-user:${first}`);
+  await a.rename('Remote project',first);await a.drain();assert.equal(m.remote.get(first).title,'Remote project');
+  assert.equal(a.current.id,second);
+  // A save queued immediately after rename must not restore its old name.
+  const renamed=a.rename('Latest second'),saved=a.save(project(3),'new-thumbnail');
+  await Promise.all([renamed,saved]);await a.drain();
+  assert.equal(m.remote.get(second).title,'Latest second');
+  assert.deepEqual(m.remote.get(second).snapshot.datasets[0].session.entries[0].calls,[3]);
+  await assert.rejects(a.rename('   ',second),/Enter a project name/);
  }finally{a.destroy();}
 });
 test('Save conflicts create a recovered project and offline opening uses latest pending work',async()=>{

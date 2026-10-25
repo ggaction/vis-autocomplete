@@ -5,7 +5,7 @@ import { editableChartTargets, chartAtPath } from '../src/composition-context.js
 import { parameterTransitionDuration } from './parameter-motion.js';
 import { createTransitionMode } from './transition-mode.js';
 import { renderChartCanvas, copyChartCanvas, holdChartCanvasDensity } from './chart-canvas.js';
-import { chart, render } from 'ggaction';
+import { chart } from 'ggaction';
 import { createInitialChartRecommender, profileDataset } from '../src/index.js';
 import { recommendationParameters, initialParameters, valuesFor, activeControls, buildRecommendationCall } from './parameters.js';
 import { primaryChartLayer } from '../src/chart-owner.js';
@@ -42,6 +42,7 @@ import { reviewDatasetImport } from './import-dialog.js';
 import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore } from './project.js';
 import { initializeAccountMenu } from './cloud/menu.js';
 import { accountSession } from './cloud/session.js';
+import { createProjectThumbnail } from './cloud/thumbnail.js';
 export { parseCSV } from '../src/data-import.js';
 
 const { account: signedInAccount } = await accountSession();
@@ -1611,13 +1612,7 @@ let thumbnailView, thumbnailData;
 function cloudThumbnail() {
   if (state.phase === 'initial' || !state.view) return null;
   if (thumbnailView === state.view) return thumbnailData;
-  const source = document.createElement('canvas');
-  const geometry = state.view.graphicSpec.objects.canvas.properties;
-  render(state.view, source.getContext('2d'), { pixelRatio: Math.min(240 / geometry.width, 160 / geometry.height) });
-  const canvas = document.createElement('canvas'); canvas.width = 240; canvas.height = 160;
-  const ctx = canvas.getContext('2d'), scale = Math.min(240 / source.width, 160 / source.height);
-  ctx.drawImage(source, (240 - source.width * scale) / 2, (160 - source.height * scale) / 2, source.width * scale, source.height * scale);
-  thumbnailView = state.view; return thumbnailData = canvas.toDataURL('image/png');
+  thumbnailData = createProjectThumbnail(state.view); thumbnailView = state.view; return thumbnailData;
 }
 
 async function resetVisualization() {
@@ -1791,19 +1786,23 @@ initializeWorkspaceResize({ workspace: document.querySelector('.workspace'), res
 window.addEventListener('resize', () => cardMotion.finish(), { passive: true });
 
 $('upload').addEventListener('click', () => $('file').click());
+async function chooseDataset(record) {
+  if (!state.datasetId && !await accountMenu.nameNewProject(record.name)) { updateDatasetOptions(); return; }
+  await activateDataset(record);
+}
 $('file').addEventListener('change', async event => {
   if (state.committing) { event.target.value = ''; return; }
   const file = event.target.files[0]; if (!file) return;
   try {
     const imported = await reviewDatasetImport(await file.text(), {
       name: file.name, format: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json' });
-    if (imported) await activateDataset({ id: crypto.randomUUID(), name: file.name, imported });
+    if (imported) await chooseDataset({ id: crypto.randomUUID(), name: file.name, imported });
   } catch (error) { notice(error.message, true); }
   event.target.value = '';
 });
 $('dataset').addEventListener('change', async event => {
   if (state.committing) { $('dataset').value = state.datasetId; return; }
-  try { await activateDataset(datasets.get(event.target.value)); }
+  try { await chooseDataset(datasets.get(event.target.value)); }
   catch (error) { $('dataset').value = state.datasetId; notice(error.message, true); }
 });
 $('edit-schema').addEventListener('click', () => editSchema().catch(error => notice(error.message, true)));

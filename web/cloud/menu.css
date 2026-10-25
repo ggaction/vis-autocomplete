@@ -33,9 +33,13 @@
 .account-dialog.workspace-drawer {position:fixed;inset:0 auto 0 0;margin:0;height:100dvh;max-height:100dvh;width:320px;border-radius:0;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:18px}
 .workspace-drawer footer {margin-top:auto;display:flex;flex-direction:column;padding-top:20px;border-top:1px solid #e4e7eb}
 .cloud-projects {overflow:auto;flex:1;min-height:100px}
-.cloud-project {border-bottom:1px solid #e7eaee;padding:8px 0}
-.cloud-project>button:first-child {width:100%;text-align:left;border:0}
-.cloud-project img {display:block;max-width:100%;height:100px;object-fit:contain;margin-bottom:8px}
+.cloud-project {border:1px solid #e7eaee;border-radius:4px;padding:8px;margin-bottom:10px;min-width:0}
+.account-dialog .cloud-project-open {display:block;width:100%;padding:0;margin:0 0 8px;text-align:left;border:0;background:#fff;overflow:hidden}
+.cloud-project img {display:block;width:100%;height:auto;max-height:180px;object-fit:contain;object-position:left center}
+.cloud-project-placeholder {display:block;padding:22px 8px;color:#75808d;background:#f6f7f9}
+.account-dialog .cloud-project-title {display:block;width:100%;border:0;padding:3px 0;margin:0 0 4px;text-align:left;font-weight:600;line-height:1.4;overflow-wrap:anywhere;cursor:text;background:transparent}
+.cloud-project-name [hidden] {display:none!important}
+.cloud-project-name input {margin:0 0 4px}
 .cloud-project small {display:block;color:#75808d}
 
 /* Keep both the initial HTML and signed-out state fail-closed. */

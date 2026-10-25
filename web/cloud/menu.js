@@ -1,5 +1,6 @@
 import { accountSession } from './session.js';
 import { RESEARCH_NOTICE, CONSENT_VERSION } from './privacy.js';
+import { fitLegacyThumbnail } from './thumbnail.js';
 
 function element(tag, text, className) {
   const node = document.createElement(tag); if (text) node.textContent = text; if (className) node.className = className; return node;
@@ -22,6 +23,27 @@ function dialog(title, { dismissible = true } = {}) {
 function input(label, type = 'text', value = '') {
   const wrapper = element('label'), field = element('input'); field.type = type; field.value = value;
   wrapper.append(element('span', label), field); return { wrapper, field };
+}
+function projectNameDialog({ title = 'Name your project', value = '', submit = 'Create project', save }) {
+  const d = dialog(title), form = element('form'), name = input('Project name', 'text', value);
+  name.field.required = true; name.field.maxLength = 160;
+  name.field.addEventListener('input', () => name.field.setCustomValidity(''));
+  const apply = element('button', submit); apply.type = 'submit';
+  form.append(name.wrapper, apply); d.box.append(form);
+  let result = null, saving = false;
+  const completed = new Promise(resolve => d.box.addEventListener('close', () => resolve(result), { once: true }));
+  d.box.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const value = name.field.value.trim();
+    name.field.setCustomValidity(value ? '' : 'Enter a project name.');
+    if (saving || !name.field.reportValidity()) return;
+    saving = true; for (const control of d.box.querySelectorAll('button, input')) control.disabled = true;
+    try { await save(value); result = value; d.box.close(); }
+    catch (error) { d.status.textContent = error.message; d.status.setAttribute('role', 'alert'); }
+    finally { saving = false; for (const control of d.box.querySelectorAll('button, input')) control.disabled = false; }
+  });
+  d.open(); name.field.focus(); name.field.select(); return completed;
 }
 export async function initializeAccountMenu({ snapshot, restore, newVisualization, useDataset, thumbnail, busy, switchAccount }) {
   const header = document.querySelector('.app-header');
@@ -119,8 +141,48 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     const d = dialog('My datasets'); d.open();
     for (const row of await account.datasets()) d.box.append(button(row.name, async () => {
       if (busy()) return;
-      const imported = await account.loadDataset(row); await account.newProject(row.name); await useDataset({id:crypto.randomUUID(),name:row.name,imported}); d.box.close();
+      const imported = await account.loadDataset(row);
+      if (!await nameNewProject(row.name)) return;
+      await useDataset({id:crypto.randomUUID(),name:row.name,imported}); d.box.close();
     }));
+  }
+  function nameNewProject(datasetName) {
+    return projectNameDialog({ value: datasetName.replace(/\.(csv|tsv|json)$/i, ''), save: name => account.newProject(name) });
+  }
+  function editableProjectTitle(row, open) {
+    const wrapper = element('div', '', 'cloud-project-name');
+    const title = element('button', row.title, 'cloud-project-title'); title.type = 'button';
+    title.title = 'Double-click to rename'; title.setAttribute('aria-label', `Rename ${row.title}`);
+    wrapper.append(title);
+    const edit = () => {
+      if (busy() || wrapper.querySelector('input')) return;
+      const field = element('input'); field.type = 'text'; field.value = row.title; field.maxLength = 160; field.required = true;
+      field.setAttribute('aria-label', 'Project name');
+      title.hidden = true; wrapper.append(field); field.focus(); field.select();
+      let saving = false, finished = false;
+      const finish = () => { finished = true; field.remove(); title.hidden = false; };
+      const save = async () => {
+        if (saving || finished) return;
+        const name = field.value.trim();
+        if (!name) { field.setCustomValidity('Enter a project name.'); field.reportValidity(); field.focus(); return; }
+        if (name === row.title) { finish(); return; }
+        saving = true; field.disabled = true;
+        try {
+          row.title = await account.rename(name, row.id); title.textContent = row.title;
+          title.setAttribute('aria-label', `Rename ${row.title}`); open.setAttribute('aria-label', `Open ${row.title}`); finish();
+        } catch (error) { showError(error); field.disabled = false; field.focus(); }
+        finally { saving = false; }
+      };
+      field.addEventListener('input', () => field.setCustomValidity(''));
+      field.addEventListener('blur', save);
+      field.addEventListener('keydown', event => {
+        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!saving) { finish(); title.focus(); } }
+        else if (event.key === 'Enter') { event.preventDefault(); void save(); }
+      });
+    };
+    title.addEventListener('dblclick', edit);
+    title.addEventListener('keydown', event => { if (['Enter', ' ', 'F2'].includes(event.key)) { event.preventDefault(); edit(); } });
+    return wrapper;
   }
   async function openMenu() {
     const d = dialog('Workspace'); d.box.classList.add('workspace-drawer'); d.open();
@@ -129,24 +191,26 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     const list = element('div', '', 'cloud-projects'); d.box.append(element('h3','My visualizations'), list);
     if (account.user) {
       for (const row of await account.list()) {
-        const item = element('div', '', 'cloud-project');
-        const open = button(row.title, async () => { if (busy()) return; const project = await account.open(row.id); await restore(project); d.box.close(); });
-        if (row.thumbnail?.startsWith('data:image/png;base64,')) { const img = element('img'); img.src = row.thumbnail; img.alt = ''; open.prepend(img); }
-        item.append(open, element('small', new Date(row.updated_at).toLocaleString()), button('Delete', async () => {
+        const item = element('div', '', 'cloud-project'); item.dataset.projectId = row.id;
+        const open = button('', async () => { if (busy()) return; const project = await account.open(row.id); await restore(project); d.box.close(); });
+        open.className = 'cloud-project-open'; open.setAttribute('aria-label', `Open ${row.title}`);
+        if (row.thumbnail?.startsWith('data:image/png;base64,')) { const img = element('img'); img.alt = ''; fitLegacyThumbnail(img); img.src = row.thumbnail; open.append(img); }
+        else open.append(element('span', 'Open visualization', 'cloud-project-placeholder'));
+        item.append(open, editableProjectTitle(row, open), element('small', new Date(row.updated_at).toLocaleString()), button('Delete', async () => {
           const confirm = dialog('Delete visualization?'); confirm.box.append(element('p', row.title), button('Delete visualization', async () => {
             const active = account.current?.id === row.id; await account.remove(row.id); if (active) await newVisualization(); item.remove(); confirm.box.close();
           })); confirm.open();
         })); list.append(item);
       }
       if (!list.children.length) list.append(element('p', 'Your saved visualizations will appear here.'));
-      d.box.append(button('Rename current visualization', () => {
+      d.box.append(button('Rename current visualization', async () => {
         if (!snapshot()) throw new Error('Create a visualization first.');
-        const r = dialog('Rename visualization'), name = input('Name','text',account.current?.title ?? 'Untitled visualization');
-        r.box.append(name.wrapper,button('Save name',async()=>{await account.rename(name.field.value); const p=snapshot(); if(p)await account.save(p,thumbnail());r.box.close();d.box.close();}));r.open();
+        const name = await projectNameDialog({ title: 'Rename visualization', value: account.current?.title ?? '', submit: 'Save name', save: value => account.rename(value) });
+        if (name) d.box.close();
       }), button('Duplicate current visualization', async () => { const p=snapshot(); if(!p)return; await account.newProject(`${account.current?.title ?? 'Visualization'} (copy)`);await account.save(p,thumbnail());d.box.close(); }));
     }
     const bottom = element('footer'); bottom.append(button('Report a problem', report), button('Settings', settings), button('About', about)); d.box.append(bottom);
   }
   return { save: (project) => account.user ? account.save(project, thumbnail()) : Promise.resolve(), record: (type, payload) => account.record?.(type, payload),
-    get user() { return account.user; }, settings, about, newProject: () => account.newProject?.(), ready: true };
+    get user() { return account.user; }, settings, about, nameNewProject, newProject: () => account.newProject?.(), ready: true };
 }

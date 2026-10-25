@@ -119,17 +119,22 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     // Serialize before project switches; jobs keep their own immutable identity.
     const run = async () => {
       const snapshot = await pack(project);
-      const signature = JSON.stringify({ ...snapshot, savedAt: undefined, projectTitle: target.title });
-      if (queuedSnapshots.get(target.id) === signature) return;
-      const operation = crypto.randomUUID();
-      const job = { owner, id: target.id, operation, title: target.title, snapshot, thumbnail, time: lastJobTime = Math.max(Date.now(), lastJobTime + 1) };
-      await local.put(`job:${owner}:${String(job.time).padStart(16, '0')}:${operation}`, job);
-      await local.put(`head:${owner}:${target.id}`, { ...target, localSnapshot: snapshot, thumbnail, updated_at: new Date().toISOString() });
-      await local.put(activeKey(owner), target);
-      queuedSnapshots.set(target.id, signature);
-      status('Saved locally · syncing…'); notify(); drain();
+      // An inline rename queued before this autosave owns the latest title.
+      const latest = current?.id === target.id ? current : await local.get(`head:${owner}:${target.id}`) ?? target;
+      await queueSnapshot(owner, { ...target, title: latest.title }, snapshot, thumbnail);
     };
     packing = packing.catch(() => {}).then(run); return packing;
+  }
+  async function queueSnapshot(owner, target, snapshot, thumbnail) {
+    const signature = JSON.stringify({ ...snapshot, savedAt: undefined, projectTitle: target.title });
+    if (queuedSnapshots.get(target.id) === signature) return;
+    const operation = crypto.randomUUID();
+    const job = { owner, id: target.id, operation, title: target.title, snapshot, thumbnail, time: lastJobTime = Math.max(Date.now(), lastJobTime + 1) };
+    await local.put(`job:${owner}:${String(job.time).padStart(16, '0')}:${operation}`, job);
+    await local.put(`head:${owner}:${target.id}`, { ...target, localSnapshot: snapshot, thumbnail, updated_at: new Date().toISOString() });
+    if (user?.id === owner && current?.id === target.id) await local.put(activeKey(owner), current);
+    queuedSnapshots.set(target.id, signature);
+    status('Saved locally · syncing…'); notify(); drain();
   }
   async function drainJobs(owner) {
     for (const key of (await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).sort()) {
@@ -207,10 +212,27 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     await packing; current = { id: crypto.randomUUID(), title, revision: 0 };
     if (user) await local.put(activeKey(user.id), current); notify();
   }
-  async function rename(title) {
-    if (!current?.id) throw new Error('Create a visualization first.');
-    current = { ...current, title: title.trim().slice(0, 160) || 'Untitled visualization' };
-    if (user) await local.put(activeKey(user.id), current); notify();
+  function rename(title, id = current?.id) {
+    const owner = user?.id, name = title.trim().slice(0, 160);
+    if (!owner || !id) return Promise.reject(new Error('Create a visualization first.'));
+    if (!name) return Promise.reject(new Error('Enter a project name.'));
+    const run = async () => {
+      if (user?.id !== owner) throw new Error('Account changed.');
+      let head = await local.get(`head:${owner}:${id}`);
+      if (!head?.localSnapshot) {
+        // Rename unopened projects without changing the active workspace or
+        // hydrating their datasets. Use the same revision-checked outbox.
+        const row = fail(await client.from('projects').select('*').eq('id', id).single());
+        if (!row?.snapshot) throw new Error('Project unavailable.');
+        head = { ...row, localSnapshot: row.snapshot };
+        await local.put(`remote:${owner}:${id}`, { revision: row.revision, snapshot: row.snapshot });
+      }
+      if (user?.id !== owner) throw new Error('Account changed.');
+      if (current?.id === id) current = { ...current, title: name };
+      await queueSnapshot(owner, { id, title: name, revision: head.revision }, head.localSnapshot, head.thumbnail);
+      return name;
+    };
+    packing = packing.catch(() => {}).then(run); return packing;
   }
   async function list() {
     await packing; await drain();

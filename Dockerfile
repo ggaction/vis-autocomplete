@@ -12,7 +12,7 @@ ENV NODE_ENV=production PORT=10000
 WORKDIR /app
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/vendor ./vendor
-COPY --from=build --chown=node:node /app/scripts/server.js /app/scripts/cloud-config.js /app/scripts/export-worker.js /app/scripts/chart-download.js ./scripts/
+COPY --from=build --chown=node:node /app/scripts ./scripts
 COPY --from=build --chown=node:node /app/output/deploy ./output/deploy
 USER node
 EXPOSE 10000

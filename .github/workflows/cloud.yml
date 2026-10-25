@@ -30,3 +30,15 @@ jobs:
           node scripts/test-cloud-auth-browser.js
       - name: Docker build
         run: docker build -t vis-autocomplete-test .
+      - name: Start production container
+        run: |
+          docker run -d --name vis-autocomplete-smoke -p 127.0.0.1:5185:10000 \
+            -e SUPABASE_URL=https://cloud-test.supabase.co \
+            -e SUPABASE_PUBLISHABLE_KEY=sb_publishable_test vis-autocomplete-test
+          trap 'docker logs vis-autocomplete-smoke; docker rm -f vis-autocomplete-smoke' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5185/healthz; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:5185/healthz
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:5185/api/export/png)" = 401

@@ -7,9 +7,10 @@ const settings = new Set(('aggregate method type palette position opacity fill s
 const appearance = /^encode(Color|Stroke|Opacity|Size|StrokeWidth|StrokeDash|Angle|Shape)$/;
 export const MIN_DEFAULT_CHARTS = 3;
 export const DEFAULT_TITLE_FONT_SIZE = 23;
+export const DEFAULT_SUBTITLE_FONT_SIZE = 17;
 export const DEFAULT_PREFERENCES = {
   encodeStroke: { $mode: 'fixed', value: '#000000' },
-  createTitle: { 'titleStyle.fontSize': DEFAULT_TITLE_FONT_SIZE },
+  createTitle: { 'titleStyle.fontSize': DEFAULT_TITLE_FONT_SIZE, 'subtitleStyle.fontSize': DEFAULT_SUBTITLE_FONT_SIZE },
 };
 export const settingKey = value => JSON.stringify(value);
 

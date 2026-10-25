@@ -81,6 +81,7 @@ test('title cards create, preserve, resize and remove subtitles through one nati
   assert.equal(editor.controls.length, 4);
   assert.ok(!activeControls(editor.controls, initial).some(c => c.key === 'weight'));
   assert.equal(initial.size, 23);
+  assert.equal(initial.subtitleSize, 17);
   assert.equal(initial.subtitle, '');
   const values = { ...initial, text: 'Measurements', subtitle: 'Across three groups', subtitleSize: 18 };
   const prepared = prepareGuidedAction(raw, { method: 'createTitle', args: editor.build(values) });

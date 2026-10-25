@@ -4,7 +4,7 @@ import { paletteChoices } from '../src/palette-options.js';
 import { binnedPositionExpression } from '../src/plot-aggregation.js';
 import { applyParameterDefaults } from '../src/control-defaults.js';
 import { defaultFacetColumns } from '../src/facet-layout.js';
-import { DEFAULT_TITLE_FONT_SIZE } from '../src/parameter-defaults.js';
+import { DEFAULT_TITLE_FONT_SIZE, DEFAULT_SUBTITLE_FONT_SIZE } from '../src/parameter-defaults.js';
 const select = (key, label, choices, value) => ({ key, label, type: 'select',
   choices: choices.map(v => typeof v === 'object' ? v : { value: v, label: v }), value });
 const numeric = (key, label, value, min, max, step = 1) => ({ key, label, type: 'number', value, min, max, step });
@@ -557,7 +557,7 @@ export function recommendationParameters(recommendation, profile) {
       { key: 'fontSizes', label: 'Font size', type: 'group', controls: [
         { ...numeric('size', 'Title size', args.titleStyle?.fontSize ?? DEFAULT_TITLE_FONT_SIZE, 10, 30),
           ...(method === 'editTitle' ? { defaultPolicy: 'context' } : {}) },
-        { ...numeric('subtitleSize', 'Subtitle size', args.subtitleStyle?.fontSize ?? 14, 8, 30),
+        { ...numeric('subtitleSize', 'Subtitle size', args.subtitleStyle?.fontSize ?? DEFAULT_SUBTITLE_FONT_SIZE, 8, 30),
           ...(method === 'editTitle' ? { defaultPolicy: 'context' } : {}) },
       ] },
       select('position', 'Position', recommendation.compositionContext?.facet ? ['top'] : ['top', 'bottom', 'left', 'right'], args.position ?? 'top')];

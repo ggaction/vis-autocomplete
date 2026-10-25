@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: visualization-autocomplete
+    runtime: docker
+    repo: https://github.com/ggaction/vis-autocomplete
+    branch: codex/cloud-deployment
+    plan: 0.5c-512mb
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production

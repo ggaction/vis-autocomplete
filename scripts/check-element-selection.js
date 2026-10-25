@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile } from 'node:fs/promises';
 import { expect } from '@playwright/test';
 import { createProject, parseProject, restoreSession } from '../web/project.js';
+import { editableGuides } from '../src/guide-manipulation.js';
+import { addDefaultGuides } from '../src/prepare.js';
+import { compositionPlotBounds } from '../vendor/ggaction/src/materialization/composition.js';
 import { importDataset } from '../src/data-import.js';
 
 export async function checkElementSelection(page) {
@@ -131,5 +134,34 @@ export async function checkElementSelection(page) {
     await scope('all legends'); await expect(selected).toHaveCount(1);
     await page.screenshot({ path: `${output}/${kind}-selected.png` });
     await saved(); console.log(`Element selection: ${kind} legend title/items edits and replay passed`);
+    if (kind === 'concat') {
+      await page.keyboard.press('Escape');
+      const initial = await saved(), view = addDefaultGuides(initial.entry.program, initial.entry.guideCall);
+      const target = editableGuides(view).find(t => t.kind === 'legend' && !t.part && t.channels.includes('size'));
+      const plot = compositionPlotBounds(view);
+      assert.ok(target.bounds.left >= plot.x + plot.width, 'Independent size legend must start beside the final panel');
+      assert.equal(target.childPath, undefined, 'Drag coordinates must address the parent');
+      const items = hit(`${target.key}:items`), box = await items.boundingBox();
+      const stage = await page.locator('#current .canvas-stage').boundingBox();
+      const scale = stage.width / view.graphicSpec.objects.canvas.properties.width;
+      const dx = plot.x + plot.width / 2 - (target.bounds.left + target.bounds.right) / 2;
+      const dy = plot.y + plot.height + 100 - (target.bounds.top + target.bounds.bottom) / 2;
+      const before = await page.locator('#current').getAttribute('data-trace-count');
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + dx * scale, box.y + box.height / 2 + dy * scale, { steps: 20 });
+      await page.mouse.up();
+      await expect(page.locator('#current')).not.toHaveAttribute('data-trace-count', before);
+      await ready();
+      const moved = await saved(), result = addDefaultGuides(moved.entry.program, moved.entry.guideCall);
+      const after = editableGuides(result).find(t => t.key === target.key), region = compositionPlotBounds(result);
+      assert.ok(after.bounds.top > region.y + region.height, 'A pointer drag must dock beneath the whole composition');
+      assert.equal(moved.session.entries.length, initial.session.entries.length + 1);
+      await page.locator('#undo').click(); await ready();
+      const undone = await saved(); assert.equal(undone.session.index, initial.session.index);
+      await page.locator('#redo').click(); await ready();
+      const redone = await saved(); assert.equal(redone.session.index, moved.session.index);
+      await page.screenshot({ path: `${output}/concat-size-drag.png` });
+      console.log('Collected legend pointer drag, global bounds, saved replay and undo/redo passed');
+    }
   }
 }

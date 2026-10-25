@@ -1,4 +1,3 @@
-import { sharedCompositionColorLegend } from '../vendor/ggaction/src/materialization/compositionLegends.js';
 import { prepareCompositionSnapshots } from '../vendor/ggaction/src/materialization/composition.js';
 import { nativeActionTargets, targetKey } from './composition-context.js';
 
@@ -13,9 +12,8 @@ export function sharedLegendEdit(program, action) {
   const targets = [...requested];
   const visit = (view, path = []) => {
     if (!view.compositionSpec || view.compositionSpec.facet) return;
-    const { children, sharedLegend } = prepareCompositionSnapshots(view);
-    const shared = sharedLegend ?? sharedCompositionColorLegend(view, children);
-    if (shared && (!channel || shared.channels.includes(channel))) {
+    const { children, legends } = prepareCompositionSnapshots(view);
+    for (const shared of legends) if (!channel || shared.channels.includes(channel)) {
       const members = shared.targets.filter(t => {
         if (!channel || channel === 'color') return true;
         const leaf = t.childPath.reduce((node, id) => node.children[id], view);

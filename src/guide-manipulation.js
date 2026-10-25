@@ -5,7 +5,8 @@ import { cartesianAxisOwners, axisTargetArgs } from '../vendor/ggaction/src/sele
 import { legendBlockChannels, describeLegendBlock } from '../vendor/ggaction/src/grammar/legendBlocks.js';
 import { scopedCall } from './composition-context.js';
 import { prepareCompositionSnapshots, compositionPlotBounds } from '../vendor/ggaction/src/materialization/composition.js';
-import { sharedCompositionColorLegend } from '../vendor/ggaction/src/materialization/compositionLegends.js';
+import { compositionLegendEdgeClearance } from '../vendor/ggaction/src/layout/compositionLegend.js';
+import { compositionLegends } from '../vendor/ggaction/src/materialization/compositionLegends.js';
 import { namespaceGraphicId } from '../vendor/ggaction/src/materialization/compositionSnapshot.js';
 import { canvasGeometry } from './canvas-geometry.js';
 import { localLegendPlacement } from '../vendor/ggaction/src/grammar/legendGroups.js';
@@ -40,15 +41,17 @@ export function editableGuides(program) {
   }
   if (program.compositionSpec && !program.compositionSpec.facet) {
     const { children, layout } = prepareCompositionSnapshots(program);
-    const shared = sharedCompositionColorLegend(program, children);
-    const sharedId = `${program.compositionSpec.id}-shared-color-legend`;
-    if (shared && program.graphicSpec.objects[sharedId]) titles.push({
-      key: 'legend:shared-color', kind: 'legend', label: 'Shared color legend',
-      ids: [sharedId], bounds: guideBounds(program, [sharedId]), movable: true,
-      config: shared.config, placement: shared.placement, family: shared.block.kind, channels: shared.channels,
-      representation: shared.block.family, editTargets: shared.targets,
-      remove: { method: 'removeLegend', args: { target: shared.targets, channels: ['color'], suppress: true } },
-    });
+    for (const shared of compositionLegends(program, children)) {
+      const sharedId = shared.id;
+      if (program.graphicSpec.objects[sharedId]) titles.push({
+        key: sharedId.endsWith('-shared-color-legend') ? 'legend:shared-color' : `legend:${sharedId}`,
+        kind: 'legend', label: `${shared.config.title || 'Legend'} legend`,
+        ids: [sharedId], bounds: guideBounds(program, [sharedId]), movable: true,
+        config: shared.config, placement: shared.placement, family: shared.block.kind, channels: shared.channels,
+        representation: shared.block.family, editTargets: shared.targets,
+        remove: { method: 'removeLegend', args: { target: shared.targets, channels: sharedId.endsWith('-shared-color-legend') ? ['color'] : shared.channels, suppress: true } },
+      });
+    }
     return [...titles, ...layout.children.flatMap(placement => editableGuides(children[placement.id]).map(localTarget => {
       const ids = localTarget.ids.map(id => namespaceGraphicId(`${program.compositionSpec.id}-${placement.id}`, id));
       const bounds = guideBounds(program, ids);
@@ -232,6 +235,8 @@ export function moveGuide(program, target, x, y, drag) {
   const ny = (y - p.y - p.height / 2) / Math.max(1, p.height / 2);
   let position = Math.abs(nx) > Math.abs(ny) ? nx < 0 ? 'left' : 'right' : ny < 0 ? 'top' : 'bottom';
   const current = target.placement?.position ?? target.config.position;
+  const minimumOffset = side => target.editTargets && ['left', 'right', 'top', 'bottom'].includes(side)
+    ? 8 + compositionLegendEdgeClearance(p, prepareCompositionSnapshots(program).retainedBounds, side) : 0;
   if (target.kind === 'axis') position = target.channel === 'x' ? ny < 0 ? 'top' : 'bottom' : nx < 0 ? 'left' : 'right';
   // Pointer movement is relative to the grabbed guide, not its nearest edge.
   // A generous screen-space threshold prevents tiny drags from redocking it.
@@ -279,6 +284,14 @@ export function moveGuide(program, target, x, y, drag) {
     ...(target.config.titlePosition === undefined ? {} : { titlePosition: target.config.titlePosition }) };
   // Moving an inline horizontal title to a side requires native top placement.
   if (target.config.titlePosition === 'left' && ['left','right'].includes(position)) args.titlePosition = 'top';
+  if (target.editTargets) {
+    // Dock a collected block against the whole composition at the drop point.
+    // A previous panel-relative offset is unrelated to this new edge.
+    const width = target.bounds.right - target.bounds.left, height = target.bounds.bottom - target.bounds.top;
+    args.offset = Math.max(minimumOffset(position), round(position === 'right' ? x - p.x - p.width - width / 2
+      : position === 'left' ? p.x - x - width / 2 : position === 'top' ? p.y - y - height / 2
+      : y - p.y - p.height - height / 2));
+  }
   if (drag) args.alongOffset = 0;
   return { method: 'editLegend', args };
 }

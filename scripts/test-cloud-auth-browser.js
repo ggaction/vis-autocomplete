@@ -70,6 +70,10 @@ try{
  await page.locator('#auth-submit').click();
  await page.getByRole('heading',{name:'Help improve visualization authoring',exact:true}).waitFor();
  assert.equal(await dialog().getByRole('checkbox').isChecked(),true);assert.equal(events.length,0);
+ await expect(dialog().getByRole('button',{name:'Close',exact:true})).toHaveCount(0);
+ await page.keyboard.press('Escape');
+ await expect(page.getByRole('heading',{name:'Help improve visualization authoring',exact:true})).toBeVisible();
+ assert.equal(profile,null);assert.equal(events.length,0);
  await page.screenshot({path:'output/cloud-testing/consent.png'});
  await dialog().getByRole('checkbox').uncheck();await dialog().getByRole('button',{name:'Continue',exact:true}).click();
  await expect.poll(()=>profile?.research_enabled).toBe(false);

@@ -9,9 +9,12 @@ function button(text, action) {
 }
 let statusNode;
 function showError(error) { statusNode = document.querySelector('dialog[open]:last-of-type .account-status') ?? statusNode; if (statusNode) { statusNode.textContent = error.message || 'Please try again.'; statusNode.setAttribute('role', 'alert'); } }
-function dialog(title) {
+function dialog(title, { dismissible = true } = {}) {
   const box = element('dialog', '', 'account-dialog'), header = element('header');
-  header.append(element('h2', title), button('Close', () => box.close())); box.append(header);
+  header.append(element('h2', title));
+  if (dismissible) header.append(button('Close', () => box.close()));
+  else box.addEventListener('cancel', event => event.preventDefault());
+  box.append(header);
   box.addEventListener('close', () => box.remove()); document.body.append(box);
   const status = element('p', '', 'account-status'); status.setAttribute('role', 'status');
   box.append(status); statusNode = status; return { box, status, open: () => box.showModal() };
@@ -47,7 +50,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     return true;
   }
   function consentDialog() {
-    const d = dialog('Help improve visualization authoring'), choice = input('Share interaction history for research', 'checkbox');
+    const d = dialog('Help improve visualization authoring', { dismissible: false }), choice = input('Share interaction history for research', 'checkbox');
     choice.field.checked = true; d.box.append(element('p', RESEARCH_NOTICE), choice.wrapper,
       button('Continue', async () => { await account.consent(choice.field.checked); d.box.close(); })); d.open();
   }

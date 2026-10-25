@@ -2,6 +2,19 @@
 
 Cloud work lives on `codex/cloud-deployment`, isolated from ongoing work on `main`. The editor, native ggaction dependency and transition source remain unchanged by the hosting architecture. Local use works without a Supabase connection.
 
+## Hosted setup checkpoint (2026-10-25)
+
+- Supabase Free organization `ggaction`, project `vis-autocomplete`, reference `yuxpkvtjofeigrkmsdbc`, Frankfurt. Project URL: `https://yuxpkvtjofeigrkmsdbc.supabase.co`.
+- Applied `202610250001_cloud.sql` transactionally through the SQL editor. All eight public tables have RLS; the workspace bucket is private. An unauthenticated REST read of projects is denied.
+- Executed `supabase/tests/hosted_smoke.sql` against hosted Postgres: private saves, retry idempotence, stale revisions, consent withdrawal, research sanitization and cross-account isolation pass. Synthetic users and edits were rolled back. This verifies the deployed database, not OAuth or email delivery.
+- Email confirmation and secure email changes are enabled. Minimum password length is 10 and secure password changes are enabled. Google OAuth credentials and public email delivery still need provider setup.
+- Render's GitHub installation is restricted to `ggaction/vis-autocomplete`. The approved $7/month `0.5c-512mb` service is live in Frankfurt: [Visualization Autocomplete](https://visualization-autocomplete.onrender.com/), service `srv-dbeou4vb9u1s73af5as0`. The first deployment and `/healthz` both identify commit `cd5fae58660df11e4989ece624b3abb7aabb39e1`.
+- Verified the hosted Iris chart selection/application, public Supabase configuration, response security headers and native PNG/SVG/PDF export. Private source/configuration paths are not served. These guest checks do not yet verify authenticated project synchronization.
+- Supabase Auth's Site URL and exact production redirect are `https://visualization-autocomplete.onrender.com/`; `http://127.0.0.1:5184/` is the only development redirect.
+- Created a separate Google Cloud project, `ggaction-vis-autocomplete` (`919640993807`), without enabling paid compute. App branding is prepared; policy acceptance, OAuth client setup and real sign-in are still pending. Resend Free signup and a user-controlled sending domain are being prepared for custom SMTP.
+
+The initial schema was applied manually, not through the CLI. When linking the CLI for future migrations, first mark this **already applied** version with `supabase migration repair --status applied 202610250001`, verify `supabase migration list`, then run `supabase db push --dry-run`. Do not rerun the initial migration or reset the hosted database.
+
 ## What ships
 
 - Google OAuth and email/password signup, email confirmation and password recovery, using Supabase Auth with PKCE and persistent sessions.
@@ -91,3 +104,5 @@ node scripts/test-cloud-auth-browser.js
 ```
 
 The SQL suite runs PostgreSQL via PGlite with Auth/Storage scaffolding to exercise RLS and RPCs. Auth browser tests use a mock Supabase HTTP transport. The Docker image and real providers still require their respective environment checks; tests must not be reported as a successful public deployment.
+
+For a hosted database check without retaining test accounts or rows, run `supabase/tests/hosted_smoke.sql` as postgres in the SQL editor. It uses the real hosted `auth.uid()` and authenticated role, asserts invariants, and rolls its entire transaction back.

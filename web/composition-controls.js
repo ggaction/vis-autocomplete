@@ -251,8 +251,8 @@ function layerSpecs(adding,profile,engine) {
 }
 
 export function initializeCompositionControls({ select, overlayButton, host, adjacentHost, read, onTarget, onAdd, onOverlay, onChange, onCancel }) {
-  let highlight, revision, placements = [], bounds, buttons = [], frame, available = false, pointer, positioned = [];
-  const clearHighlight = () => { highlight?.remove(); highlight = null; };
+  let highlight, highlightChoice, revision, placements = [], bounds, buttons = [], frame, available = false, pointer, positioned = [];
+  const clearHighlight = () => { highlight?.remove(); highlight = null; highlightChoice = null; };
   function revealNearby() {
     const nearest = pointer && available ? positioned.reduce((best, item) => {
       const distance = Math.hypot(item.x - pointer.x, item.y - pointer.y);
@@ -271,6 +271,7 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     clearHighlight();
     const box = bounds?.get(JSON.stringify(choice.childPath)), view = viewport();
     if (!box || !view) return;
+    highlightChoice = choice;
     highlight = document.createElement('div'); highlight.className = 'adjacent-placement-highlight';
     Object.assign(highlight.style, { left: `${view.left + box.x * view.scale}px`, top: `${view.top + box.y * view.scale}px`,
       width: `${box.width * view.scale}px`, height: `${box.height * view.scale}px` });
@@ -292,6 +293,7 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
           positioned.push({ ...handle, button });
         }
       }
+      if (highlightChoice) mark(highlightChoice);
       revealNearby();
     });
   }

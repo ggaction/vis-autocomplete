@@ -31,7 +31,8 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     if(!player){
       surface=document.createElement('div');surface.className='transition-surface';host.append(surface);
       surface.style.padding = 'var(--control-inset, 12px)';
-      player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,render:renderTransitionScene});
+      player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,render:(scene, context, options) => renderTransitionScene(scene, context, { pixelRatio: Math.min(
+        options.pixelRatio * Number(host.dataset.chartZoom ?? 1), 4096 / scene.width, 4096 / scene.height, Math.sqrt(16000000 / (scene.width * scene.height))) })});
       player.set(createTransitionScene(current,{format:'canvas'}));
     }else if(!surface.isConnected)host.append(surface);
     host.classList.add('transition-active');return true;

@@ -16,11 +16,12 @@ export function createCanvasResize(host, callbacks) {
     const to = stage.getBoundingClientRect();
     if (!to.width || !to.height) return;
     const scale = from.width / to.width;
+    const zoom = Number(host.dataset.chartZoom ?? 1);
     if (Math.abs(scale - 1) < .0001 && Math.abs(from.left - to.left) + Math.abs(from.top - to.top) < .1) return;
     // Fit once, then animate just the stage layer. Glyphs and overlay share the
     // same uniform transform; no new chart render or layout on animation frames.
     const animation = stage.animate([
-      { transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${scale})` },
+      { transform: `translate(${(from.left - to.left) / zoom}px, ${(from.top - to.top) / zoom}px) scale(${scale})` },
       { transform: 'none' },
     ], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
     settling = animation; host.dataset.resizeSettling = 'true';
@@ -88,6 +89,7 @@ export function createCanvasResize(host, callbacks) {
     // Hold the display scale as well as pointer conversion until release.
     // The canvas can extend beyond the clipped view during the gesture.
     gesture = { handle, context, geometry, viewport: { ...viewport }, pointerId: event.pointerId,
+      zoom: Number(host.dataset.chartZoom ?? 1),
       baseKey: JSON.stringify(resizeCanvasAction(geometry, handle, 0, 0)),
       x: event.clientX, y: event.clientY, dx: 0, dy: 0, pending: null, running: false, ended: false, changed: false };
     host.classList.add('resizing'); host.style.setProperty('--resize-cursor', handle.endsWith('se') ? 'nwse-resize' : handle.endsWith('s') ? 'ns-resize' : 'ew-resize');
@@ -206,12 +208,12 @@ export function createCanvasResize(host, callbacks) {
     const g = gesture;
     if (!g || g.pointerId !== event.pointerId || g.ended) return;
     event.preventDefault();
-    move(g, (event.clientX - g.x) / g.viewport.scale, (event.clientY - g.y) / g.viewport.scale);
+    move(g, (event.clientX - g.x) / (g.viewport.scale * g.zoom), (event.clientY - g.y) / (g.viewport.scale * g.zoom));
   });
   host.addEventListener('pointerup', event => {
     const g = gesture;
     if (!g || g.pointerId !== event.pointerId) return;
-    move(g, (event.clientX - g.x) / g.viewport.scale, (event.clientY - g.y) / g.viewport.scale);
+    move(g, (event.clientX - g.x) / (g.viewport.scale * g.zoom), (event.clientY - g.y) / (g.viewport.scale * g.zoom));
     g.ended = true; host.releasePointerCapture(event.pointerId);
     if (!g.running) finish(g);
   });

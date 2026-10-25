@@ -882,6 +882,20 @@ guides control labels the native `legend: false` policy as **Per facet**: it
 disables parent promotion, rather than removing the children's legend recipes.
 
 
+### Chart view zoom
+
+The current chart view has **− / + / Fit** controls in both Preview and Transition
+modes. Scroll over the chart to zoom around the pointer (50–400%); drag chart
+space while enlarged to pan. Double-click or **Fit** restores the centered view.
+With the viewport focused, **+ / − / 0** provide the same controls. Dataset changes
+and **Reset sizes** restore the default view.
+
+Zoom is a viewing camera: native chart dimensions, ggaction Code, history,
+option thumbnails and exported files are unchanged. Native resize handles and
+legend/title editors retain their screen-to-chart coordinates at any zoom.
+`test/browser/chart-zoom.py` checks zoom, pan, fit and editing across unit, facet
+and concatenated charts in both view modes.
+
 ### Direct guide editing
 
 Hover a chart title, subtitle, legend or Cartesian, polar or parallel axis title to reveal only its

@@ -1,3 +1,4 @@
+import { createChartZoom } from './chart-zoom.js';
 import { selectionFields } from '../src/field-selection.js';
 import { loadModel } from './model-loader.js';
 import { initializeCompositionControls, adjacentContext, adjacentSpecs, overlayContext, overlaySpecs } from './composition-controls.js';
@@ -77,6 +78,11 @@ const compositionControls = initializeCompositionControls({
   onChange: patch => { Object.assign(state.adding, patch); showPreview(null); updateCards().catch(error => notice(error.message, true)); },
   onCancel: () => { state.adding = null; showPreview(null); updateCards().catch(error => notice(error.message, true)); },
 });
+const chartZoom = createChartZoom(elements.current, document.querySelector('.current-view-tools'), {
+  busy: () => state.committing || state.resizing,
+  onChange: () => compositionControls.layout(),
+});
+$('reset-view-sizes').addEventListener('click', () => chartZoom.reset());
 const datasets = new Map();
 const datasetBases = createLRU(4);
 const drafts = createDraftStore();
@@ -1537,6 +1543,7 @@ async function showSnapshot(snapshot) {
 
 async function activateDataset(record, { selection = { fields: [] }, restore = true } = {}) {
   resizeHistory.reset();
+  chartZoom.reset();
   // Do all input/native construction checks before replacing a working session.
   const rows = record.imported.rows;
   let cached = datasetBases.get(record.imported);

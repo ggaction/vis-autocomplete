@@ -440,7 +440,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 
 /* Composition controls occupy the existing toolbar; edge controls never resize the canvas. */
 .current-shell { position: relative; min-height: 0; flex: 1; display: flex; }
-.current-shell > .chart-view { flex: 1; min-width: 0; width: 100%; }
 .add-adjacent { position: absolute; z-index: 14; width: 26px; height: 26px; padding: 0; font-size: 22px; line-height: 24px; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; opacity: 0; transition: opacity 120ms; cursor: pointer; }
 .add-adjacent { pointer-events: none; }
 .add-adjacent.nearby, .add-adjacent:focus-visible { opacity: 1; pointer-events: auto; }
@@ -500,3 +499,16 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 
 .overlay-modes { display: inline-flex; gap: 4px; }
 .overlay-modes button[aria-pressed="true"] { color: #086bb9; border-color: #9cbce0; background: #eaf3fb; }
+
+/* The camera clips only the visualization, leaving panel headers and adjacent
+   chart controls at their normal size. It never changes native chart geometry. */
+.chart-viewport-clip { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.chart-viewport-clip > .chart-view { width: 100%; flex: 1; min-width: 0; }
+.chart-zoom-tools { display: inline-flex; align-items: center; gap: 3px; flex: none; }
+.chart-zoom-tools[hidden] { display: none; }
+.chart-zoom-tools button { min-width: 23px; padding: 3px 5px; font: 11px Arial, sans-serif; }
+.chart-zoom-value { min-width: 33px; text-align: center; font: 10px Arial, sans-serif; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-pannable .chart-view { cursor: grab; }
+.chart-panning, .chart-panning * { cursor: grabbing !important; user-select: none; }
+.chart-panning .guide-editor, .chart-panning .canvas-resize-overlay { pointer-events: none; visibility: hidden; }
+.chart-viewport-clip:focus-visible { outline: 1px solid #7ca5d3; outline-offset: -1px; }

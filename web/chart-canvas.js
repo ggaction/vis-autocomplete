@@ -14,7 +14,7 @@ function paint(canvas){
   let density=heldDensities.get(canvas);
   if(density===undefined){
     const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;
-    density=Math.min(w/viewport.width,h/viewport.height)*(devicePixelRatio||1);
+    density=Math.min(w/viewport.width,h/viewport.height)*(devicePixelRatio||1)*Number(canvas.closest('[data-chart-zoom]')?.dataset.chartZoom??1);
   }
   const ratio=Math.max(.001,Math.min(density,4096/geometry.width,4096/geometry.height,Math.sqrt(16000000/(geometry.width*geometry.height))));
   const key=`${Math.round(geometry.width*ratio)}:${Math.round(geometry.height*ratio)}`;

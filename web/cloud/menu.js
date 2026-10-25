@@ -14,12 +14,30 @@ function showError(error) { statusNode = document.querySelector('dialog[open]:la
 function dialog(title, { dismissible = true } = {}) {
   const box = element('dialog', '', 'account-dialog'), header = element('header');
   header.append(element('h2', title));
-  if (dismissible) header.append(button('Close', () => box.close()));
+  let closing = false;
+  const close = async () => {
+    if (closing || !box.open) return;
+    closing = true;
+    if (box.classList.contains('workspace-drawer') && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // Start at the visible position, even if dismissal interrupts entry.
+      const style = getComputedStyle(box);
+      box.style.setProperty('--drawer-exit-transform', style.transform);
+      box.style.setProperty('--drawer-exit-opacity', style.opacity);
+      box.inert = true;
+      box.classList.add('closing');
+      await Promise.allSettled(box.getAnimations().map(animation => animation.finished));
+    }
+    box.close();
+  };
+  if (dismissible) header.append(button('Close', close));
   else box.addEventListener('cancel', event => event.preventDefault());
+  if (dismissible) box.addEventListener('cancel', event => {
+    if (box.classList.contains('workspace-drawer')) { event.preventDefault(); close(); }
+  });
   box.append(header);
   box.addEventListener('close', () => box.remove()); document.body.append(box);
   const status = element('p', '', 'account-status'); status.setAttribute('role', 'status');
-  box.append(status); statusNode = status; return { box, status, open: () => box.showModal() };
+  box.append(status); statusNode = status; return { box, status, close, open: () => box.showModal() };
 }
 function input(label, type = 'text', value = '') {
   const wrapper = element('label'), field = element('input'); field.type = type; field.value = value;
@@ -215,7 +233,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       try { await action(); }
       finally { working = false; syncSelection(); }
     };
-    const create = button('+', () => run(async () => { await account.newProject(); await newVisualization(); d.box.close(); }));
+    const create = button('+', () => run(async () => { await account.newProject(); await newVisualization(); d.close(); }));
     create.className = 'cloud-project-add'; create.title = 'New visualization'; create.setAttribute('aria-label', 'New visualization');
     const heading = element('div', '', 'cloud-projects-heading'); heading.append(element('h3', 'My visualizations'), create);
     const selectionBar = element('div', '', 'cloud-project-selection');
@@ -278,7 +296,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       date.title = new Date(row.updated_at).toLocaleString();
       if (account.current?.id === row.id) { item.classList.add('is-current'); title.setAttribute('aria-current', 'page'); }
       check.addEventListener('change', () => { check.checked ? selected.add(row.id) : selected.delete(row.id); syncSelection(); });
-      const open = () => run(async () => { const project = await account.open(row.id); await restore(project); d.box.close(); });
+      const open = () => run(async () => { const project = await account.open(row.id); await restore(project); d.close(); });
       const edit = () => {
         clearTimeout(openTimer);
         if (working || busy() || name.querySelector('input')) return;
@@ -338,7 +356,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       outsideDown = outside(event);
       if (!event.target.closest('.cloud-project-title')) clearTimeout(openTimer);
     });
-    d.box.addEventListener('click', event => { if (outsideDown && outside(event)) d.box.close(); outsideDown = false; });
+    d.box.addEventListener('click', event => { if (outsideDown && outside(event)) d.close(); outsideDown = false; });
     list.addEventListener('scroll', hidePreview); window.addEventListener('resize', hidePreview);
     d.box.addEventListener('close', () => {
       clearTimeout(openTimer); thumbnails.dispose(); window.removeEventListener('resize', hidePreview); images.clear();

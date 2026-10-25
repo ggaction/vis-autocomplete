@@ -1,6 +1,6 @@
 import { accountSession } from './session.js';
 import { RESEARCH_NOTICE, CONSENT_VERSION } from './privacy.js';
-import { fitLegacyThumbnail } from './thumbnail.js';
+import { projectThumbnails } from './project-thumbnails.js';
 
 function element(tag, text, className) {
   const node = document.createElement(tag); if (text) node.textContent = text; if (className) node.className = className; return node;
@@ -196,12 +196,14 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     d.box.append(button('New visualization', async () => { if (busy()) return; await account.newProject?.(); await newVisualization(); d.box.close(); }),
       button('My datasets', dataLibrary));
     const list = element('div', '', 'cloud-projects'); d.box.append(element('h3','My visualizations'), list);
+    const thumbnails = projectThumbnails(account, list);
+    d.box.addEventListener('close', () => thumbnails.dispose(), { once: true });
     if (account.user) {
       for (const row of await account.list()) {
         const item = element('div', '', 'cloud-project'); item.dataset.projectId = row.id;
         const open = button('', async () => { if (busy()) return; const project = await account.open(row.id); await restore(project); d.box.close(); });
         open.className = 'cloud-project-open'; open.setAttribute('aria-label', `Open ${row.title}`);
-        if (row.thumbnail?.startsWith('data:image/png;base64,')) { const img = element('img'); img.alt = ''; fitLegacyThumbnail(img); img.src = row.thumbnail; open.append(img); }
+        if (row.thumbnail?.startsWith('data:image/png;base64,')) { const img = element('img'); img.alt = ''; thumbnails.observe(img, row); img.src = row.thumbnail; open.append(img); }
         else open.append(element('span', 'Open visualization', 'cloud-project-placeholder'));
         item.append(open, editableProjectTitle(row, open), element('small', new Date(row.updated_at).toLocaleString()), button('Delete', async () => {
           const confirm = dialog('Delete visualization?'); confirm.box.append(element('p', row.title), button('Delete visualization', async () => {

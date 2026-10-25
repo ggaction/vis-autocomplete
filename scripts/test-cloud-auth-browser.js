@@ -18,7 +18,7 @@ await context.addInitScript(() => {
  requestAnimationFrame(sample);
 });
 const page=await context.newPage(),errors=[],events=[],reports=[],projects=new Map(),uploads=new Map();let profile=null,revision=0;const assetRequests=[];
-let refreshRequests=0;
+let refreshRequests=0,projectReads=0;
 page.on('request', req=>assetRequests.push(new URL(req.url()).pathname));
 page.setDefaultTimeout(60000);
 const user={id:'11111111-1111-4111-8111-111111111111',aud:'authenticated',email:'user@example.org',app_metadata:{provider:'email',providers:['email']},user_metadata:{},identities:[],created_at:new Date().toISOString()};
@@ -48,11 +48,17 @@ const mockTransport = async route=>{
  if(u.pathname==='/rest/v1/projects'){
   const id=u.searchParams.get('id')?.replace('eq.','');
   if(req.method()==='DELETE'){projects.delete(id);return json(null);}
+  if(id)projectReads++;
   return json(id?projects.get(id):[...projects.values()]);
  }
  if(u.pathname==='/rest/v1/datasets'){if(req.method()==='POST')return json(null,201);return json([]);}
  if(u.pathname==='/rest/v1/bug_reports'){reports.push(body);return json({id:'report-1'},201);}
- if(u.pathname.startsWith('/storage/v1/object/')){uploads.set(u.pathname,req.postData());return json({Key:u.pathname},200);}
+ if(u.pathname.startsWith('/storage/v1/object/')){
+  const path=u.pathname.replace('/object/authenticated/','/object/');
+  if(req.method()==='GET')return route.fulfill({status:200,contentType:'application/json',body:uploads.get(path)});
+  const form=await new Response(req.postDataBuffer(),{headers:{'Content-Type':req.headers()['content-type']}}).formData();
+  uploads.set(path,await form.get('').text());return json({Key:path},200);
+ }
  throw new Error(`Unhandled ${req.method()} ${u.pathname}`);
 };
 await context.route('https://cloud-test.supabase.co/**',mockTransport);
@@ -198,7 +204,7 @@ try{
  assert.equal(await failed.locator('#dataset').count(),0);await unavailable.close();
  // A second device has no cookies, localStorage or IndexedDB from this one.
  user.user_metadata.full_name='Test Author';
- const device=await browser.newContext({viewport:{width:1440,height:1000}});
+ const device=await browser.newContext({viewport:{width:1440,height:1000},deviceScaleFactor:2});
  await device.route('https://cloud-test.supabase.co/**',mockTransport);
  const other=await device.newPage();await other.goto(origin);
  await other.getByLabel('Email',{exact:true}).fill(user.email);
@@ -213,6 +219,34 @@ try{
  await expect(other.locator('.code-panel')).toHaveCSS('--code-font-size','12px');
  await expect(other.locator('.authoring-area')).toHaveAttribute('style',/grid-template-columns/);
  await other.screenshot({path:'output/cloud-testing/account-layout-restored.png'});
+ // Legacy 240×160 PNGs must be redrawn from the saved project, not enlarged or
+ // sharpened. This device has no local project/dataset, exercising storage too.
+ const previewed=[...projects.values()][0],originalThumbnail=previewed.thumbnail;
+ previewed.thumbnail=await other.evaluate(async src=>{
+  const image=new Image();image.src=src;await image.decode();
+  const canvas=document.createElement('canvas');canvas.width=240;canvas.height=160;
+  const ctx=canvas.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,240,160);
+  const scale=Math.min(240/image.width,160/image.height);
+  ctx.drawImage(image,(240-image.width*scale)/2,(160-image.height*scale)/2,image.width*scale,image.height*scale);
+  return canvas.toDataURL('image/png');
+ },originalThumbnail);
+ const savedBeforePreviews=JSON.stringify([...projects.values()]);
+ const datasetBeforePreviews=await other.locator('#dataset').inputValue();
+ await other.locator('#workspace-menu').click();
+ const repaired=other.locator('.cloud-project img');await repaired.scrollIntoViewIfNeeded();
+ await expect.poll(()=>repaired.evaluate(image=>Math.max(image.naturalWidth/1120,image.naturalHeight/720)),{timeout:30000}).toBeGreaterThan(.5);
+ await expect(repaired).toHaveCSS('object-position','50% 50%');
+ await expect(repaired).toHaveCSS('height','180px');
+ const repairedSource=await repaired.getAttribute('src');assert.notEqual(repairedSource,previewed.thumbnail);
+ assert.equal(JSON.stringify([...projects.values()]),savedBeforePreviews,'Rendering saved thumbnails must never create or change project revisions');
+ assert.equal(await other.locator('#dataset').inputValue(),datasetBeforePreviews,'Rendering a thumbnail must not open its project');
+ await other.screenshot({path:'output/cloud-testing/legacy-thumbnail-repaired-2x.png'});
+ await other.locator('dialog.workspace-drawer[open]').getByRole('button',{name:'Close',exact:true}).click();
+ const readsBeforeCache=projectReads;
+ await other.locator('#workspace-menu').click();
+ await expect(other.locator('.cloud-project img')).toHaveAttribute('src',repairedSource);
+ assert.equal(projectReads,readsBeforeCache,'Reopening the menu must reuse the derived thumbnail without downloading/replaying the project');
+ previewed.thumbnail=originalThumbnail;
  await device.close();
  const second=await context.newPage();await second.goto(origin);await second.locator('#current canvas').waitFor();
  await expect(second.locator('#auth-gate')).toBeHidden();
@@ -344,7 +378,7 @@ try{
  await page.locator('#workspace-menu').click();
  const carsItem=page.locator('.cloud-project').filter({has:page.getByRole('button',{name:'Open My saved cars',exact:true})});
  const image=carsItem.locator('img');await expect(image).toBeVisible();
- await expect(image).toHaveCSS('object-position','0% 50%');
+ await expect(image).toHaveCSS('object-position','50% 50%');
  const imageBox=await image.boundingBox(),openBox=await carsItem.locator('.cloud-project-open').boundingBox();
  assert.ok(Math.abs(imageBox.width-openBox.width)<2);assert.ok(imageBox.height>100);
  await carsItem.getByRole('button',{name:'Rename My saved cars',exact:true}).dblclick();

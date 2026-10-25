@@ -212,6 +212,26 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     await packing; current = { id: crypto.randomUUID(), title, revision: 0 };
     if (user) await local.put(activeKey(user.id), current); notify();
   }
+  // Thumbnail repair reads only the selected dataset. It must never activate a
+  // project, replay its history, or create an autosave/research revision.
+  async function preview(row) {
+    const owner = user?.id;
+    const checkOwner = () => { if (!owner || switching || user?.id !== owner) throw new Error('Account changed.'); };
+    checkOwner(); await packing; checkOwner();
+    const head = await local.get(`head:${owner}:${row.id}`), cached = await local.get(`remote:${owner}:${row.id}`);
+    const jobs = await Promise.all((await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).map(k => local.get(k)));
+    checkOwner();
+    let snapshot;
+    if (head?.localSnapshot && jobs.some(job => job?.id === row.id)) snapshot = head.localSnapshot;
+    else if (cached && cached.revision === row.revision) snapshot = cached.snapshot;
+    else if (navigator.onLine) snapshot = fail(await client.from('projects').select('snapshot').eq('id', row.id).single())?.snapshot;
+    else snapshot = cached?.snapshot ?? head?.localSnapshot;
+    checkOwner();
+    const active = snapshot?.datasets.find(dataset => dataset.id === snapshot.activeId);
+    if (!active) throw new Error('Project preview unavailable.');
+    const project = await hydrate({ ...snapshot, datasets: [active] }, navigator.onLine);
+    checkOwner(); return project.datasets[0];
+  }
   function rename(title, id = current?.id) {
     const owner = user?.id, name = title.trim().slice(0, 160);
     if (!owner || !id) return Promise.reject(new Error('Create a visualization first.'));
@@ -255,12 +275,13 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   document.addEventListener('visibilitychange', hidden);
   return { configured: true, client, local, release, recovery, get user() { return user; }, get profile() { return profile; },
     get current() { return current; }, get loaded() { return loaded; }, record, save, consent, drain, open, newProject, rename,
-    list,
+    list, preview,
     datasets: async () => fail(await client.from('datasets').select('id,name,path,hash,created_at').order('created_at', { ascending: false })),
     loadDataset: async row => JSON.parse(await fail(await client.storage.from('workspace').download(row.path)).text()),
     remove: async id => { await packing; await drain(); fail(await client.from('projects').delete().eq('id', id));
       for (const key of await local.keys()) if (key.startsWith(`job:${user.id}:`) && (await local.get(key)).id === id) await local.remove(key);
       await local.remove(`head:${user.id}:${id}`); await local.remove(`remote:${user.id}:${id}`);
+      await local.remove(`thumbnail:${user.id}:${id}`);
       const cached = await local.get(`projects:${user.id}`); if (cached) await local.put(`projects:${user.id}`, cached.filter(row => row.id !== id));
       if (current?.id === id) await newProject(); },
     async report({ kind, title, description, project, shareData }) {

@@ -95,6 +95,41 @@ test('Report without dataset permission strips inline data and storage paths as 
  const context=reportContext({datasets:[{importRef:{path:'private',hash:'abc'},metadata:{sourceTable:[['secret']]},session:{calls:[{method:'createData',args:{values:[{secret:1}]}}]}}]});
  assert.ok(!JSON.stringify(context).includes('private'));assert.ok(!JSON.stringify(context).includes('secret'));assert.ok(JSON.stringify(context).includes('createData'));
 });
+test('thumbnail reads preserve the workspace and revisions, hydrate only the active dataset, and use pending offline work',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  await a.newProject('Previewed');await a.save(project(1),'small');online(true);await a.drain();
+  const first=a.current.id,row=structuredClone(m.remote.get(first));
+  await a.newProject('Active');await a.save(project(2),'active');await a.drain();
+  const current=structuredClone(a.current),calls=m.calls.length;
+  assert.deepEqual(await a.preview(row),project(1).datasets[0]);
+  // A fresh device downloads the active dataset only; older datasets may have
+  // unavailable objects and must not prevent this preview from being drawn.
+  await m.local.remove(`remote:test-user:${first}`);await m.local.remove(`head:test-user:${first}`);
+  for(const key of [...m.map.keys()].filter(k=>k.startsWith('data:')))await m.local.remove(key);
+  row.snapshot.datasets.push({id:'other',importRef:{hash:'missing',path:'missing.json'}});m.remote.set(first,row);
+  const downloads=[];m.client.storage.from=()=>({download:async path=>{
+   downloads.push(path);assert.notEqual(path,'missing.json');return {data:new Blob([JSON.stringify(imported)])};
+  }});
+  assert.deepEqual(await a.preview(row),project(1).datasets[0]);assert.equal(downloads.length,1);
+  assert.deepEqual(a.current,current);assert.deepEqual(await m.local.get('active:test-user'),current);
+  assert.equal(m.calls.length,calls);assert.equal(m.remote.get(first).revision,row.revision);
+  online(false);await a.save(project(3),'pending');const before=m.calls.length;
+  assert.deepEqual((await a.preview({id:current.id,revision:current.revision})).session.entries[0].calls,[3]);
+  assert.equal(m.calls.length,before);
+ }finally{a.destroy();}
+});
+test('a thumbnail read cannot complete across an account change',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  await a.save(project(1));online(true);await a.drain();const row=m.remote.get(a.current.id);
+  for(const key of [...m.map.keys()].filter(k=>k.startsWith('data:')))await m.local.remove(key);
+  let release;m.client.storage.from=()=>({download:async()=>new Promise(resolve=>{release=()=>resolve({data:new Blob([JSON.stringify(imported)])})})});
+  const reading=assert.rejects(a.preview(row),/Account changed/);await pause();
+  m.listener('SIGNED_IN',{user:{id:'second'}});await pause();release();await reading;
+  assert.equal(a.user.id,'second');assert.equal(a.current,undefined);
+ }finally{a.destroy();}
+});
 test('A rejected persisted session cannot restore an account or private draft',async()=>{
  environment();const m=mock();m.client.auth.getUser=async()=>({data:{user:null},error:{status:401,message:'Invalid token'}});
  const a=await createAccount({...m,config});

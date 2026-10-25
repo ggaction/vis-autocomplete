@@ -142,6 +142,7 @@ try{
  await dialog().getByLabel('Project name',{exact:true}).fill('Cars exploration');
  await dialog().getByLabel('Project name',{exact:true}).press('Enter');
  await page.getByRole('button',{name:'Select column Horsepower',exact:true}).click();
+ await expect(page.locator('#upload')).toBeHidden();await expect(page.locator('#dataset')).toBeHidden();
  await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');
  assert.equal(events.length,0);assert.ok(projects.size===1);assert.ok(uploads.size===1);
  assert.equal([...projects.values()][0].title,'Cars exploration');
@@ -285,8 +286,13 @@ try{
  await expect(dialog().getByLabel('Project name',{exact:true})).toHaveCount(0);await close();
  await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');await expect.poll(()=>[...projects.values()][0]?.title).toBe('My saved cars');
  const carsId=[...projects.values()][0].id;
+ await expect(page.locator('#upload')).toBeHidden();await expect(page.locator('#dataset')).toBeHidden();
+ const savedCars=structuredClone(projects.get(carsId));
+ await page.locator('#workspace-menu').click();await dialog().getByRole('button',{name:'New visualization',exact:true}).click();
+ await expect(page.locator('#upload')).toBeVisible();await expect(page.locator('#dataset')).toBeVisible();
  // Upload opens a keyboard-accessible drop zone, rather than opening the file
- // picker immediately. Every rejection/cancel must preserve the active chart.
+ // picker immediately. Every rejection/cancel must preserve the empty workspace
+ // and leave the previous saved visualization untouched.
  const beforeUpload=await page.locator('#code-content').innerText(),beforeUrl=page.url();
  const uploadDialog=()=>page.getByRole('dialog',{name:'Upload dataset',exact:true});
  const dropZone=()=>page.getByRole('button',{name:'Choose a dataset file',exact:true});
@@ -329,7 +335,7 @@ try{
  const outside=await transfer([{name:'valid.csv',text:'x,y\n1,2'}]);
  assert.equal(await page.evaluate(data=>document.dispatchEvent(new DragEvent('drop',{dataTransfer:data,bubbles:true,cancelable:true})),outside),false);
  await outside.dispose();await expect(uploadDialog().getByRole('status')).toContainText('inside the dashed area');
- assert.equal(page.url(),beforeUrl);await expect(page.locator('#dataset')).toHaveValue('cars');
+ assert.equal(page.url(),beforeUrl);await expect(page.locator('#dataset')).toHaveValue('');
  await page.screenshot({path:'output/cloud-testing/upload-dataset-error.png'});
  await page.keyboard.press('Escape');await expect(uploadDialog()).toHaveCount(0);await expect(page.locator('#upload')).toBeFocused();
  assert.equal(await page.locator('#code-content').innerText(),beforeUpload);
@@ -347,7 +353,7 @@ try{
  await expect(dialog().getByRole('button',{name:'Use dataset',exact:true})).toBeEnabled();
  await expect(dialog().getByRole('status')).toContainText('2 rows');
  await dialog().getByRole('button',{name:'Cancel',exact:true}).click();
- await expect(page.locator('#dataset')).toHaveValue('cars');assert.equal(await page.locator('#code-content').innerText(),beforeUpload);
+ await expect(page.locator('#dataset')).toHaveValue('');assert.equal(await page.locator('#code-content').innerText(),beforeUpload);
  const excelMime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
  const workbookData=sampleWorkbook();
  await page.locator('#upload').click();
@@ -372,8 +378,8 @@ try{
  await expect(dialog().getByLabel('Recorded: type',{exact:true})).toHaveValue('auto');
  await expect(dialog().getByLabel('Recorded: type',{exact:true}).locator('option:checked')).toHaveText('Auto → temporal');
  await dialog().getByRole('button',{name:'Cancel',exact:true}).click();
- await expect(page.locator('#dataset')).toHaveValue('cars');assert.equal(await page.locator('#code-content').innerText(),beforeUpload);
- await page.locator('#workspace-menu').click();await dialog().getByRole('button',{name:'New visualization',exact:true}).click();
+ await expect(page.locator('#dataset')).toHaveValue('');assert.equal(await page.locator('#code-content').innerText(),beforeUpload);
+ assert.deepEqual(projects.get(carsId),savedCars);
  await page.locator('#upload').click();
  const [csvChooser]=await Promise.all([page.waitForEvent('filechooser'),dropZone().click()]);
  await csvChooser.setFiles({name:'Quarterly sales.csv',mimeType:'text/csv',buffer:Buffer.from('Month,Sales,Cost\nJan,120,90\nFeb,150,100\nMar,180,130\n')});
@@ -384,6 +390,15 @@ try{
  await dialog().getByRole('button',{name:'Create project',exact:true}).click();
  await page.getByRole('button',{name:'Select column Sales',exact:true}).click();
  await expect.poll(()=>[...projects.values()].some(row=>row.title==='Sales study')).toBe(true);
+ await expect(page.locator('#upload')).toBeHidden();await expect(page.locator('#dataset')).toBeHidden();
+ // A new dataset now belongs to a new visualization. Delete this completed CSV
+ // fixture through the UI before starting the Excel restoration fixture.
+ await page.locator('#workspace-menu').click();
+ await dialog().getByRole('checkbox',{name:'Select Sales study',exact:true}).check();
+ await dialog().getByRole('button',{name:'Delete',exact:true}).click();
+ await dialog().getByRole('button',{name:'Delete',exact:true}).click();
+ await expect.poll(()=>projects.size).toBe(1);await close();
+ await expect(page.locator('#upload')).toBeVisible();await expect(page.locator('#dataset')).toBeVisible();
  // Import the chosen second sheet, author a chart, then restore it and its
  // schema from the saved account draft. Other worksheets never enter storage.
  await page.locator('#upload').click();
@@ -392,6 +407,8 @@ try{
  await uploadDialog().getByRole('button',{name:'Use sheet',exact:true}).click();
  await expect(dialog().getByRole('status')).toContainText('2 rows · 3 fields');
  await page.getByRole('button',{name:'Use dataset',exact:true}).click();
+ await dialog().getByLabel('Project name',{exact:true}).fill('Sales study');
+ await dialog().getByRole('button',{name:'Create project',exact:true}).click();
  for(const field of ['Units','Price'])await page.getByRole('button',{name:`Select column ${field}`,exact:true}).click();
  const excelCard=page.locator('#cards .card[data-method="createScatterPlot"]').first();
  await excelCard.hover();await excelCard.locator('.apply-button').click();
@@ -401,6 +418,7 @@ try{
   return project?.snapshot.datasets.find(dataset=>dataset.id===project.snapshot.activeId)?.session?.entries.at(-1)?.calls.some(call=>call.method==='createScatterPlot');
  },{timeout:30000}).toBe(true);
  await page.reload();await page.locator('#current canvas').waitFor();
+ await expect(page.locator('#upload')).toBeHidden();await expect(page.locator('#dataset')).toBeHidden();
  // Account restore must render committed code without a hover or pointer event.
  await expect(page.locator('html')).toHaveAttribute('data-view-mode','transition');
  await expect(page.locator('#code-content')).toContainText('createScatterPlot');

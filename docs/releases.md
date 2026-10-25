@@ -26,6 +26,8 @@ The workflow fails closed if this secret is missing. Storing the secret does not
 
 Production release jobs are serialized. Push one release tag at a time and wait for it to finish; GitHub concurrency groups retain only one pending run. Never force-move a released tag. A workflow retry skips a published release, or skips re-deployment if the exact commit is already healthy. If a deploy-hook request had an unknown outcome, inspect Render before retrying. To roll back, explicitly choose the desired commit/version and verify compatibility with the database.
 
+`npm test` runs every test file with four concurrent processes and a 512 MB heap per process. Keep these bounds when running the exhaustive recommendation checks: an unbounded heap delays collection of their many temporary chart programs and can spend minutes in weak-reference table maintenance. Production CI uses Node 22.
+
 Tags do **not** automatically apply database migrations or Blueprint configuration changes. Review and apply backward-compatible infrastructure/schema changes separately before releasing a version that needs them. This avoids granting deployment code database-owner access. Changes to runtime assets are included by the normal Docker build.
 
 Native favicon source: `web/icons/favicon.svg`. Regenerate the committed PNG fallbacks with `node scripts/build-icons.js`; these are required runtime assets, not audit output.

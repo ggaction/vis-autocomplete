@@ -112,6 +112,9 @@ try{
  await dialog().getByRole('checkbox').uncheck();await dialog().getByRole('button',{name:'Continue',exact:true}).click();
  await expect.poll(()=>profile?.research_enabled).toBe(false);
  await page.getByRole('heading',{name:'Help improve visualization authoring',exact:true}).waitFor({state:'hidden'});
+ await expect(page.locator('#view-mode [data-mode="transition"]')).toHaveAttribute('aria-pressed','true');
+ await expect(page.locator('html')).toHaveAttribute('data-view-mode','transition');
+ await expect(page.locator('html')).toHaveAttribute('data-workspace-layout','vertical');
  await page.locator('#dataset').selectOption('cars');await page.getByRole('button',{name:'Select column Horsepower',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved to your account');
  assert.equal(events.length,0);assert.ok(projects.size===1);assert.ok(uploads.size===1);
@@ -126,6 +129,13 @@ try{
  assert.ok([...projects.values()][0].thumbnail.startsWith('data:image/png;base64,'));
  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download current visualization as SVG',exact:true}).click();
  assert.match((await download).suggestedFilename(),/\.svg$/);
+ // The new default must not replace an explicitly saved Preview preference.
+ await page.locator('#view-mode [data-mode="preview"]').click();
+ await expect.poll(()=>user.user_metadata.vis_view_mode).toBe('preview');
+ await reloadWorkspace();
+ await expect(page.locator('#view-mode [data-mode="preview"]')).toHaveAttribute('aria-pressed','true');
+ await expect(page.locator('html')).toHaveAttribute('data-view-mode','preview');
+ await expect(page.locator('html')).toHaveAttribute('data-workspace-layout','horizontal');
  // View preferences belong to the account, not to the current chart/history.
  const revisionBeforeViews=[...projects.values()][0].revision;
  await page.locator('#view-mode [data-mode="transition"]').click();

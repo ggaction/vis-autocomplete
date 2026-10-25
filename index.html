@@ -8,9 +8,12 @@
   <script>
     // Restore view geometry before CSS or the application module can paint.
     (() => {
-      let mode = 'preview';
+      let mode = 'transition';
       const layouts = { preview: 'horizontal', transition: 'vertical' };
-      try { if (localStorage.getItem('vis-autocomplete.view-mode') === 'transition') mode = 'transition'; } catch {}
+      try {
+        const saved = localStorage.getItem('vis-autocomplete.view-mode');
+        if (['preview', 'transition'].includes(saved)) mode = saved;
+      } catch {}
       try {
         const saved = JSON.parse(localStorage.getItem('vis-autocomplete.workspace-layout'));
         for (const key of Object.keys(layouts)) {
@@ -115,8 +118,8 @@
       </div></details>
       <input id="project-file" type="file" accept=".json,.visauto,application/json" hidden>
     </div>
-    <div id="view-mode" class="view-mode" role="group" aria-label="Visualization mode"><button type="button" data-mode="preview" aria-pressed="true">Preview mode</button><button type="button" data-mode="transition" aria-pressed="false">Transition mode</button></div>
-    <div id="workspace-layout" class="view-mode" role="group" aria-label="Workspace layout"><button type="button" data-layout="horizontal" aria-pressed="true" title="Charts above a horizontal row of options">Horizontal</button><button type="button" data-layout="vertical" aria-pressed="false" title="Charts on the left, two rows of options on the right">Vertical</button></div>
+    <div id="view-mode" class="view-mode" role="group" aria-label="Visualization mode"><button type="button" data-mode="preview" aria-pressed="false">Preview mode</button><button type="button" data-mode="transition" aria-pressed="true">Transition mode</button></div>
+    <div id="workspace-layout" class="view-mode" role="group" aria-label="Workspace layout"><button type="button" data-layout="horizontal" aria-pressed="false" title="Charts above a horizontal row of options">Horizontal</button><button type="button" data-layout="vertical" aria-pressed="true" title="Charts on the left, two rows of options on the right">Vertical</button></div>
     <script>
       for (const button of document.querySelectorAll('#view-mode [data-mode], #workspace-layout [data-layout]')) {
         const selected = button.dataset.mode ? document.documentElement.dataset.viewMode : document.documentElement.dataset.workspaceLayout;

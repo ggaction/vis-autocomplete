@@ -7,8 +7,8 @@ import { createLRU } from '../src/cache.js';
 const storageKey = 'vis-autocomplete.view-mode';
 
 export function createTransitionMode({host,layout,toggle,getBaseline,getCandidate,busy,onChange,onError}) {
-  let enabled=false,player=null,surface=null,version=0,returning=false;
-  try { enabled=readViewPreference(storageKey)==='transition'; } catch { /* Optional preference. */ }
+  let enabled=true,player=null,surface=null,version=0,returning=false;
+  try { enabled=readViewPreference(storageKey)!=='preview'; } catch { /* Optional preference. */ }
   function paintMode() {
     document.documentElement.dataset.viewMode=enabled?'transition':'preview';
     layout.classList.toggle('transition-mode',enabled);

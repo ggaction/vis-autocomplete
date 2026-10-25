@@ -125,7 +125,7 @@ export function initializeAccountViewPreferences(account) {
   let storage; try { storage = globalThis.localStorage; } catch { /* Optional cache. */ }
   const prefs = active = createViewPreferences({ user: account.user, storage,
     save: (patch, id) => account.saveViewPreferences(patch, id), isOwner: () => account.user?.id === owner });
-  const mode = prefs.getItem(prefix + 'view-mode') === 'transition' ? 'transition' : 'preview';
+  const mode = prefs.getItem(prefix + 'view-mode') === 'preview' ? 'preview' : 'transition';
   const layouts = JSON.parse(prefs.getItem(prefix + 'workspace-layout') ?? '{}');
   document.documentElement.dataset.viewMode = mode;
   document.documentElement.dataset.workspaceLayout = layouts[mode] ?? (mode === 'transition' ? 'vertical' : 'horizontal');

@@ -59,7 +59,7 @@ export function createChartZoom(host, toolbar, { busy = () => false, onChange = 
     event.preventDefault();
     const rect = clip.getBoundingClientRect();
     const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1);
-    change(camera.zoom * Math.exp(-Math.max(-200, Math.min(200, delta)) * .002),
+    change(camera.zoom * Math.exp(-Math.max(-200, Math.min(200, delta)) * .0022),
       { x: event.clientX - rect.left - rect.width / 2, y: event.clientY - rect.top - rect.height / 2 });
   }, { passive: false });
   clip.addEventListener('pointerdown', event => {

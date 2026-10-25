@@ -91,7 +91,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       // Named owners of the same channel stay in one real aggregate call.
       if (axes[channel]) axes[channel] = [...(Array.isArray(axes[channel]) ? axes[channel] : [axes[channel]]), entry];
       else axes[channel] = entry;
-      axisContexts[channel] = { fieldType: encoding[channel]?.fieldType, field: encoding[channel]?.field,
+      axisContexts[channel] = { visibility: config.visibility ?? {}, fieldType: encoding[channel]?.fieldType, field: encoding[channel]?.field,
         position: axis.position ?? config.line?.position ?? config.labels?.position ?? config.ticks?.position ?? config.title?.position, ticks: config.ticks?.count ?? 5, offset: config.labels.offset ?? 8, lineWidth: config.line?.lineWidth ?? 1 };
     }
     if (coordinate?.type === 'parallel') {
@@ -99,6 +99,11 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       axes.parallel = dimensions.map(dimension => ({ target, field: dimension.field,
         labels: { fontSize: 11 } }));
       if (!axes.parallel.length) delete axes.parallel;
+      else {
+        const retained = program.guideConfigs.axis?.parallel?.axes?.dimensions ?? [];
+        axisContexts.parallel = { visibility: Object.fromEntries(['all','line','ticks','labels','title'].map(part =>
+          [part, retained.every(dimension => dimension.visibility?.[part] !== false)])) };
+      }
     }
     if (Object.keys(axes).length) {
       add('editAxes', 'action.editAxes', 'guide', '기존 축 표시 수정', axes);
@@ -115,7 +120,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       add('editLegend', 'action.editLegend', 'guide', '기존 범례의 배치와 글자 수정',
         { target, channel, position: config?.position === 'top-right' ? 'right' : 'top-right',
           labels: { fontSize: config?.labels?.fontSize ?? 12 } }, inspectionTarget);
-      candidates.at(-1).guideContext = { channel, title: legend.title ?? channel,
+      candidates.at(-1).guideContext = { visibility: config?.visibility ?? {}, channel, title: legend.title ?? channel,
         categorical: ['nominal', 'ordinal'].includes(encoding[channel]?.fieldType),
         sharedFacetLegend: Boolean(program.compositionSpec?.facet && program.compositionSpec.facet.guides.legend !== false),
         itemCount: program.resolvedScales[encoding[channel]?.scale]?.domain?.length ?? 1,
@@ -126,7 +131,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
     for (const [direction] of directions) {
       add('editGrid', 'action.editGrid', 'guide', '기존 그리드 표시 수정',
         { [direction]: { color: '#cbd5e1', lineWidth: 1.5 } });
-      candidates.at(-1).guideContext = { direction, directions: directions.map(([key]) => key) };
+      candidates.at(-1).guideContext = { visible: program.guideConfigs.grid?.[direction]?.visible !== false, direction, directions: directions.map(([key]) => key) };
     }
     // Titles describe the public measurement roles, never materialized aliases
     // such as a violin's density sampling value or an endpoint's summary field.

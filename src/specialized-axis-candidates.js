@@ -19,6 +19,7 @@ export function specializedAxisCandidates(program, layer) {
         { ...number('ticksAndLabels.count', 'Ticks', dimension.ticks?.count ?? 5, 2, 12),
           whenPath: { path: 'field', values: numericDimensions } },
         number('line.lineWidth', 'Axis width', dimension.line?.lineWidth ?? 1, 0, 5, .25)], 'Adjust parallel axis');
+      out.at(-1).guideContext = { visibility: dimension.visibility ?? {} };
     }
   }
   if (coordinate?.type !== 'polar') return out;
@@ -36,6 +37,7 @@ export function specializedAxisCandidates(program, layer) {
       number('line.lineWidth', 'Axis width', config.line?.lineWidth ?? 1, 0, 5, .25),
       ...(!discrete ? [number('ticksAndLabels.count', 'Ticks', config.ticks?.count ?? 5, 2, 12)] : [])],
     channel === 'theta' ? 'Adjust angular axis' : 'Adjust radial axis');
+    out.at(-1).guideContext = { visibility: config.visibility ?? {} };
     if (config.labels) add(`${prefix}Labels`, { ...target, fontSize: size }, [
       number('fontSize', 'Label size', size, 8, 18),
       number('offset', 'Offset', config.labels.offset ?? 8, 0, 30),

@@ -531,11 +531,11 @@ export function recommendationParameters(recommendation, profile) {
       numeric('width', 'Line width', args[direction]?.lineWidth ?? 1.5, 0, 4, .25),
       select('dash', 'Line style', [{ value: [], label: 'Solid' }, { value: [6, 4], label: 'Dashed' }, { value: [2, 3], label: 'Dotted' }], args[direction]?.strokeDash ?? [])];
     // Direction chooses visible grids, not just which existing grid to restyle.
-    // Keep the opposite guide at zero width so automatic guides cannot recreate it.
+    // Visibility keeps the previous direction style available when switched back.
     build = v => Object.fromEntries(directions.map(key => [key,
       v.direction === 'both' || v.direction === key
-        ? { ...clone()[key], color: v.color, lineWidth: v.width, strokeDash: v.dash }
-        : { lineWidth: 0 }]));
+        ? { ...clone()[key], visible: true, color: v.color, lineWidth: v.width, strokeDash: v.dash }
+        : { visible: false }]));
   } else if (method === 'createAxes') {
     const categoricalAxis = axis => ['nominal', 'ordinal'].includes(fields.get(recommendation.axisFields?.[axis])?.type);
     controls = ['x', 'y'].map(axis => categoricalAxis(axis)
@@ -626,6 +626,52 @@ export function recommendationParameters(recommendation, profile) {
     build = clone;
   }
   // Keep argument construction flat; grouping only changes the visible editor.
+  // Inline visibility switches share the existing parameter rows. All builders
+  // still emit exactly one public action; presets and generic cards use this too.
+  const axisEditors = ['editAxes', 'editXAxis', 'editYAxis', 'editThetaAxis', 'editRadialAxis', 'editParallelAxis'];
+  const toggle = (control, key, label, caption, value = true) => {
+    if (!control) return;
+    control.toggles = [...(control.toggles ?? []), { key, label, caption, value, defaultPolicy: 'context' }];
+  };
+  const leaves = controls.flatMap(c => c.type === 'group' ? c.controls : [c]);
+  if (axisEditors.includes(method)) {
+    const contexts = method === 'editAxes' ? Object.values(recommendation.guideContext?.axes ?? {}) : [recommendation.guideContext ?? {}];
+    const enabled = part => contexts.every(context => context.visibility?.[part] !== false);
+    toggle(leaves[0], 'guideVisible', 'Axes', 'Axes', enabled('all'));
+    toggle(leaves.find(c => /Label size/i.test(c.label)), 'labelsVisible', 'Labels', '', enabled('labels'));
+    toggle(leaves.find(c => /Axis width/i.test(c.label)), 'lineVisible', 'Axis line', '', enabled('line'));
+    toggle(leaves.find(c => c.label === 'Ticks'), 'ticksVisible', 'Ticks', '', enabled('ticks'));
+    toggle(leaves.find(c => /offset/i.test(c.label)) ?? leaves[0], 'titlesVisible', 'Titles', 'Titles', enabled('title'));
+    const baseBuild = build;
+    const apply = (out, v) => ({ ...out, visible: v.guideVisible,
+      ...(v.lineVisible === undefined ? {} : { line: { ...(out.line || {}), visible: v.lineVisible } }),
+      title: { ...(out.title || {}), visible: v.titlesVisible },
+      ...(out.ticksAndLabels ? { ticksAndLabels: { ...out.ticksAndLabels,
+        labels: { ...out.ticksAndLabels.labels, visible: v.labelsVisible },
+        ...(v.ticksVisible === undefined ? {} : { ticks: { ...out.ticksAndLabels.ticks, visible: v.ticksVisible } }),
+      } } : { labels: { ...out.labels, visible: v.labelsVisible },
+        ...(v.ticksVisible === undefined ? {} : { ticks: { ...out.ticks, visible: v.ticksVisible } }) }),
+    });
+    build = v => {
+      const out = baseBuild(v);
+      return method === 'editAxes' ? Object.fromEntries(Object.entries(out).map(([channel, entry]) =>
+        [channel, Array.isArray(entry) ? entry.map(item => apply(item, v)) : apply(entry, v)])) : apply(out, v);
+    };
+  } else if (method === 'editLegend') {
+    const visibility = recommendation.guideContext?.visibility ?? {};
+    toggle(leaves[0], 'guideVisible', 'Legend', 'Legend', visibility.all !== false);
+    toggle(leaves.find(c => /Label size/i.test(c.label)), 'labelsVisible', 'Labels', '', visibility.labels !== false);
+    toggle(leaves.find(c => /Item gap/i.test(c.label)), 'titlesVisible', 'Title', 'Title', visibility.titleStyle !== false);
+    const baseBuild = build;
+    build = v => { const out = baseBuild(v); return { ...out, visible: v.guideVisible,
+      labels: { ...out.labels, visible: v.labelsVisible }, titleStyle: { ...out.titleStyle, visible: v.titlesVisible } }; };
+  } else if (['editGrid', 'editHorizontalGrid', 'editVerticalGrid', 'editThetaGrid', 'editRadialGrid'].includes(method)) {
+    toggle(leaves[0], 'guideVisible', 'Grid', 'Grid', recommendation.guideContext?.visible !== false);
+    const baseBuild = build;
+    build = v => { const out = baseBuild(v); return method === 'editGrid'
+      ? Object.fromEntries(Object.entries(out).map(([direction, style]) => [direction, { ...style, visible: v.guideVisible && style.visible !== false }]))
+      : { ...out, visible: v.guideVisible }; };
+  }
   const groupControls = list => {
     const seen = new Set();
     const grouped = list.flatMap(control => {
@@ -756,6 +802,9 @@ export function recommendationParameters(recommendation, profile) {
     const values = { ...input };
     if (method === 'editLegend' && changedKey === 'channel') {
       const context = legendContextFor(values);
+      values.guideVisible = context.visibility?.all !== false;
+      values.labelsVisible = context.visibility?.labels !== false;
+      values.titlesVisible = context.visibility?.titleStyle !== false;
       values.showAll = !context.overflow;
       values.maxItems = context.overflow?.maxItems ?? Math.min(6, context.itemCount ?? 6);
     }
@@ -836,12 +885,20 @@ export function recommendationParameters(recommendation, profile) {
 }
 
 export function valuesFor(controls) {
-  return Object.fromEntries(controls.flatMap(c => c.type === 'group' ? Object.entries(valuesFor(c.controls)) : [[c.key, structuredClone(c.value)]]));
+  return Object.fromEntries(controls.flatMap(c => [
+    ...(c.toggles ?? []).map(toggle => [toggle.key, toggle.value]),
+    ...(c.type === 'group' ? Object.entries(valuesFor(c.controls)) : [[c.key, structuredClone(c.value)]]),
+  ]));
 }
 
 export function activeControls(controls, values) {
   return controls.filter(c => !c.when || c.when(values))
-    .flatMap(c => c.type === 'group' ? activeControls(c.controls, values) : [c]);
+    .flatMap(c => [
+      ...(c.toggles ?? []).map(toggle => ({ ...toggle, type: 'select', choices: [
+        { value: true, label: 'On' }, { value: false, label: 'Off' },
+      ] })),
+      ...(c.type === 'group' ? activeControls(c.controls, values) : [c]),
+    ]);
 }
 
 // A card may group native calls for one user decision. Each selected option

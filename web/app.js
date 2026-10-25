@@ -132,6 +132,7 @@ const parameterIntents = new WeakMap(), cardElements = new WeakMap();
 const rangeIntents = new WeakMap();
 const sliderHover = createSliderHover({ valid: (control, event) =>
   control?.isConnected && !state.loading && !state.committing && !state.resizing &&
+  !document.elementFromPoint(event.clientX, event.clientY)?.closest('.parameter-toggle') &&
   document.elementFromPoint(event.clientX, event.clientY)?.closest('.slider-control') === control });
 const cardMotion = createCardMotion();
 let selectedPreviewFrame = null;
@@ -760,7 +761,7 @@ function pinValues(card, values, changedKey, rebuild = true) {
     if (card.noticeElement) card.controlsElement.append(card.noticeElement);
     if (focusKey) {
       const field = [...card.controlsElement.querySelectorAll('[data-parameter]')].find(e => e.dataset.parameter === focusKey);
-      (field?.querySelector('[aria-pressed="true"]') ?? field?.querySelector('input, button'))?.focus({ preventScroll: true });
+      (field?.matches('button') ? field : field?.querySelector('[aria-pressed="true"]') ?? field?.querySelector('input, button'))?.focus({ preventScroll: true });
     }
   } else {
     const flatten = list => list.flatMap(c => c.type === 'group' ? flatten(c.controls) : [c]);
@@ -776,6 +777,30 @@ function addControl(card, definition, parent = card.controlsElement) {
   const fieldCount = definition.choices?.filter(choice => choice.fieldType).length;
   if (fieldCount) span.textContent += ` · ${fieldCount} variables`;
   label.append(span);
+  if (definition.toggles?.length) {
+    span.classList.add('control-caption');
+    const toggles = document.createElement('span'); toggles.className = 'parameter-toggles';
+    for (const toggle of definition.toggles) {
+      const button = document.createElement('button'); button.type = 'button';
+      button.className = 'parameter-choice parameter-toggle'; button.dataset.parameter = toggle.key;
+      button.setAttribute('role', 'switch'); button.setAttribute('aria-label', `${card.title}: ${toggle.label}`);
+      const refresh = () => {
+        const enabled = card.values[toggle.key] !== false;
+        button.setAttribute('aria-checked', String(enabled));
+        button.textContent = `${toggle.caption ?? ''}${toggle.caption ? ' ' : ''}${enabled ? 'On' : 'Off'}`;
+      };
+      const draft = () => ({ ...card.values, [toggle.key]: card.values[toggle.key] === false });
+      card.parameterButtons.push(button);
+      button.addEventListener('focus', () => selectCard(card));
+      button.addEventListener('blur', () => card.interaction.blur(button));
+      button.addEventListener('pointerdown', event => { event.stopPropagation(); sliderHover.reset(); });
+      button.addEventListener('click', event => {
+        event.stopPropagation(); pinValues(card, draft(), toggle.key);
+      });
+      card.controlRefreshers.push(refresh); refresh(); toggles.append(button);
+    }
+    span.append(toggles);
+  }
   if (definition.type === 'group') {
     for (const child of definition.controls) addControl(card, child, label);
   } else if (definition.type === 'swap') {
@@ -991,7 +1016,7 @@ function addControl(card, definition, parent = card.controlsElement) {
 async function createCard(spec, index) {
   const card = { ...spec, base: state.program, disabled: Boolean(spec.requirement),
     view: state.view, guideCall: state.guideCall,
-    values: structuredClone(spec.values ?? valuesFor(spec.controls)), prepared: null, error: '', controls: spec.controls, controlElements: [], parameterButtons: [] };
+    values: structuredClone(spec.values ?? valuesFor(spec.controls)), prepared: null, error: '', controls: spec.controls, controlElements: [], parameterButtons: [], controlRefreshers: [] };
   card.values = card.normalizeValues?.(card.values) ?? card.values;
   card.controls = card.resolveControls?.(card.values) ?? card.controls;
   card.interaction = createPreviewInteraction({ readPinned: () => card.values,
@@ -1811,7 +1836,7 @@ function routePointer(event) {
     pointerChoice = intent && !button.disabled ? { ...intent, button } : null;
     if (pointerChoice) pointerChoice.card.interaction.hover(button, pointerChoice.draft());
   }
-  const slider = event.target.closest('.slider-control');
+  const slider = event.target.closest('.parameter-toggle') ? null : event.target.closest('.slider-control');
   sliderHover.move(slider, event, rangeIntents.get(slider));
 }
 

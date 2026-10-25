@@ -294,11 +294,11 @@ test('grid controls offer Vertical, Horizontal and Both with matching native pre
         assert.ok(prepared.prerequisiteCalls.some(call => call.method === 'createGrid' && call.args.vertical));
       }
       for (const key of ['vertical', 'horizontal'].filter(key => !selected.includes(key))) {
-        assert.equal(args[key].lineWidth, 0);
-        assert.equal(committed.guideConfigs.grid[key].lineWidth, 0, 'the unselected direction must be hidden');
+        assert.equal(args[key].visible, false);
+        assert.equal(committed.guideConfigs.grid[key].visible, false, 'the unselected direction must be hidden');
         const graphic = committed.graphicSpec.objects[`${key}GridLines`];
         assert.ok(graphic.items.length > 0);
-        assert.ok(graphic.items.every(item => item.properties.strokeWidth === 0), 'no visible opposite grid lines');
+        assert.ok(graphic.items.every(item => item.properties.opacity === 0), 'no visible opposite grid lines');
       }
       const replay = prepared.prerequisiteCalls.reduce((program, call) => program[call.method](call.args), start.authoringPreview)
         .editGrid(args);

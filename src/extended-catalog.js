@@ -328,6 +328,7 @@ export function extendedCandidates(program, { layer, profile }) {
       number('line.lineWidth', 'Axis width', lineWidth, 0, 5, .25),
       ...(!discrete ? [number('ticksAndLabels.count', 'Ticks', current.ticks?.count ?? 5, 2, 12)] : []),
       { ...choices('position', 'Position', position ?? (channel === 'x' ? 'bottom' : 'left'), channel === 'x' ? ['bottom', 'top'] : ['left', 'right']), defaultPolicy: 'context' }]);
+    out.at(-1).guideContext = { visibility: current.visibility ?? {} };
     style(`${prefix}Labels`, { ...axisTarget, ...font(size), rotation: { value: degrees(current.labels?.rotation), unit: 'degrees' } },
       [number('fontSize', 'Label size', size, 8, 18), number('offset', 'Offset', labelOffset, 0, 30),
         number('rotation.value', 'Rotation', degrees(current.labels?.rotation), -90, 90, 5), color('color', 'Text color', labelColor)]);
@@ -348,6 +349,7 @@ export function extendedCandidates(program, { layer, profile }) {
     if (!program.semanticSpec.guides.grid?.[direction]) continue;
     style(`edit${direction[0].toUpperCase()}${direction.slice(1)}Grid`, { color: '#cbd5e1', lineWidth: 1.5 },
       [number('lineWidth', 'Width', 1.5, 0, 4, .25), color('color', 'Line color', '#cbd5e1'), dash('strokeDash')]);
+    out.at(-1).guideContext = { visible: program.guideConfigs.grid?.[direction]?.visible !== false };
   }
   // Focused scale editors are safer than changing a position scale's type in
   // place. They retain ownership and current field/aggregation policies.

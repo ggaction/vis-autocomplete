@@ -9,6 +9,7 @@ import { axisValueMeaning, creationAxisMeanings, sameAxisMeaning } from '../src/
 import { overlayCandidates } from '../src/overlay-candidates.js';
 import { adjacentPlacements, adjacentPlacementBounds, adjacentHandlePositions, placementLabel } from '../src/adjacent-placement.js';
 import { initialParameters, recommendationParameters } from './parameters.js';
+import { instantiatePlotData } from '../src/plot-setup.js';
 
 const fieldName = value => typeof value === 'string' ? value : value?.field;
 const at = (object, path) => path.split('.').reduce((node, key) => node?.[key], object);
@@ -78,6 +79,7 @@ export function adjacentSpecs(engine, adding, root) {
   const shared = sharedChannels(adding), fields = new Map(adding.profile.fields.map(field => [field.name, field]));
   return engine.recommend(adding.rows, adding.profile, { selection: adding.selection }).recommendations.map(spec => {
     const editor = initialParameters(spec);
+    const dataPlan = values => instantiatePlotData(editor.build(values), editor.setup?.(values) ?? [], adding.datasets, id);
     const flat = controls => controls.flatMap(c => c.type === 'group' ? flat(c.controls) : [c]);
     const inherited = { ...editor.values };
     // Preserve the source arrangement as the starting proposal when the chart
@@ -90,7 +92,8 @@ export function adjacentSpecs(engine, adding, root) {
     }
     Object.assign(inherited, editor.normalizeValues(inherited));
     const compatibleChannels = values => {
-      const meanings = creationAxisMeanings(spec.method, editor.build(values), fields, adding.datasets, editor.setup?.(values));
+      const plan = dataPlan(values);
+      const meanings = creationAxisMeanings(spec.method, plan.options, fields, adding.datasets, plan.calls);
       return shared.filter(channel => !['x', 'y'].includes(channel) || sameAxisMeaning(adding.axisMeanings[channel], meanings[channel]));
     };
     const effectiveChannels = values => [...new Set([...compatibleChannels(values), ...inheritedChannels(adding)])];
@@ -132,7 +135,7 @@ export function adjacentSpecs(engine, adding, root) {
       title: `Add ${editor.title}`, original: { nextContext: { childPath: [...receivingPath, id], target: id } },
       build: values => {
         values = normalizeValues(values);
-        const { id: _id, ...options } = editor.build(values);
+        const { id: _id, ...options } = dataPlan(values).options;
         const compatible = compatibleChannels(values), sharing = effectiveChannels(values);
         const inheritedMismatch = required.find(channel => ['x', 'y'].includes(channel) && !compatible.includes(channel));
         if (inheritedMismatch) throw new Error(`The parent group already shares ${inheritedMismatch.toUpperCase()}. Use the same field and aggregation, or release that group's shared scale first.`);
@@ -154,7 +157,7 @@ export function adjacentSpecs(engine, adding, root) {
           ...(['left', 'right'].includes(adding.position) ? { gap: 8 } : {}),
           ...(receivingPath.length ? { target: { childPath: receivingPath } } : {}) };
       },
-      setup: values => (editor.setup?.(values) ?? []).map(call => {
+      setup: values => dataPlan(normalizeValues(values)).calls.map(call => {
         const local = adding.faceted
           ? { method: 'editFacetSource', args: { action: { method: call.method, options: call.args } } } : call;
         return { ...local, args: { ...local.args,

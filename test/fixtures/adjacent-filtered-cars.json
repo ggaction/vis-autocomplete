@@ -1,0 +1,387 @@
+[
+  {
+    "method": "createCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "left": 170,
+        "right": 216,
+        "top": 42,
+        "bottom": 74
+      }
+    }
+  },
+  {
+    "method": "applyTheme",
+    "args": {
+      "theme": {
+        "base": "light",
+        "tokens": {
+          "background": "#ffffff",
+          "fontFamily": "Arial",
+          "axisLabelFontFamily": "Arial",
+          "axisTitleFontFamily": "Arial",
+          "mark": "#4c78a8"
+        }
+      }
+    }
+  },
+  {
+    "method": "createData",
+    "args": {
+      "id": "dataset",
+      "values": []
+    }
+  },
+  {
+    "method": "filterData",
+    "args": {
+      "id": "dataset-selected-1",
+      "source": "dataset",
+      "field": "Miles_per_Gallon",
+      "noneOf": [
+        null
+      ],
+      "nulls": "exclude"
+    }
+  },
+  {
+    "method": "createScatterPlot",
+    "args": {
+      "id": "plot",
+      "data": "dataset-selected-1",
+      "x": {
+        "field": "Miles_per_Gallon",
+        "fieldType": "quantitative",
+        "scale": {
+          "type": "linear"
+        }
+      },
+      "y": {
+        "field": "Displacement",
+        "fieldType": "quantitative",
+        "scale": {
+          "type": "linear"
+        }
+      },
+      "missing": "skip",
+      "point": {
+        "radius": 3,
+        "opacity": 0.8
+      },
+      "color": {
+        "field": "Origin",
+        "fieldType": "nominal",
+        "scale": {
+          "palette": "tableau10"
+        }
+      }
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 35.25,
+        "right": 196.76,
+        "bottom": 80.75,
+        "left": 189.24
+      }
+    }
+  },
+  {
+    "method": "encodeSize",
+    "args": {
+      "target": "plot",
+      "field": "Cylinders",
+      "fieldType": "quantitative",
+      "scale": {
+        "range": [
+          0,
+          50
+        ]
+      }
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 35.744711,
+        "right": 218.51,
+        "bottom": 80.255289,
+        "left": 167.49
+      }
+    }
+  },
+  {
+    "method": "encodeStroke",
+    "args": {
+      "target": "plot",
+      "value": "#000000"
+    }
+  },
+  {
+    "method": "encodeOpacity",
+    "args": {
+      "target": "plot",
+      "value": 0.35
+    }
+  },
+  {
+    "method": "encodeShape",
+    "args": {
+      "target": "plot",
+      "field": "Origin",
+      "fieldType": "nominal"
+    }
+  },
+  {
+    "method": "createStatisticalReference",
+    "args": {
+      "id": "statisticalReference",
+      "source": "plot",
+      "axis": "x",
+      "population": "visibleItems",
+      "groupBy": "Origin",
+      "statistic": {
+        "op": "mean"
+      },
+      "strokeWidth": 2.5,
+      "strokeDash": "solid"
+    }
+  },
+  {
+    "method": "createTitle",
+    "args": {
+      "text": "This is car! ",
+      "titleStyle": {
+        "fontSize": 22,
+        "fontWeight": "bold"
+      },
+      "position": "top",
+      "subtitleStyle": {
+        "fontSize": 15
+      },
+      "subtitle": "Very good car"
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 76.877645,
+        "right": 218.51,
+        "bottom": 64.377645,
+        "left": 167.49
+      }
+    }
+  },
+  {
+    "method": "createGrid",
+    "args": {
+      "horizontal": false,
+      "vertical": {}
+    }
+  },
+  {
+    "method": "editGrid",
+    "args": {
+      "vertical": {
+        "lineWidth": 1,
+        "color": "#cbd5e1",
+        "strokeDash": []
+      },
+      "horizontal": {
+        "color": "#cbd5e1",
+        "lineWidth": 1,
+        "strokeDash": []
+      }
+    }
+  },
+  {
+    "method": "editAxes",
+    "args": {
+      "x": {
+        "target": "x",
+        "position": "bottom",
+        "line": {
+          "lineWidth": 1
+        },
+        "ticksAndLabels": {
+          "count": 5,
+          "labels": {
+            "fontSize": 12,
+            "offset": 7
+          }
+        }
+      },
+      "y": {
+        "target": "y",
+        "position": "left",
+        "line": {
+          "lineWidth": 1
+        },
+        "ticksAndLabels": {
+          "count": 5,
+          "labels": {
+            "fontSize": 12,
+            "offset": 7
+          }
+        }
+      }
+    }
+  },
+  {
+    "method": "editTitle",
+    "args": {
+      "titleStyle": {
+        "fontSize": 24
+      },
+      "subtitleStyle": {
+        "fontSize": 17
+      }
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 78.877645,
+        "right": 218.51,
+        "bottom": 62.377645,
+        "left": 167.49
+      }
+    }
+  },
+  {
+    "method": "editXAxis",
+    "args": {
+      "labels": {
+        "fontSize": 14
+      },
+      "title": {
+        "fontSize": 15
+      }
+    }
+  },
+  {
+    "method": "editYAxis",
+    "args": {
+      "labels": {
+        "fontSize": 14
+      },
+      "title": {
+        "fontSize": 15
+      }
+    }
+  },
+  {
+    "method": "createLegend",
+    "args": {
+      "target": "plot",
+      "channels": [
+        "color",
+        "size",
+        "shape"
+      ],
+      "count": 3
+    }
+  },
+  {
+    "method": "editLegend",
+    "args": {
+      "target": "plot",
+      "channel": "color",
+      "labels": {
+        "fontSize": 14
+      },
+      "titleStyle": {
+        "fontSize": 15
+      }
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 78.377645,
+        "right": 220.97,
+        "bottom": 62.877645,
+        "left": 165.03
+      }
+    }
+  },
+  {
+    "method": "editLegend",
+    "args": {
+      "target": "plot",
+      "channel": "size",
+      "labels": {
+        "fontSize": 14
+      },
+      "titleStyle": {
+        "fontSize": 15
+      }
+    }
+  },
+  {
+    "method": "editTitle",
+    "args": {
+      "titleStyle": {
+        "fontSize": 26
+      }
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 79.377645,
+        "right": 220.97,
+        "bottom": 61.877645,
+        "left": 165.03
+      }
+    }
+  },
+  {
+    "method": "editTitle",
+    "args": {
+      "position": "bottom",
+      "align": "left",
+      "offset": 0,
+      "alongOffset": 0
+    }
+  },
+  {
+    "method": "createGuides",
+    "args": {}
+  }
+]

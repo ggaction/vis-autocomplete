@@ -110,3 +110,88 @@ test('adjacent charts use every input variable after area aggregation, faceting 
     assert.equal(p.children?.[args.id], undefined, 'preview leaves the existing composition untouched');
   }
 });
+
+const filteredCars = (simple = false) => {
+  const rows = read('../web/data/cars.json'), calls = read('./fixtures/adjacent-filtered-cars.json');
+  const source = simple ? calls.slice(0, calls.findIndex(c => c.method === 'createScatterPlot') + 1) : calls;
+  const p = source.reduce((program, call) => program[call.method](call.method === 'createData' ? { ...call.args, values: rows } : call.args), chart());
+  return { p, rows };
+};
+const selectedCars = ['Miles_per_Gallon', 'Origin', 'Displacement'];
+const propose = (p, context = { target: 'plot' }, position = 'left', fields = selectedCars) =>
+  adjacentContext(p, context, position, {}, undefined, undefined, { fields }, 'dataset');
+const prepareSpec = (p, spec, values = spec.values) => prepareGuidedAction(p, { method: spec.method, args: spec.build(values) }, p, spec.setup(values));
+
+test('reported filtered Cars chart offers executable adjacent cards on every side without reusing its filter', () => {
+  const { p, rows } = filteredCars();
+  const original = JSON.stringify(p.semanticSpec.datasets);
+  for (const position of ['left', 'right', 'top', 'bottom']) {
+    const specs = adjacentSpecs(engine, propose(p, undefined, position), p).slice(0, 5);
+    assert.equal(specs.length, 5);
+    for (const spec of specs) {
+      const args = spec.build(spec.values), setup = spec.setup(spec.values);
+      assert.ok(setup.some(c => c.method === 'filterData'));
+      assert.ok(setup.every(c => !p.semanticSpec.datasets.some(d => d.id === c.args.id)));
+      const prepared = prepareSpec(p, spec), child = prepared.preview.children[args.id];
+      assert.ok(renderToSVG(prepared.preview).startsWith('<svg'), `${position}: ${spec.title}`);
+      // The destination imports its final prepared dataset; intermediate tables
+      // stay with the source that executed the preparation calls.
+      assert.ok(child.semanticSpec.datasets.some(d => d.id === args.plot.options.data));
+      assert.deepEqual(prepared.authoringPreview.children.plot.semanticSpec.datasets.find(d => d.id === 'chart2-dataset-selected-1').values,
+        rows.filter(row => row.Miles_per_Gallon != null));
+    }
+  }
+  assert.equal(JSON.stringify(p.semanticSpec.datasets), original);
+});
+
+test('adjacent parameter changes keep filter, bin, summary and completion dependencies independent', () => {
+  const { p, rows } = filteredCars();
+  // A saved/user-created resource can already use the preferred new prefix.
+  const occupied = p.createData({ id: 'chart2-dataset-selected-1', values: [{ sentinel: 42 }] });
+  const adding = propose(occupied, undefined, 'left', ['Miles_per_Gallon', 'Horsepower', 'Origin']);
+  adding.selection = { fields: ['Miles_per_Gallon', 'Horsepower', 'Origin'] };
+  const specs = adjacentSpecs(engine, adding, occupied);
+  for (const method of ['createScatterPlot', 'createAreaPlot', 'createHeatmap']) {
+    const spec = specs.find(s => s.build(s.values).plot.action === method); assert.ok(spec);
+    for (const bins of [4, 15]) {
+      const values = spec.normalizeValues({ ...spec.values, bins, aggregate: 'sum', mapping_x: 'Miles_per_Gallon', mapping_y: 'Horsepower',
+        mapping_color: method === 'createHeatmap' ? 'Horsepower' : 'Origin' });
+      const prepared = prepareSpec(occupied, spec, values), args = spec.build(values);
+      const calls = spec.setup(values), ids = new Set(calls.map(c => c.args.id));
+      assert.equal(ids.size, calls.length);
+      for (const call of calls) assert.ok(call.args.source === 'dataset' || ids.has(call.args.source));
+      const originalView = prepared.authoringPreview.children.plot;
+      assert.deepEqual(originalView.semanticSpec.datasets.find(d => d.id === 'chart2-dataset-selected-1').values, [{ sentinel: 42 }]);
+      const child = prepared.preview.children[args.id];
+      assert.deepEqual(child.semanticSpec.datasets.find(d => d.id === 'dataset').values, rows);
+      const lastFilter = calls.filter(c => c.method === 'filterData').at(-1).args.id;
+      assert.deepEqual(originalView.semanticSpec.datasets.find(d => d.id === lastFilter).values,
+        rows.filter(row => row.Miles_per_Gallon != null && row.Horsepower != null));
+      assert.ok(renderToSVG(prepared.preview).startsWith('<svg'));
+    }
+  }
+});
+
+test('fresh setup identities survive faceting, repeated nested additions, and public-code replay', () => {
+  const { p } = filteredCars(true);
+  const facet = p.facet({ data: 'dataset', field: 'Origin', columns: 3, guides: { axes: 'outer', legend: 'shared' } });
+  const candidates = adjacentSpecs(engine, propose(facet), facet);
+  const spec = candidates.find(s => s.build(s.values).plot.action === 'createScatterPlot');
+  assert.ok(spec.setup(spec.values).every(c => c.method === 'editFacetSource'));
+  const first = prepareSpec(facet, spec);
+  assert.ok(renderToSVG(first.preview).startsWith('<svg'));
+  let program = first.authoringPreview, view = first.preview, path = [first.recommendation.args.id];
+  const replayCalls = [...first.prerequisiteCalls, first.recommendation, ...first.postActionCalls];
+  for (const position of ['right', 'bottom']) {
+    const context = { target: path.at(-1), childPath: path };
+    const next = find(program, propose(program, context, position), 'createScatterPlot');
+    const prepared = prepareGuidedAction(program, { method: next.method, args: next.build(next.values) }, view, next.setup(next.values));
+    replayCalls.push(...prepared.prerequisiteCalls, prepared.recommendation, ...prepared.postActionCalls);
+    program = prepared.authoringPreview; view = prepared.preview;
+    path = [...path, prepared.recommendation.args.id];
+    assert.ok(renderToSVG(view).startsWith('<svg'));
+  }
+  const replayed = replayCalls.reduce((value, c) => value[c.method](c.args), facet);
+  assert.deepEqual(replayed.semanticSpec, program.semanticSpec);
+  assert.deepEqual(replayed.compositionSpec, program.compositionSpec);
+});

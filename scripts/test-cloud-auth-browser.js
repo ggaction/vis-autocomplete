@@ -5,6 +5,7 @@ import { chromium, expect } from '@playwright/test';
 import { createProductionServer } from './server.js';
 import { mkdir } from 'node:fs/promises';
 import { sampleWorkbook } from '../test/fixtures/xlsx-workbook.js';
+import { checkAdjacentFilteredCars } from './check-adjacent-filtered-cars.js';
 const server=await createProductionServer({env:{SUPABASE_URL:'https://cloud-test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test'},verifyToken:value=>value===token});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1600,height:1000}});
@@ -516,5 +517,6 @@ try{
  await page.getByLabel('Password',{exact:true}).fill('new-test-password-only');
  await page.getByRole('button',{name:'Update password',exact:true}).click();
  await page.locator('#current canvas').waitFor();
+ await checkAdjacentFilteredCars(page);
  assert.deepEqual(errors,[]);console.log('Mock transport: signup, signin, consent, autosave, account view settings, fresh-device restore, compact workspace/hover previews, rename, selection, duplication, bulk delete/retry, active deletion, reports, flash-free reload/token refresh, verification retry/rejection, signout isolation passed.');
 }catch(error){console.error('UI failure',error,errors);await page.screenshot({path:'output/cloud-testing/auth-failure.png',fullPage:true}).catch(()=>{});throw error;}finally{await browser.close();await new Promise(r=>server.close(r));}

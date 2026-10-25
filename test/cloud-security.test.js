@@ -1,0 +1,76 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { PGlite } from '@electric-sql/pglite';
+import { researchPayload } from '../web/cloud/privacy.js';
+import { publicConfig } from '../scripts/cloud-config.js';
+import { changesBetween } from '../web/cloud/documents.js';
+const alice='11111111-1111-4111-8111-111111111111',bob='22222222-2222-4222-8222-222222222222';
+test('Research payload never includes user text, columns, data, arguments or arbitrary objects',()=>{
+  const result=researchPayload('apply',{method:'encodeColor',group:'encoding',rank:2,args:{field:'Patient ID'},value:'secret',data:[{secret:1}],title:'private',error:'private',duration:Infinity});
+  assert.deepEqual(result,{type:'apply',method:'encodeColor',group:'encoding',rank:2});
+  assert.equal(researchPayload('unknown',{}),null);
+});
+test('Browser config refuses privileged keys and does not expose environment',()=>{
+  assert.throws(()=>publicConfig({SUPABASE_PUBLISHABLE_KEY:'sb_secret_hidden'}));
+  const jwt=`x.${Buffer.from(JSON.stringify({role:'service_role'})).toString('base64url')}.x`;
+  assert.throws(()=>publicConfig({SUPABASE_PUBLISHABLE_KEY:jwt}));
+  assert.deepEqual(publicConfig({SECRET:'private'}),{supabaseUrl:'',supabaseKey:'',release:'development'});
+});
+test('Private revision deltas retain a discarded branch and resize replacements',()=>{
+  assert.deepEqual(changesBetween({calls:[1,2,3]},{calls:[1,4]}),[{op:'splice',path:['calls'],index:1,deleteCount:2,values:[4]}]);
+});
+test('Postgres policies, ownership, idempotency, conflicts and consent epochs',async()=>{
+  const db=new PGlite();
+  try {
+    await db.exec(`create role anon; create role authenticated;
+      create schema auth; create table auth.users(id uuid primary key);
+      create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+      grant usage on schema auth to anon,authenticated;grant execute on function auth.uid() to anon,authenticated;
+      create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+      create table storage.objects(bucket_id text,name text); alter table storage.objects enable row level security;
+      grant usage on schema storage to authenticated; grant select,insert on storage.objects to authenticated;
+      create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;
+      insert into auth.users values('${alice}'),('${bob}');`);
+    await db.exec(await readFile(new URL('../supabase/migrations/202610250001_cloud.sql',import.meta.url),'utf8'));
+    const as=async uid=>db.exec(`reset role; set role authenticated; select set_config('request.jwt.claim.sub','${uid}',false);`);
+    const hash='a'.repeat(64),path=`${alice}/datasets/${hash}.json`,project='33333333-3333-4333-8333-333333333333',op='44444444-4444-4444-8444-444444444444';
+    const document={format:'visualization-autocomplete',datasets:[{importRef:{path}}]};
+    const save=(expected=0,operation=op)=>db.query(`select public.save_project($1,'A',$2,$3,$4,'[]',null) as revision`,[project,document,expected,operation]);
+    await as(alice);
+    await assert.rejects(db.query(`insert into public.projects values($1,$2,'x','{}',1,null,now())`,[project,alice]),/permission denied/);
+    await db.query(`insert into public.datasets(owner_id,name,hash,path) values($1,'Data',$2,$3)`,[alice,hash,path]);
+    await db.query(`insert into storage.objects values('workspace',$1)`,[path]);
+    await assert.rejects(db.query(`select public.save_project($1,'x','{}',0,$2,'[]',null)`,[project,op]),/Invalid project/);
+    assert.equal((await save()).rows[0].revision,1);assert.equal((await save()).rows[0].revision,1);
+    await assert.rejects(save(0,'55555555-5555-4555-8555-555555555555'),/revision_conflict/);
+    await as(bob);
+    assert.equal((await db.query('select * from projects')).rows.length,0);
+    assert.equal((await db.query('select * from project_revisions')).rows.length,0);
+    assert.equal((await db.query('select * from storage.objects')).rows.length,0);
+    await assert.rejects(save(),/Unknown private dataset|Project unavailable/);
+    await assert.rejects(db.query(`insert into public.datasets(owner_id,name,hash,path) values($1,'No',$2,$3)`,[alice,hash,path]),/row-level security/);
+    await as(alice);
+    const event={id:'66666666-6666-4666-8666-666666666666',session:op,sequence:1,time:new Date().toISOString(),payload:{type:'apply',method:'encodeColor',field:'private',args:{x:'secret'},value:'never',rank:1}};
+    const record=consent=>db.query('select public.record_interactions($1,$2,$3)',[[event],consent,'test']);
+    await record(0);assert.equal((await db.query('select * from research_events')).rows.length,0);
+    await db.query('select public.set_research_consent(true)');await record(1);await record(1);
+    const events=(await db.query('select * from research_events')).rows;assert.equal(events.length,1);assert.deepEqual(events[0].payload,{type:'apply',method:'encodeColor',rank:1});
+    await db.query('select public.set_research_consent(false)');
+    event.id='77777777-7777-4777-8777-777777777777';event.sequence=2;await record(1);
+    await db.query('select public.set_research_consent(true)');await record(1);
+    assert.equal((await db.query('select * from research_events')).rows.length,1);
+    await record(3);assert.equal((await db.query('select * from research_events')).rows.length,2);
+    await assert.rejects(db.query(`update profiles set research_enabled=true`),/permission denied/);
+    await assert.rejects(db.query(`insert into app_admins values($1)`,[alice]),/permission denied/);
+    // Admin research access does not imply private workspace access. Report-specific consent does.
+    await db.exec(`reset role;insert into app_admins values('${bob}');`);await as(bob);
+    assert.equal((await db.query('select * from projects')).rows.length,0);
+    assert.equal((await db.query('select * from storage.objects')).rows.length,0);
+    assert.equal((await db.query('select * from research_events')).rows.length,2);
+    await as(alice);
+    await db.query(`insert into bug_reports(owner_id,kind,title,description,context,share_data,release) values($1,'project','Bug','Repro',$2,true,'test')`,[alice,document]);
+    await as(bob);assert.equal((await db.query('select * from storage.objects')).rows.length,1);
+    await db.exec(`reset role;set role anon;`);await assert.rejects(db.query('select * from projects'),/permission denied/);
+  }finally{await db.close();}
+});

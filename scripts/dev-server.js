@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { publicConfig } from './cloud-config.js';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +12,7 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 export const createDevServer = () => http.createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    if (pathname === '/api/config') { response.writeHead(200, {'Content-Type':'application/json','Cache-Control':'no-store'}); response.end(JSON.stringify(publicConfig())); return; }
     if (pathname.startsWith('/api/export/')) {
       await serveChartDownload(request, response, pathname.slice('/api/export/'.length)); return;
     }

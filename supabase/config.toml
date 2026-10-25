@@ -1,0 +1,20 @@
+project_id = "vis-autocomplete"
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+[db]
+port = 54322
+major_version = 17
+[auth]
+enabled = true
+site_url = "http://localhost:5184"
+additional_redirect_urls = ["http://localhost:5184/"]
+minimum_password_length = 10
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+secure_password_change = true
+[auth.rate_limit]
+sign_in_sign_ups = 30
+email_sent = 5

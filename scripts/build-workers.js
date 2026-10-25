@@ -6,3 +6,6 @@ await build({ entryPoints: [fileURLToPath(new URL('../web/calculation-worker.js'
   outfile: fileURLToPath(new URL('../output/workers/calculation.js', import.meta.url)),
   bundle: true, platform: 'browser', format: 'esm', target: 'es2022', sourcemap: true });
 await writeFile(new URL('../output/workers/source.json', import.meta.url), JSON.stringify(ggactionSource(), null, 2) + '\n');
+
+await build({ stdin: { contents: "export { createClient } from '@supabase/supabase-js';", resolveDir: process.cwd() },
+  outfile: 'output/cloud/supabase.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022' });

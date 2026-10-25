@@ -1,0 +1,32 @@
+name: Cloud deployment checks
+on:
+  push:
+    branches: [codex/cloud-deployment]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
+      - run: npm run test:cloud
+      - run: npx playwright install --with-deps chromium
+      - name: Browser checks
+        run: |
+          PORT=5184 npm start > /tmp/vis-autocomplete.log 2>&1 &
+          trap 'kill $!' EXIT
+          for attempt in $(seq 1 30); do curl -sf http://127.0.0.1:5184/healthz && break; sleep 1; done
+          npm run test:cloud-browser
+          node scripts/test-cloud-auth-browser.js
+      - name: Docker build
+        run: docker build -t vis-autocomplete-test .

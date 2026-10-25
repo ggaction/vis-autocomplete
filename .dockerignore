@@ -1,0 +1,13 @@
+.git
+**/.git
+node_modules
+**/node_modules
+output
+.env
+.env.*
+!.env.example
+coverage
+.cache
+*.log
+test-results
+playwright-report

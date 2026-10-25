@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { chromium } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+const browser=await chromium.launch({headless:true});
+await mkdir('output/cloud-testing',{recursive:true});
+const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];
+page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+try {
+  await page.goto(process.env.APP_URL ?? 'http://127.0.0.1:5184/');
+  await page.waitForFunction(()=>!document.querySelector('#dataset').disabled);
+  await page.locator('#workspace-menu').click();
+  await page.getByRole('button',{name:'About',exact:true}).click();
+  await page.getByRole('heading',{name:'About Visualization Autocomplete'}).waitFor();
+  assert.ok((await page.locator('dialog').last().innerText()).includes('Niklas Elmqvist'));
+  await page.screenshot({path:'output/cloud-testing/about.png'});
+  await page.locator('dialog').last().getByRole('button',{name:'Close',exact:true}).click();
+  await page.locator('dialog').last().getByRole('button',{name:'Close',exact:true}).click();
+  await page.locator('#account-button').click();
+  await page.getByRole('heading',{name:'Account connection'}).waitFor();
+  await page.locator('dialog').last().getByRole('button',{name:'Close',exact:true}).click();
+  await page.locator('#dataset').selectOption('cars');
+  await page.locator('.dataset-table').waitFor();
+  await page.screenshot({path:'output/cloud-testing/workspace.png'});
+  await page.reload();await page.locator('.dataset-table').waitFor();
+  assert.equal(await page.locator('#dataset').inputValue(),'cars');
+  await page.locator('#workspace-menu').click();await page.getByRole('button',{name:'New visualization',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#dataset').value==='');
+  await page.reload();await page.waitForFunction(()=>!document.querySelector('#dataset').disabled);
+  assert.equal(await page.locator('#dataset').inputValue(),'');
+  assert.deepEqual(errors,[]);
+  console.log('Cloud shell, About, local fallback, restore and new workspace passed.');
+} finally {await browser.close();}

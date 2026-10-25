@@ -913,3 +913,7 @@ state before that move run. Moving another element, applying a different action,
 or navigating history starts a new run; cancelling a drag leaves the run intact.
 `test/browser/guide-move-history.py` checks code/history compaction, cancellation,
 Undo/Redo, resource changes, branching and saved-project restoration in both modes.
+
+## Cloud accounts and deployment
+
+The isolated `codex/cloud-deployment` branch adds private accounts, autosaved projects, optional history-only research collection, reports, and a Render/Supabase setup. See [deployment and account setup](docs/cloud-deployment.md). Provider connection and live authentication checks are required before public launch.

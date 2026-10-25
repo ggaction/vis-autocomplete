@@ -1,0 +1,26 @@
+#workspace-menu {font-size:19px;min-width:32px;padding:3px 8px;line-height:1.2}
+#account-button {white-space:nowrap}
+.cloud-status {font:11px Arial;color:#626b78;max-width:150px}
+.account-dialog {font:14px/1.5 Arial,sans-serif;color:#272c33;width:min(480px,90vw);max-height:85vh;overflow:auto;border:1px solid #d8dce3;border-radius:5px;padding:24px;box-shadow:0 10px 50px #0002}
+.account-dialog::backdrop {background:#10182033}
+.account-dialog header {display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+.account-dialog h2 {font-size:20px;margin:0}
+.account-dialog h3 {font-size:14px;margin:20px 0 10px}
+.account-dialog p {margin:10px 0 16px}
+.account-dialog label {display:flex;flex-direction:column;gap:5px;margin:14px 0}
+.account-dialog label:has(input[type=checkbox]) {flex-direction:row-reverse;justify-content:flex-end;align-items:flex-start;gap:10px}
+.account-dialog input:not([type=checkbox]),.account-dialog textarea,.account-dialog select {box-sizing:border-box;width:100%;padding:10px;border:1px solid #cbd1da;border-radius:3px;font:14px Arial;background:white;color:inherit}
+.account-dialog textarea {min-height:130px}
+.account-dialog button {font:14px Arial;border:1px solid #ccd2db;border-radius:3px;padding:9px 12px;margin:4px 4px 4px 0;background:white;cursor:pointer;color:#2d3540}
+.account-dialog button:hover {background:#f1f4f7}
+.account-dialog button:disabled {opacity:.5;cursor:wait}
+.account-dialog input[type=checkbox] {margin-top:4px;cursor:pointer}
+.account-dialog a {display:block;color:#24639d;margin:10px 0}
+.account-status {color:#596575}
+.account-dialog.workspace-drawer {position:fixed;inset:0 auto 0 0;margin:0;height:100dvh;max-height:100dvh;width:320px;border-radius:0;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:18px}
+.workspace-drawer footer {margin-top:auto;display:flex;flex-direction:column;padding-top:20px;border-top:1px solid #e4e7eb}
+.cloud-projects {overflow:auto;flex:1;min-height:100px}
+.cloud-project {border-bottom:1px solid #e7eaee;padding:8px 0}
+.cloud-project>button:first-child {width:100%;text-align:left;border:0}
+.cloud-project img {display:block;max-width:100%;height:100px;object-fit:contain;margin-bottom:8px}
+.cloud-project small {display:block;color:#75808d}

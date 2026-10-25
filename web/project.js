@@ -195,14 +195,14 @@ export function runnableCode(snapshot, record, ggaction = null) {
     '\n\nawait writeFile("chart.svg", renderToSVG(program), "utf8");\n';
 }
 
-export function createDraftStore(indexedDB = globalThis.indexedDB) {
+export function createDraftStore(indexedDB = globalThis.indexedDB, name = 'visualization-autocomplete') {
   let dbPromise, pending = Promise.resolve();
   // Import records are immutable revisions in the application. Keep references,
   // not hashes of every cell, to avoid revisiting large tables on each Apply.
   const persistedImports = new Map();
   const database = () => dbPromise ??= new Promise((resolve, reject) => {
     if (!indexedDB) { reject(new Error('Draft storage is unavailable in this browser.')); return; }
-    const request = indexedDB.open('visualization-autocomplete', 2);
+    const request = indexedDB.open(name, 2);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects');
@@ -275,5 +275,15 @@ export function createDraftStore(indexedDB = globalThis.indexedDB) {
     for (const record of project.datasets ?? []) persistedImports.set(record.id, record.imported);
     return project;
   };
-  return { read, write };
+  const clear = async () => {
+    await pending.catch(() => {});
+    const db = await database();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['projects', 'datasets'], 'readwrite');
+      tx.objectStore('projects').clear(); tx.objectStore('datasets').clear();
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+    });
+    persistedImports.clear();
+  };
+  return { read, write, clear };
 }

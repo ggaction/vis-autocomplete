@@ -67,7 +67,8 @@ const compositionControls = initializeCompositionControls({
     try {
       const previousSelection = !state.program.compositionSpec || state.program.compositionSpec.facet ? state.selection : undefined;
       state.adding = adjacentContext(state.program, state.context, position,
-        datasets.get(state.datasetId)?.imported.fieldTypes, placementPath, source, previousSelection);
+        datasets.get(state.datasetId)?.imported.fieldTypes, placementPath, source, previousSelection,
+        state.profile.id);
       clearSearch(); showPreview(null); updateCards().catch(error => notice(error.message, true));
     }
     catch (error) { notice(error.message, true); }

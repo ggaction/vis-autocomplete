@@ -21,7 +21,7 @@ const sharedChannels = adding => [...new Set([...(adding.share === 'none' ? [] :
   ...(adding.inheritedSharing ?? []).flatMap(policy => policy.channels)])];
 const inheritedChannels = adding => [...new Set((adding.inheritedSharing ?? []).flatMap(policy => policy.channels))];
 
-export function adjacentContext(program, context, position, fieldTypes, placementPath, source, previousSelection) {
+export function adjacentContext(program, context, position, fieldTypes, placementPath, source, previousSelection, inputData) {
   const placement = placementPath && adjacentPlacements(program).find(choice => JSON.stringify(choice.childPath) === JSON.stringify(placementPath));
   if (placementPath && !placement) throw new Error('The selected placement no longer exists.');
   const targets = placement?.sources ?? editableChartTargets(program).filter(t => !t.overlay);
@@ -31,7 +31,11 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
   if (!target) throw new Error('Choose a source chart first.');
   const local = chartAtPath(program, target.childPath), layer = local.semanticSpec.layers.find(l => l.id === target.id);
   const composition = getPlotComposition(local,{target:layer.id});
-  const data = composition.data;
+  // A new chart is authored from the selected input dataset. The existing
+  // chart's materialized data may contain only summary/bin/fold columns.
+  // Native adjacent views retain input tables even when the visible plot uses
+  // a summary, so later additions can select unused variables too.
+  const data = inputData ?? composition.data;
   const rows = local.semanticSpec.datasets.find(d => d.id === data)?.values;
   const names = new Set(getDatasetSchema(local, { data }).schema.fields.map(field => field.name));
   const localTypes = Object.fromEntries(Object.entries(fieldTypes ?? {}).filter(([name]) => names.has(name)));
@@ -61,7 +65,7 @@ export function adjacentContext(program, context, position, fieldTypes, placemen
       ...(composition.dimensions ?? []).map(d => d.field),
       ...(composition.channels.theta?.fields ?? [])
     ].filter(name => profile.fields.some(f => f.name === name && f.usable)))] },
-    sourceSelection: selectedFields, scales, datasets, axisMeanings,
+    sourceSelection: selectedFields, scales, datasets, faceted: Boolean(local.compositionSpec?.facet), axisMeanings,
     inheritedSharing: inheritedCompositionShares(program, receivingPath),
     aggregation: axisMeanings.y?.operations.at(-1) ?? axisMeanings.x?.operations.at(-1), bins: layer.encoding.x?.bin?.maxBins,
     share: ['left', 'right'].includes(position) ? 'y' : 'x' };
@@ -150,8 +154,12 @@ export function adjacentSpecs(engine, adding, root) {
           ...(['left', 'right'].includes(adding.position) ? { gap: 8 } : {}),
           ...(receivingPath.length ? { target: { childPath: receivingPath } } : {}) };
       },
-      setup: values => (editor.setup?.(values) ?? []).map(call => ({ ...call, args: { ...call.args,
-        ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) } })),
+      setup: values => (editor.setup?.(values) ?? []).map(call => {
+        const local = adding.faceted
+          ? { method: 'editFacetSource', args: { action: { method: call.method, options: call.args } } } : call;
+        return { ...local, args: { ...local.args,
+          ...(adding.childPath.length ? { target: { childPath: adding.childPath } } : {}) } };
+      }),
     };
   });
 }
@@ -414,23 +422,22 @@ export function initializeCompositionControls({ select, overlayButton, host, adj
     const picker = document.createElement('details'); picker.className = 'adjacent-field-picker';
     const toggle = document.createElement('summary'); toggle.textContent = '+'; toggle.setAttribute('aria-label', 'Add variable');
     const menu = document.createElement('div'); menu.className = 'adjacent-field-menu';
-    const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'Find a variable';
-    search.setAttribute('aria-label', 'Find an adjacent variable'); menu.append(search);
+    menu.setAttribute('role', 'group'); menu.setAttribute('aria-label', 'Available variables');
     const choices = [];
-    for (const field of adding.profile.fields.filter(field => field.usable && !selected.includes(field.name))) {
+    for (const field of adding.profile.fields.filter(field => !selected.includes(field.name))) {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = field.name;
-      button.disabled = busy; button.setAttribute('aria-label', `Add variable ${field.name}`);
+      button.disabled = busy || !field.usable; button.setAttribute('aria-label', `Add variable ${field.name}`);
+      if (!field.usable) button.title = field.reason;
       button.addEventListener('click', () => onChange({ selection: { fields: [...selected, field.name] } }));
       menu.append(button); choices.push(button);
     }
     if (!choices.length) { const empty = document.createElement('span'); empty.textContent = 'All variables selected'; menu.append(empty); }
-    search.addEventListener('input', () => choices.forEach(button => { button.hidden = !button.textContent.toLowerCase().includes(search.value.toLowerCase()); }));
     picker.addEventListener('toggle', () => {
       if (!picker.open) return;
       const edge = adjacentHost.getBoundingClientRect().right;
       menu.style.left = '0px';
       menu.style.left = `${Math.min(0, edge - menu.getBoundingClientRect().right)}px`;
-      search.focus();
+      choices.find(button => !button.disabled)?.focus({ preventScroll: true });
     });
     picker.addEventListener('keydown', event => { if (event.key === 'Escape') { picker.open = false; toggle.focus(); } });
     toggle.addEventListener('click', event => { if (busy) event.preventDefault(); });

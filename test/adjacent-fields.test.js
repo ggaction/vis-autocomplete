@@ -65,3 +65,48 @@ test('adjacent heatmaps prepare their selected numeric fields into an ordinal gr
   const prepared = prepareGuidedAction(p, { method: spec.method, args }, p, spec.setup(spec.values));
   assert.ok(renderToSVG(prepared.preview).startsWith('<svg'));
 });
+
+test('adjacent charts use every input variable after area aggregation, faceting and nesting', () => {
+  const rows = read('../web/data/cars.json');
+  const input = chart().createCanvas({ plot: { width: 314, height: 314 }, margin: 170 })
+    .createData({ id: 'dataset', values: rows });
+  const selected = ['Displacement', 'Year', 'Origin'];
+  const area = input.createSummaryData({ id: 'summary', source: 'dataset', groupBy: ['Year', 'Origin'],
+    aggregates: [{ op: 'mean', field: 'Displacement', as: 'Displacement' }], missing: 'drop' })
+    .createCompleteData({ id: 'aligned', source: 'summary', key: 'Year', groupBy: ['Origin'] })
+    .createAreaPlot({ id: 'plot', data: 'aligned', x: { field: 'Year', fieldType: 'temporal' },
+      y: 'Displacement', color: 'Origin', groupBy: ['Origin'], missing: 'break' });
+  const pair = area.createAdjacentPlot({ id: 'second', source: 'plot', share: {},
+    plot: { action: 'createAreaPlot', options: { data: 'aligned', x: { field: 'Year', fieldType: 'temporal' },
+      y: 'Displacement', color: 'Origin', groupBy: ['Origin'], missing: 'break' } } });
+  const cases = [
+    [area, { target: 'plot' }],
+    [area.facet({ data: 'dataset', field: 'Origin', columns: 3 }), { target: 'plot' }],
+    [pair, { target: 'second', childPath: ['second'] }],
+  ];
+  for (const [p, context] of cases) {
+    const adding = adjacentContext(p, context, 'right', { Year: 'temporal' }, undefined, undefined,
+      { fields: selected }, 'dataset');
+    assert.deepEqual(adding.selection.fields, selected);
+    assert.deepEqual(adding.profile.fields.map(f => f.name), Object.keys(rows[0]));
+    assert.equal(adding.rows.length, 406, 'recommend from observations, not 36 completed summary rows');
+    assert.equal(adding.profile.fields.filter(f => f.usable && !selected.includes(f.name)).length, 6);
+    adding.selection = { fields: ['Horsepower', 'Miles_per_Gallon', 'Origin'] };
+    const spec = find(p, adding, 'createScatterPlot'); assert.ok(spec);
+    const args = spec.build(spec.values), setup = spec.setup(spec.values);
+    const sourceSetup = setup.map(call => call.method === 'editFacetSource'
+      ? { method: call.args.action.method, args: call.args.action.options } : call);
+    assert.equal(sourceSetup.find(call => call.method === 'filterData').args.source, 'dataset');
+    if (context.childPath) assert.deepEqual(setup[0].args.target, { childPath: ['second'] });
+    const next = prepareGuidedAction(p, { method: spec.method, args }, p, setup).preview;
+    let receiving = next;
+    for (const id of adding.receivingPath) receiving = receiving.children[id];
+    const child = receiving.children[args.id];
+    const expectedRows = rows.filter(row => row.Horsepower != null && row.Miles_per_Gallon != null);
+    assert.deepEqual(child.semanticSpec.datasets.find(d => d.id === args.plot.options.data).values, expectedRows);
+    assert.deepEqual(new Set(['x', 'y'].map(c => child.semanticSpec.layers[0].encoding[c].field)),
+      new Set(['Horsepower', 'Miles_per_Gallon']));
+    assert.ok(renderToSVG(next).startsWith('<svg'));
+    assert.equal(p.children?.[args.id], undefined, 'preview leaves the existing composition untouched');
+  }
+});

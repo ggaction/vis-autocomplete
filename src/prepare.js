@@ -135,7 +135,8 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   for (const setup of setupCalls) {
     // Explicit native data preparation, replayed in the code view and on Apply.
     // The recommendation below still executes exactly one public chart method.
-    if (!['createBinData', 'createComputedData', 'createSummaryData', 'createTimeUnitData', 'createCompleteData', 'filterData', 'editCompositionLayout'].includes(setup.method)) {
+    const setupMethod = setup.method === 'editFacetSource' ? setup.args.action?.method : setup.method;
+    if (!['createBinData', 'createComputedData', 'createSummaryData', 'createTimeUnitData', 'createCompleteData', 'filterData', 'editCompositionLayout'].includes(setupMethod)) {
       throw new Error(`Unsupported plot setup: ${setup.method}`);
     }
     const call = structuredClone(setup);

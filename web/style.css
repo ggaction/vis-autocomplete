@@ -479,10 +479,8 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .adjacent-field-picker > summary::-webkit-details-marker { display: none; }
 .adjacent-field-picker[open] > summary, .adjacent-field-picker > summary:hover { background: #eaf3fb; color: #086bb9; border-color: #9cbce0; }
 .adjacent-field-menu { position: absolute; z-index: 30; top: calc(100% + 5px); left: 0; width: 220px; max-height: 240px; overflow: auto; padding: 6px; display: flex; flex-direction: column; gap: 3px; border: 1px solid #ccd9e6; border-radius: 4px; background: #fff; box-shadow: 0 3px 12px #1e293b18; }
-.adjacent-field-menu input { flex: none; width: 100%; min-width: 0; height: 28px; padding: 4px 6px; font-size: 12px; }
 .adjacent-field-menu button { flex: none; padding: 5px 6px; border: 0; text-align: left; overflow-wrap: anywhere; font-size: 12px; }
 .adjacent-field-menu button:hover { background: #eaf3fb; }
-.adjacent-field-menu button[hidden] { display: none; }
 .adjacent-field-menu > span { padding: 6px; color: #687587; }
 @container (max-width: 1050px) {
   .options-heading { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }

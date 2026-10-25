@@ -37,6 +37,45 @@ try {
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     try {
       await page.goto(process.env.APP_URL ?? 'http://127.0.0.1:5173/'); await page.waitForLoadState('networkidle');
+      await page.locator('#dataset').selectOption('cars');
+      for (const field of ['Displacement', 'Year', 'Origin']) {
+        await page.getByRole('button', { name: `Select column ${field}`, exact: true }).click();
+      }
+      await apply(page, await findCard(page, /^Area plot$/i));
+      await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+      await page.reload(); await page.waitForLoadState('networkidle');
+      await page.waitForFunction(() => !document.querySelector('#dataset').disabled && document.querySelector('#current canvas'));
+      await addRight(page);
+      await page.getByLabel('Add variable', { exact: true }).click();
+      const expected = ['Name', 'Miles_per_Gallon', 'Cylinders', 'Horsepower', 'Weight_in_lbs', 'Acceleration'];
+      assert.deepEqual(await page.locator('.adjacent-field-menu button').allTextContents(), expected);
+      assert.equal(await page.locator('.adjacent-field-menu input').count(), 0);
+      assert.equal(await page.locator('#current .dataset-table').count(), 0);
+      await page.screenshot({ path: new URL(`${mode}-cars-area-picker.png`, output).pathname });
+      await page.getByRole('button', { name: 'Add variable Horsepower', exact: true }).click();
+      for (const field of ['Displacement', 'Year']) await page.getByRole('button', { name: `Remove variable ${field}`, exact: true }).click();
+      await page.getByLabel('Add variable', { exact: true }).click();
+      await page.getByRole('button', { name: 'Add variable Miles_per_Gallon', exact: true }).click();
+      await apply(page, await findCard(page, /^Add Scatter plot$/i));
+      await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+      const project = await page.evaluate(async () => (await import('/web/project.js')).createDraftStore().read());
+      const calls = project.datasets.find(d => d.id === 'cars').session.entries.at(-1).calls;
+      const added = calls.findLast(c => c.method === 'createAdjacentPlot').args.plot.options;
+      assert.equal(calls.filter(c => c.method === 'filterData').at(-2).args.source, 'dataset');
+      assert.deepEqual(new Set([added.x.field, added.y.field]), new Set(['Horsepower', 'Miles_per_Gallon']));
+      assert.equal(added.color.field, 'Origin');
+      assert.deepEqual(errors, []);
+      console.log(`PASS ${mode}: restored Cars area lists all six unused variables and creates scatter from newly selected columns`);
+    } catch (error) { await page.screenshot({ path: new URL(`${mode}-cars-failure.png`, output).pathname }); throw error; }
+    finally { await context.close(); }
+  }
+  for (const mode of ['preview', 'transition']) {
+    const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+    await context.addInitScript(mode => localStorage.setItem('vis-autocomplete.view-mode', mode), mode);
+    const page = await context.newPage(); page.setDefaultTimeout(45000);
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    try {
+      await page.goto(process.env.APP_URL ?? 'http://127.0.0.1:5173/'); await page.waitForLoadState('networkidle');
       await page.locator('#dataset').selectOption('iris');
       for (const field of fields) await page.getByRole('button', { name: `Select column ${field}`, exact: true }).click();
       await apply(page, await findCard(page, /^Scatter plot$/i));
@@ -50,7 +89,8 @@ try {
       await page.getByRole('button', { name: 'Remove variable Species', exact: true }).click();
       assert.deepEqual(await chips(page), fields.slice(0, 4));
       await page.getByLabel('Add variable', { exact: true }).click();
-      await page.getByRole('searchbox', { name: 'Find an adjacent variable' }).fill('spec');
+      assert.equal(await page.locator('.adjacent-field-menu input').count(), 0);
+      await page.getByRole('button', { name: 'Add variable Species', exact: true }).waitFor();
       await page.screenshot({ path: new URL(`${mode}-picker.png`, output).pathname });
       await page.getByRole('button', { name: 'Add variable Species', exact: true }).click();
       assert.deepEqual(await chips(page), fields);

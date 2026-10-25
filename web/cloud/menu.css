@@ -18,6 +18,7 @@
 .account-dialog a {display:block;color:#24639d;margin:10px 0}
 .account-status {color:#596575}
 .account-dialog.about-dialog {box-sizing:border-box;width:min(760px,calc(100vw - 32px))}
+.account-dialog.report-dialog {box-sizing:border-box;width:min(760px,calc(100vw - 32px))}
 .about-dialog .account-status:empty {display:none}
 .about-dialog h3 {margin:16px 0 8px}
 .about-dialog>p,.about-dialog section>p {margin:8px 0 12px}

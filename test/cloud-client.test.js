@@ -118,6 +118,22 @@ test('Report without dataset permission strips inline data and storage paths as 
  const context=reportContext({datasets:[{importRef:{path:'private',hash:'abc'},metadata:{sourceTable:[['secret']]},session:{calls:[{method:'createData',args:{values:[{secret:1}]}}]}}]});
  assert.ok(!JSON.stringify(context).includes('private'));assert.ok(!JSON.stringify(context).includes('secret'));assert.ok(JSON.stringify(context).includes('createData'));
 });
+test('reporter self-identification is saved for every report kind without changing sharing or consent',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  for(const kind of ['general','feature','project'])for(const isAiAgent of [false,true]){
+   const result=await a.report({kind,title:'Feedback',description:'Details',project:kind==='project'?project(1):null,shareData:false,isAiAgent});
+   assert.equal(result.context.reporter.isAiAgent,isAiAgent);assert.equal(result.share_data,false);
+   if(kind==='project'){
+    assert.equal(result.context.format,'visualization-autocomplete');
+    assert.ok(!JSON.stringify(result.context).includes('secret'));assert.ok(!JSON.stringify(result.context).includes('/datasets/'));
+   }else assert.deepEqual(result.context,{reporter:{isAiAgent}});
+  }
+  const defaultReport=await a.report({kind:'general',title:'Feedback',description:'Details'});
+  assert.equal(defaultReport.context.reporter.isAiAgent,false);
+  assert.equal(a.profile,null);assert.equal(m.calls.length,0);
+ }finally{a.destroy();}
+});
 test('thumbnail reads preserve the workspace and revisions, hydrate only the active dataset, and use pending offline work',async()=>{
  environment();const m=mock(),a=await createAccount({...m,config});
  try{

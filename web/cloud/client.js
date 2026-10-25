@@ -308,9 +308,11 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
       await local.remove(`thumbnail:${user.id}:${id}`);
       const cached = await local.get(`projects:${user.id}`); if (cached) await local.put(`projects:${user.id}`, cached.filter(row => row.id !== id));
       if (current?.id === id) await newProject(); },
-    async report({ kind, title, description, project, shareData }) {
+    async report({ kind, title, description, project, shareData, isAiAgent = false }) {
       let context = project ? await ensureData(await pack(project), user.id) : null;
       if (context && !shareData) context = reportContext(context);
+      // Per-report self-identification, separate from data-sharing or research consent.
+      context = { ...context, reporter: { isAiAgent: isAiAgent === true } };
       return fail(await client.from('bug_reports').insert({ owner_id: user.id, kind, title, description, context,
         share_data: Boolean(shareData), release }).select('id').single());
     },

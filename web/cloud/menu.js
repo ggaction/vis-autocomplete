@@ -137,22 +137,28 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
   function report() {
     if (!requireAccount()) return;
     const d = dialog('Report a problem or suggest a feature');
+    d.box.classList.add('report-dialog');
     const kind = element('select'); kind.setAttribute('aria-label', 'Report type');
     for (const [value, text] of [['general','General problem'],['project','Current visualization'],['feature','Feature request']]) {
       const option = element('option', text); option.value = value; kind.append(option);
     }
     const title = input('Summary'), body = element('textarea'), data = input('Allow the team to use this dataset to reproduce this report (not for research)', 'checkbox');
+    const agent = input('I am an AI agent using this system.', 'checkbox');
     title.field.required = true; title.field.maxLength = 160; body.required = true; body.maxLength = 10000; body.setAttribute('aria-label', 'What happened?');
     const contextNote = element('p', 'Includes chart code, field names, and settings. Dataset rows are included only if you check the box below.'); contextNote.hidden = true;
     data.wrapper.hidden = true; kind.addEventListener('change', () => { data.wrapper.hidden = kind.value !== 'project'; contextNote.hidden = data.wrapper.hidden; });
-    d.box.append(kind, title.wrapper, element('p','Describe what happened and what you expected.'), body, contextNote, data.wrapper,
+    d.box.append(element('p', 'Thank you for helping improve Visualization Autocomplete. We really appreciate your bug reports and feature ideas.'),
+      kind, title.wrapper, element('p','Describe what happened and what you expected.'), body, contextNote, data.wrapper, agent.wrapper,
       button('Send report', async () => {
         if (!title.field.reportValidity() || !body.reportValidity()) return;
         // Freeze this exact moment, independent of later edits in the editor.
         const project = kind.value === 'project' ? snapshot() : null;
         if (kind.value === 'project' && !project) throw new Error('Create a visualization first.');
-        const result = await account.report({kind:kind.value,title:title.field.value,description:body.value,project,shareData:kind.value === 'project' && data.field.checked});
-        d.box.replaceChildren(element('h2','Report received'),element('p', `Reference: ${result.id}`),button('Close',()=>d.box.close()));
+        const result = await account.report({kind:kind.value,title:title.field.value,description:body.value,project,
+          shareData:kind.value === 'project' && data.field.checked,isAiAgent:agent.field.checked});
+        d.box.replaceChildren(element('h2','Report received'),
+          element('p', 'Thank you for your feedback! We really appreciate your help improving Visualization Autocomplete.'),
+          element('p', `Reference: ${result.id}`),button('Close',()=>d.box.close()));
       })); d.open();
   }
   async function dataLibrary() {

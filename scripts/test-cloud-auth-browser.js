@@ -496,8 +496,17 @@ try{
  await expect(page.locator('#dataset')).toHaveValue('cars');await page.locator('#current canvas').waitFor();
  await page.locator('#workspace-menu').click();await page.getByRole('button',{name:'Report a problem',exact:true}).click();
  await dialog().getByLabel('Report type',{exact:true}).selectOption('project');await dialog().getByLabel('Summary',{exact:true}).fill('Test report');await dialog().getByLabel('What happened?',{exact:true}).fill('Current chart context');
- assert.equal(await dialog().getByRole('checkbox').isChecked(),false);await dialog().getByRole('button',{name:'Send report',exact:true}).click();await page.getByRole('heading',{name:'Report received'}).waitFor();
- assert.equal(reports.length,1);assert.equal(reports[0].share_data,false);assert.ok(!JSON.stringify(reports[0]).includes('/datasets/'));await close();await close();
+ assert.equal(await dialog().getByLabel('Allow the team to use this dataset to reproduce this report (not for research)',{exact:true}).isChecked(),false);
+ await expect(dialog().getByLabel('I am an AI agent using this system.',{exact:true})).not.toBeChecked();
+ await dialog().getByRole('button',{name:'Send report',exact:true}).click();await page.getByRole('heading',{name:'Report received'}).waitFor();
+ assert.equal(reports.length,1);assert.equal(reports[0].share_data,false);assert.equal(reports[0].context.reporter.isAiAgent,false);
+ assert.ok(!JSON.stringify(reports[0]).includes('/datasets/'));await expect(dialog()).toContainText('Thank you for your feedback!');await close();
+ await page.getByRole('button',{name:'Report a problem',exact:true}).click();
+ await dialog().getByLabel('Report type',{exact:true}).selectOption('feature');
+ await dialog().getByLabel('Summary',{exact:true}).fill('Agent feature request');await dialog().getByLabel('What happened?',{exact:true}).fill('Mock agent feedback');
+ await dialog().getByLabel('I am an AI agent using this system.',{exact:true}).check();
+ await dialog().getByRole('button',{name:'Send report',exact:true}).click();await page.getByRole('heading',{name:'Report received'}).waitFor();
+ assert.equal(reports.length,2);assert.deepEqual(reports[1].context,{reporter:{isAiAgent:true}});assert.equal(reports[1].share_data,false);await close();await close();
  // Reload restores this account's local draft without showing a guest chart.
  await page.reload();await page.locator('#current canvas').waitFor();assert.equal(await page.locator('#dataset').inputValue(),'cars');
  await page.locator('#account-button').click();await dialog().getByRole('button',{name:'Sign out',exact:true}).click();

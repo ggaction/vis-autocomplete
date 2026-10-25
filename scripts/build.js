@@ -19,6 +19,7 @@ for(const name of ['model-manifest.json','model.json','initial-model.json']) awa
 let html = await readFile('index.html','utf8');
 html = html.replace(/\s*<script type="importmap">[\s\S]*?<\/script>/,'').replace('src="/web/app.js"','src="/assets/app.js"');
 await writeFile(`${out}/public/index.html`,html);
+await cp('privacy.html', `${out}/public/privacy.html`);
 const scriptHashes = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>`'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`);
 const pins = JSON.parse(await readFile('deployment-sources.json','utf8'));
 let source, commit='source-archive';

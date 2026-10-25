@@ -9,6 +9,8 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
     autoDeployTrigger: checksPass
+    domains:
+      - vis.autocomplete.studio
     envVars:
       - key: SUPABASE_URL
         sync: false

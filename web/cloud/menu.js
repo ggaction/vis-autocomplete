@@ -71,7 +71,9 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       button('Forgot password?', async () => {
         if (!email.field.reportValidity()) return;
         await account.recover(email.field.value); d.status.textContent = 'If an account exists, a password reset link will arrive by email.';
-      })); d.open();
+      }));
+    const privacy = element('a', 'Privacy and data use'); privacy.href = '/privacy.html'; privacy.target = '_blank'; privacy.rel = 'noopener noreferrer';
+    d.box.append(privacy); d.open();
   }
   function password() {
     const d = dialog('Choose a new password'), entry = input('New password', 'password');
@@ -103,7 +105,9 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       ['Visualization Autocomplete source', 'https://github.com/ggaction/vis-autocomplete']]) {
       const a = element('a', title); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; d.box.append(a);
     }
-    d.box.append(element('h3', 'Your data'), element('p', RESEARCH_NOTICE)); d.open();
+    d.box.append(element('h3', 'Your data'), element('p', RESEARCH_NOTICE));
+    const privacy = element('a', 'Privacy and data use'); privacy.href = '/privacy.html'; privacy.target = '_blank'; privacy.rel = 'noopener noreferrer';
+    d.box.append(privacy); d.open();
   }
   function report() {
     if (!requireAccount()) return;

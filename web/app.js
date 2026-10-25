@@ -24,6 +24,8 @@ import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { createCanvasResize } from './canvas-resize.js';
 import { createGuideEditor } from './guide-editor.js';
 import { guideMoveHistoryKey } from '../src/guide-manipulation.js';
+import { typographyCalls } from '../src/chart-typography.js';
+import { createTypographyToolbar } from './chart-typography.js';
 import { createResizeHistory, rebaseResizeAction } from './resize-history.js';
 import { createResizeThumbnails } from './resize-thumbnails.js';
 import { canvasGeometry, projectCanvasGeometry } from './canvas-geometry.js';
@@ -294,6 +296,39 @@ const guideEditor = createGuideEditor(elements.current, {
   },
 });
 
+const typographyToolbar = createTypographyToolbar($('chart-typography'), elements.current, {
+  read: () => state, apply: commitTypography, onError: message => notice(message, true),
+});
+
+async function commitTypography(options) {
+  if (state.loading || state.committing || state.resizing || state.phase === 'initial') return;
+  leaveGallery(); historyView.clear({ restore: false }); historyInspection = null; cardMotion.finish();
+  const key = options.fontFamily ? 'typography:family' : `typography:${[...options.groups].sort().join(',')}`;
+  const before = resizeHistory.begin(key), base = state.program;
+  const title = options.fontFamily ? `Font: ${options.fontFamily}` : 'Edit text sizes';
+  const calls = typographyCalls(state.view, options);
+  state.committing = true; elements.cards.inert = true; updateHistoryButtons();
+  try {
+    const result = await calculations.typography(before.program, before.view, before.guideCall, { ...options, calls });
+    if (state.program !== base || !result.calls.length && before.program === base) return;
+    state.program = result.program; state.view = result.view; state.guideCall = result.guideCall;
+    state.calls = [...before.calls, ...result.calls]; state.steps = before.steps + 1;
+    resizeHistory.commit(before, historySnapshot(title), key); scheduleSave();
+    if (mountedGallery) {
+      galleryCache.delete(mountedGallery.view);
+      mountedGallery.rankingSource ??= { program: mountedGallery.program, view: mountedGallery.view, guideCall: mountedGallery.guideCall };
+      Object.assign(mountedGallery, { program: result.program, view: result.view, guideCall: result.guideCall });
+    }
+    for (const card of state.cards) rebaseCard(card);
+    transitionMode.reset(); renderChart(elements.current, state.view, 'Current visualization');
+    elements.current.dataset.steps = state.steps; elements.current.dataset.traceCount = state.view.trace.children.length;
+    elements['current-note'].textContent = title; showCode(); notice();
+  } finally {
+    state.committing = false; elements.cards.inert = false;
+    updateHistoryButtons(); updateGalleryNavigation(); refreshVisibleCards();
+  }
+}
+
 function historySnapshot(currentNote = elements['current-note'].textContent) {
   const snapshot = captureHistorySnapshot(state, currentNote);
   state.calls = [...snapshot.calls]; state.setupCalls = snapshot.setupCalls;
@@ -303,6 +338,7 @@ function historySnapshot(currentNote = elements['current-note'].textContent) {
 function updateHistoryButtons() {
   const busy = state.loading || state.committing || state.resizing;
   chartDownloads.refresh(); compositionControls.refresh();
+  typographyToolbar.refresh();
   for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
   for (const id of ['edit-schema', 'reset', 'save-project', 'code-export']) $(id).disabled = busy || !state.datasetId;
   $('undo').disabled = busy || !history.canUndo;
@@ -469,7 +505,7 @@ function renderChart(host, program, label) {
   if (host === elements.preview) lastPreview = { program, label, generation: state.generation };
   if (host === elements.current) {
     chartDownloads.refresh();
-    if (state.phase !== 'initial') { canvasResize.mount(program, canvas); guideEditor.mount(program); compositionControls.layout(); }
+    if (state.phase !== 'initial') { canvasResize.mount(program, canvas); guideEditor.mount(program); compositionControls.layout(); typographyToolbar.mount(); }
   }
 }
 

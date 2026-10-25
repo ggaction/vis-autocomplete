@@ -308,7 +308,7 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
         args.y = { field: yBinField, fieldType: 'ordinal', scale: { domain: heatY(v.bins).domain } };
         const axis = (field, domain) => ({ title: { text: field.name }, ticksAndLabels: {
           values: domain.filter((_, i) => i % Math.ceil(domain.length / 4) === 0),
-          labels: { fontFamily: 'Arial', fontSize: 9, maxWidth: 48, wrap: 'word' } } });
+          labels: { fontSize: 9, maxWidth: 48, wrap: 'word' } } });
         args.guides = { axes: { x: axis(x, heatX(v.bins).domain), y: axis(y, heatY(v.bins).domain) } };
       }
       if (aggregatedHeatmap && color.type === 'temporal') args.color.temporalUnit = 'timestamp';
@@ -326,7 +326,7 @@ export function selectedPlotDefinitions(profile, selection, rows, eligibility = 
       }
       const axes = Object.fromEntries([['x', x], ['y', y]].filter(([, field]) => field.guideValues)
         .map(([channel, field]) => [channel, { ticksAndLabels: { values: field.guideValues,
-          labels: { fontFamily: 'Arial', fontSize: 9, maxWidth: 48, wrap: 'word', overlap: 'allow' } } }]));
+          labels: { fontSize: 9, maxWidth: 48, wrap: 'word', overlap: 'allow' } } }]));
       if (Object.keys(axes).length) args.guides = { ...args.guides, axes: { ...args.guides?.axes, ...axes } };
       if (binsX) args.guides = { ...args.guides, axes: { ...args.guides?.axes,
         x: { ...args.guides?.axes?.x, ticksAndLabels: { count: 6 } } } };

@@ -12,6 +12,7 @@ import { profileDataset } from '../src/profile.js';
 import { recommendationParameters, valuesFor, buildRecommendationCall } from './parameters.js';
 import { filterActionRecommendations, normalizeSearchQuery } from '../src/action-search.js';
 import { createHierarchyProjection } from '../src/action-hierarchy.js';
+import { prepareTypography } from '../src/chart-typography.js';
 
 // Both worker roles use the exact public native calls and the shared preparer.
 export function createCalculationService(model) {
@@ -116,6 +117,11 @@ export function createCalculationService(model) {
         return { exists: true };
       }
       const { program, view, rankings, decks } = stateFor(stateId);
+      if (type === 'typography') {
+        const result = prepareTypography(program, view, options);
+        return { update: packProgramUpdate(program, result.program), viewUpdate: packProgramUpdate(result.program, result.view),
+          guideCall: result.guideCall ?? guideCall, calls: result.calls };
+      }
       if (type === 'checkpoint') return { snapshot: serializeProgram(program), viewUpdate: packProgramUpdate(program, view) };
       if (type === 'scene') return createTransitionScene(action ? prepareGuidedAction(program, action, view, setupCalls).preview : view, { format: 'canvas' });
       if (type === 'prepare-resized') {

@@ -24,7 +24,7 @@ export function facetCandidates(program, { layer, profile }) {
       resolutions[first] = resolutions[first] === 'shared' ? 'independent' : 'shared';
       add('editFacetScales', 'encoding', resolutions, channels.map(c => select(c, `${c.toUpperCase()} scales`, resolutions[c], ['shared', 'independent'])), 'Facet scales');
     }
-    add('editFacetHeaders', 'style', { fontFamily: 'Arial', fontSize: 13, offset: 10 },
+    add('editFacetHeaders', 'style', { fontSize: 13, offset: 10 },
       [number('fontSize', 'Header size', 13, 8, 22), number('offset', 'Header offset', 10, 0, 24),
         select('fontWeight', 'Font weight', 'bold', ['normal', 'bold']),
         { path: 'color', label: 'Text color', type: 'color', value: '#555555',

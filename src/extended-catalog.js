@@ -23,7 +23,7 @@ const dash = (path, value = []) => choices(path, 'Line style', value, [
   { value: [], label: 'Solid' }, { value: [6, 4], label: 'Dashed' }, { value: [2, 3], label: 'Dotted' }]);
 const degrees = rotation => typeof rotation === 'number' ? rotation * 180 / Math.PI
   : rotation?.unit === 'degrees' ? rotation.value : (rotation?.value ?? 0) * 180 / Math.PI;
-const font = size => ({ fontFamily: 'Arial', fontSize: size });
+const font = size => ({ fontSize: size });
 const aggregateOps = ['mean', 'median', 'sum', 'min', 'max'];
 
 // Bind options to actual resource owners, not corpus IDs or guessed names.
@@ -99,7 +99,7 @@ export function extendedCandidates(program, { layer, profile }) {
       encoding.y?.field ?? encoding.x?.field;
     if (semantic || fields.some(f => f.name === field)) {
       const args = { source: target, ...(semantic ? { content: 'value' } : { field }),
-        fontFamily: 'Arial', fontSize: 11, placement: { anchor: semantic ? 'outsideEnd' : 'center' } };
+        fontSize: 11, placement: { anchor: semantic ? 'outsideEnd' : 'center' } };
       add('createMarkLabels', 'encoding', args, semantic ? [] : [choices('field', 'Label variable', field, fields.map(f => f.name)),
         number('fontSize', 'Label size', 11, 8, 18)], 'action.createMarkLabels', 'Add value labels');
     }
@@ -278,7 +278,7 @@ export function extendedCandidates(program, { layer, profile }) {
   const coordinate = program.semanticSpec.coordinates.find(c => c.id === layer.coordinate);
   if (coordinate?.type === 'cartesian') add('createAnnotation', 'style', { id: resourceId('annotation'), source: target, x: (program.resolvedScales[encoding.x?.scale]?.domain ?? [0])[0],
     y: (program.resolvedScales[encoding.y?.scale]?.domain ?? [0])[0],
-    text: 'Note', fontFamily: 'Arial', fontSize: 13 },
+    text: 'Note', fontSize: 13 },
     [text('text', 'Text', 'Note'), number('fontSize', 'Size', 13, 8, 24), color('fill', 'Text color'), weight('fontWeight')]);
   if (coordinate?.type === 'cartesian') style('editCoordinate', { target: coordinate.id, aspect: { mode: 'frame', ratio: 1 } },
     [number('aspect.ratio', 'Width / height', 1, .5, 2, .1)]);

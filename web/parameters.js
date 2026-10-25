@@ -436,7 +436,7 @@ export function recommendationParameters(recommendation, profile) {
         // Preserve categorical tick policies and specialized plot axis counts.
         return { ...out, ...(v[`${channel}Position`] ? { position: v[`${channel}Position`] } : {}), line: { ...(out.line || {}), lineWidth: v.lineWidth }, ticksAndLabels: {
           ...(quantitative && v.ticks !== undefined ? { count: v.ticks } : {}),
-          labels: { fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset },
+          labels: { fontSize: v.fontSize, offset: v.offset },
         } };
       };
       return [channel, Array.isArray(args[channel]) ? args[channel].map(edit) : edit(args[channel])];
@@ -456,7 +456,7 @@ export function recommendationParameters(recommendation, profile) {
       const out = clone(); delete out.labels;
       return { ...out, line: { ...(out.line || {}), lineWidth: v.lineWidth }, ...(v.position ? { position: v.position } : {}), ticksAndLabels: {
         ...(v.ticks !== undefined ? { count: v.ticks } : {}),
-        labels: { fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset },
+        labels: { fontSize: v.fontSize, offset: v.offset },
       } };
     };
   } else if (method === 'editParallelAxis') {
@@ -466,7 +466,7 @@ export function recommendationParameters(recommendation, profile) {
       numeric('offset', 'Label offset', args.labels?.offset ?? 8, 0, 30),
       numeric('lineWidth', 'Axis width', args.line?.lineWidth ?? 1, 0, 5, .25)];
     build = v => ({ ...clone(), field: v.field, line: { ...args.line, lineWidth: v.lineWidth },
-      labels: { ...args.labels, fontFamily: 'Arial', fontSize: v.fontSize, offset: v.offset } });
+      labels: { ...args.labels, fontSize: v.fontSize, offset: v.offset } });
   } else if (method === 'editLegend') {
     const channels = [...new Set(alternatives.map(option => option.args.channel))];
     const legendContext = legendContextFor({});
@@ -481,7 +481,7 @@ export function recommendationParameters(recommendation, profile) {
           Math.max(1, legendContext.itemCount ?? 30)), when: v => !v.showAll, defaultPolicy: 'context' },
       ] }] : [])];
     build = v => ({ ...structuredClone(alternatives.find(option => option.args.channel === v.channel)?.args ?? args),
-      channel: v.channel, position: v.position, itemGap: v.itemGap, labels: { fontFamily: 'Arial', fontSize: v.fontSize },
+      channel: v.channel, position: v.position, itemGap: v.itemGap, labels: { fontSize: v.fontSize },
       ...(legendContextFor(v).categorical ? { overflow: v.showAll ? false : { maxItems: v.maxItems, summary: 'ellipsis-count' } } : {}) });
   } else if (method === 'editGrid') {
     const direction = recommendation.guideContext?.direction ?? Object.keys(args)[0];
@@ -508,13 +508,13 @@ export function recommendationParameters(recommendation, profile) {
     controls.push(numeric('fontSize', 'Label size', 12, 8, 18));
     build = v => ({ ...clone(), ...Object.fromEntries(['x', 'y'].map(axis => [axis, { ticksAndLabels: {
       ...(!categoricalAxis(axis) ? { count: v[`${axis}Ticks`] } : {}),
-      labels: { fontFamily: 'Arial', fontSize: v.fontSize,
+      labels: { fontSize: v.fontSize,
         ...(categoricalAxis(axis) ? { offset: v[`${axis}Offset`] } : {}) },
     } }])) });
   } else if (method === 'createLegend') {
     controls = [select('position', 'Position', ['right', 'left', 'top', 'bottom'], args.position ?? 'right'),
       numeric('fontSize', 'Label size', 12, 8, 18), text('title', 'Title', args.title ?? '')];
-    build = v => ({ ...clone(), position: v.position, labels: { fontFamily: 'Arial', fontSize: v.fontSize },
+    build = v => ({ ...clone(), position: v.position, labels: { fontSize: v.fontSize },
       ...(v.title ? { title: v.title } : {}) });
   } else if (['createTitle', 'editTitle'].includes(method)) {
     controls = [text('text', 'Title', args.text), text('subtitle', 'Subtitle', args.subtitle || ''),
@@ -527,9 +527,9 @@ export function recommendationParameters(recommendation, profile) {
       select('position', 'Position', recommendation.compositionContext?.facet ? ['top'] : ['top', 'bottom', 'left', 'right'], args.position ?? 'top')];
     build = v => {
       const next = { ...clone(), text: v.text, position: v.position,
-        titleStyle: { ...args.titleStyle, fontFamily: 'Arial', fontSize: v.size,
+        titleStyle: { ...args.titleStyle, fontSize: v.size,
           fontWeight: args.titleStyle?.fontWeight ?? 'bold' },
-        subtitleStyle: { ...args.subtitleStyle, fontFamily: 'Arial', fontSize: v.subtitleSize } };
+        subtitleStyle: { ...args.subtitleStyle, fontSize: v.subtitleSize } };
       if (recommendation.titleWrapBounds) {
         const extent = recommendation.titleWrapBounds[['top', 'bottom'].includes(v.position) ? 'width' : 'height'];
         next.maxWidth = Math.min(args.maxWidth ?? extent, extent);
@@ -569,7 +569,7 @@ export function recommendationParameters(recommendation, profile) {
       numeric('fontSize', 'Font size', args.fontSize ?? 11, 8, 18),
       select('anchor', 'Position', ['center', 'insideEnd', 'outsideEnd'], args.placement?.anchor ?? 'outsideEnd'),
       numeric('gap', 'Gap', args.placement?.gap ?? 4, 0, 16)];
-    build = v => ({ ...clone(), content: v.content, fontSize: v.fontSize, fontFamily: 'Arial', placement: { ...args.placement, anchor: v.anchor, gap: v.gap } });
+    build = v => ({ ...clone(), content: v.content, fontSize: v.fontSize, placement: { ...args.placement, anchor: v.anchor, gap: v.gap } });
   } else if (method === 'createComputedData') {
     controls = [select('field', 'Source variable', options, args.expression.operand.field), text('as', 'Output column', args.as)];
     build = v => ({ ...clone(), as: v.as, expression: { op: 'toNumber', operand: { field: v.field } } });
@@ -807,5 +807,16 @@ export function activeControls(controls, values) {
 // A card may group native calls for one user decision. Each selected option
 // still resolves to exactly one real public method plus its native arguments.
 export function buildRecommendationCall(editor, values) {
-  return scopeRecommendationCall({ method: editor.method, args: editor.build(values) }, editor.editingScope);
+  const args = editor.build(values);
+  // Retained cards must not restore a font captured before a toolbar change.
+  // A card that actually exposes a font control, or an explicit theme recipe,
+  // still owns that choice. Other domain edits inherit current typography.
+  const fontControl = activeControls(editor.controls ?? [], values).some(control => /fontFamily/i.test(control.key));
+  const inheritFont = value => {
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(inheritFont);
+    return Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'fontFamily')
+      .map(([key, child]) => [key, key === 'theme' ? child : inheritFont(child)]));
+  };
+  return scopeRecommendationCall({ method: editor.method, args: fontControl ? args : inheritFont(args) }, editor.editingScope);
 }

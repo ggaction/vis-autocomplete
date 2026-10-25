@@ -177,5 +177,13 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       active[role] = { id: nextId, context: nextContext, promise: Promise.resolve() };
       return { program: next, view: nextView, guideCall: result.guideCall };
     },
+    async typography(program, view, guideCall, options) {
+      preview.cancelPending();
+      const context = contextFor(program, view, guideCall), endpoint = await ensure('preview', context);
+      const result = await endpoint.send({ type: 'typography', stateId: context.id, guideCall, options });
+      const next = unpackProgramUpdate(program, result.update);
+      const nextView = rememberDisplayedGuides(unpackProgramUpdate(next, result.viewUpdate), result.guideCall);
+      return { program: next, view: nextView, guideCall: result.guideCall, calls: result.calls };
+    },
   };
 }

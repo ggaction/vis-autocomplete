@@ -43,7 +43,7 @@ export function compositionTitleRecommendations(recommendations, program, model,
     const feature = method === 'createTitle' ? 'guide.title' : 'action.editTitle';
     const frame = compositionPlotBounds(program);
     const args = { ...config, text: title.text ?? rec.args.text, position: config?.position ?? 'top',
-      titleStyle: { fontFamily: 'Arial', fontSize: DEFAULT_TITLE_FONT_SIZE, ...config?.titleStyle },
+      titleStyle: { fontSize: DEFAULT_TITLE_FONT_SIZE, ...config?.titleStyle },
       ...(title.subtitle === undefined ? {} : { subtitle: title.subtitle }),
       ...(config?.subtitleStyle ? { subtitleStyle: { ...config.subtitleStyle } } : {}) };
     const evidence = scoreCandidate(model, [...new Set(chartViews(program).flatMap(({ program }) => extractFeatures(program)))], feature);

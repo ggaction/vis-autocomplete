@@ -86,7 +86,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       if (!config?.labels) continue;
       const fontSize = config.labels.fontSize === 11 ? 12 : 11;
       const entry = { ...(['x', 'y'].includes(channel) ? { target: id } : {}),
-        labels: { fontFamily: 'Arial', fontSize } };
+        labels: { fontSize } };
       // Named owners of the same channel stay in one real aggregate call.
       if (axes[channel]) axes[channel] = [...(Array.isArray(axes[channel]) ? axes[channel] : [axes[channel]]), entry];
       else axes[channel] = entry;
@@ -96,7 +96,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
     if (coordinate?.type === 'parallel') {
       const dimensions = encoding.parallel?.dimensions ?? [];
       axes.parallel = dimensions.map(dimension => ({ target, field: dimension.field,
-        labels: { fontFamily: 'Arial', fontSize: 11 } }));
+        labels: { fontSize: 11 } }));
       if (!axes.parallel.length) delete axes.parallel;
     }
     if (Object.keys(axes).length) {
@@ -113,7 +113,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       const channel = channels[0];
       add('editLegend', 'action.editLegend', 'guide', '기존 범례의 배치와 글자 수정',
         { target, channel, position: config?.position === 'top-right' ? 'right' : 'top-right',
-          labels: { fontFamily: 'Arial', fontSize: config?.labels?.fontSize ?? 12 } }, inspectionTarget);
+          labels: { fontSize: config?.labels?.fontSize ?? 12 } }, inspectionTarget);
       candidates.at(-1).guideContext = { channel, title: legend.title ?? channel,
         categorical: ['nominal', 'ordinal'].includes(encoding[channel]?.fieldType),
         sharedFacetLegend: Boolean(program.compositionSpec?.facet && program.compositionSpec.facet.guides.legend !== false),
@@ -137,11 +137,11 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
         { text: program.semanticSpec.title.text, position: program.titleConfig?.position ?? 'top',
           ...(program.semanticSpec.title.subtitle !== undefined ? { subtitle: program.semanticSpec.title.subtitle } : {}),
           subtitleStyle: { ...program.titleConfig?.subtitleStyle },
-          titleStyle: { ...program.titleConfig?.titleStyle, fontFamily: 'Arial',
+          titleStyle: { ...program.titleConfig?.titleStyle,
             fontSize: program.titleConfig?.titleStyle?.fontSize ?? DEFAULT_TITLE_FONT_SIZE } });
     } else add('createTitle', 'guide.title', 'guide', '현재 변수로 차트 제목 추가',
       { text: x && y ? `${y} by ${x}` : profile.id,
-        titleStyle: { fontFamily: 'Arial', fontSize: DEFAULT_TITLE_FONT_SIZE } });
+        titleStyle: { fontSize: DEFAULT_TITLE_FONT_SIZE } });
   };
   if (!supported || (layer.coordinate && program.semanticSpec.coordinates.find(c => c.id === layer.coordinate)?.type !== 'cartesian')) {
     addCommon();

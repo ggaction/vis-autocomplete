@@ -62,7 +62,7 @@ export function getPlotDefinitions(profile) {
   const pointGuides = v => {
     const axes = Object.fromEntries(['x', 'y'].filter(axis => fields.get(v[axis])?.guideValues).map(axis => [axis,
       { ticksAndLabels: { values: fields.get(v[axis]).guideValues,
-        labels: { fontFamily: 'Arial', fontSize: 9, maxWidth: 48, wrap: 'word', overlap: 'allow' } } }]));
+        labels: { fontSize: 9, maxWidth: 48, wrap: 'word', overlap: 'allow' } } }]));
     return Object.keys(axes).length ? { guides: { axes } } : {};
   };
   const pos = name => ({ field: name, fieldType: fields.get(name)?.type ?? 'quantitative', ...(fields.get(name)?.order?.length ? { scale: { domain: fields.get(name).order } } : {}) });
@@ -163,7 +163,7 @@ export function getPlotDefinitions(profile) {
   add('createParallelCoordinates', [dimensions(2), color(), number('opacity', 'Line opacity', 0.55, 0.1, 1, 0.05)],
     v => ({ dimensions: v.dimensions, ...colored(v.color), line: { opacity: v.opacity } }), needPair);
   add('createTextPlot', [...xy(), select('text', 'Text', ac, cc[0]?.value ?? first)],
-    v => ({ x: pos(v.x), y: pos(v.y), text: { field: v.text }, style: { fontFamily: 'Arial', fontSize: 11 } }), needPair);
+    v => ({ x: pos(v.x), y: pos(v.y), text: { field: v.text }, style: { fontSize: 11 } }), needPair);
   return definitions;
 }
 

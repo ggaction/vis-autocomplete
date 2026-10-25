@@ -531,7 +531,7 @@ function prepareFittedPlot(program, action, finish = value => value) {
       const values = discrete ? domain.filter((_, i) => i % Math.ceil(domain.length / count) === 0) : undefined;
       args.guides.axes[axis] = { ...previous, ticksAndLabels: { ...ticks,
         ...(discrete ? { values } : { count }),
-        labels: { ...ticks.labels, fontFamily: 'Arial', fontSize: 9,
+        labels: { ...ticks.labels, fontSize: 9,
           ...(['theta', 'radius'].includes(axis) ? {} : discrete && axis === 'x' ? { rotation: { value: 90, unit: 'degrees' }, maxWidth: 120, wrap: 'word' } : { maxWidth: 120, wrap: 'word' }) } } };
     }
     try { return finish(prepareAction(program, proposed(args))); } catch (error) {

@@ -53,7 +53,7 @@ export function rolePlotDefinitions(profile, selection, rows, { availableProfile
     add('createParallelCoordinates',[dimensions],v=>({dimensions:v.dimensions,...(color?{color:pos(color)}:{}),line:{opacity:.5}}));
     const ids=all.filter(f=>f.distinct===profile.rowCount&&cat(f));
     if(q.length>=3&&ids.length&&(!color||cat(color)))add('createRadarPlot',[{...dimensions,minimum:3,value:[...new Set([...selected,...q.map(f=>f.name)])].slice(0,3)},choose('identity','Series identity',ids)],v=>({wide:{fields:v.dimensions},groupBy:v.identity,...(color?{color:pos(color)}:{}),line:{opacity:.5},
-      guides:{axes:{theta:{title:{text:'Dimension'},ticksAndLabels:{values:v.dimensions,labels:{format:'auto',fontFamily:'Arial',fontSize:11}}},radius:{title:{text:'Value'}}}}}));
+      guides:{axes:{theta:{title:{text:'Dimension'},ticksAndLabels:{values:v.dimensions,labels:{format:'auto',fontSize:11}}},radius:{title:{text:'Value'}}}}}));
   }
   if(x&&y&&y.type==='quantitative'&&!color) {
     const lower=q.filter(f=>/lower|low|ci0|lo(?:wer)?bound/i.test(f.name)&&f.name!==y.name),upper=q.filter(f=>/upper|high|ci1|up(?:per)?bound/i.test(f.name)&&f.name!==y.name);

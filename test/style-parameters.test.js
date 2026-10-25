@@ -61,7 +61,9 @@ test('expanded style controls build executable single-function edits for every e
         for (const value of probes) {
           const args = editor.build({ ...initial, [control.key]: value });
           try {
-            const prepared = prepareGuidedAction(program, { method: rec.method, args });
+            // Keeping the current font/size is a valid edit. It no longer has
+            // the incidental side effect of forcing the font back to Arial.
+            const prepared = prepareGuidedAction(program, { method: rec.method, args, allowUnchanged: true });
             assert.equal(prepared.recommendation.validation.topLevelActions, 1);
           } catch (error) {
             throw new Error(`${chartMethod}/${rec.method}/${control.label}=${JSON.stringify(value)}: ${error.message}`, { cause: error });

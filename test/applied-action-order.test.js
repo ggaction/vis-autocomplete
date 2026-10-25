@@ -37,10 +37,10 @@ test('UI retains used fixed and mapped encodings after unused actions without al
 });
 
 test('actual Transform and Style calls move to the back, independently of feature revision labels', () => {
-  const raw = base().editPointMark({ target: 'plot', opacity: .6 })
+  const raw = base().editCanvas({ background: '#fafafa' })
     .createStatisticalReference({ source: 'plot', axis: 'y', statistic: { op: 'mean' },
       stroke: '#222222', strokeWidth: 2.5, strokeDash: 'solid' });
-  for (const [group, method] of [['style', 'editPointMark'], ['transform', 'createStatisticalReference']]) {
+  for (const [group, method] of [['style', 'editCanvas'], ['transform', 'createStatisticalReference']]) {
     const recs = engine.rank(addDefaultGuides(raw), { ...options, group }).recommendations;
     assert.ok(recs.some(r => r.method === method && r.previouslyApplied), method);
     assertUnusedFirst(recs);
@@ -95,16 +95,15 @@ test('unchanged Shape mapping remains on the final page and in search, including
       'mapping and its scale share the latest channel-authoring position');
     assert.equal(shape.sourceMethod ?? shape.method, 'encodeShape');
     assert.equal(shape.previouslyApplied, true);
-    assert.equal(shape.validation.status, 'unchanged');
-    assert.equal(shape.validation.changed, false);
+    assert.ok(shape.alternatives.some(a => a.args.value !== undefined || a.args.action?.options?.value !== undefined), 'used shape remains adjustable in fixed mode');
     assert.equal(new Set(deck.result.recommendations.map(r => r.id)).size, deck.result.recommendations.length);
     assert.equal(deck.pagination.complete, true);
     assert.ok(deck.pagination.pageRanges.every(({ start, end }) => end > start), 'no phantom empty page');
     const searched = request(0, 'encodeShape');
     assert.deepEqual(searched.result.recommendations.map(r => r.id), [shape.id]);
-    assert.equal(searched.defaults[0].prepared, null, 'unchanged is not a successful mutation');
-    assert.throws(() => service.execute({ type: 'materialize', stateId: 1,
-      action: searched.defaults[0].action }), error => error.reason === 'no-change');
+    const action = faceted ? { method: 'editFacetSource', args: { action: { method: 'encodeShape', options: { target: 'plot', field: 'Group', fieldType: 'nominal' } } } }
+      : { method: 'encodeShape', args: { target: 'plot', field: 'Group', fieldType: 'nominal' } };
+    assert.throws(() => service.execute({ type: 'materialize', stateId: 1, action }), error => error.reason === 'no-change');
     assert.equal(serializeProgram(raw), before, 'the unchanged card cannot add history');
   }
 });

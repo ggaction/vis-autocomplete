@@ -38,7 +38,7 @@ test('corpus arc recipes merge into two semantic cards with real controls, not r
         assert.deepEqual(variantEditor.build(valuesFor(variantEditor.controls)).innerRadius, variant.args.innerRadius);
       }
     } else {
-      assert.ok(editor.controls.some(c => c.label === 'Outline'));
+      assert.deepEqual(editor.controls.map(c => c.label), ['Opacity']);
       assert.ok(rec.alternatives.every(c => c.args.innerRadius === undefined && c.args.padAngle === undefined));
       const args = editor.build(initial);
       assert.equal(args.innerRadius, undefined);

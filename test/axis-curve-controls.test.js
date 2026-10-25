@@ -54,8 +54,9 @@ for (const [create, edit] of [['createLinePlot', 'editLineMark'], ['createAreaPl
     const adjusted = program[edit](editor.build({ ...cardinal, [tension.key]: .8 }));
     assert.equal(adjusted.markConfigs.plot.tension, .8);
     const after = recipe(adjusted, edit).editor, current = valuesFor(after.controls);
-    const controls = activeControls(after.controls, current), nextCurve = controls.find(c => c.label === 'Curve');
-    assert.equal(controls.find(c => c.label === 'Tension').value, .8);
+    const nextCurve = activeControls(after.controls, current).find(c => c.label === 'Curve');
+    const cardinalControls = activeControls(after.controls, { ...current, [nextCurve.key]: 'cardinal' });
+    assert.equal(cardinalControls.find(c => c.label === 'Tension').value, .8);
     const args = after.build({ ...current, [nextCurve.key]: 'natural' });
     assert.equal(args.tension, undefined);
     assert.equal(adjusted[edit](args).markConfigs.plot.tension, undefined);

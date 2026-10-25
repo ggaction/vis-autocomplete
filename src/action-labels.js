@@ -38,6 +38,8 @@ export const ACTION_LABELS = {
 export function actionTitle(recommendation) {
   const method = recommendation.sourceMethod ?? recommendation.method;
   const args = recommendation.args?.action?.options ?? recommendation.args ?? {};
+  if (/^edit(Point|Bar|Rect|Tick|Line|Arc)Mark$/.test(method) && recommendation.parameters?.length === 1 &&
+      ['cornerRadius', 'length', 'lineJoin', 'shape', 'opacity'].includes(recommendation.parameters[0].path)) return recommendation.label;
   if (method === 'editArcMark') return args.innerRadius !== undefined || args.padAngle !== undefined
     ? 'Adjust arc geometry' : 'Adjust arc appearance';
   if (['editLineMark', 'editAreaMark'].includes(method) && recommendation.parameters?.some(p => p.path === 'curve')) return ACTION_LABELS[method];

@@ -54,7 +54,7 @@ test('expanded style controls build executable single-function edits for every e
     const program = fixture(chartMethod), { list, profile } = candidates(program);
     for (const rec of list.filter(c => methods.has(c.method))) {
       const editor = recommendationParameters(rec, profile), initial = valuesFor(editor.controls);
-      assert.ok(editor.controls.length >= 2 && editor.controls.length <= 4, rec.method);
+      assert.ok(editor.controls.length >= 1 && editor.controls.length <= 4, rec.method);
       for (const control of activeControls(editor.controls, initial)) {
         const probes = control.type === 'number' ? [control.min, Math.min(control.max, control.value + control.step)]
           : control.type === 'text' ? ['Example'] : control.choices.filter(c => !c.disabled).map(c => c.value);
@@ -105,31 +105,18 @@ test('title cards create, preserve, resize and remove subtitles through one nati
 });
 
 
-test('corpus-preferred mark recipes retain rich controls without overwriting unrelated encodings', () => {
+test('dedicated point encodings replace generic style controls without overwriting other channels', () => {
   const program = fixture().encodeShape({ target: 'plot', field: 'Group', fieldType: 'nominal' });
   const { profile, list } = candidates(program);
-  const recipe = list.find(c => c.method === 'editPointMark');
-  const rec = { ...recipe, args: { target: 'plot', opacity: .6 }, parameters: undefined,
-    parameterMode: 'presets', alternatives: [{ args: { target: 'plot', opacity: .6 } }, recipe] };
-  const editor = recommendationParameters(rec, profile);
-  assert.equal(editor.controls.length, 4);
-  const initial = valuesFor(editor.controls);
-  const args = editor.build(initial);
-  assert.deepEqual(args, { target: 'plot', opacity: .6 });
-  const next = program.editPointMark(args);
-  assert.deepEqual(next.semanticSpec.layers[0].encoding.shape, program.semanticSpec.layers[0].encoding.shape);
-  assert.deepEqual(next.semanticSpec.layers[0].encoding.color, program.semanticSpec.layers[0].encoding.color);
-  const width = editor.controls.find(c => c.label === 'Stroke width');
-  const thicker = editor.build({ ...initial, [width.key]: 2 });
-  assert.equal(thicker.strokeWidth, 2);
-  assert.equal(thicker.stroke, '#000000');
-  assert.doesNotThrow(() => program.editPointMark(thicker));
-  const color = editor.controls.find(c => c.label === 'Stroke color');
-  const zeroWidth = editor.build({ ...initial, [color.key]: '#e45756', [width.key]: 0 });
-  assert.equal(zeroWidth.strokeWidth, 0, 'choosing a color must not implicitly re-enable a zero-width outline');
-  assert.doesNotThrow(() => program.editPointMark(zeroWidth));
+  assert.ok(!list.some(c => c.method === 'editPointMark'));
+  const rec = list.find(c => c.method === 'encodeStrokeWidth' && c.args.value !== undefined);
+  const editor = recommendationParameters(rec, profile), values = valuesFor(editor.controls);
+  const args = editor.build({ ...values, mode: 'fixed', value: 2 });
+  assert.deepEqual(args, { target: 'plot', value: 2 });
+  const next = program.encodeStrokeWidth(args);
+  assert.equal(next.markConfigs.plot.strokeWidth, 2);
+  for (const channel of ['shape', 'color']) assert.deepEqual(next.semanticSpec.layers[0].encoding[channel], program.semanticSpec.layers[0].encoding[channel]);
 });
-
 
 test('heatmap, pie, text and rug mark styles use their own native capabilities', () => {
   const base = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'data', values: rows });
@@ -142,7 +129,7 @@ test('heatmap, pie, text and rug mark styles use their own native capabilities',
     const rec = list.find(c => c.category === 'style' && /^edit(Rect|Arc|Text|Tick)Mark$/.test(c.method));
     assert.ok(rec);
     const editor = recommendationParameters(rec, profile), initial = valuesFor(editor.controls);
-    assert.equal(editor.controls.length, 4, rec.method);
+    assert.ok(editor.controls.length >= 1 && editor.controls.length <= 4, rec.method);
     for (const control of editor.controls) {
       const value = control.type === 'number' ? Math.min(control.max, control.value + control.step)
         : control.choices.find(choice => choice.value !== control.value)?.value;

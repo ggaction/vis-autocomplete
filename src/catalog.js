@@ -12,10 +12,11 @@ import { corpusCandidates } from './corpus-candidates.js';
 import { DEFAULT_TITLE_FONT_SIZE } from './parameter-defaults.js';
 import { recommendationCategory } from './recommendation-groups.js';
 import { regressionContext as inspectRegressionContext } from './regression-context.js';
+import { focusMarkEditors } from './mark-editor-policy.js';
 export const ACTION_METHODS = PUBLIC_ACTION_METHODS;
 
 export function generateCandidates(program, { layer, profile, actionEvidence, regressionContext }) {
-  return candidateRecipes(program, { layer, profile, actionEvidence, regressionContext }).map(candidate => ({
+  return focusMarkEditors(candidateRecipes(program, { layer, profile, actionEvidence, regressionContext })).map(candidate => ({
     ...candidate, category: recommendationCategory(candidate),
   }));
 }

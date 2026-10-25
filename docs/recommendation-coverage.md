@@ -59,3 +59,17 @@ sum/count·변수·면적/길이 프리뷰와 Apply/재로드, Regression 및 In
 Horizon처럼 원본 역할을 편집하는 공개 owner 함수가 아직 없는 경우, 내부 fold/band 경계 열을
 임의의 원본 변수로 바꾸는 추천으로 대체하지 않는다. 새로운 공개 편집 계약은 라이브러리에서 다룬다.
 열린 그룹·페이지의 기본값만 실행 검증하는 기존 지연 처리도 유지한다.
+
+
+## 전용 인코딩과 마크 편집의 중복 제거
+
+`src/mark-editor-policy.js`는 모든 후보 소스(코퍼스 포함)를 합친 후, 같은 target에 실제 고정값
+인코딩 후보가 있는 속성만 generic mark editor에서 제거한다. 남은 속성이 없으면 카드도 제거한다.
+`editPointMark`는 전용 모양·크기·색·투명도·테두리 카드로 대체하며, 선/면의 곡선 보간,
+막대/셀의 모서리, tick 길이, 텍스트 서식과 arc geometry처럼 고유한 기능은 유지한다.
+편집 대상이 달라지면 실제 호출에서 feature를 다시 추출하므로 opacity 변경으로 잘못 분류하지 않는다.
+기존 ggaction 함수와 저장된 코드·히스토리의 실행은 유지한다.
+
+`encodeShape`는 Fixed/Variable과 14종 고정 모양을 제공한다. `encodeStrokeWidth`는 고정값을
+지원하는 마크에만 제안하고, 변수 두께를 지원하지 않는 마크에서는 해당 모드를 비활성화한다.
+`test/mark-editor-policy.test.js`와 스타일·arc·곡선·적용 순서 테스트가 중복 제거와 고유 기능 보존을 확인한다.

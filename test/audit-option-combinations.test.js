@@ -144,6 +144,7 @@ test('corpus recipes cannot create duplicate or incompatible generic mark editor
   const p = base(read('iris')).createScatterPlot({ id: 'plot', x: 'Sepal.Length', y: 'Petal.Length' });
   const candidates = generateCandidates(p, { ...context(p), actionEvidence: {
     methods: [{ public: true, method: 'editPointMark', templates: [{ args: { opacity: .5 } }] }] } });
-  assert.equal(candidates.filter(card => card.method === 'editPointMark').length, 1);
-  assert.ok(candidates.find(card => card.method === 'editPointMark').parameters.length > 0);
+  assert.equal(candidates.filter(card => card.method === 'editPointMark').length, 0);
+  for (const method of ['encodeOpacity', 'encodeSize', 'encodeShape', 'encodeStroke', 'encodeStrokeWidth'])
+    assert.ok(candidates.some(card => card.method === method && card.args.value !== undefined), method);
 });

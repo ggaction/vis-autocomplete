@@ -12,7 +12,7 @@ const recipes = [
   ['encodeColor', 'color', ['#4c78a8', '#e45756']], ['encodeStroke', 'stroke', ['#000000', '#555555']],
   ['encodeOpacity', 'opacity', [.7, .45]], ['encodeSize', 'size', [64, 100]],
   ['encodeStrokeWidth', 'strokeWidth', [2, 3]], ['encodeStrokeDash', 'strokeDash', ['dashed', 'solid']],
-  ['encodeAngle', 'angle', [30, 60]], ['encodeShape', 'shape'],
+  ['encodeAngle', 'angle', [30, 60]], ['encodeShape', 'shape', ['circle', 'square']],
 ];
 
 export function appearanceCandidates(program, { layer, profile }) {

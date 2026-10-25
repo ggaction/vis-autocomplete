@@ -186,9 +186,8 @@ test('unchanged recommendation defaults never poison the preview cache or block 
   const view = raw.createGuides(guideCall.args);
   const response = await client.recommend(raw, view, guideCall,
     { target: 'plot', ...FOLLOWUP_RECOMMENDATION_OPTIONS }, 'encoding', 0, 'encodeShape');
-  assert.equal(response.result.recommendations[0].validation.status, 'unchanged');
-  assert.equal(response.defaults[0].prepared, null);
-  const action = response.defaults[0].action;
+  assert.equal(response.result.recommendations[0].previouslyApplied, true);
+  const action = { method: 'encodeShape', args: { target: 'plot', field: 'Group', fieldType: 'nominal' } };
   await assert.rejects(client.prepare(raw, view, guideCall, action), error => error.reason === 'no-change');
   await assert.rejects(client.materialize(raw, view, guideCall, action), error => error.reason === 'no-change');
   const next = { method: 'encodeShape', args: { target: 'plot', field: 'Group',

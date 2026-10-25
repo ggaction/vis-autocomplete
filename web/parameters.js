@@ -407,18 +407,16 @@ export function recommendationParameters(recommendation, profile) {
       }
       return out;
     };
-  } else if (['encodeAngle', 'encodeStrokeDash'].includes(method)) {
-    const angle = method === 'encodeAngle';
+  } else if (['encodeAngle', 'encodeStrokeDash', 'encodeShape'].includes(method)) {
+    const angle = method === 'encodeAngle', shape = method === 'encodeShape';
     const variable = v => v.mode === 'variable';
     controls = [select('mode', 'Mode', [{ value: 'fixed', label: 'Fixed' },
       { value: 'variable', label: 'Variable', disabled: !validFieldOptions.length }], args.field ? 'variable' : 'fixed'),
       { ...select('field', 'Variable', fieldOptions, args.field ?? options[0]), when: variable },
       { ...(angle ? numeric('value', 'Angle', args.value ?? 30, 0, 360, 5)
+        : shape ? select('value', 'Shape', ['circle', 'square', 'diamond', 'triangle-up', 'triangle-down', 'triangle-left', 'triangle-right', 'plus', 'cross', 'star', 'hexagon', 'wye', 'wedge', 'arrow'], args.value ?? 'circle')
         : select('value', 'Dash', ['solid', 'dashed', 'dotted'], args.value ?? 'dashed')), when: v => !variable(v) }];
     build = v => variable(v) ? forField(v.field) : { target: args.target, value: v.value };
-  } else if (method === 'encodeShape') {
-    controls = [select('field', 'Variable', fieldOptions, args.field)];
-    build = v => ({ ...clone(), field: v.field });
   } else if (method === 'createRegression') {
     const context = recommendation.regressionContext;
     const groups = context ? Object.keys(context.groups).filter(Boolean) : categories;

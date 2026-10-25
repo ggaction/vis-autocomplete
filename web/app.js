@@ -47,8 +47,15 @@ import { actionTitle } from '../src/action-labels.js';
 import { normalizeSearchQuery } from '../src/action-search.js';
 import { importDataset, parseCSV } from '../src/data-import.js';
 import { reviewDatasetImport } from './import-dialog.js';
+import { chooseDatasetFile } from './upload-dialog.js';
 import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore, checkpointRevision } from './project.js';
+import { initializeAccountMenu } from './cloud/menu.js';
+import { accountSession } from './cloud/session.js';
+import { createProjectThumbnail } from './cloud/thumbnail.js';
 export { parseCSV } from '../src/data-import.js';
+
+const { account: signedInAccount } = await accountSession();
+if (!signedInAccount.user) throw new Error('Sign in to open the editor.');
 
 const $ = id => document.getElementById(id);
 const elements = Object.fromEntries(['current', 'preview', 'cards', 'notice',
@@ -87,7 +94,8 @@ const chartZoom = createChartZoom(elements.current, document.querySelector('.cur
 $('reset-view-sizes').addEventListener('click', () => chartZoom.reset());
 const datasets = new Map(exampleDatasets().map(record => [record.id, record]));
 const datasetBases = createLRU(4);
-const drafts = createDraftStore();
+let drafts = createDraftStore(undefined, `visualization-autocomplete-account-${signedInAccount.user.id}`), accountMenu = null;
+let switchingAccount = false, previewStartedAt = 0;
 let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = false, checkpointTimer;
 const history = createHistory();
 const resizeHistory = createResizeHistory(history);
@@ -385,6 +393,7 @@ for (const [index, group] of OPTION_GROUPS.entries()) {
   button.addEventListener('click', () => {
     if (state.committing || state.phase === 'initial' || state.optionGroup === group.id) return;
     clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
+    accountMenu?.record('group', {group:group.id});
     state.optionGroup = group.id; state.active = null;
     showPreview(null);
     updateCards().catch(error => notice(error.message, true));
@@ -404,6 +413,7 @@ function searchActions() {
   if (state.committing || state.phase === 'initial') return;
   const query = normalizeSearchQuery($('action-search').value);
   if (state.searchQuery === query) return;
+  accountMenu?.record('search', { count: query.length, group: state.optionGroup });
   state.searchQuery = query; state.active = null;
   showPreview(null);
   updateCards().catch(error => notice(error.message, true));
@@ -441,6 +451,7 @@ function mountDataTable() {
 
 async function restoreHistory(direction) {
   if (state.loading || state.committing || state.resizing) return;
+  accountMenu?.record('history', { index: typeof direction === 'number' ? direction : history.index + (direction === 'undo' ? -1 : 1) });
   resizeHistory.reset(); state.adding = null;
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
@@ -483,6 +494,7 @@ async function restoreHistory(direction) {
 function notice(message = '', isError = false) {
   elements.notice.textContent = message;
   elements.notice.classList.toggle('error', isError);
+  if (isError) accountMenu?.record('error');
 }
 
 function placeholder(host, message) {
@@ -626,6 +638,7 @@ function selectCard(card) {
   if (state.resizing || state.committing || card.disabled || card.base !== state.program) return;
   cancelGalleryLeave();
   historyView.release();
+  if (state.active !== card) { endResearchPreview(); previewStartedAt = performance.now(); accountMenu?.record('preview_start', { method: card.method, rank: Number(card.rank), group: state.phase === 'initial' ? 'initial' : state.optionGroup }); }
   state.active = card;
   for (const item of state.cards) item.element.classList.toggle('selected', item === card);
   expandCards(state.cards.map(item => [item, item === card]));
@@ -702,6 +715,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
 }
 
 function pinValues(card, values, changedKey, rebuild = true) {
+  accountMenu?.record('parameter', { method: card.method, index: card.controls?.findIndex?.(d => d.key === changedKey) });
   const flatten = list => list.flatMap(c => c.type === 'group' ? flatten(c.controls) : [c]);
   card.nextTransitionDuration = parameterTransitionDuration(flatten(card.controls).find(c => c.key === changedKey));
   card.values = card.normalizeValues?.(card.fieldSelection && card.normalizeMapping ? { ...values, __previousMapping: card.values } : values, changedKey) ?? values;
@@ -1070,6 +1084,7 @@ async function goToGalleryPage(index) {
   const target = Math.max(0, Math.min(state.galleryRows.length - 1, index));
   const row = state.galleryRows[target];
   if (!row) return;
+  accountMenu?.record('page', { index: target, group: state.optionGroup });
   elements.cards.scrollTo({ left: elements.cards.scrollLeft + row.getBoundingClientRect().left - elements.cards.getBoundingClientRect().left,
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   // Navigation must not wait for expensive native previews. Keep Back and the
@@ -1453,6 +1468,7 @@ async function commit(card, { direct = false, refresh = false } = {}) {
     state.adding = null;
     if (before) resizeHistory.commit(before, historySnapshot(card.title), card.historyKey);
     else { resizeHistory.reset(); history.push(historySnapshot(card.title)); }
+    accountMenu?.record('apply', { method: recommendation.method, revision: history.index, group: state.optionGroup });
     scheduleSave();
     const committedProgram = state.program;
     // Invalidate an initial gallery that may still be filling, and remove the
@@ -1522,6 +1538,7 @@ async function refreshSelection() {
   // An edited selection starts a new chart branch. Merely visiting History 0
   // uses restoreHistory, so later snapshots remain available until this edit.
   history.reset(historySnapshot());
+  if (!restoringProject && !switchingAccount) accountMenu?.record('selection', {count:selectionFields(state.selection).length});
   updateHistoryButtons();
   showPreview(null);
   scheduleSave();
@@ -1544,16 +1561,19 @@ function rememberDataset() {
   if (record && history.entries.length) record.session = liveSession();
 }
 function projectSnapshot() {
+  if (!state.datasetId) return null;
   rememberDataset();
   return createProject([...datasets.values()].filter(record => record.imported), state.datasetId, sourceVersion);
 }
 function flushSave() {
-  if (restoringProject || !state.datasetId) return;
+  if (restoringProject || switchingAccount || !state.datasetId) return;
   $('draft-status').textContent = 'Saving draft…';
   // Start durable writes without a debounce gap: a dataset switch followed by
   // reload must not restore the previously selected dataset.
   try {
     const project = projectSnapshot();
+    const cloudSave = accountMenu?.save(project);
+    cloudSave?.catch(() => { $('cloud-status').textContent = 'Account save failed. Keep this tab open and retry.'; });
     savingDraft = drafts.write(project).then(() => {
       $('draft-status').textContent = 'Draft saved on this device';
     }).catch(error => { $('draft-status').textContent = 'Draft not saved. Use Save project.'; $('draft-status').title = error.message; });
@@ -1561,7 +1581,7 @@ function flushSave() {
     if (state.phase === 'recommendations' && sourceVersion?.runtimeHash) {
       // Cache the committed history entry, never a transient drag/hover view.
       const { program, view, guideCall } = history.entries[history.index];
-      const revision = checkpointRevision(project), source = sourceVersion;
+      const revision = checkpointRevision(project), source = sourceVersion, checkpointStore = drafts;
       const cache = async () => {
         if (state.loading || state.committing || state.resizing || activeRecommendation) {
           checkpointTimer = setTimeout(cache, 500); return;
@@ -1569,7 +1589,7 @@ function flushSave() {
         try {
           const compiled = await calculations.checkpoint(program, view, guideCall);
           await savingDraft;
-          await drafts.writeCheckpoint({ version: 1, revision: await revision, source, ...compiled });
+          await checkpointStore.writeCheckpoint({ version: 1, revision: await revision, source, ...compiled });
         } catch { /* The public-call draft remains authoritative if caching fails. */ }
       };
       checkpointTimer = setTimeout(cache, 500);
@@ -1658,6 +1678,28 @@ async function editSchema() {
   await activateDataset({ id: crypto.randomUUID(), name: `${record.name} · revised types`, imported }, { selection: state.selection, restore: false });
 }
 
+async function emptyWorkspace() {
+  clearTimeout(checkpointTimer); chartZoom.reset();
+  cancelGalleryLeave(); cancelSelectedPreview(); cancelChartTransfer();
+  pointerMotion.reset(); sliderHover.reset(); transitionMode.reset(); canvasResize.clear(); guideEditor.clear();
+  historyView.clear({ restore: false }); historyInspection = null; history.clear(); resizeHistory.reset();
+  state.tableView?.destroy?.(); state.galleryObserver?.disconnect();
+  mountedGallery = null; recentGalleries.clear(); renderedCharts.delete(elements.current); thumbnailView = null;
+  Object.assign(state, { datasetId: null, rows: [], name: '', phase: 'initial', program: null, view: null, base: null,
+    cards: [], active: null, context: {}, steps: 0, setupCalls: [], calls: [], baseCalls: [],
+    selection: { fields: [] }, selectionAxes: null, profile: null, tableView: null, guideCall: null, adding: null });
+  datasets.clear(); for (const record of exampleDatasets()) datasets.set(record.id, record);
+  elements.current.replaceChildren(); elements.current.classList.remove('data-view'); elements['current-note'].textContent = '';
+  $('selection-controls').hidden = true;
+  resetCodeView($('code-content')); updateDatasetOptions(); await updateCards(); updateHistoryButtons();
+}
+let thumbnailView, thumbnailData;
+function cloudThumbnail() {
+  if (state.phase === 'initial' || !state.view) return null;
+  if (thumbnailView === state.view) return thumbnailData;
+  thumbnailData = createProjectThumbnail(state.view); thumbnailView = state.view; return thumbnailData;
+}
+
 async function resetVisualization() {
   if (state.committing || !state.datasetId) return;
   state.committing = true; updateHistoryButtons();
@@ -1742,7 +1784,12 @@ function routePointer(event) {
   sliderHover.move(slider, event, rangeIntents.get(slider));
 }
 
+function endResearchPreview() {
+  if (previewStartedAt && state.active) accountMenu?.record('preview_end', { method: state.active.method, duration: Math.round(performance.now() - previewStartedAt) });
+  previewStartedAt = 0;
+}
 function leaveGallery() {
+  endResearchPreview();
   sliderHover.reset();
   cancelGalleryLeave();
   cancelSelectedPreview();
@@ -1829,22 +1876,23 @@ initializeWorkspaceResize({ workspace: document.querySelector('.workspace'), res
   beforeChange: beforeWorkspaceChange, afterChange: afterWorkspaceChange });
 window.addEventListener('resize', () => cardMotion.finish(), { passive: true });
 
-$('upload').addEventListener('click', () => $('file').click());
-$('file').addEventListener('change', async event => {
-  if (state.committing) { event.target.value = ''; return; }
-  const file = event.target.files[0]; if (!file) return;
+async function chooseDataset(record) {
+  if (!state.datasetId && !await accountMenu.nameNewProject(record.name)) { updateDatasetOptions(); return; }
+  await activateDataset(record);
+}
+$('upload').addEventListener('click', async () => {
+  if (state.committing) return;
   try {
-    const imported = await reviewDatasetImport(await file.text(), {
-      name: file.name, format: file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'json' });
-    if (imported) await activateDataset({ id: crypto.randomUUID(), name: file.name, imported });
+    const file = await chooseDatasetFile(); if (!file) return;
+    const imported = await reviewDatasetImport(file.input, { name: file.name, format: file.format, ...file.options });
+    if (imported) await chooseDataset({ id: crypto.randomUUID(), name: file.name, imported });
   } catch (error) { notice(error.message, true); }
-  event.target.value = '';
 });
 $('dataset').addEventListener('change', async event => {
   if (state.loading || state.committing) { $('dataset').value = state.datasetId; return; }
   state.loading = true; elements.current.inert = true; elements.cards.inert = true; updateHistoryButtons();
   notice('Loading dataset…');
-  try { await activateDataset(await loadExampleDataset(datasets.get(event.target.value))); }
+  try { await chooseDataset(await loadExampleDataset(datasets.get(event.target.value))); }
   catch (error) { $('dataset').value = state.datasetId ?? ''; notice(error.message, true); }
   finally { state.loading = false; elements.current.inert = false; elements.cards.inert = false; updateHistoryButtons(); updateGalleryNavigation(); }
 });
@@ -1869,7 +1917,7 @@ $('open-project').addEventListener('click', () => $('project-file').click());
 $('project-file').addEventListener('change', async event => {
   if (state.committing) { event.target.value = ''; return; }
   const file = event.target.files[0]; if (!file) return;
-  try { await openProject(await file.text()); } catch (error) { notice(error.message, true); }
+  try { const project = parseProject(await file.text()); await accountMenu?.newProject(); await emptyWorkspace(); await openProject(project); } catch (error) { notice(error.message, true); }
   event.target.value = '';
 });
 $('code-export').addEventListener('click', () => {
@@ -1895,27 +1943,39 @@ $('chart-exports').append(zoomCurrent);
 
 let startupLoading = true;
 try {
-  const [sourceResponse, draft] = await Promise.all([fetch('/output/workers/source.json'), drafts.read().catch(() => {
-    $('draft-status').textContent = 'Use Save project to keep your work.';
-    return null;
-  })]);
+  const sourceResponse = await fetch('/output/workers/source.json');
   if (sourceResponse.ok) sourceVersion = await sourceResponse.json();
   updateDatasetOptions();
-  if (draft) {
-    let current;
-    try {
-      const cached = sourceVersion?.runtimeHash && await drafts.readCheckpoint(await checkpointRevision(draft), sourceVersion);
-      if (cached) {
-        const program = deserializeProgram(cached.snapshot);
-        current = { program, view: unpackProgramUpdate(program, cached.viewUpdate) };
-        const session = draft.datasets.find(record => record.id === draft.activeId)?.session;
-        calculations.prime(program, current.view, session?.entries[session.index]?.guideCall, cached.snapshot);
-      }
-    } catch (error) { document.body.dataset.checkpointError = error.message; }
-    document.body.dataset.restoration = current ? 'checkpoint' : 'calls';
-    try { await openProject(draft, { lazy: true, current, onReady: () => { state.loading = false; startupLoading = false; } }); $('draft-status').textContent = 'Draft restored on this device'; }
-    catch (error) { await updateCards(); notice(`Could not restore the draft: ${error.message}`, true); }
-  } else await updateCards();
+  accountMenu = await initializeAccountMenu({ snapshot: projectSnapshot,
+    restore: async project => { await emptyWorkspace(); await openProject(project, { lazy: true }); },
+    newVisualization: async () => { await emptyWorkspace(); await drafts.clear(); },
+    useDataset: async record => { await emptyWorkspace(); await activateDataset(record); },
+    thumbnail: cloudThumbnail, busy: () => state.loading || state.committing || state.resizing,
+    switchAccount: async user => {
+      switchingAccount = true; state.committing = true; updateHistoryButtons();
+      try {
+        clearTimeout(checkpointTimer); await savingDraft; await emptyWorkspace();
+        drafts = createDraftStore(undefined, `visualization-autocomplete-account-${user.id}`);
+        const draft = await drafts.read();
+        if (draft) {
+          let current;
+          try {
+            const cached = sourceVersion?.runtimeHash && await drafts.readCheckpoint(await checkpointRevision(draft), sourceVersion);
+            if (cached) {
+              const program = deserializeProgram(cached.snapshot);
+              current = { program, view: unpackProgramUpdate(program, cached.viewUpdate) };
+              const session = draft.datasets.find(record => record.id === draft.activeId)?.session;
+              calculations.prime(program, current.view, session?.entries[session.index]?.guideCall, cached.snapshot);
+            }
+          } catch (error) { document.body.dataset.checkpointError = error.message; }
+          document.body.dataset.restoration = current ? 'checkpoint' : 'calls';
+          await openProject(draft, { lazy: true, current, onReady: () => { state.loading = false; startupLoading = false; } });
+          $('draft-status').textContent = 'Draft restored on this device';
+        }
+      } catch (error) { notice(`Could not restore the draft: ${error.message}`, true); }
+      finally { switchingAccount = false; state.committing = false; updateHistoryButtons(); }
+    }
+  });
   updateHistoryButtons();
 } catch (error) { notice(error.message, true); } finally {
   if (startupLoading) state.loading = false;

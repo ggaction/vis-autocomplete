@@ -1,3 +1,4 @@
+import { readViewPreference, writeViewPreference } from './view-preferences.js';
 const storageKey = 'vis-autocomplete.workspace-sizes';
 const clamp = (value, min, max) => Math.min(Math.max(min, max), Math.max(min, value));
 
@@ -12,7 +13,7 @@ export function initializeWorkspaceResize({ workspace, reset, busy, beforeChange
   const current = charts.children[0], preview = charts.children[1];
   let preferences = {}, frame = null, drag = null;
   try {
-    const stored = JSON.parse(localStorage.getItem(storageKey));
+    const stored = JSON.parse(readViewPreference(storageKey));
     for (const mode of ['preview', 'transition']) for (const layout of ['horizontal', 'vertical']) {
       const entry = stored?.[`${mode}:${layout}`];
       if (!entry || typeof entry !== 'object') continue;
@@ -23,7 +24,7 @@ export function initializeWorkspaceResize({ workspace, reset, busy, beforeChange
   } catch { /* Optional preference. */ }
   const key = () => `${document.documentElement.dataset.viewMode}:${document.documentElement.dataset.workspaceLayout}`;
   const sizes = () => preferences[key()] ?? {};
-  const save = () => { try { localStorage.setItem(storageKey, JSON.stringify(preferences)); } catch { /* Still usable. */ } };
+  const save = () => { try { writeViewPreference(storageKey, JSON.stringify(preferences)); } catch { /* Still usable. */ } };
   const box = element => element.getBoundingClientRect();
   const gap = element => parseFloat(getComputedStyle(element).gap) || 12;
   const vertical = () => document.documentElement.dataset.workspaceLayout === 'vertical';

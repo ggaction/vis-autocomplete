@@ -8,9 +8,12 @@
   <script>
     // Restore view geometry before CSS or the application module can paint.
     (() => {
-      let mode = 'preview';
+      let mode = 'transition';
       const layouts = { preview: 'horizontal', transition: 'vertical' };
-      try { if (localStorage.getItem('vis-autocomplete.view-mode') === 'transition') mode = 'transition'; } catch {}
+      try {
+        const saved = localStorage.getItem('vis-autocomplete.view-mode');
+        if (['preview', 'transition'].includes(saved)) mode = saved;
+      } catch {}
       try {
         const saved = JSON.parse(localStorage.getItem('vis-autocomplete.workspace-layout'));
         for (const key of Object.keys(layouts)) {
@@ -21,12 +24,16 @@
       document.documentElement.dataset.workspaceLayout = layouts[mode];
     })();
   </script>
-  <link rel="icon" href="data:,">
+  <link rel="icon" type="image/png" sizes="32x32" href="/web/icons/favicon.png">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="/web/icons/favicon.svg">
+  <link rel="apple-touch-icon" href="/web/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/data-table.css">
   <link rel="stylesheet" href="/web/import-dialog.css">
+  <link rel="stylesheet" href="/web/cloud/menu.css">
   <script type="importmap">
     {"imports": {
+      "@supabase/supabase-js": "/output/cloud/supabase.js",
       "ggaction": "/node_modules/ggaction/src/index.js",
       "ggaction/extension": "/node_modules/ggaction/src/extension.js",
       "ggaction/diagnostics": "/node_modules/ggaction/src/diagnostics.js",
@@ -37,9 +44,64 @@
       ,"ggaction/persistence": "/node_modules/ggaction/src/persistence.js"
     }}
   </script>
-  <script type="module" src="/output/app.js"></script>
+  <script type="module" src="/output/entry.js"></script>
 </head>
 <body>
+  <section id="session-gate" class="session-gate" aria-label="Opening Visualization Autocomplete" aria-busy="true">
+    <h1>Visualization Autocomplete</h1>
+    <p id="session-status" role="status" aria-live="polite">Checking your session…</p>
+    <button id="session-retry" type="button" hidden>Try again</button>
+    <noscript>Enable JavaScript to sign in and use Visualization Autocomplete.</noscript>
+  </section>
+  <section id="auth-gate" class="auth-gate" aria-label="Welcome to Visualization Autocomplete" hidden>
+    <header class="landing-header"><a class="landing-brand" href="/">Visualization Autocomplete <span>1.5</span></a></header>
+    <div class="landing-content">
+      <div class="landing-intro">
+        <h1>Build your chart,<br>one step at a time.</h1>
+        <p>Explore your data with chart recommendations. Preview a change, make it yours, and keep building.</p>
+        <ol class="landing-steps">
+          <li><strong>Start with your data.</strong><span>Upload a dataset or try one of our examples.</span></li>
+          <li><strong>Explore what comes next.</strong><span>Compare charts, encodings, and styles before applying them.</span></li>
+          <li><strong>Pick up where you left off.</strong><span>Your visualizations and datasets are saved to your account.</span></li>
+        </ol>
+        <nav class="landing-papers" aria-label="Research papers">
+          <p>Built on the research presented in these papers.</p>
+          <div class="landing-paper">
+            <a href="https://arxiv.org/abs/2607.15608" target="_blank" rel="noopener noreferrer">Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations</a>
+            <p class="paper-authors">Hyeon Jeon, Sungbok Shin, Niklas Elmqvist</p>
+            <small>TVCG · VIS 2026</small>
+          </div>
+          <div class="landing-paper">
+            <a href="https://arxiv.org/abs/2609.14353" target="_blank" rel="noopener noreferrer">ggaction: A Grammar of Graphical Actions</a>
+            <p class="paper-authors">Hyeon Jeon, Jinwook Seo</p>
+            <small>arXiv</small>
+          </div>
+        </nav>
+      </div>
+      <section class="auth-card" aria-labelledby="auth-heading">
+        <h2 id="auth-heading">Sign in</h2>
+        <p id="auth-description">Sign in to start creating and save your work.</p>
+        <form id="auth-form">
+          <fieldset id="auth-fields" disabled>
+            <button id="auth-google" class="auth-google" type="button">Continue with Google</button>
+            <div id="auth-divider" class="auth-divider"><span>or use your email</span></div>
+            <label id="auth-email-label" for="auth-email">Email<input id="auth-email" name="email" type="email" autocomplete="email" required></label>
+            <label id="auth-password-label" for="auth-password">Password<input id="auth-password" name="password" type="password" autocomplete="current-password" required></label>
+            <p id="auth-password-hint" class="auth-hint" hidden>Use at least 10 characters.</p>
+            <button id="auth-submit" class="auth-submit" type="submit">Sign in</button>
+            <button id="auth-forgot" class="auth-text-button" type="button">Forgot password?</button>
+            <p class="auth-switch"><span id="auth-switch-prompt">New here?</span> <button id="auth-switch" class="auth-text-button" type="button">Sign up</button></p>
+          </fieldset>
+        </form>
+        <p id="auth-status" class="auth-status" role="status" aria-live="polite"></p>
+        <a class="auth-privacy" href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy and data use</a>
+        <noscript>Enable JavaScript to sign in and use Visualization Autocomplete.</noscript>
+      </section>
+    </div>
+    <footer class="landing-footer">Powered by <a href="https://ggaction.github.io/ggaction/" target="_blank" rel="noopener noreferrer">ggaction</a></footer>
+  </section>
+  <div id="editor-root" hidden inert></div>
+  <template id="editor-template">
   <header class="app-header">
     <h1>Visualization Autocomplete 1.5</h1>
     <div class="dataset-controls">
@@ -47,7 +109,6 @@
       <label class="sr-only" for="dataset">Dataset</label>
       <select id="dataset" disabled><option value="" disabled selected>Try example dataset</option></select>
       <button id="reset" type="button" title="Reset this dataset's chart, variable selections and history" disabled>Reset</button>
-      <input id="file" type="file" accept=".csv,.json,text/csv,application/json" hidden>
       <details class="project-menu"><summary>Project</summary><div>
         <button id="save-project" type="button" disabled>Save project</button>
         <button id="open-project" type="button">Open project</button>
@@ -56,8 +117,8 @@
       </div></details>
       <input id="project-file" type="file" accept=".json,.visauto,application/json" hidden>
     </div>
-    <div id="view-mode" class="view-mode" role="group" aria-label="Visualization mode"><button type="button" data-mode="preview" aria-pressed="true">Preview mode</button><button type="button" data-mode="transition" aria-pressed="false">Transition mode</button></div>
-    <div id="workspace-layout" class="view-mode" role="group" aria-label="Workspace layout"><button type="button" data-layout="horizontal" aria-pressed="true" title="Charts above a horizontal row of options">Horizontal</button><button type="button" data-layout="vertical" aria-pressed="false" title="Charts on the left, two rows of options on the right">Vertical</button></div>
+    <div id="view-mode" class="view-mode" role="group" aria-label="Visualization mode"><button type="button" data-mode="preview" aria-pressed="false">Preview mode</button><button type="button" data-mode="transition" aria-pressed="true">Transition mode</button></div>
+    <div id="workspace-layout" class="view-mode" role="group" aria-label="Workspace layout"><button type="button" data-layout="horizontal" aria-pressed="false" title="Charts above a horizontal row of options">Horizontal</button><button type="button" data-layout="vertical" aria-pressed="true" title="Charts on the left, two rows of options on the right">Vertical</button></div>
     <script>
       for (const button of document.querySelectorAll('#view-mode [data-mode], #workspace-layout [data-layout]')) {
         const selected = button.dataset.mode ? document.documentElement.dataset.viewMode : document.documentElement.dataset.workspaceLayout;
@@ -130,5 +191,6 @@
     </div>
   </main>
   <dialog id="chart-dialog" class="chart-dialog"><div class="dialog-heading"><h2 id="chart-dialog-title">Chart</h2><form method="dialog"><button aria-label="Close enlarged chart">Close</button></form></div><div id="enlarged-chart"></div></dialog>
+  </template>
 </body>
 </html>

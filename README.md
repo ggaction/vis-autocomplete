@@ -31,7 +31,7 @@ node scripts/test-composition-browser.js # localhost:5173, Cars/Barley/Iris/Stoc
 
 코퍼스 갱신은 모든 차트의 모든 G-stage와 참조 JSON 파일을 검사한다. 정적 프로그램 그래프로 병치 패널의 변수·데이터 소유자를 분리하며, 같은 차트의 단계별 출현은 합집합 한 표본으로 학습한다. `data/model-manifest.json`의 세대 및 SHA-256 검증으로 초기 추천과 후속 추천 모델이 서로 섞여 로드되는 것을 막는다.
 
-## 웹 데모
+## 웹 앱 (v0.0.1)
 
 Node.js 20 이상과 Git이 필요하다. 수정한 ggaction 소스는 서브모듈로 고정되어 있으므로
 처음에는 의존성 소스까지 함께 받는다.
@@ -40,6 +40,7 @@ Node.js 20 이상과 Git이 필요하다. 수정한 ggaction 소스는 서브모
 git clone --recurse-submodules https://github.com/ggaction/vis-autocomplete.git
 cd vis-autocomplete
 npm ci
+# Configure Supabase using .env.example, then export those environment variables.
 npm run dev
 ```
 
@@ -52,7 +53,7 @@ npm run dev
 `npm run dev`는 앱·계산 worker·업로드 worker를 같은 vendor 소스로 묶고 변경을 감시한다.
 소스를 수정하면 다시 빌드되므로 브라우저를 새로고침하면 된다. 서버는 정적 파일을 gzip으로
 전송하고 ETag로 변경을 확인한다. 모델 manifest는 매번 읽으며 모델 본문의 SHA-256·세대
-검증은 캐시 사용 시에도 수행한다. `npm run build:workers`로 세 번들을 한 번만 빌드할 수도 있다.
+검증은 캐시 사용 시에도 수행한다. `npm run build:workers`로 로그인 진입점과 각 worker 번들을 한 번만 빌드할 수도 있다.
 예제 데이터는 선택할 때 읽고 분석하며, 프로젝트에는 실제로 불러온 데이터만 저장한다.
 초기 로딩·추천·복원 측정은 `node scripts/benchmark-loading.js`로 실행한다
 (`APP_URL`, `LABEL`, `MODE=transition` 선택 가능; 결과는 Git에서 제외된 `output/loading/`).
@@ -949,3 +950,11 @@ state before that move run. Moving another element, applying a different action,
 or navigating history starts a new run; cancelling a drag leaves the run intact.
 `test/browser/guide-move-history.py` checks code/history compaction, cancellation,
 Undo/Redo, resource changes, branching and saved-project restoration in both modes.
+
+## Cloud accounts and deployment
+
+The main branch includes private accounts, autosaved projects, optional history-only research collection, reports, and the Render/Supabase setup. See [deployment and account setup](docs/cloud-deployment.md) and [tag-based releases](docs/releases.md). Branch pushes run checks; only a user-requested version tag deploys to production.
+
+계정·배포 기능과 차트 기능은 `main`에 통합되어 있다. 로그인 후 편집기를 사용할 수 있으며,
+계정 설정과 프로젝트·데이터셋은 Supabase에 저장한다. 로컬 서버에도 `.env.example`의 공개 Supabase 설정을 환경변수로 제공한다.
+버전 태그가 지정될 때만 배포하며 절차는 [릴리스 가이드](docs/releases.md)를 따른다.

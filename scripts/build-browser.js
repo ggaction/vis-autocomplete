@@ -10,10 +10,11 @@ export async function buildBrowser({ watch = false } = {}) {
   const builds = [];
   let complete = false;
   try {
-    for (const [entry, output] of [['web/app.js', 'output/app.js'], ['web/calculation-worker.js', 'output/workers/calculation.js'], ['web/import-worker.js', 'output/workers/import.js']]) {
+    for (const [entry, output] of [['web/entry.js', 'output/entry.js'], ['web/calculation-worker.js', 'output/workers/calculation.js'], ['web/import-worker.js', 'output/workers/import.js'], ['web/workbook-worker.js', 'output/workers/workbook.js']]) {
       builds.push(await context({
         entryPoints: [fileURLToPath(new URL(`../${entry}`, import.meta.url))],
-        outfile: fileURLToPath(new URL(`../${output}`, import.meta.url)),
+        ...(entry === 'web/entry.js' ? { outdir: fileURLToPath(new URL('../output/', import.meta.url)), entryNames: 'entry', chunkNames: '[name]-[hash]', splitting: true }
+          : { outfile: fileURLToPath(new URL(`../${output}`, import.meta.url)) }),
         bundle: true, platform: 'browser', format: 'esm', target: 'es2022',
         minify: true, keepNames: true, sourcemap: true,
         plugins: entry === 'web/calculation-worker.js' ? [{ name: 'source-version', setup(build) {

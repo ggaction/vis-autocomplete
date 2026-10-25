@@ -13,6 +13,21 @@ export class DataImportError extends Error {
   constructor(message, details = {}) { super(message); this.name = 'DataImportError'; Object.assign(this, details); }
 }
 
+function tableColumns(rawHeaders, headerPolicy) {
+  const headerChanges = [], seen = new Set();
+  const headers = rawHeaders.map((value, i) => {
+    const raw = String(value ?? ''); let name = raw.trim();
+    if (!name || seen.has(name)) {
+      if (headerPolicy !== 'repair') throw new DataImportError(`Use unique, non-empty column names (column ${i + 1}).`, { row: 1, column: i + 1 });
+      const base = name || `Column ${i + 1}`; name = base;
+      for (let suffix = 2; seen.has(name); suffix++) name = `${base} (${suffix})`;
+    }
+    seen.add(name); if (name !== raw) headerChanges.push({ index: i, from: raw, to: name });
+    return name;
+  });
+  return { headers, headerChanges };
+}
+
 export function readCSV(source, { headerPolicy = 'reject' } = {}) {
   const records = [], lines = []; let row = [], cell = '', state = 'start', line = 1, rowLine = 1, delimited = false;
   const finishCell = () => { row.push(cell); cell = ''; state = 'start'; };
@@ -47,17 +62,8 @@ export function readCSV(source, { headerPolicy = 'reject' } = {}) {
   if (state === 'quoted') throw new DataImportError(`Unclosed quoted value starting at row ${rowLine}, column ${row.length + 1}.`, { row: rowLine, column: row.length + 1 });
   finishRow();
   if (!records.length) throw new DataImportError('The CSV has no header row.');
-  const rawHeaders = records.shift(), headerChanges = [], seen = new Set(); lines.shift();
-  const headers = rawHeaders.map((raw, i) => {
-    let name = raw.trim();
-    if (!name || seen.has(name)) {
-      if (headerPolicy !== 'repair') throw new DataImportError(`Use unique, non-empty column names (column ${i + 1}).`, { row: 1, column: i + 1 });
-      const base = name || `Column ${i + 1}`; name = base;
-      for (let suffix = 2; seen.has(name); suffix++) name = `${base} (${suffix})`;
-    }
-    seen.add(name); if (name !== raw) headerChanges.push({ index: i, from: raw, to: name });
-    return name;
-  });
+  const rawHeaders = records.shift(); lines.shift();
+  const { headers, headerChanges } = tableColumns(rawHeaders, headerPolicy);
   const rows = records.map((record, i) => {
     if (record.length !== headers.length) throw new DataImportError(`Row ${lines[i]} has ${record.length} cells; expected ${headers.length}. No values were discarded.`, { row: lines[i], expected: headers.length, actual: record.length });
     return Object.fromEntries(headers.map((header, index) => [header, record[index]]));
@@ -153,17 +159,24 @@ function flattenRow(row, enabled, reserved) {
 
 export function importDataset(input, options = {}) {
   if (input?.metadata?.version && Array.isArray(input.rawRows)) {
-    const record = input, fileSource = record.metadata.sourceText;
-    input = fileSource ?? record.metadata.sourceDocument ?? record.rawRows;
-    options = { ...record.options, ...options, format: fileSource ? record.metadata.format : 'rows', originalMetadata: record.metadata };
+    const record = input, fileSource = record.metadata.sourceText, tableSource = record.metadata.sourceTable;
+    input = fileSource ?? tableSource ?? record.metadata.sourceDocument ?? record.rawRows;
+    options = { ...record.options, ...options, format: fileSource || tableSource ? record.metadata.format : 'rows', originalMetadata: record.metadata };
   }
   const format = options.format ?? (typeof input === 'string' ? 'json' : 'rows');
   const settings = { name: options.name ?? 'Dataset', format, headerPolicy: 'repair', flattenNested: true,
     missingTokens: DEFAULT_MISSING_TOKENS, fieldOverrides: {}, ...options };
-  const warnings = [], conversions = []; let rawRows, sourceText, sourceDocument, headers = [], rawHeaders = [], records;
+  const warnings = [], conversions = []; let rawRows, sourceText, sourceDocument, sourceTable, headers = [], rawHeaders = [], records;
   if (format === 'csv') {
     sourceText = String(input); const csv = readCSV(sourceText, settings); rawRows = csv.rows; ({ headers, rawHeaders, records } = csv);
     for (const change of csv.headerChanges) warnings.push({ code: 'header-repaired', ...change, message: `Column ${change.index + 1}: “${change.from}” → “${change.to}”.` });
+  } else if (format === 'xlsx') {
+    if (!Array.isArray(input) || input.length < 2 || input.some(row => !Array.isArray(row))) throw new DataImportError('Choose an Excel sheet with a header row and at least one data row.');
+    sourceTable = clone(input); rawHeaders = sourceTable[0]; records = sourceTable.slice(1);
+    let headerChanges; ({ headers, headerChanges } = tableColumns(rawHeaders, settings.headerPolicy));
+    for (const change of headerChanges) warnings.push({ code: 'header-repaired', ...change, message: `Column ${change.index + 1}: “${change.from}” → “${change.to}”.` });
+    warnings.push(...(settings.workbook?.warnings ?? []));
+    rawRows = records.map(row => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? null])));
   } else if (format === 'json') {
     sourceText = String(input); const parsed = jsonPreservingIntegers(sourceText); rawRows = parsed.value;
     if (parsed.preserved.length) warnings.push({ code: 'unsafe-integer', count: parsed.preserved.length, message: `${parsed.preserved.length} large integer values were preserved as exact text.` });
@@ -242,5 +255,6 @@ export function importDataset(input, options = {}) {
     metadata: { version: IMPORT_VERSION, name: settings.name, format: options.originalMetadata?.format ?? format, rowCount: rows.length,
       headers, rawHeaders, ...(records ? { rawRecords: records } : {}), ...(sourceText ? { sourceText } : options.originalMetadata?.sourceText ? { sourceText: options.originalMetadata.sourceText } : {}),
       ...(sourceDocument ? { sourceDocument } : {}),
+      ...(sourceTable ? { sourceTable, workbook: settings.workbook } : {}),
       flattened: settings.flattenNested, fields: schema, conversions, warnings }, options: { ...settings, originalMetadata: undefined } };
 }

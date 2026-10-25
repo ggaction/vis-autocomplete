@@ -12,6 +12,7 @@ with sync_playwright() as p:
         page=browser.new_page(viewport={'width':1800,'height':1200});observe_canvas(page)
         errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
         page.goto('http://127.0.0.1:5173/');page.wait_for_load_state('networkidle')
+        page.locator('#upload').click()
         page.locator('#file').set_input_files({'name':'six-groups.csv','mimeType':'text/csv','buffer':rows.encode()})
         page.get_by_role('button',name='Use dataset',exact=True).click()
         for field in (['X','Y','Group'] if method=='createScatterPlot' else ['Group','Y']):

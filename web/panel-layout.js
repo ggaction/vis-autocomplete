@@ -1,10 +1,11 @@
+import { readViewPreference, writeViewPreference } from './view-preferences.js';
 const storageKey = 'vis-autocomplete.panel-layout';
 
 // Keep panel contents mounted: folding the workspace must not reset code
 // disclosures, the history cursor, or cached recommendation cards.
 export function initializePanelLayout({ workspace, panels, beforeChange, afterChange }) {
   let saved;
-  try { saved = JSON.parse(localStorage.getItem(storageKey)); } catch { /* Optional preference. */ }
+  try { saved = JSON.parse(readViewPreference(storageKey)); } catch { /* Optional preference. */ }
   const collapsed = {};
   const paint = (name, value) => {
     const { panel, button, contents, label } = panels[name];
@@ -23,7 +24,7 @@ export function initializePanelLayout({ workspace, panels, beforeChange, afterCh
       beforeChange?.(name, value);
       if (value && contents.some(content => content.contains(document.activeElement))) button.focus({ preventScroll: true });
       paint(name, value);
-      try { localStorage.setItem(storageKey, JSON.stringify(collapsed)); } catch { /* Still works without storage. */ }
+      try { writeViewPreference(storageKey, JSON.stringify(collapsed)); } catch { /* Still works without storage. */ }
       afterChange?.(name, value);
     });
   }

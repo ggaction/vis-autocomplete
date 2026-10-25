@@ -34,7 +34,8 @@ const draft = page => page.evaluate(async () => {
   return Boolean(await createDraftStore().read());
 });
 async function upload(page) {
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#upload').click()]);
+  await page.locator('#upload').click();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Choose a dataset file', exact: true }).click()]);
   await chooser.setFiles({ name: 'own-data.csv', mimeType: 'text/csv',
     buffer: Buffer.from('Time,Amount,Group\n1,8,A\n2,15,B\n3,11,A\n') });
   await page.locator('.dataset-import-dialog').waitFor();

@@ -2,6 +2,7 @@
 export function historyShortcut(event) {
   if (event.defaultPrevented || event.isComposing || event.altKey || !(event.ctrlKey || event.metaKey)) return null;
   const target = event.target;
+  if (target?.closest?.('dialog[open]')) return null;
   if (target?.isContentEditable || target?.closest?.('textarea')) return null;
   const input = target?.closest?.('input');
   if (input && !['range', 'button', 'submit', 'checkbox', 'radio', 'color'].includes(input.type)) return null;

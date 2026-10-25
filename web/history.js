@@ -27,6 +27,7 @@ export const historyPreview = snapshot => snapshot.phase === 'initial'
 export function createHistory() {
   let entries = [], index = -1;
   return {
+    clear() { entries = []; index = -1; },
     reset(snapshot) { entries = [snapshot]; index = 0; },
     restore(snapshots, position) {
       if (!Array.isArray(snapshots) || !snapshots.length || !Number.isInteger(position) || position < 0 || position >= snapshots.length) {

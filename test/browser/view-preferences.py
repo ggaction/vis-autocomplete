@@ -24,8 +24,6 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto('http://127.0.0.1:5173/')
     page.wait_for_load_state('networkidle')
-    check(page, 'preview', 'horizontal')
-    page.locator('#view-mode [data-mode=transition]').click()
     check(page, 'transition', 'vertical')
     for phase in ['initial', 'chart']:
         if phase == 'chart':
@@ -48,7 +46,7 @@ with sync_playwright() as p:
         choose(page,'transition','horizontal')
         reload(page,'transition','horizontal')
         page.locator('#view-mode [data-mode=preview]').click()
-        check(page,'preview','vertical')
+        check(page,'transition','horizontal')
         page.locator('#view-mode [data-mode=transition]').click()
         check(page,'transition','horizontal')
         if phase == 'chart':

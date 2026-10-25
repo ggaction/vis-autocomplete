@@ -1,0 +1,86 @@
+name: Cloud deployment checks
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate release tag
+        if: github.ref_type == 'tag'
+        run: node scripts/release.js check
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - name: Browser checks
+        run: |
+          PORT=5184 npm start > /tmp/vis-autocomplete.log 2>&1 &
+          trap 'kill $!' EXIT
+          for attempt in $(seq 1 30); do curl -sf http://127.0.0.1:5184/healthz && break; sleep 1; done
+          npm run test:cloud-browser
+          node scripts/test-cloud-auth-browser.js
+      - name: Docker build
+        run: docker build -t vis-autocomplete-test .
+      - name: Start production container
+        run: |
+          docker run -d --name vis-autocomplete-smoke -p 127.0.0.1:5185:10000 \
+            -e SUPABASE_URL=https://cloud-test.supabase.co \
+            -e SUPABASE_PUBLISHABLE_KEY=sb_publishable_test vis-autocomplete-test
+          trap 'docker logs vis-autocomplete-smoke; docker rm -f vis-autocomplete-smoke' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5185/healthz; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:5185/healthz
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:5185/api/export/png)" = 401
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    concurrency:
+      group: production-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      PRODUCTION_HEALTH_URL: https://vis.autocomplete.studio/healthz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Recheck the tag and deployment branch
+        run: node scripts/release.js check
+      - name: Check for an existing release
+        id: published
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy the exact tagged commit and verify live health
+        if: steps.published.outputs.exists != 'true'
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: node scripts/release.js deploy
+      - name: Publish release notes and provenance
+        if: steps.published.outputs.exists != 'true'
+        run: gh release create "$RELEASE_TAG" release-manifest.json --verify-tag --title "$RELEASE_TAG" --generate-notes

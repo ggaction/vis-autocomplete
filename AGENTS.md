@@ -10,3 +10,5 @@
 - Commit and push completed, verified changes at meaningful checkpoints instead of accumulating finished work locally. Push library commits before committing the parent repository's updated submodule reference.
 - Keep generated output, caches, logs, coverage and local dataset/chart exports out of Git. Preserve required runtime assets, trained models, dataset provenance and regression fixtures.
 - Verify the pushed branch's remote commit matches the local commit. Do not force-push unless explicitly requested.
+- Keep completed changes committed and pushed without deploying. Production releases are batched: only create/push a version tag when the user explicitly supplies the version and asks for its release. Never invent a release version or trigger a Render deployment to verify ordinary changes.
+- Keep Render service auto-deploy and Blueprint auto-sync off. A user-authorized `vMAJOR.MINOR.PATCH` tag on `main` runs the release workflow; see `docs/releases.md`.

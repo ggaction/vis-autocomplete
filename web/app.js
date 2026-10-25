@@ -24,6 +24,7 @@ import { canvasGeometry, projectCanvasGeometry } from './canvas-geometry.js';
 import { presentResizeVector } from './resize-vector.js';
 import { createPreviewInteraction } from './preview-interaction.js';
 import { createPointerMotion } from './pointer-motion.js';
+import { createSliderHover } from './slider-hover.js';
 import { createCardMotion } from './card-motion.js';
 import { defaultCanvasOptions } from './plot-setup.js';
 import { selectionAxes, selectionData } from './selection-setup.js';
@@ -97,6 +98,9 @@ const historyView = createHistoryView($('history'), {
 });
 const parameterIntents = new WeakMap(), cardElements = new WeakMap();
 const rangeIntents = new WeakMap();
+const sliderHover = createSliderHover({ valid: (control, event) =>
+  control?.isConnected && !state.committing && !state.resizing &&
+  document.elementFromPoint(event.clientX, event.clientY)?.closest('.slider-control') === control });
 const cardMotion = createCardMotion();
 let selectedPreviewFrame = null;
 let pointerChoice = null, pointerCard = null, pointerInGallery = false;
@@ -382,7 +386,7 @@ async function restoreHistory(direction) {
   const snapshot = typeof direction === 'number' ? history.jump(direction) : history[direction]();
   if (!snapshot) { showPreview(state.active); return; }
   state.committing = true; updateHistoryButtons();
-  pointerMotion.reset(); cancelChartTransfer();
+  pointerMotion.reset(); sliderHover.reset(); cancelChartTransfer();
   saveGallery();
   const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
   Object.assign(state, structuredClone({ ...metadata, calls: [], setupCalls: [] }),
@@ -787,7 +791,7 @@ function addControl(card, definition, parent = card.controlsElement) {
     range.min = definition.min; range.max = definition.max; range.step = 'any';
     range.value = card.values[definition.key];
     range.setAttribute('aria-label', `${card.title}: ${definition.label} slider`);
-    range.title = 'Move to preview. Click to fix the value; click again to resume. Enter or Space also toggles.';
+    range.title = 'Pause here to preview. Click to fix the value; click again to resume. Enter or Space also toggles.';
     const valueLabel = document.createElement('output'); valueLabel.className = 'slider-value';
     span.classList.add('slider-label'); span.append(valueLabel);
     let locked = false, visualFraction = null;
@@ -837,6 +841,8 @@ function addControl(card, definition, parent = card.controlsElement) {
       if (event.pointerType === 'touch') return;
       if (!locked) followPointer(event);
       locked = !locked;
+      if (locked) sliderHover.reset();
+      else sliderHover.activate(label, event, followPointer);
       refresh();
     });
     range.addEventListener('keydown', event => {
@@ -1097,7 +1103,7 @@ async function updateCards() {
   cancelGalleryLeave();
   saveGallery();
   if (state.phase === 'recommendations') recentGalleries.set(state.view, true);
-  pointerMotion.reset();
+  pointerMotion.reset(); sliderHover.reset();
   pointerChoice = null; pointerCard = null; pointerInGallery = false;
   const generation = ++state.generation;
   state.galleryObserver?.disconnect(); state.galleryRows = [];
@@ -1504,7 +1510,7 @@ function updateDatasetOptions() {
 async function showSnapshot(snapshot) {
   state.adding = null;
   historyView.clear({ restore: false }); historyInspection = null;
-  pointerMotion.reset(); cancelChartTransfer(); saveGallery();
+  pointerMotion.reset(); sliderHover.reset(); cancelChartTransfer(); saveGallery();
   state.generation++; state.galleryObserver?.disconnect();
   const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
   Object.assign(state, structuredClone(metadata), { program, view, selectionAxes: axes, active: null });
@@ -1571,7 +1577,7 @@ async function editSchema() {
 async function resetVisualization() {
   if (state.committing || !state.datasetId) return;
   state.committing = true; updateHistoryButtons();
-  pointerMotion.reset(); historyView.release();
+  pointerMotion.reset(); sliderHover.reset(); historyView.release();
   try {
     await activateDataset(datasets.get(state.datasetId), { restore: false });
     // Replace the durable draft as well, so reload cannot revive the old chart.
@@ -1610,7 +1616,8 @@ async function openProject(value) {
 // particular, mouseleave/pointerenter caused by animation never collapse or
 // reopen the gallery. All screen positions are tracked, even outside it.
 function routePointer(event) {
-  if (state.committing || state.resizing) return;
+  if (state.committing || state.resizing) { sliderHover.reset(); return; }
+  if (!event.target?.closest?.('.slider-control')) sliderHover.reset();
   if ($('history').contains(event.target)) {
     if (pointerInGallery) leaveGallery();
     historyView.move(event); return;
@@ -1641,10 +1648,12 @@ function routePointer(event) {
     pointerChoice = intent && !button.disabled ? { ...intent, button } : null;
     if (pointerChoice) pointerChoice.card.interaction.hover(button, pointerChoice.draft());
   }
-  rangeIntents.get(event.target.closest('.slider-control'))?.(event);
+  const slider = event.target.closest('.slider-control');
+  sliderHover.move(slider, event, rangeIntents.get(slider));
 }
 
 function leaveGallery() {
+  sliderHover.reset();
   cancelGalleryLeave();
   cancelSelectedPreview();
   pointerChoice = null; pointerCard = null; pointerInGallery = false;
@@ -1667,9 +1676,12 @@ document.addEventListener('pointermove', event => pointerMotion.move(event), { p
 document.addEventListener('pointerdown', () => pointerMotion.flush(), true);
 document.documentElement.addEventListener('pointerleave', () => {
   pointerMotion.flush();
+  sliderHover.reset();
   if (pointerInGallery) leaveGallery();
   historyView.clear();
 });
+window.addEventListener('blur', () => sliderHover.reset());
+document.addEventListener('visibilitychange', () => { if (document.hidden) sliderHover.reset(); });
 
 // Keep help in the header; reserve its height so switching hints never moves cards.
 function updateHeaderGuidance(focusTarget = document.activeElement) {
@@ -1692,7 +1704,7 @@ function beforeWorkspaceChange() {
   layoutGalleryPage = currentGalleryPage();
   leaveGallery();
   historyView.clear();
-  pointerMotion.reset();
+  pointerMotion.reset(); sliderHover.reset();
   cardMotion.finish();
   cancelChartTransfer();
 }

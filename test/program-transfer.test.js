@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chart } from 'ggaction';
-import { serializeProgram } from 'ggaction/persistence';
+import { serializeProgram, deserializeProgram } from 'ggaction/persistence';
 import { renderToSVG } from 'ggaction/svg';
 import { packProgramUpdate, unpackProgramUpdate } from '../web/program-transfer.js';
 import { createCalculationService } from '../web/calculation-service.js';
@@ -68,4 +68,19 @@ test('worker retention and cross-worker advance match public replay including gu
   const branch = primary.execute({ type: 'materialize', stateId: 12, nextStateId: 50, action });
   assert.ok(branch.update);
   assert.equal(primary.execute({ type: 'activate', stateId: 16 }).exists, true, 'branching retains the recent future state for Redo');
+});
+
+test('compiled reload checkpoint preserves native state, guides, history, and subsequent actions', () => {
+  const program = scatter().facet({ field: 'C', data: 'data', columns: 2, guides: { legend: 'shared' } });
+  const guideCall = { method: 'createGuides', args: {} };
+  const service = createCalculationService(null);
+  service.execute({ type: 'state', stateId: 1, snapshot: serializeProgram(program), guideCall });
+  const checkpoint = service.execute({ type: 'checkpoint', stateId: 1 });
+  const restored = deserializeProgram(checkpoint.snapshot), view = unpackProgramUpdate(restored, checkpoint.viewUpdate);
+  assert.deepEqual(restored.trace, program.trace);
+  assert.equal(renderToSVG(view), renderToSVG(program.createGuides()));
+  const action = { method: 'editFacetSource', args: { action: { method: 'encodeOpacity', options: { target: 'plot', value: .3 } } } };
+  const expected = service.execute({ type: 'prepare', stateId: 1, action });
+  service.execute({ type: 'state', stateId: 2, snapshot: checkpoint.snapshot, guideCall });
+  assert.deepEqual(service.execute({ type: 'prepare', stateId: 2, action }).preview, expected.preview);
 });

@@ -106,3 +106,26 @@ test('every dataset field schema is checked, including inactive datasets with no
   assert.throws(() => createProject([first, { ...second, imported: { rows: [{}] } }], first.id), /usable columns/);
   assert.throws(() => createProject([first, { ...second, imported: { ...second.imported, rawRows: [] } }], first.id), /original rows/);
 });
+
+test('lazy draft history preserves calls and branching without executing unseen snapshots during save', async () => {
+  const { packSession, prepareHistorySnapshot } = await import('../web/project.js');
+  const record = example(), stored = record.session;
+  const lazy = restoreSession(stored, record.imported.rows, { lazy: true });
+  const eager = restoreSession(stored, record.imported.rows);
+  assert.deepEqual(packSession(lazy), packSession(eager));
+  const h = createHistory(); h.restore(lazy.entries, lazy.index);
+  assert.deepEqual(h.entries[h.index].view.graphicSpec, eager.entries[eager.index].view.graphicSpec);
+  await prepareHistorySnapshot(lazy.entries[2]);
+  assert.deepEqual(h.redo().program.trace, eager.entries[2].program.trace);
+  assert.deepEqual(h.undo().view.graphicSpec, eager.entries[1].view.graphicSpec);
+  assert.deepEqual(packSession(lazy), packSession(eager));
+  // Public file import still validates native execution eagerly. Saving a local
+  // lazy history reads metadata only; it must not invoke offscreen chart calls.
+  const invalid = structuredClone(stored);
+  invalid.entries[0].calls = [{ method: 'encodeOpacity', args: { target: 'absent', value: .5 } }];
+  const deferred = restoreSession(invalid, record.imported.rows, { lazy: true });
+  assert.doesNotThrow(() => packSession(deferred));
+  assert.doesNotThrow(() => deferred.entries[1].view);
+  assert.throws(() => deferred.entries[0].program);
+  assert.throws(() => restoreSession(invalid, record.imported.rows));
+});

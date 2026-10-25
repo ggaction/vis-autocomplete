@@ -1,10 +1,42 @@
 import { OPTION_GROUPS } from './option-groups.js';
 import { historyLabel, historyPreview } from './history.js';
+import { prepareHistorySnapshot } from './project.js';
 
 // Mount each immutable snapshot once. Hovering and navigation only change the
 // cursor/highlight; they never rebuild thumbnails or run recommendation work.
 export function createHistoryView(host, { renderChart, onPreview, onLeave, onJump, meta }) {
   const nodes = new Map();
+  const pending = new Map(), visible = new Set();
+  let paintQueued = false;
+  function queuePaint() {
+    if (paintQueued || !visible.size) return;
+    paintQueued = true;
+    const paintOne = async () => {
+      const ready = [...visible].filter(button => pending.has(button) && button.isConnected);
+      const button = ready.find(button => button.hasAttribute('aria-current')) ?? ready[0];
+      if (!button) { paintQueued = false; return; }
+      const { snapshot, thumb, label } = pending.get(button);
+      pending.delete(button);
+      try {
+        await prepareHistorySnapshot(snapshot);
+        if (button.isConnected) renderChart(thumb, historyPreview(snapshot), label);
+      }
+      catch (error) { thumb.textContent = 'Preview unavailable'; thumb.title = error.message; }
+      observer.unobserve(button); visible.delete(button);
+      paintQueued = false;
+      queuePaint();
+    };
+    // Only the visible strip needs thumbnails. Yield between native restores
+    // so current-chart painting and arriving option cards can take priority.
+    if (globalThis.requestIdleCallback) requestIdleCallback(paintOne, { timeout: 1000 });
+    else setTimeout(paintOne, 20);
+  }
+  const observer = new IntersectionObserver(changes => {
+    for (const { target, isIntersecting } of changes) {
+      if (isIntersecting) visible.add(target); else visible.delete(target);
+    }
+    queuePaint();
+  }, { root: host });
   const scrub = document.createElement('span');
   scrub.className = 'history-scrub-bar'; scrub.setAttribute('aria-hidden', 'true');
   let entries = [], hovered = null, current = -1, locked = false, pointerX = null, pinned = null, needsScroll = false;
@@ -82,7 +114,10 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
     update(history, busy = false) {
       entries = history.entries; locked = busy; host.setAttribute('aria-busy', String(busy));
       const retained = new Set(entries);
-      for (const [snapshot, button] of nodes) if (!retained.has(snapshot)) { button.remove(); nodes.delete(snapshot); }
+      for (const [snapshot, button] of nodes) if (!retained.has(snapshot)) {
+        observer.unobserve(button); pending.delete(button); visible.delete(button);
+        button.remove(); nodes.delete(snapshot);
+      }
       for (const [index, snapshot] of entries.entries()) {
         let button = nodes.get(snapshot);
         if (!button) {
@@ -92,7 +127,7 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
           button.style.setProperty('--history-rgb', group.rgb);
           const thumb = document.createElement('span'); thumb.className = 'history-thumbnail';
           const label = historyLabel(snapshot);
-          renderChart(thumb, historyPreview(snapshot), `History #${snapshot.steps}: ${label}`);
+          pending.set(button, { snapshot, thumb, label: `History #${snapshot.steps}: ${label}` });
           const caption = document.createElement('span'); caption.className = 'history-caption';
           caption.textContent = `${snapshot.steps}. ${label}`;
           button.append(thumb, caption); button.title = caption.textContent;
@@ -107,7 +142,7 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
             paintPinned();
             clear({ restore: false }); onJump(Number(button.dataset.historyIndex));
           });
-          nodes.set(snapshot, button); host.append(button);
+          nodes.set(snapshot, button); host.append(button); observer.observe(button);
         }
         button.dataset.historyIndex = index; button.disabled = busy;
         if (index === history.index) button.setAttribute('aria-current', 'step');

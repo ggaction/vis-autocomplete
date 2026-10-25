@@ -1,5 +1,8 @@
 # Loading performance — 2026-10-25
 
+Saved charts with long histories are measured and addressed separately in
+[the saved-session follow-up](session-restoration-performance-2026-10-25.md).
+
 Measured against parent baseline `49f757f` using the same native ggaction source.
 Browser: headless Chromium 153, 1700×1100, localhost, three isolated contexts per run.
 Browser values below are medians, not hardware-independent guarantees. Tests never

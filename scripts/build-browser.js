@@ -1,5 +1,6 @@
 import { context } from 'esbuild';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { ggactionSource } from './ggaction-source.js';
 
@@ -17,7 +18,12 @@ export async function buildBrowser({ watch = false } = {}) {
         minify: true, keepNames: true, sourcemap: true,
         plugins: entry === 'web/calculation-worker.js' ? [{ name: 'source-version', setup(build) {
           build.onEnd(async result => {
-            if (!result.errors.length) await writeFile(new URL('../output/workers/source.json', import.meta.url), JSON.stringify(ggactionSource()) + '\n');
+            if (!result.errors.length) {
+              // Commits alone do not identify an uncommitted development build.
+              // Persisted compiled states must expire when its runtime changes.
+              const runtimeHash = createHash('sha256').update(await readFile(new URL(`../${output}`, import.meta.url))).digest('hex');
+              await writeFile(new URL('../output/workers/source.json', import.meta.url), JSON.stringify({ ...ggactionSource(), runtimeHash }) + '\n');
+            }
           });
         } }] : [],
       }));

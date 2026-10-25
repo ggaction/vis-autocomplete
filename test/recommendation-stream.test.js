@@ -35,3 +35,19 @@ test('incremental pages keep exact batch ranking, defaults and pagination throug
     if (expected.pagination.complete && page + 1 >= expected.pagination.pageCount) break;
   }
 });
+
+import { createRecommendationStream, collectRecommendationStream } from '../web/recommendation-stream.js';
+
+test('stream sends each preview once while retaining exact ordered defaults at every stage', () => {
+  const stream = createRecommendationStream(), collect = collectRecommendationStream();
+  const defaults = Array.from({ length: 5 }, (_, i) => ({ action: { method: 'encodeOpacity', args: { value: i / 10 } },
+    prepared: i === 3 ? null : { preview: { graphicSpec: { contents: Array(100).fill(i) } } } }));
+  let transferred = 0;
+  for (const length of [1, 2, 2, 3, 4, 5, 5]) {
+    const response = { defaults: defaults.slice(0, length), pagination: { pending: length < 5 }, result: { count: length } };
+    const packet = structuredClone(stream(response)); transferred += packet.defaults.length;
+    assert.deepEqual(collect(packet), response);
+  }
+  assert.equal(transferred, 5);
+  const fresh = createRecommendationStream(); assert.equal(fresh({ defaults }).defaults.length, 5);
+});

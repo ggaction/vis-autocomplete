@@ -2,6 +2,7 @@ import { serializeProgram } from 'ggaction/persistence';
 import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
 import { rememberDisplayedGuides } from '../src/prepare.js';
 import { createLRU, signature } from '../src/cache.js';
+import { collectRecommendationStream } from './recommendation-stream.js';
 
 export function latestQueue(run) {
   let active = false, pending = null;
@@ -54,7 +55,7 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
   const endpoints = { recommendation: createEndpoint('recommendation', workerFactory), preview: createEndpoint('preview', workerFactory) };
   const contexts = new WeakMap(), active = {}; let nextState = 0;
   let recommendationRequest = 0;
-  const recent = createLRU(8, (_, context) => { context.cache.clear(); delete context.snapshot; delete context.transition; });
+  const recent = createLRU(8, (_, context) => { context.cache.clear(); delete context.snapshot; delete context.transition; delete context.checkpoint; });
   const contextFor = (program, view, guideCall) => {
     if (!contexts.has(program)) contexts.set(program, new WeakMap());
     const views = contexts.get(program);
@@ -105,6 +106,19 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
   });
   return {
     ready: Promise.all(Object.values(endpoints).map(endpoint => endpoint.ready)),
+    prime(program, view, guideCall, snapshot) {
+      // A validated persisted snapshot is already the lossless worker input.
+      // Do not serialize its entire restored trace again on the UI thread.
+      contextFor(program, view, guideCall).snapshot = snapshot;
+    },
+    async checkpoint(program, view, guideCall) {
+      const context = contextFor(program, view, guideCall);
+      context.checkpoint ??= (async () => {
+        const endpoint = await ensure('recommendation', context);
+        return endpoint.send({ type: 'checkpoint', stateId: context.id });
+      })().catch(error => { delete context.checkpoint; throw error; });
+      return context.checkpoint;
+    },
     transitionScene(program,view,guideCall,action,setupCalls=[]) {
       return sceneJobs({context:contextFor(program,view,guideCall),action,setupCalls});
     },
@@ -118,17 +132,18 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       await endpoints.recommendation.send({ type: 'cancel-recommendations' });
       const context = contextFor(program, view, guideCall), endpoint = await ensure('recommendation', context);
       if (requestId !== recommendationRequest) return { cancelled: true };
+      const collect = collectRecommendationStream();
       const receive = response => {
         if (requestId !== recommendationRequest) return;
         for (const entry of response.defaults ?? []) if (entry.prepared) {
           context.cache.set(signature([entry.action, []]), { ...entry.prepared, workerRole: 'recommendation' });
         }
-        onProgress?.(response);
+        onProgress?.(collect(response));
       };
       const response = await endpoint.send({ type: 'recommend', stream: Boolean(onProgress), stateId: context.id, options, group, page, searchQuery }, receive);
       if (requestId !== recommendationRequest) return { ...response, cancelled: true };
       if (!response.cancelled) receive(response);
-      return response;
+      return collect(response);
     },
     prepare(program, view, guideCall, action, setupCalls = [], { interactive = false } = {}) {
       const context = contextFor(program, view, guideCall), job = { context, action, setupCalls, role: interactive ? 'preview' : 'recommendation' };

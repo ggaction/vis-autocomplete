@@ -116,6 +116,7 @@ export function createCalculationService(model) {
         return { exists: true };
       }
       const { program, view, rankings, decks } = stateFor(stateId);
+      if (type === 'checkpoint') return { snapshot: serializeProgram(program), viewUpdate: packProgramUpdate(program, view) };
       if (type === 'scene') return createTransitionScene(action ? prepareGuidedAction(program, action, view, setupCalls).preview : view, { format: 'canvas' });
       if (type === 'prepare-resized') {
         const resized = prepareGuidedAction(program, resize, view, resize.setupCalls ?? []);

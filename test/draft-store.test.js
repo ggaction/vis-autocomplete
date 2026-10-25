@@ -103,3 +103,20 @@ test('failed atomic save preserves previous manifest/data; failed migration stil
   assert.deepEqual(await store.read(), old);
   await store.write(project([revision])); assert.deepEqual(await store.read(), project([revision]));
 });
+
+test('compiled chart caches cannot overwrite or attach to a newer draft, source, or history branch', async () => {
+  const { checkpointRevision } = await import('../web/project.js');
+  const store = createDraftStore(fakeIDB()), first = project([record()]), source = { commit: 'native-one' };
+  await store.write(first);
+  const cached = { version: 1, revision: await checkpointRevision(first), source, snapshot: 'compiled' };
+  await store.writeCheckpoint(cached);
+  assert.equal(await checkpointRevision({ ...first, savedAt: 'later' }), cached.revision, 'pagehide saves of the same state preserve the cache');
+  const changedData = structuredClone(first); changedData.datasets[0].imported.rows[0].x = 999;
+  assert.notEqual(await checkpointRevision(changedData), cached.revision, 'data revisions invalidate compiled state even with the same dataset id');
+  assert.deepEqual(await store.readCheckpoint(cached.revision, source), cached);
+  assert.equal(await store.readCheckpoint(cached.revision, { commit: 'native-two' }), null);
+  const next = structuredClone(first); next.datasets[0].session.entries[0].calls.push('encodeSize');
+  await store.write(next); await store.writeCheckpoint(cached);
+  assert.equal(await store.readCheckpoint(await checkpointRevision(next), source), null);
+  assert.deepEqual(await store.read(), next, 'cache failures never alter the authoring draft');
+});

@@ -7,6 +7,8 @@ import { parameterTransitionDuration } from './parameter-motion.js';
 import { createTransitionMode } from './transition-mode.js';
 import { renderChartCanvas, copyChartCanvas, holdChartCanvasDensity } from './chart-canvas.js';
 import { chart } from 'ggaction';
+import { deserializeProgram } from 'ggaction/persistence';
+import { unpackProgramUpdate } from './program-transfer.js';
 import { createInitialChartRecommender } from '../src/initial-recommender.js';
 import { profileDataset } from '../src/profile.js';
 import { exampleDatasets, loadExampleDataset } from './example-datasets.js';
@@ -42,7 +44,7 @@ import { actionTitle } from '../src/action-labels.js';
 import { normalizeSearchQuery } from '../src/action-search.js';
 import { importDataset, parseCSV } from '../src/data-import.js';
 import { reviewDatasetImport } from './import-dialog.js';
-import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore } from './project.js';
+import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore, checkpointRevision } from './project.js';
 export { parseCSV } from '../src/data-import.js';
 
 const $ = id => document.getElementById(id);
@@ -82,11 +84,22 @@ $('reset-view-sizes').addEventListener('click', () => chartZoom.reset());
 const datasets = new Map(exampleDatasets().map(record => [record.id, record]));
 const datasetBases = createLRU(4);
 const drafts = createDraftStore();
-let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = false;
+let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = false, checkpointTimer;
 const history = createHistory();
 const resizeHistory = createResizeHistory(history);
 const recommendationCache = new WeakMap();
 const calculations = createCalculationClient();
+calculations.ready.catch(error => notice(error.message, true));
+let initialEnginePromise;
+function initialEngine() {
+  return initialEnginePromise ??= Promise.all([loadModel('initial-model.json'), calculations.ready])
+    .then(([model, workers]) => {
+      if (workers.some(worker => worker.generation && worker.generation !== model.provenance.generation)) {
+        throw new Error('Recommendation models updated during loading. Reload to use one version.');
+      }
+      return state.initialEngine = createInitialChartRecommender(model);
+    }).catch(error => { initialEnginePromise = null; throw error; });
+}
 let activeRecommendation = null;
 const galleryCache = new WeakMap();
 const recentGalleries = createLRU(8, view => { galleryCache.delete(view); recommendationCache.delete(view); });
@@ -1147,6 +1160,10 @@ async function updateCards() {
   notice('Preparing options…'); await tick();
   if (generation !== state.generation) return;
   try {
+    if (state.adding || state.phase === 'initial') {
+      await initialEngine();
+      if (generation !== state.generation) return;
+    }
     let restored = state.phase === 'recommendations' && !state.adding ? galleryCache.get(state.view)?.get(JSON.stringify([state.context, state.optionGroup, state.searchQuery])) : null;
     let specs = restored?.specs, pageCount = restored?.pageCount, pagination = restored?.pagination;
     if (restored) {
@@ -1499,6 +1516,23 @@ function flushSave() {
     savingDraft = drafts.write(project).then(() => {
       $('draft-status').textContent = 'Draft saved on this device';
     }).catch(error => { $('draft-status').textContent = 'Draft not saved. Use Save project.'; $('draft-status').title = error.message; });
+    clearTimeout(checkpointTimer);
+    if (state.phase === 'recommendations' && sourceVersion?.runtimeHash) {
+      // Cache the committed history entry, never a transient drag/hover view.
+      const { program, view, guideCall } = history.entries[history.index];
+      const revision = checkpointRevision(project), source = sourceVersion;
+      const cache = async () => {
+        if (state.loading || state.committing || state.resizing || activeRecommendation) {
+          checkpointTimer = setTimeout(cache, 500); return;
+        }
+        try {
+          const compiled = await calculations.checkpoint(program, view, guideCall);
+          await savingDraft;
+          await drafts.writeCheckpoint({ version: 1, revision: await revision, source, ...compiled });
+        } catch { /* The public-call draft remains authoritative if caching fails. */ }
+      };
+      checkpointTimer = setTimeout(cache, 500);
+    }
   } catch (error) { $('draft-status').textContent = 'Draft not saved. Use Save project.'; $('draft-status').title = error.message; }
   return savingDraft;
 }
@@ -1514,7 +1548,7 @@ function updateDatasetOptions() {
   $('dataset').value = selected ?? '';
 }
 
-async function showSnapshot(snapshot) {
+async function showSnapshot(snapshot, onReady) {
   state.adding = null;
   historyView.clear({ restore: false }); historyInspection = null;
   pointerMotion.reset(); sliderHover.reset(); cancelChartTransfer(); saveGallery();
@@ -1534,10 +1568,11 @@ async function showSnapshot(snapshot) {
     transitionMode.reset();
     renderChart(elements.current, view, 'Current visualization');
   }
+  onReady?.();
   updateHistoryButtons(); showPreview(null); scheduleSave(); await updateCards();
 }
 
-async function activateDataset(record, { selection = { fields: [] }, restore = true } = {}) {
+async function activateDataset(record, { selection = { fields: [] }, restore = true, onReady } = {}) {
   resizeHistory.reset();
   chartZoom.reset();
   // Do all input/native construction checks before replacing a working session.
@@ -1563,7 +1598,7 @@ async function activateDataset(record, { selection = { fields: [] }, restore = t
   resetCodeView($('code-content')); updateDatasetOptions();
   if (session) {
     const current = history.restore(session.entries, session.index);
-    await showSnapshot(current);
+    await showSnapshot(current, onReady);
   } else {
     elements.current.dataset.steps = 0; elements.current.dataset.traceCount = state.base.trace.children.length;
     elements.current.dataset.lastMethod = '';
@@ -1600,22 +1635,28 @@ function downloadText(source, filename, type = 'application/json') {
 }
 function filename(name) { return name.replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-|-$/g, '') || 'visualization'; }
 
-async function openProject(value) {
+async function openProject(value, { lazy = false, onReady, current = null } = {}) {
   // Validation and native replay finish before touching the current registry.
   const project = typeof value === 'string' ? parseProject(value) : validateProject(value);
   notice('Restoring project…'); await tick();
   const restored = project.datasets.map(record => ({ ...record,
-    session: restoreSession(record.session, record.imported.rows) }));
+    session: restoreSession(record.session, record.imported.rows, { lazy,
+      current: record.id === project.activeId ? current : null }) }));
   const active = restored.find(record => record.id === project.activeId);
+  // Check the active native chart before replacing the working project. Local
+  // drafts restore offscreen history on demand; imported files stay eager.
+  if (active.session) void active.session.entries[active.session.index].view;
   const check = makeBase(active.imported.rows);
-  if (!profileDataset(check.program, 'dataset', active.imported.fieldTypes ?? {}).fields.some(f => f.usable)) throw new Error('The project has no usable data.');
+  const profile = profileDataset(check.program, 'dataset', active.imported.fieldTypes ?? {});
+  if (!profile.fields.some(f => f.usable)) throw new Error('The project has no usable data.');
+  datasetBases.set(active.imported, { base: check, profile });
   restoringProject = true;
   try {
     rememberDataset();
     for (const record of restored) datasets.set(record.id, record);
     // Never overwrite a freshly restored record with the previous live session.
     state.datasetId = null;
-    await activateDataset(active);
+    await activateDataset(active, { onReady });
   } finally { restoringProject = false; }
   scheduleSave(); notice();
 }
@@ -1811,17 +1852,31 @@ zoomCurrent.textContent = 'Expand'; zoomCurrent.title = 'Enlarge current chart';
 zoomCurrent.addEventListener('click', () => enlarge(elements.current, 'Current visualization'));
 $('chart-exports').append(zoomCurrent);
 
+let startupLoading = true;
 try {
-  const [initialModel, sourceResponse, workers] = await Promise.all([loadModel('initial-model.json'), fetch('/output/workers/source.json'), calculations.ready]);
-  if (workers.some(worker => worker.generation && worker.generation !== initialModel.provenance.generation)) throw new Error('Recommendation models updated during loading. Reload to use one version.');
-  state.initialEngine = createInitialChartRecommender(initialModel);
+  const [sourceResponse, draft] = await Promise.all([fetch('/output/workers/source.json'), drafts.read().catch(() => {
+    $('draft-status').textContent = 'Use Save project to keep your work.';
+    return null;
+  })]);
   if (sourceResponse.ok) sourceVersion = await sourceResponse.json();
   updateDatasetOptions();
-  let draft;
-  try { draft = await drafts.read(); } catch { $('draft-status').textContent = 'Use Save project to keep your work.'; }
   if (draft) {
-    try { await openProject(draft); $('draft-status').textContent = 'Draft restored on this device'; }
+    let current;
+    try {
+      const cached = sourceVersion?.runtimeHash && await drafts.readCheckpoint(await checkpointRevision(draft), sourceVersion);
+      if (cached) {
+        const program = deserializeProgram(cached.snapshot);
+        current = { program, view: unpackProgramUpdate(program, cached.viewUpdate) };
+        const session = draft.datasets.find(record => record.id === draft.activeId)?.session;
+        calculations.prime(program, current.view, session?.entries[session.index]?.guideCall, cached.snapshot);
+      }
+    } catch (error) { document.body.dataset.checkpointError = error.message; }
+    document.body.dataset.restoration = current ? 'checkpoint' : 'calls';
+    try { await openProject(draft, { lazy: true, current, onReady: () => { state.loading = false; startupLoading = false; } }); $('draft-status').textContent = 'Draft restored on this device'; }
     catch (error) { await updateCards(); notice(`Could not restore the draft: ${error.message}`, true); }
   } else await updateCards();
   updateHistoryButtons();
-} catch (error) { notice(error.message, true); } finally { state.loading = false; updateHistoryButtons(); updateGalleryNavigation(); }
+} catch (error) { notice(error.message, true); } finally {
+  if (startupLoading) state.loading = false;
+  updateHistoryButtons(); updateGalleryNavigation();
+}

@@ -13,14 +13,39 @@ const fieldTypes = new Set(['quantitative', 'nominal', 'ordinal', 'temporal']);
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const validatedImports = new WeakMap();
 const packedSnapshots = new WeakMap(), trustedPacked = new WeakSet(), normalizedSnapshots = new WeakMap();
+const deferredSnapshots = new WeakMap();
+export async function prepareHistorySnapshot(snapshot) {
+  await deferredSnapshots.get(snapshot)?.prepare();
+}
 export const PROJECT_FORMAT = 'visualization-autocomplete';
 export const PROJECT_VERSION = 1;
+const checkpointDatasets = new WeakMap();
+function datasetRevision(imported) {
+  if (!checkpointDatasets.has(imported)) checkpointDatasets.set(imported, crypto.randomUUID());
+  return checkpointDatasets.get(imported);
+}
+export function checkpointRevision(project) {
+  const record = project?.datasets?.find(record => record.id === project.activeId), session = record?.session;
+  const entry = session?.entries[session.index];
+  if (!record?.imported) return null;
+  // Imports are immutable revisions. Persist their identity instead of hashing
+  // every cell or delaying the authoritative draft write for a cache checksum.
+  return JSON.stringify([project.activeId, datasetRevision(record.imported), session?.index,
+    entry?.setupCalls, entry?.calls, entry?.guideCall]);
+}
 
 // Save public authoring calls, once-per-dataset source values, and history position.
 // Previews and rendered SVG caches never become persisted authoring state.
 export function packSession(session) {
   if (!session) return null;
   return { index: session.index, entries: session.entries.map(snapshot => {
+    const deferred = deferredSnapshots.get(snapshot);
+    // Autosave must not render every historical chart just to recover its
+    // authoring calls. Resolved entries may include a native layout repair.
+    if (deferred) {
+      if (!deferred.result) return deferred.stored;
+      snapshot = deferred.result;
+    }
     if (packedSnapshots.has(snapshot)) return packedSnapshots.get(snapshot);
     const trusted = isHistorySnapshot(snapshot);
     const packed = { ...Object.fromEntries(metadataKeys.map(key =>
@@ -146,7 +171,7 @@ export function parseProject(source) {
 
 // Replay only registered public native methods; never evaluate imported source.
 // Prefix sharing keeps a long append-only history from replaying every old call.
-export function restoreSession(stored, rows) {
+export function restoreSession(stored, rows, { lazy = false, current = null } = {}) {
   if (!stored) return null;
   stored = normalizeSession(stored, new Set(rows.flatMap(Object.keys)));
   const cache = new Map([['', chart()]]);
@@ -163,7 +188,7 @@ export function restoreSession(stored, rows) {
     }
     return program;
   };
-  return { index: stored.index, entries: stored.entries.map(snapshot => {
+  const materialize = snapshot => {
     const { axesCalls } = snapshot;
     const metadata = Object.fromEntries(metadataKeys.map(key => [key, snapshot[key]]));
     const calls = [...snapshot.setupCalls, ...snapshot.calls];
@@ -179,6 +204,46 @@ export function restoreSession(stored, rows) {
       calls: shared(metadata.calls), program, view, selectionAxes });
     for (const call of [...snapshotCopy.setupCalls, ...snapshotCopy.calls]) recorded.set(JSON.stringify(call), call);
     return snapshotCopy;
+  };
+  const deferredCalls = new Map();
+  const share = calls => calls.map(call => {
+    const key = JSON.stringify(call);
+    if (!deferredCalls.has(key)) deferredCalls.set(key, freezeResult(structuredClone(call)));
+    return deferredCalls.get(key);
+  });
+  return { index: stored.index, entries: stored.entries.map((snapshot, index) => {
+    if (index === stored.index && current) {
+      return captureHistorySnapshot({ ...snapshot, ...current, selectionAxes: null });
+    }
+    if (!lazy) return materialize(snapshot);
+    const { setupCalls, calls, axesCalls, ...metadata } = snapshot;
+    const saved = freezeResult({ ...structuredClone(metadata), setupCalls: share(setupCalls),
+      calls: share(calls), axesCalls: share(axesCalls) });
+    trustedPacked.add(saved);
+    const deferred = { stored: saved, result: null };
+    const resolve = () => deferred.result ??= materialize(saved);
+    deferred.prepare = async () => {
+      if (deferred.result) return;
+      const calls = [...saved.setupCalls, ...saved.calls];
+      let key = '';
+      for (let i = 0; i < calls.length; i++) {
+        key += JSON.stringify(calls[i]) + '\n';
+        if (!cache.has(key)) {
+          replay(calls.slice(0, i + 1));
+          // A distant history thumbnail may need a long missing prefix after
+          // checkpoint restore. Never monopolize the UI for that entire prefix.
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      resolve();
+    };
+    const entry = Object.freeze({ ...Object.fromEntries(metadataKeys.map(key => [key, saved[key]])),
+      get calls() { return deferred.result?.calls ?? saved.calls; },
+      get program() { return resolve().program; },
+      get view() { return resolve().view; },
+      get selectionAxes() { return resolve().selectionAxes; } });
+    deferredSnapshots.set(entry, deferred);
+    return entry;
   }) };
 }
 
@@ -221,7 +286,8 @@ export function createDraftStore(indexedDB = globalThis.indexedDB) {
     const { datasets, ...metadata } = project;
     const changed = datasets.filter(record => persistedImports.get(record.id) !== record.imported);
     const manifest = { ...metadata, storageVersion: 2,
-      datasets: datasets.map(({ imported, ...record }) => record) };
+      checkpointRevision: checkpointRevision(project),
+      datasets: datasets.map(({ imported, ...record }) => ({ ...record, dataRevision: datasetRevision(imported) })) };
     await new Promise((resolve, reject) => {
       let tx;
       try { tx = db.transaction(['projects', 'datasets'], 'readwrite', { durability: 'strict' }); }
@@ -253,12 +319,14 @@ export function createDraftStore(indexedDB = globalThis.indexedDB) {
       request.onsuccess = () => {
         value = request.result;
         if (value?.storageVersion !== 2) { needsMigration = Boolean(value); return; }
-        const { storageVersion, ...metadata } = value; value = metadata;
+        const { storageVersion, checkpointRevision, ...metadata } = value; value = metadata;
         for (const record of value.datasets) {
           const data = tx.objectStore('datasets').get(record.id);
           data.onsuccess = () => {
             if (!data.result) { tx.abort(); return; }
             record.imported = data.result;
+            if (typeof record.dataRevision === 'string') checkpointDatasets.set(record.imported, record.dataRevision);
+            delete record.dataRevision;
           };
         }
       };
@@ -275,5 +343,31 @@ export function createDraftStore(indexedDB = globalThis.indexedDB) {
     for (const record of project.datasets ?? []) persistedImports.set(record.id, record.imported);
     return project;
   };
-  return { read, write };
+  // Optional acceleration cache, separate from the portable public-call draft.
+  // A late worker completion must never attach an old chart to a newer draft.
+  const writeCheckpoint = async checkpoint => {
+    const db = await database();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['projects'], 'readwrite'), store = tx.objectStore('projects');
+      const request = store.get('draft');
+      request.onsuccess = () => {
+        try {
+          if (request.result?.checkpointRevision === checkpoint.revision) store.put(checkpoint, 'checkpoint');
+        } catch (error) { tx.abort(); reject(error); }
+      };
+      tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);
+    });
+  };
+  const readCheckpoint = async (revision, source) => {
+    const db = await database();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(['projects'], 'readonly'), request = tx.objectStore('projects').get('checkpoint');
+      request.onsuccess = () => {
+        const value = request.result;
+        resolve(value?.version === 1 && value.revision === revision && JSON.stringify(value.source) === JSON.stringify(source) ? value : null);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  };
+  return { read, write, readCheckpoint, writeCheckpoint };
 }

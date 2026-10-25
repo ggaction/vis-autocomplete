@@ -163,7 +163,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
       await local.put(headKey, head); await local.remove(key);
       if (current?.id === job.id && user?.id === owner) { current = { ...current, revision }; await local.put(activeKey(owner), current); }
     }
-    if (current?.revision) status('Saved to your account'); notify();
+    if (current?.revision) status('Saved'); notify();
   }
   async function drainEvents(owner) {
     const consentRevision = profile?.consent_revision;

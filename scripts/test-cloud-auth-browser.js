@@ -112,6 +112,7 @@ try{
  await dialog().getByRole('checkbox').uncheck();await dialog().getByRole('button',{name:'Continue',exact:true}).click();
  await expect.poll(()=>profile?.research_enabled).toBe(false);
  await page.getByRole('heading',{name:'Help improve visualization authoring',exact:true}).waitFor({state:'hidden'});
+ await expect(page.locator('#account-button')).toHaveText(user.email);
  await expect(page.locator('#view-mode [data-mode="transition"]')).toHaveAttribute('aria-pressed','true');
  await expect(page.locator('html')).toHaveAttribute('data-view-mode','transition');
  await expect(page.locator('html')).toHaveAttribute('data-workspace-layout','vertical');
@@ -125,12 +126,12 @@ try{
  await dialog().getByLabel('Project name',{exact:true}).fill('Cars exploration');
  await dialog().getByLabel('Project name',{exact:true}).press('Enter');
  await page.getByRole('button',{name:'Select column Horsepower',exact:true}).click();
- await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved to your account');
+ await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');
  assert.equal(events.length,0);assert.ok(projects.size===1);assert.ok(uploads.size===1);
  assert.equal([...projects.values()][0].title,'Cars exploration');
  await page.locator('#account-button').click();await dialog().getByRole('checkbox').check();await dialog().getByRole('button',{name:'Save preferences',exact:true}).click();await page.getByText('Preference saved.',{exact:true}).waitFor();await close();
  await page.getByRole('button',{name:'Select column Acceleration',exact:true}).click();
- await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved to your account');
+ await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');
  await page.waitForTimeout(5200);assert.ok(events.length>0);assert.ok(events.every(e=>!JSON.stringify(e).includes('Horsepower')));
  const scatter=page.locator('#cards .card[data-method="createScatterPlot"]');
  await scatter.scrollIntoViewIfNeeded();await scatter.hover();await scatter.locator('.apply-button').click();
@@ -195,12 +196,15 @@ try{
  await failed.reload();await expect(failed.locator('#auth-submit')).toBeVisible();
  assert.equal(await failed.locator('#dataset').count(),0);await unavailable.close();
  // A second device has no cookies, localStorage or IndexedDB from this one.
+ user.user_metadata.full_name='Test Author';
  const device=await browser.newContext({viewport:{width:1440,height:1000}});
  await device.route('https://cloud-test.supabase.co/**',mockTransport);
  const other=await device.newPage();await other.goto(origin);
  await other.getByLabel('Email',{exact:true}).fill(user.email);
  await other.getByLabel('Password',{exact:true}).fill('valid-password-example');
  await other.locator('#auth-submit').click();await expect(other.locator('#auth-gate')).toBeHidden();
+ await expect(other.locator('#account-button')).toHaveText('Test Author');
+ await expect(other.locator('#account-button')).toHaveAttribute('title',`Test Author\n${user.email}`);
  await expect(other.locator('#toggle-history')).toHaveAttribute('aria-expanded','false');
  await expect(other.locator('#toggle-code')).toHaveAttribute('aria-expanded','false');
  await expect(other.locator('html')).toHaveAttribute('data-view-mode','transition');
@@ -212,7 +216,7 @@ try{
  const second=await context.newPage();await second.goto(origin);await second.locator('#current canvas').waitFor();
  await expect(second.locator('#auth-gate')).toBeHidden();
  await page.locator('#workspace-menu').click();await page.getByRole('button',{name:'Rename current visualization',exact:true}).click();await dialog().getByLabel('Project name',{exact:true}).fill('My saved cars');await dialog().getByRole('button',{name:'Save name',exact:true}).click();
- await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved to your account');await expect.poll(()=>[...projects.values()][0]?.title).toBe('My saved cars');
+ await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');await expect.poll(()=>[...projects.values()][0]?.title).toBe('My saved cars');
  const carsId=[...projects.values()][0].id;
  await page.locator('#workspace-menu').click();await dialog().getByRole('button',{name:'New visualization',exact:true}).click();
  await page.locator('#file').setInputFiles({name:'Quarterly sales.csv',mimeType:'text/csv',buffer:Buffer.from('Month,Sales,Cost\nJan,120,90\nFeb,150,100\nMar,180,130\n')});

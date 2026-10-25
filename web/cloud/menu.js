@@ -49,13 +49,19 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
   const header = document.querySelector('.app-header');
   const menuButton = button('☰', () => openMenu()); menuButton.id = 'workspace-menu'; menuButton.setAttribute('aria-label', 'Open workspace menu');
   menuButton.disabled = true; header.prepend(menuButton);
-  const accountButton = button('Account', () => settings()); accountButton.id = 'account-button';
+  const accountButton = button('', () => settings()); accountButton.id = 'account-button';
   accountButton.disabled = true; header.append(accountButton);
   const cloudStatus = element('span', '', 'cloud-status'); cloudStatus.id = 'cloud-status'; cloudStatus.setAttribute('role', 'status'); header.append(cloudStatus);
   const session = await accountSession(), account = session.account;
   let lastUser, greeted = new Set();
   const update = async state => {
     if (!state.user || (lastUser && lastUser !== state.user.id)) return;
+    const metadata = state.user.user_metadata ?? {};
+    const name = [metadata.full_name, metadata.name, metadata.display_name, state.user.email, state.user.id]
+      .find(value => typeof value === 'string' && value.trim())?.trim();
+    accountButton.textContent = name;
+    accountButton.title = state.user.email && state.user.email !== name ? `${name}\n${state.user.email}` : name;
+    accountButton.setAttribute('aria-label', `Settings for ${name}`);
     if (state.identityChanged || lastUser !== (state.user?.id ?? null)) {
       lastUser = state.user?.id ?? null; await switchAccount(state.user);
     }

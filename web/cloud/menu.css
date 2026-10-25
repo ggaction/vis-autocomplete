@@ -1,5 +1,5 @@
 #workspace-menu {font-size:19px;min-width:32px;padding:3px 8px;line-height:1.2}
-#account-button {white-space:nowrap}
+#account-button {white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
 .cloud-status {font:11px Arial;color:#626b78;max-width:150px}
 .account-dialog {font:14px/1.5 Arial,sans-serif;color:#272c33;width:min(480px,90vw);max-height:85vh;overflow:auto;border:1px solid #d8dce3;border-radius:5px;padding:24px;box-shadow:0 10px 50px #0002}
 .account-dialog::backdrop {background:#10182033}

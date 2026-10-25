@@ -10,6 +10,14 @@
   **All legends**, **Legend**, **Title**, or **Items**. Items changes label text;
   symbol sizes and gradient dimensions stay unchanged. Hidden titles cannot be
   selected or accidentally recreated.
+- Drag a selected element or its resize handle to transform the selection together.
+  Movement uses the same chart-space delta; resizing uses the same scale factor
+  from the start of the gesture. Group movement keeps existing docking edges
+  so elements do not independently jump to different sides. Single-element
+  dragging retains edge docking. Non-movable guides keep their position.
+  Overlapping selections and repeated facet copies affect each owner once.
+  One gesture creates one undoable history step; Esc cancels the entire preview.
+  Consecutive moves of the same selection replace that move history entry and code.
 - Dragging a title or legend still moves it. Legend item dragging moves its whole
   legend; outer resize handles still resize the legend and its contents. Clicking
   without dragging only selects. Existing delete controls and Undo/Redo remain.
@@ -26,7 +34,7 @@ those native calls. Overlapping parent/child selections edit each text owner onc
 Verification:
 
 ```sh
-node --test test/element-selection.test.js test/chart-typography.test.js test/guide-manipulation.test.js test/guide-resize-factor.test.js
+node --test test/guide-group.test.js test/element-selection.test.js test/chart-typography.test.js test/guide-manipulation.test.js test/guide-resize-factor.test.js
 npm run build
 node scripts/test-cloud-auth-browser.js
 ```

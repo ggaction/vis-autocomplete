@@ -196,6 +196,9 @@ export function resizeGuide(target, factor) {
   if (target.kind === 'legend' && target.part === 'titleStyle') return {
     method: 'editLegend', args: { target: target.editTargets ?? config.target, channel: target.channels[0], titleStyle: font(config.titleStyle) },
   };
+  if (target.kind === 'legend' && target.part === 'labels') return {
+    method: 'editLegend', args: { target: target.editTargets ?? config.target, channel: target.channels[0], labels: font(config.labels) },
+  };
   if (target.kind === 'title') {
     const args = target.part ? { [target.part]: font(config[target.part]) }
       : { titleStyle: font(config.titleStyle), subtitleStyle: font(config.subtitleStyle), gap: round(config.gap * factor) };

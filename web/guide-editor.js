@@ -1,4 +1,5 @@
-import { selectableGuides, guideBounds, resizeGuide, moveGuide, removeGuide, guideMoveHistoryKey } from '../src/guide-manipulation.js';
+import { selectableGuides, guideBounds, removeGuide, guideMoveHistoryKey } from '../src/guide-manipulation.js';
+import { manipulationTargets, manipulationCalls } from '../src/guide-group.js';
 import { removableChartPanels } from '../src/chart-removal.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
@@ -147,10 +148,12 @@ export function createGuideEditor(host, callbacks) {
   function start(target, operation, event, edge = 'se') {
     if (gesture || !callbacks.available() || !callbacks.canStart() || operation === 'move' && !target.movable) return;
     const rect = stage.getBoundingClientRect(), source = callbacks.program();
-    const g = { target, operation, edge, source, rect, scale: rect.width/canvasGeometry(display).width,
+    const members = manipulationTargets(targets, selected, target, operation);
+    if (!members.length) return;
+    const g = { target: target.moveTarget ?? target, members, operation, edge, source, rect, scale: rect.width/canvasGeometry(display).width,
       startX: event.clientX, startY: event.clientY, pointer: event.pointerId,
       pending: null, running: false, ended: false, final: null, key: null };
-    gesture = g; g.context = callbacks.start(target, operation); host.classList.add('editing-guide');
+    gesture = g; g.context = callbacks.start(target, operation, members); host.classList.add('editing-guide');
     select(target.key); return g;
   }
   function update(g, x, y) {
@@ -158,9 +161,8 @@ export function createGuideEditor(host, callbacks) {
     const dx = (x-g.startX)/g.scale, dy = (y-g.startY)/g.scale;
     if (Math.abs(dx)+Math.abs(dy)<2 && !g.final) return;
     const factor = guideResizeFactor(g.target.bounds, dx, dy, g.edge);
-    const action = g.operation === 'resize' ? resizeGuide(g.target, factor)
-      : moveGuide(g.source,g.target,(g.target.bounds.left+g.target.bounds.right)/2+dx,
-        (g.target.bounds.top+g.target.bounds.bottom)/2+dy, { dx, dy, snapDistance: 48/g.scale });
+    const calls = manipulationCalls(g.source, g.members, g.operation, { factor, dx, dy, snapDistance: 48/g.scale });
+    const action = g.members.length > 1 ? { calls } : calls[0];
     const key = JSON.stringify(action); if (g.key === key) return;
     g.key = key; g.pending = { action, factor }; pump(g);
   }
@@ -183,7 +185,8 @@ export function createGuideEditor(host, callbacks) {
           let low = 0, high = 1, best;
           for (let attempt = 0; attempt < 6 && gesture === g && !g.pending; attempt++) {
             const fraction = (low + high) / 2, ratio = from + (factor - from) * fraction;
-            const candidate = resizeGuide(g.target, ratio);
+            const calls = manipulationCalls(g.source, g.members, 'resize', { factor: ratio });
+            const candidate = g.members.length > 1 ? { calls } : calls[0];
             try {
               const prepared = await callbacks.prepare(g.context, candidate);
               if (prepared) best = { prepared, candidate, ratio };
@@ -233,10 +236,10 @@ export function createGuideEditor(host, callbacks) {
     event.preventDefault();event.stopPropagation();host.setPointerCapture(event.pointerId);
   });
   host.addEventListener('pointermove', event => {
-    if (press && press.pointerId === event.pointerId && !press.shiftKey && press.target.movable &&
+    if (press && press.pointerId === event.pointerId && (!press.shiftKey || selected.has(press.target.key)) && press.target.movable &&
         Math.hypot(event.clientX-press.clientX, event.clientY-press.clientY) >= 4) {
       const pending = press; press = null;
-      start(pending.target.moveTarget ?? pending.target, 'move', pending);
+      start(pending.target, 'move', pending);
     }
     if(gesture&&!gesture.ended&&gesture.pointer===event.pointerId)update(gesture,event.clientX,event.clientY);
   });

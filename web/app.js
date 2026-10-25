@@ -270,7 +270,7 @@ const guideEditor = createGuideEditor(elements.current, {
       method: action.method, values: {}, build: () => action.args, title: `Delete ${target.label}`,
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true, refresh: true });
   },
-  start(target, operation) {
+  start(target, operation, members) {
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish();
     state.resizing = true; elements.cards.inert = true;
@@ -278,24 +278,32 @@ const guideEditor = createGuideEditor(elements.current, {
     for (const card of state.cards) card.request = (card.request ?? 0) + 1;
     // Title and subtitle move one shared native title block. Different legends
     // and other edit operations must never overwrite one another's history.
-    const historyKey = operation === 'move' ? guideMoveHistoryKey(target) : null;
+    const historyKey = operation === 'move' ? [...new Set(members.map(guideMoveHistoryKey))].sort().join('|') : null;
     const heldCanvas = elements.current.querySelector('canvas');
     holdChartCanvasDensity(heldCanvas);
     return { base: state.program, view: state.view, guideCall: state.guideCall, heldCanvas,
       ...(historyKey ? { historyKey, resizeBefore: resizeHistory.begin(historyKey) } : {}),
-      title: `${operation === 'resize' ? 'Resize' : 'Move'} ${target.label}` };
+      title: `${operation === 'resize' ? 'Resize' : 'Move'} ${members.length > 1 ? `${members.length} selected elements` : target.label}` };
   },
   prepare(context, action) {
     const before = context.resizeBefore;
+    if (action.calls) return calculations.guideEdits(before?.program ?? context.base, before?.view ?? context.view,
+      before?.guideCall ?? context.guideCall, action.calls);
     return calculations.prepare(before?.program ?? context.base, before?.view ?? context.view,
       before?.guideCall ?? context.guideCall, before ? { ...action, allowUnchanged: true } : action, [], { interactive: true });
   },
   preview(context, prepared) {
+    if (prepared.calls) {
+      context.groupResult = prepared;
+      const calls = prepared.calls;
+      prepared = { preview: prepared.view, recommendation: calls.at(-1), prerequisiteCalls: calls.slice(0, -1), guideCall: prepared.guideCall };
+    }
     renderChart(elements.current, prepared.preview, context.title);
     showCode({ ...context, prepared }); $('code-mode').textContent = context.title;
     notice();
   },
   async commit(context, action) {
+    if (action.calls) { commitGuideGroup(context); return; }
     await commit({ ...context, method: action.method, values: {}, build: () => action.args,
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
   },
@@ -308,6 +316,28 @@ const guideEditor = createGuideEditor(elements.current, {
     refreshVisibleCards(); updateHistoryButtons(); updateGalleryNavigation(); notice();
   },
 });
+
+function commitGuideGroup(context) {
+  const result = context.groupResult;
+  if (!result || state.program !== context.base) return;
+  const before = context.resizeBefore;
+  state.program = result.program; state.view = result.view; state.guideCall = result.guideCall;
+  state.calls = [...(before?.calls ?? state.calls), ...result.calls];
+  state.steps = (before?.steps ?? state.steps) + 1;
+  if (before) resizeHistory.commit(before, historySnapshot(context.title), context.historyKey);
+  else { resizeHistory.reset(); history.push(historySnapshot(context.title)); }
+  scheduleSave();
+  if (mountedGallery) {
+    galleryCache.delete(mountedGallery.view);
+    mountedGallery.rankingSource ??= { program: mountedGallery.program, view: mountedGallery.view, guideCall: mountedGallery.guideCall };
+    Object.assign(mountedGallery, { program: result.program, view: result.view, guideCall: result.guideCall });
+  }
+  for (const card of state.cards) rebaseCard(card);
+  transitionMode.reset();
+  elements.current.dataset.steps = state.steps; elements.current.dataset.traceCount = state.view.trace.children.length;
+  elements['current-note'].textContent = context.title;
+  showCode(null, { settleApplied: true });
+}
 
 const typographyToolbar = createTypographyToolbar($('chart-typography'), elements.current, {
   read: () => state, apply: commitTypography, onError: message => notice(message, true),

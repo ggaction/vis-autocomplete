@@ -177,11 +177,13 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       active[role] = { id: nextId, context: nextContext, promise: Promise.resolve() };
       return { program: next, view: nextView, guideCall: result.guideCall };
     },
-    async typography(program, view, guideCall, options) {
+    typography(program, view, guideCall, options) { return this.editSequence(program, view, guideCall, options, 'typography'); },
+    guideEdits(program, view, guideCall, calls) { return this.editSequence(program, view, guideCall, { calls }, 'guide-edits'); },
+    async editSequence(program, view, guideCall, options, type) {
       preview.cancelPending();
       const context = contextFor(program, view, guideCall), endpoint = await ensure('preview', context);
       const nextId = ++nextState;
-      const result = await endpoint.send({ type: 'typography', stateId: context.id, nextStateId: nextId, guideCall, options });
+      const result = await endpoint.send({ type, stateId: context.id, nextStateId: nextId, guideCall, options });
       const next = await unpackProgramUpdateAsync(program, result.update);
       const nextView = rememberDisplayedGuides(await unpackProgramUpdateAsync(next, result.viewUpdate), result.guideCall);
       const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64), pending: new Map(),

@@ -1,4 +1,4 @@
-import { editableGuides, guideBounds, resizeGuide, moveGuide, removeGuide } from '../src/guide-manipulation.js';
+import { editableGuides, guideBounds, resizeGuide, moveGuide, removeGuide, guideMoveHistoryKey } from '../src/guide-manipulation.js';
 import { removableChartPanels } from '../src/chart-removal.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
@@ -31,9 +31,11 @@ export function createGuideEditor(host, callbacks) {
     overlay.replaceChildren();
     for (const target of targets) {
       const bounds = guideBounds(program, target.ids); if (!bounds) continue;
-      const pad = target.key === 'title-group' ? 10 : 3;
+      const isTitleGroup = target.kind === 'title' && !target.part;
+      const pad = isTitleGroup ? 10 : 3;
       const node = document.createElement('div'); node.className = 'guide-control'; node.dataset.guideKey = target.key;
-      node.style.zIndex = target.kind === 'panel' ? '0' : target.key === 'title-group' ? '1' : target.kind === 'legend' && target.part ? '3' : '2';
+      node.classList.toggle('compact-guide', (bounds.right-bounds.left)*scale < 24 || (bounds.bottom-bounds.top)*scale < 16);
+      node.style.zIndex = target.kind === 'panel' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' && target.part ? '3' : '2';
       node.classList.toggle('panel-control', target.kind === 'panel');
       Object.assign(node.style, { left: `${bounds.left*scale-pad}px`, top: `${bounds.top*scale-pad}px`,
         width: `${(bounds.right-bounds.left)*scale+pad*2}px`, height: `${(bounds.bottom-bounds.top)*scale+pad*2}px` });
@@ -63,10 +65,13 @@ export function createGuideEditor(host, callbacks) {
         handle.setAttribute('aria-label', `Resize ${target.label} (${edge})`);
         handle.title = size.title; node.append(handle);
       }
-      if (target.kind === 'title' && target.part && targets.some(t => t.key === 'title-group')) {
+      const titleGroup = target.kind === 'title' && target.part && targets.find(t =>
+        t.kind === 'title' && !t.part && guideMoveHistoryKey(t) === guideMoveHistoryKey(target));
+      if (titleGroup) {
         const together = document.createElement('button'); together.className = 'guide-together'; together.type = 'button';
         together.textContent = 'Together'; together.title = 'Resize title and subtitle together';
-        together.addEventListener('click', event => { event.stopPropagation(); select('title-group'); overlay.querySelector('[data-guide="title-group"][data-guide-operation="resize"]')?.focus({preventScroll:true}); });
+        together.addEventListener('click', event => { event.stopPropagation(); select(titleGroup.key);
+          [...overlay.querySelectorAll('[data-guide-operation="resize"]')].find(button=>button.dataset.guide===titleGroup.key)?.focus({preventScroll:true}); });
         node.append(together);
       }
       overlay.append(node);
@@ -112,7 +117,8 @@ export function createGuideEditor(host, callbacks) {
     if (Math.abs(dx)+Math.abs(dy)<2 && !g.final) return;
     const factor = guideResizeFactor(g.target.bounds, dx, dy, g.edge);
     const action = g.operation === 'resize' ? resizeGuide(g.target, factor)
-      : moveGuide(g.source,g.target,(x-g.rect.left)/g.scale,(y-g.rect.top)/g.scale);
+      : moveGuide(g.source,g.target,(g.target.bounds.left+g.target.bounds.right)/2+dx,
+        (g.target.bounds.top+g.target.bounds.bottom)/2+dy, { dx, dy, snapDistance: 48/g.scale });
     const key = JSON.stringify(action); if (g.key === key) return;
     g.key = key; g.pending = { action, factor }; pump(g);
   }

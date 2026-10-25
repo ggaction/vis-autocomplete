@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chart, hconcat } from 'ggaction';
 import { editableGuides, resizeGuide, moveGuide } from '../src/guide-manipulation.js';
-import { prepareGuidedAction } from '../src/prepare.js';
+import { prepareGuidedAction, addDefaultGuides } from '../src/prepare.js';
 import { compositionPlotBounds } from '../vendor/ggaction/src/materialization/composition.js';
 import { serializeProgram, deserializeProgram } from 'ggaction/persistence';
 const rows = Array.from({length:18}, (_,i)=>({x:i+1,y:i*2+1,g:['A','B','C'][i%3]}));
@@ -13,6 +13,21 @@ function unit(shape=false) {
  return p.createLegend({target:'p',channels:shape?['color','shape']:['color']});
 }
 const shared=p=>editableGuides(p).find(t=>t.key==='legend:shared-color');
+test('fine shared positioning across an empty panel gap does not collide with hidden child legends',()=>{
+ const p=unit().createTitle({text:'First'}).createAdjacentPlot({id:'other',source:'p',position:'right',
+  plot:{action:'createScatterPlot',options:{data:'d',x:'x',y:'y',color:{field:'g',fieldType:'nominal'}}},share:{color:true}});
+ const view=addDefaultGuides(p);
+ const dock=prepareGuidedAction(p,{method:'editLegend',args:{target:shared(view).editTargets,channel:'color',position:'bottom',alongOffset:0}},view);
+ const t=shared(dock.preview);
+ const a=moveGuide(dock.preview,t,(t.bounds.left+t.bounds.right)/2-10,(t.bounds.top+t.bounds.bottom)/2+4,{dx:-10,dy:4});
+ const moved=prepareGuidedAction(p,a,view);
+ const n=shared(moved.preview);
+ assert.ok(Math.abs(n.bounds.left-t.bounds.left+10)<.26);
+ assert.ok(Math.abs(n.bounds.top-t.bounds.top-4)<.26);
+ const edited=prepareGuidedAction(moved.authoringPreview,{method:'editTitle',args:{target:{childPath:['p']},alongOffset:6}},moved.preview);
+ assert.deepEqual(deserializeProgram(serializeProgram(edited.preview)).graphicSpec,edited.preview.graphicSpec);
+ assert.ok(!JSON.stringify(edited.preview.context).includes('compositionCollectedLegends'));
+});
 for(const combined of [false,true])test(`shared legend drag and card editing reach all contributors (combined=${combined})`,()=>{
  let p=hconcat({programs:[{id:'a',program:unit()},{id:'b',program:unit(combined)}],share:{color:true}});
  const target=shared(p);assert.ok(target.movable);assert.notEqual(target.resizable,false);

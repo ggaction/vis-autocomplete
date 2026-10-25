@@ -436,6 +436,8 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .guide-edge-sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
 .guide-edge:hover { background: #5884ab25; }
 .guide-size::after { content: ''; position: absolute; inset: -4px; }
+.compact-guide .guide-size { right: -9px; bottom: -9px; }
+.compact-guide .guide-size::after { inset: 0; }
 .editing-guide, .editing-guide * { user-select: none !important; }
 
 /* Composition controls occupy the existing toolbar; edge controls never resize the canvas. */

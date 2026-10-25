@@ -1,5 +1,6 @@
 import { sharedLegendEdit } from './shared-legend-editing.js';
-import { chartViews, chartAtPath, scopedCall, nativeActionTargets } from './composition-context.js';
+import { compositionTargetProgram } from '../vendor/ggaction/src/actions/composition/targets.js';
+import { chartViews, scopedCall, nativeActionTargets } from './composition-context.js';
 import { centerCanvasContent, compactAdjacentCanvases } from './canvas-centering.js';
 import { canvasGeometry } from './canvas-geometry.js';
 import { prepareAction } from './engine.js';
@@ -97,7 +98,7 @@ function prepareScopedAction(program, action, view, setupCalls) {
   let resolvedAction = action;
   const { target: _target, ...options } = action.args;
   for (const target of targets) {
-    const local = chartAtPath(program, target.childPath), displayed = chartAtPath(view, target.childPath);
+    const local = compositionTargetProgram(program, target.childPath), displayed = compositionTargetProgram(view, target.childPath);
     const call = { ...action, args: { ...options, ...(target.id === undefined ? {} : { target: target.id }) },
       allowUnchanged: targets.length > 1 || action.allowUnchanged };
     const localSetup = setupCalls.map(setup => {
@@ -246,7 +247,11 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
     }
     const call = defaultGuideCall(authoringPreview);
     let preview = addDefaultGuides(authoringPreview, call);
-    const centered = sourceAction.method === 'createAdjacentPlot' && ['left', 'right'].includes(sourceAction.args.position ?? 'right')
+    // Explicit pixel placement must not be counteracted by redistributing the
+    // Canvas margins. Native fitting still handles genuinely insufficient room.
+    const positionedGuide = ['editLegend', 'editLegendLayout', 'editTitle', 'editXAxisTitle', 'editYAxisTitle'].includes(sourceAction.method) && sourceAction.args.alongOffset !== undefined;
+    const centered = positionedGuide ? { program: authoringPreview, view: preview, calls: [] }
+      : sourceAction.method === 'createAdjacentPlot' && ['left', 'right'].includes(sourceAction.args.position ?? 'right')
       ? compactAdjacentCanvases(authoringPreview, preview, call)
       : centerCanvasContent(authoringPreview, preview, call);
     authoringPreview = centered.program; preview = rememberDisplayedGuides(centered.view, call);

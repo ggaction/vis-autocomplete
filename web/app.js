@@ -23,6 +23,7 @@ import { initializeChartDownloads } from './chart-download.js';
 import { transferChart, cancelChartTransfer } from './chart-transfer.js';
 import { createCanvasResize } from './canvas-resize.js';
 import { createGuideEditor } from './guide-editor.js';
+import { guideMoveHistoryKey } from '../src/guide-manipulation.js';
 import { createResizeHistory, rebaseResizeAction } from './resize-history.js';
 import { createResizeThumbnails } from './resize-thumbnails.js';
 import { canvasGeometry, projectCanvasGeometry } from './canvas-geometry.js';
@@ -265,7 +266,7 @@ const guideEditor = createGuideEditor(elements.current, {
     for (const card of state.cards) card.request = (card.request ?? 0) + 1;
     // Title and subtitle move one shared native title block. Different legends
     // and other edit operations must never overwrite one another's history.
-    const historyKey = operation === 'move' ? `move:${target.kind === 'title' ? 'title' : target.key}` : null;
+    const historyKey = operation === 'move' ? guideMoveHistoryKey(target) : null;
     return { base: state.program, view: state.view, guideCall: state.guideCall,
       ...(historyKey ? { historyKey, resizeBefore: resizeHistory.begin(historyKey) } : {}),
       title: `${operation === 'resize' ? 'Resize' : 'Move'} ${target.label}` };

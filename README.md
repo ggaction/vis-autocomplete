@@ -16,6 +16,7 @@
 - 좌우 병치 시 차트 사이 기본 gap은 8px이며, 각 패널의 빈 좌우 캔버스 여백을 줄인다. 축·레이블·범례 공간은 유지하고 여백 변경은 공개 `editCanvas` 호출로 코드와 내보내기에 반영한다.
 - `createAdjacentPlot`은 독립된 데이터 스냅샷으로 이웃 차트를 만든다. 공유 축은 실제 표시되는 자식 domain을 합치며(facet은 분할 전 템플릿 대신 각 셀의 범위를 사용), 각 plot의 실제 프레임을 정렬한다. **Edit shared scales**에서 공유를 해제하거나 다시 설정한다. 서로 다른 변수·척도·측정 단위의 공유는 라이브러리에서 거부한다.
 - 선택된 패널의 제목과 범례를 직접 움직이거나 크기를 바꾸면 그 패널만 편집한다. 병치 전체 Canvas의 외곽 크기는 composition padding으로 조절한다.
+- 제목·부제·X/Y축 제목·범례를 조금 드래그하면 현재 가장자리에서 미세 이동한다. 다른 가장자리로 크게 이동하면 그쪽에 붙고, 다시 미세 조정할 수 있다. 범례는 공개 `editLegend({ position, offset, alongOffset })`를 사용한다. 같은 대상의 연속 이동은 코드와 History 한 항목으로 합쳐지고, facet의 같은 축 제목도 하나의 대상으로 취급한다.
 - Canvas 전환은 `@ggaction/transition` 0.1.1을 사용하며, 중첩된 clipping 영역도 현재 화면에서부터 보간한다. 새로운 패널 구조처럼 대응할 수 없는 요소는 fade로 전환한다. 기존 Preview mode를 유지한다.
 - 분포·Polar·Radar·Parallel 차트에서 옆 차트를 추가할 때도 원본 변수를 native `getPlotComposition`으로 복구한다. 집계·원본·count·density 등 다른 측정은 자동 공유하지 않는다.
 - 저장 프로젝트, Undo/Redo, 코드 및 이미지 내보내기에는 동일한 공개 함수 시퀀스를 사용한다. 새 overlay/병치 함수의 코퍼스 빈도를 임의로 만들지 않는다.

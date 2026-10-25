@@ -1,4 +1,3 @@
-import { centerCanvasContent } from '../src/canvas-centering.js';
 import { chart } from 'ggaction';
 import { PUBLIC_ACTION_NAMES } from '../src/public-actions.js';
 import { programCode } from './code-view.js';
@@ -192,12 +191,9 @@ export function restoreSession(stored, rows, { lazy = false, current = null } = 
     const { axesCalls } = snapshot;
     const metadata = Object.fromEntries(metadataKeys.map(key => [key, snapshot[key]]));
     const calls = [...snapshot.setupCalls, ...snapshot.calls];
-    let program = replay(calls), view = snapshot.guideCall ? replay([...calls, snapshot.guideCall]) : program;
-    if (snapshot.phase !== 'initial' && snapshot.guideCall) {
-      const centered = centerCanvasContent(program, view, snapshot.guideCall);
-      program = centered.program; view = centered.view;
-      metadata.calls = [...metadata.calls, ...centered.calls];
-    }
+    // Restore exactly the authored layout. Fitting/centering belongs to action
+    // preparation and is already recorded as native calls, never to loading.
+    const program = replay(calls), view = snapshot.guideCall ? replay([...calls, snapshot.guideCall]) : program;
     const selectionAxes = snapshot.phase === 'initial' ? { program: replay([...calls, ...axesCalls]), calls: axesCalls } : null;
     const shared = values => values.map(call => recorded.get(JSON.stringify(call)) ?? call);
     const snapshotCopy = captureHistorySnapshot({ ...metadata, setupCalls: shared(metadata.setupCalls),

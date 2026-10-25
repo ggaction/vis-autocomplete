@@ -4,6 +4,7 @@ import { renderToSVG } from 'ggaction/svg';
 import { parse } from 'acorn';
 import { createHistory } from '../web/history.js';
 import { createProject, parseProject, validateProject, restoreSession, runnableCode } from '../web/project.js';
+import { chart } from 'ggaction';
 
 function example() {
   const rows = [{ X: 1, Y: 2 }, { X: 2, Y: 4 }];
@@ -17,6 +18,22 @@ function example() {
   return { id: 'uploaded-stock', name: 'Uploaded stock', imported: { rows, rawRows: rows, fieldTypes: {}, metadata: { conversions: [] } },
     session: { entries: [initial, first, second], index: 1 } };
 }
+
+test('loading an explicitly positioned guide never adds centering calls or changes its geometry',()=>{
+  const record=example(), snapshot=record.session.entries[1];
+  snapshot.setupCalls[0]={method:'createCanvas',args:{plot:{width:314,height:314},margin:180}};
+  snapshot.calls.push({method:'createTitle',args:{text:'Manual position',alongOffset:25,offset:4}});
+  snapshot.guideCall={method:'createGuides',args:{}};
+  let expected=chart();
+  for(const call of [...snapshot.setupCalls,...snapshot.calls,snapshot.guideCall]) {
+    expected=expected[call.method](call.method==='createData'?{...call.args,values:record.imported.rows}:call.args);
+  }
+  for(const lazy of [false,true]) {
+    const restored=restoreSession({entries:[snapshot],index:0},record.imported.rows,{lazy}).entries[0];
+    assert.deepEqual(restored.view.graphicSpec,expected.graphicSpec);
+    assert.deepEqual(restored.calls,snapshot.calls);
+  }
+});
 
 test('a project round trip retains original rows, editable public calls, history future and position', () => {
   const record = example();

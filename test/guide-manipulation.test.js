@@ -20,7 +20,7 @@ for(const faceted of [false,true])test(`native guide resizing and movement${face
   if(target.key==='subtitle')assert.equal(next.titleConfig.titleStyle.fontSize,23);
  }
  const g=canvasGeometry(p),r=g.plotBounds??{x:g.x,y:g.y,...g.plot};
- for(const target of targets.filter(t=>t.movable))for(const [position,x,y] of [
+ for(const target of targets.filter(t=>t.movable && t.kind!=='axis'))for(const [position,x,y] of [
   ['top',r.x+r.width/2,r.y-80],['bottom',r.x+r.width/2,r.y+r.height+80],
   ['left',r.x-80,r.y+r.height/2],['right',r.x+r.width+80,r.y+r.height/2]]){
   const action=moveGuide(p,target,x,y);assert.equal(action.args.position,position);

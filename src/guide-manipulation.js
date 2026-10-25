@@ -8,9 +8,16 @@ import { prepareCompositionSnapshots, compositionPlotBounds } from '../vendor/gg
 import { sharedCompositionColorLegend } from '../vendor/ggaction/src/materialization/compositionLegends.js';
 import { namespaceGraphicId } from '../vendor/ggaction/src/materialization/compositionSnapshot.js';
 import { canvasGeometry } from './canvas-geometry.js';
+import { localLegendPlacement } from '../vendor/ggaction/src/grammar/legendGroups.js';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const round = n => Math.round(n * 4) / 4;
+export function guideMoveHistoryKey(target) {
+  if (target.childPath) return `${JSON.stringify(target.childPath)}/${guideMoveHistoryKey(target.localTarget)}`;
+  if (target.kind === 'title') return 'move:title';
+  if (target.kind === 'axis') return `move:axis:${target.channel}:${JSON.stringify(target.args)}`;
+  return `move:${target.key}`;
+}
 export function guideBounds(program, ids) {
   const bounds = ids.filter(id => findGraphic(program.graphicSpec, id)).map(id =>
     resolveConcreteGraphicBounds(program.graphicSpec, id, program.materializationConfigs?.textMetrics)).filter(Boolean);
@@ -38,7 +45,7 @@ export function editableGuides(program) {
     if (shared && program.graphicSpec.objects[sharedId]) titles.push({
       key: 'legend:shared-color', kind: 'legend', label: 'Shared color legend',
       ids: [sharedId], bounds: guideBounds(program, [sharedId]), movable: true,
-      config: shared.config, family: shared.block.kind, channels: shared.channels,
+      config: shared.config, placement: shared.placement, family: shared.block.kind, channels: shared.channels,
       representation: shared.block.family, editTargets: shared.targets,
       remove: { method: 'removeLegend', args: { target: shared.targets, channels: ['color'], suppress: true } },
     });
@@ -58,7 +65,7 @@ export function editableGuides(program) {
     if (!owner.config?.title) continue;
     const ids = findIds([axisGraphicIds(owner.channel, owner.id)[3]]);
     for (const id of ids) add({ key: `axis:${id}`, label: `${owner.channel.toUpperCase()} axis title`, kind: 'axis',
-      config: owner.config.title, channel: owner.channel, args: axisTargetArgs(owner.id, owner.channel), ids: [id],
+      config: owner.config.title, movable: true, channel: owner.channel, args: axisTargetArgs(owner.id, owner.channel), ids: [id],
       facet: Boolean(program.compositionSpec?.facet) });
   }
   for (const [channel, label, method] of [
@@ -85,7 +92,8 @@ export function editableGuides(program) {
     const ids = findIds(legendGraphicIds(kind));
     if (!ids.length) continue;
     add({ key: `legend:${kind}`, label: `${config.title || 'Legend'} legend`, kind: 'legend', family: kind,
-      config, ids, movable: true, representation: describeLegendBlock(program, kind, config).family, channels: legendBlockChannels(kind, config) });
+      config, placement: localLegendPlacement(config) ?? program.guideConfigs.legendGroups?.[config.target]?.placement ?? config,
+      ids, movable: true, representation: describeLegendBlock(program, kind, config).family, channels: legendBlockChannels(kind, config) });
     add({ key: `legend-title:${kind}`, label: `${config.title || 'Legend'} legend title`, kind: 'legend', family: kind,
       part: 'titleStyle', config, ids: ids.filter(id => id.endsWith('Title')), channels: legendBlockChannels(kind, config) });
   }
@@ -151,21 +159,62 @@ export function resizeGuide(target, factor) {
   return { method: 'editLegend', args };
 }
 
-export function moveGuide(program, target, x, y) {
-  if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y), [{ childPath: target.childPath }]);
+export function moveGuide(program, target, x, y, drag) {
+  if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y, drag), [{ childPath: target.childPath }]);
   const geometry = canvasGeometry(program);
   const p = program.compositionSpec && !program.compositionSpec.facet ? compositionPlotBounds(program)
     : geometry.plotBounds ?? { x: geometry.x, y: geometry.y, ...geometry.plot };
   const nx = (x - p.x - p.width / 2) / Math.max(1, p.width / 2);
   const ny = (y - p.y - p.height / 2) / Math.max(1, p.height / 2);
-  const position = Math.abs(nx) > Math.abs(ny) ? nx < 0 ? 'left' : 'right' : ny < 0 ? 'top' : 'bottom';
+  let position = Math.abs(nx) > Math.abs(ny) ? nx < 0 ? 'left' : 'right' : ny < 0 ? 'top' : 'bottom';
+  const current = target.placement?.position ?? target.config.position;
+  if (target.kind === 'axis') position = target.channel === 'x' ? ny < 0 ? 'top' : 'bottom' : nx < 0 ? 'left' : 'right';
+  // Pointer movement is relative to the grabbed guide, not its nearest edge.
+  // A generous screen-space threshold prevents tiny drags from redocking it.
+  const fine = current && drag && (Math.hypot(drag.dx, drag.dy) < (drag.snapDistance ?? 48) || position === current);
+  if (fine) {
+    position = current;
+    const horizontal = ['top', 'bottom'].includes(position), near = ['top', 'left'].includes(position);
+    const deltaAlong = horizontal ? drag.dx : drag.dy;
+    const deltaOut = (near ? -1 : 1) * (horizontal ? drag.dy : drag.dx);
+    if (target.kind === 'title') return { method: 'editTitle', args: { position, align: target.config.align,
+      offset: round(target.config.offset + (program.compositionSpec ? -deltaOut : deltaOut)),
+      alongOffset: round((target.config.alongOffset ?? 0) + deltaAlong) } };
+    if (target.kind === 'axis') {
+      const value = target.config.offset;
+      const offset = typeof value === 'object' ? { ...value, gap: Math.max(0, round(value.gap + deltaOut)) } : round(value + deltaOut);
+      const action = { method: `edit${target.channel.toUpperCase()}AxisTitle`, args: { ...target.args, position, offset,
+        alongOffset: round((target.config.alongOffset ?? 0) + deltaAlong) } };
+      return target.facet ? { method: 'editFacetSource', args: { action: { method: action.method, options: action.args } } } : action;
+    }
+    const b = target.bounds;
+    if (position.includes('-')) {
+      const top = position.startsWith('top'), left = position.endsWith('left');
+      const offset = Math.max(0, round((top ? b.top-p.y : p.y+p.height-b.bottom) + (top ? drag.dy : -drag.dy)));
+      const anchor = left ? p.x+offset : p.x+p.width-offset-(b.right-b.left);
+      return { method: 'editLegend', args: { target: target.editTargets ?? target.config.target, channel: target.channels[0],
+        position, offset, alongOffset: round(b.left+drag.dx-anchor) } };
+    }
+    const offset = position === 'right' ? b.left - p.x - p.width : position === 'left' ? p.x - b.right
+      : position === 'top' ? p.y - b.bottom : b.top - p.y - p.height;
+    const alongOffset = horizontal ? (b.left + b.right - 2*p.x - p.width)/2 : b.top - p.y;
+    return { method: 'editLegend', args: { target: target.editTargets ?? target.config.target, channel: target.channels[0],
+      position, align: 'center', offset: Math.max(0, round(offset + deltaOut)), alongOffset: round(alongOffset + deltaAlong),
+      ...(target.config.titlePosition === undefined ? {} : { titlePosition: target.config.titlePosition }) } };
+  }
   const along = ['top','bottom'].includes(position) ? (x-p.x)/p.width : (y-p.y)/p.height;
   const align = along < .33 ? 'left' : along > .67 ? 'right' : 'center';
+  if (target.kind === 'axis') {
+    const action = { method: `edit${target.channel.toUpperCase()}AxisTitle`, args: { ...target.args, position,
+      offset: typeof target.config.offset === 'object' ? target.config.offset : Math.abs(target.config.offset), alongOffset: 0 } };
+    return target.facet ? { method: 'editFacetSource', args: { action: { method: action.method, options: action.args } } } : action;
+  }
   if (target.kind === 'title') return { method: 'editTitle', args: { position, align, offset: 0, alongOffset: 0 } };
   const args = { target: target.editTargets ?? target.config.target, channel: target.channels[0], position,
     align: ['left','right'].includes(position) ? 'center' : align,
     ...(target.config.titlePosition === undefined ? {} : { titlePosition: target.config.titlePosition }) };
   // Moving an inline horizontal title to a side requires native top placement.
   if (target.config.titlePosition === 'left' && ['left','right'].includes(position)) args.titlePosition = 'top';
+  if (drag) args.alongOffset = 0;
   return { method: 'editLegend', args };
 }

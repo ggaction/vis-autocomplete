@@ -61,6 +61,10 @@ main { padding: 14px 16px 16px; }
 .text-group-list label:hover, .text-group-list label:focus-within { background:#eef4fa; }
 .text-group-list label:has(input:disabled) { color:#a5a9b0; cursor:default; }
 .text-group-list input { margin:0; cursor:inherit; accent-color:#3377b4; }
+.legend-selection-scopes { display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:3px 0 6px; border-bottom:1px solid var(--border); margin-bottom:4px; }
+.legend-selection-scopes button { padding:2px 5px; cursor:pointer; }
+.legend-selection-scopes button[aria-pressed="true"] { color:#096bc2; border-color:#096bc2; background:#eaf3fd; }
+.clear-element-selection { width:100%; margin-bottom:4px; cursor:pointer; }
 .chart-font-size { display:flex; flex:none; align-items:center; gap:2px; }
 .chart-font-size button { width:24px; padding:0; }
 .chart-font-size input { width:46px; text-align:center; padding:0 2px; appearance:textfield; -moz-appearance:textfield; }
@@ -432,10 +436,14 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .guide-editor { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
 .guide-control { position: absolute; border: 1px solid transparent; box-sizing: border-box; pointer-events: none; }
 .guide-control.active { border-color: #5884ab; }
+.guide-control.selected { border-color:#096bc2; box-shadow:0 0 0 1px #096bc233; }
+.guide-control.selected .guide-hit { background:#096bc208; }
+.guide-control.owner-active .guide-size, .guide-control.owner-active .guide-edge { visibility:visible; }
 .guide-hit { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; border-radius: 0; pointer-events: auto; touch-action: none; }
 .guide-hit:hover { background: transparent; }
 .guide-delete, .guide-together, .guide-size { visibility: hidden; }
 .guide-control.active .guide-delete, .guide-control.active .guide-together, .guide-control.active .guide-size { visibility: visible; }
+.guide-control.owner-items-active > .guide-delete { visibility:visible; }
 .guide-delete { position: absolute; right: -18px; top: -18px; z-index: 4; width: 18px; height: 18px; min-width: 0; padding: 0; border: 1px solid #5884ab; background: white; color: #315b7e; font: 16px/16px Arial; pointer-events: auto; cursor: pointer; }
 .guide-delete:hover { color: #a12828; border-color: #a12828; background: #fff4f4; }
 .panel-control.active { border-style: dashed; }
@@ -457,6 +465,20 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .guide-size::after { content: ''; position: absolute; inset: -4px; }
 .compact-guide .guide-size { right: -9px; bottom: -9px; }
 .compact-guide .guide-size::after { inset: 0; }
+/* Legend subparts own their hit areas. Keep the parent handles outside them,
+   even when the displayed legend is smaller than a pointer target. */
+.legend-container > .guide-hit { z-index:2; }
+.legend-container > .guide-size, .legend-container > .guide-edge { z-index:4; }
+.legend-container > .guide-delete { z-index:5; }
+.legend-container > .guide-size { right:-10px; bottom:-10px; }
+.legend-container > .guide-size::after { inset:0; }
+.legend-container > .guide-edge-n { top:-12px; }
+.legend-container > .guide-edge-s { bottom:-12px; }
+.legend-container > .guide-edge-e { right:-12px; }
+.legend-container > .guide-edge-w { left:-12px; }
+.legend-container > .guide-edge-ne { top:-14px; right:0; }
+.legend-container > .guide-edge-nw { top:-14px; left:0; }
+.legend-container > .guide-edge-sw { bottom:-14px; left:0; }
 .editing-guide, .editing-guide * { user-select: none !important; }
 
 /* Composition controls occupy the existing toolbar; edge controls never resize the canvas. */

@@ -100,6 +100,70 @@ export function editableGuides(program) {
   return targets;
 }
 
+// Selection scopes describe visible owners; they are never new ggaction actions.
+// Keep descendant scopes tied to the same native owner, even for collected
+// legends and legends inside nested compositions.
+const selectableGuideCache = new WeakMap();
+export function selectableGuides(program) {
+  if (selectableGuideCache.has(program)) return selectableGuideCache.get(program);
+  const guides = editableGuides(program), legends = guides.filter(g => g.kind === 'legend' && !g.part);
+  const withPart = (target, part) => ({ ...target, part,
+    ...(target.localTarget ? { localTarget: withPart(target.localTarget, part) } : {}) });
+  const ownerPath = target => target.childPath ? [...target.childPath, ...ownerPath(target.localTarget)] : [];
+  const descendants = id => {
+    const object = findGraphic(program.graphicSpec, id)?.object;
+    return object?.children?.length ? object.children.flatMap(descendants) : [id];
+  };
+  for (const legend of legends) {
+    legend.legendKey = legend.key; legend.legendPart = 'legend';
+    const ids = legend.ids.flatMap(descendants);
+    for (const [part, label, scope] of [['titleStyle', 'title', 'title'], ['labels', 'items', 'items']]) {
+      const existing = guides.find(g => g.kind === 'legend' && g.part === part && g.family === legend.family &&
+        JSON.stringify(ownerPath(g)) === JSON.stringify(ownerPath(legend)) && JSON.stringify(g.editTargets) === JSON.stringify(legend.editTargets));
+      if (existing) { existing.legendKey = legend.key; existing.legendPart = scope; continue; }
+      const partIds = ids.filter(id => part === 'titleStyle' ? id.endsWith('Title') : !/Title$|Border$/.test(id));
+      const bounds = guideBounds(program, partIds);
+      if (!bounds) continue;
+      guides.push({ ...withPart(legend, part), key: `${legend.key}:${scope}`, label: `${legend.label} ${label}`,
+        ids: partIds, bounds, movable: part === 'labels', moveTarget: part === 'labels' ? legend : undefined,
+        resizable: part !== 'labels', deletable: part !== 'labels',
+        remove: undefined, legendKey: legend.key, legendPart: scope });
+    }
+  }
+  if (legends.length) {
+    const ids = legends.flatMap(g => g.ids);
+    guides.push({ key: 'legends:all', label: 'All legends', kind: 'legendGroup', legendPart: 'all',
+      members: legends, ids, bounds: guideBounds(program, ids), movable: false, resizable: false, deletable: false, hitTest: false });
+  }
+  selectableGuideCache.set(program, guides);
+  return guides;
+}
+
+export function selectedGuideTextTargets(program, keys) {
+  function visit(target) {
+    if (target.members) return target.members.flatMap(visit);
+    if (target.childPath) return visit(target.localTarget).map(item => ({ ...item,
+      call: style => scopedCall(item.call(style), [{ childPath: target.childPath }]) }));
+    const config = target.config;
+    const entry = (style, method, args, slot) => style ? [{ config: style, call: value => ({ method,
+      args: { ...args, ...(slot ? { [slot]: value } : value) } }) }] : [];
+    if (target.kind === 'title') return (target.part ? [target.part] : ['titleStyle', 'subtitleStyle'])
+      .flatMap(part => entry(config[part], 'editTitle', {}, part));
+    if (target.kind === 'legend') return (target.part ? [target.part] : ['titleStyle', 'labels'])
+      .filter(part => part !== 'titleStyle' || config.titleVisible !== false)
+      .flatMap(part => entry(config[part], 'editLegend', { target: target.editTargets ?? config.target, channel: target.channels[0] }, part));
+    if (target.kind === 'axis') {
+      const method = target.method ?? `edit${target.channel.toUpperCase()}AxisTitle`;
+      const items = entry(config, method, target.args, method === 'editParallelAxis' ? 'title' : null);
+      return target.facet ? items.map(item => ({ ...item, call(style) { const call = item.call(style);
+        return { method: 'editFacetSource', args: { action: { method: call.method, options: call.args } } }; } })) : items;
+    }
+    return [];
+  }
+  const selected = new Set(keys);
+  return selectableGuides(program).filter(g => selected.has(g.key)).flatMap(visit);
+}
+
 export function removeGuide(target) {
   if (target.childPath) return scopedCall(removeGuide(target.localTarget), [{ childPath: target.childPath }]);
   if (target.remove) return target.remove;
@@ -111,7 +175,7 @@ export function removeGuide(target) {
     return target.facet ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
   }
   if (target.kind === 'legend' && target.part === 'titleStyle') return {
-    method: 'editLegend', args: { target: target.config.target, channel: target.channels[0], title: false },
+    method: 'editLegend', args: { target: target.editTargets ?? target.config.target, channel: target.channels[0], title: false },
   };
   if (target.kind === 'legend') return {
     method: 'removeLegend', args: { target: target.config.target, channels: target.channels, suppress: true },

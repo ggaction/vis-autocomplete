@@ -260,6 +260,8 @@ const canvasResize = createCanvasResize(elements.current, {
 
 const guideEditor = createGuideEditor(elements.current, {
   program: () => state.view,
+  scope: () => state.datasetId,
+  selectionChanged: () => typographyToolbar.refresh(),
   available: () => state.phase !== 'initial' && !transitionMode.active,
   canStart: () => !state.loading && !state.committing && !state.resizing,
   async remove(target, action) {
@@ -309,12 +311,15 @@ const guideEditor = createGuideEditor(elements.current, {
 
 const typographyToolbar = createTypographyToolbar($('chart-typography'), elements.current, {
   read: () => state, apply: commitTypography, onError: message => notice(message, true),
+  selection: guideEditor.selection, clearSelection: guideEditor.clearSelection, selectLegendScope: guideEditor.selectLegendScope,
+  canSelectLegendScope: guideEditor.canSelectLegendScope,
 });
 
 async function commitTypography(options) {
   if (state.loading || state.committing || state.resizing || state.phase === 'initial') return;
   leaveGallery(); historyView.clear({ restore: false }); historyInspection = null; cardMotion.finish();
-  const key = options.fontFamily ? 'typography:family' : `typography:${[...options.groups].sort().join(',')}`;
+  const scope = options.elements ? `elements:${JSON.stringify([...options.elements].sort())}` : `groups:${[...(options.groups ?? [])].sort().join(',')}`;
+  const key = `typography:${options.fontFamily ? 'family' : 'size'}:${scope}`;
   const before = resizeHistory.begin(key), base = state.program;
   const title = options.fontFamily ? `Font: ${options.fontFamily}` : 'Edit text sizes';
   const calls = typographyCalls(state.view, options);
@@ -499,7 +504,7 @@ function notice(message = '', isError = false) {
 
 function placeholder(host, message) {
   renderedCharts.delete(host);
-  if (host === elements.current) { lastPreview = null; transitionMode.reset(); canvasResize.clear(); guideEditor.clear(); }
+  if (host === elements.current) { lastPreview = null; transitionMode.reset(); canvasResize.clear(); guideEditor.clear({ selection: state.phase === 'initial' }); }
   if (host === elements.current) chartDownloads.refresh();
   const wrapper = document.createElement('div'); wrapper.className = 'empty-state';
   const text = document.createElement('p'); text.textContent = message;
@@ -1673,7 +1678,7 @@ async function editSchema() {
 async function emptyWorkspace() {
   clearTimeout(checkpointTimer); chartZoom.reset();
   cancelGalleryLeave(); cancelSelectedPreview(); cancelChartTransfer();
-  pointerMotion.reset(); sliderHover.reset(); transitionMode.reset(); canvasResize.clear(); guideEditor.clear();
+  pointerMotion.reset(); sliderHover.reset(); transitionMode.reset(); canvasResize.clear(); guideEditor.clear({ selection: true });
   historyView.clear({ restore: false }); historyInspection = null; history.clear(); resizeHistory.reset();
   state.tableView?.destroy?.(); state.galleryObserver?.disconnect();
   mountedGallery = null; recentGalleries.clear(); renderedCharts.delete(elements.current); thumbnailView = null;

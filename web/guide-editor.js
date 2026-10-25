@@ -1,4 +1,4 @@
-import { editableGuides, guideBounds, resizeGuide, moveGuide, removeGuide, guideMoveHistoryKey } from '../src/guide-manipulation.js';
+import { selectableGuides, guideBounds, resizeGuide, moveGuide, removeGuide, guideMoveHistoryKey } from '../src/guide-manipulation.js';
 import { removableChartPanels } from '../src/chart-removal.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
@@ -13,20 +13,46 @@ export function guideResizeFactor(bounds, dx, dy, edge = 'se') {
 }
 
 export function createGuideEditor(host, callbacks) {
-  let display, targets = [], targetSource, active, overlay, gesture, stage;
+  let display, targets = [], targetSource, active, overlay, gesture, stage, press;
+  let selected = new Set(), scope;
   const measured = new WeakMap();
+  function paintSelection() {
+    for (const node of overlay?.children ?? []) {
+      const pinned = selected.has(node.dataset.guideKey);
+      node.classList.toggle('selected', pinned);
+      node.querySelector('.guide-hit')?.setAttribute('aria-pressed', String(pinned));
+    }
+  }
+  function setSelection(keys) {
+    const next = new Set(keys);
+    if (JSON.stringify([...next].sort()) === JSON.stringify([...selected].sort())) return;
+    selected = next; paintSelection(); callbacks.selectionChanged?.();
+  }
+  function pin(key, additive = false) {
+    const next = additive ? new Set(selected) : new Set();
+    if (additive && next.has(key)) next.delete(key); else next.add(key);
+    setSelection(next);
+  }
   function select(key, force = false) {
     if (!force && active?.key === key && host.dataset.guideHover === key) return;
     active = targets.find(target => target.key === key);
     if (active) host.dataset.guideHover = active.key; else delete host.dataset.guideHover;
-    for (const node of overlay?.querySelectorAll('.guide-control') ?? []) node.classList.toggle('active', node.dataset.guideKey === active?.key);
+    for (const node of overlay?.querySelectorAll('.guide-control') ?? []) {
+      node.classList.toggle('active', node.dataset.guideKey === active?.key);
+      node.classList.toggle('owner-active', active?.legendPart !== 'title' && active?.legendKey === node.dataset.guideKey);
+      node.classList.toggle('owner-items-active', active?.legendPart === 'items' && active.legendKey === node.dataset.guideKey);
+    }
   }
   function mount(program) {
     display = program; stage = host.querySelector('.canvas-stage');
     if (!stage || !callbacks.available()) { clear(); return; }
+    if (scope !== callbacks.scope?.()) { scope = callbacks.scope?.(); setSelection([]); }
     const source = gesture?.source ?? callbacks.program();
     const changed = targetSource !== source;
-    if (changed) { targets = [...removableChartPanels(source), ...editableGuides(source)]; targetSource = source; }
+    if (changed) {
+      targets = [...removableChartPanels(source), ...selectableGuides(source)]; targetSource = source;
+      setSelection([...selected].filter(key => targets.some(t => t.key === key)));
+    }
     let boundsByKey = measured.get(program);
     if (!boundsByKey) { boundsByKey = new Map(); measured.set(program, boundsByKey); }
     const old = active?.key;
@@ -43,22 +69,27 @@ export function createGuideEditor(host, callbacks) {
       const pad = isTitleGroup ? 10 : 3;
       const retained = existing.get(target.key);
       const node = retained ?? document.createElement('div'); node.className = 'guide-control'; node.dataset.guideKey = target.key;
+      node.dataset.guideKind = target.kind;
+      node.classList.toggle('legend-container', target.kind === 'legend' && !target.part);
       node.classList.toggle('compact-guide', (bounds.right-bounds.left)*scale < 24 || (bounds.bottom-bounds.top)*scale < 16);
-      node.style.zIndex = target.kind === 'panel' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' && target.part ? '3' : '2';
+      node.style.zIndex = target.kind === 'panel' || target.kind === 'legendGroup' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' ? target.part ? '3' : 'auto' : '2';
       node.classList.toggle('panel-control', target.kind === 'panel');
       Object.assign(node.style, { left: `${bounds.left*scale-pad}px`, top: `${bounds.top*scale-pad}px`,
         width: `${(bounds.right-bounds.left)*scale+pad*2}px`, height: `${(bounds.bottom-bounds.top)*scale+pad*2}px` });
       if (retained) { node.classList.toggle('active', target.key === (gesture?.target.key ?? old)); continue; }
       const hit = document.createElement('button'); hit.type = 'button'; hit.className = 'guide-hit';
       hit.dataset.guide = target.key; hit.setAttribute('aria-label', target.movable ? `Move ${target.label}` : `Select ${target.label}`);
-      hit.style.cursor = target.movable ? 'move' : 'default';
+      hit.style.cursor = target.movable ? 'move' : 'pointer';
+      hit.addEventListener('click', event => {
+        if (event.detail === 0 && callbacks.canStart()) { event.stopPropagation(); pin(target.key, event.shiftKey); }
+      });
       const size = document.createElement('button'); size.type = 'button'; size.className = 'guide-size';
       size.dataset.guide = target.key; size.dataset.guideOperation = 'resize';
       size.dataset.guideEdge = 'se';
       size.setAttribute('aria-label', `Resize ${target.label}`); size.title = 'Drag to resize · arrow keys · Esc to cancel';
-      if (target.kind !== 'panel') node.append(hit);
+      if (target.kind !== 'panel' && target.hitTest !== false) node.append(hit);
       if (target.kind !== 'panel' && target.resizable !== false) node.append(size);
-      {
+      if (target.deletable !== false) {
         const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'guide-delete';
         remove.textContent = '×'; remove.dataset.guide = target.key; remove.dataset.guideOperation = 'delete';
         remove.setAttribute('aria-label', `Delete ${target.label}`);
@@ -80,13 +111,14 @@ export function createGuideEditor(host, callbacks) {
       if (titleGroup) {
         const together = document.createElement('button'); together.className = 'guide-together'; together.type = 'button';
         together.textContent = 'Together'; together.title = 'Resize title and subtitle together';
-        together.addEventListener('click', event => { event.stopPropagation(); select(titleGroup.key);
+        together.addEventListener('click', event => { event.stopPropagation(); select(titleGroup.key); pin(titleGroup.key, event.shiftKey);
           [...overlay.querySelectorAll('[data-guide-operation="resize"]')].find(button=>button.dataset.guide===titleGroup.key)?.focus({preventScroll:true}); });
         node.append(together);
       }
       overlay.append(node);
     }
     select(gesture?.target.key ?? old, true);
+    paintSelection();
   }
   function pointer(event) {
     if (gesture || !callbacks.available()) return;
@@ -175,6 +207,7 @@ export function createGuideEditor(host, callbacks) {
     }
   }
   function cancel() {
+    if (press) { const pointer = press.pointerId; press = null; if (host.hasPointerCapture(pointer)) host.releasePointerCapture(pointer); }
     if (!gesture || gesture.finishing) return;
     const g = gesture; gesture = null;
     if (g.pointer !== undefined && host.hasPointerCapture(g.pointer)) host.releasePointerCapture(g.pointer);
@@ -182,21 +215,48 @@ export function createGuideEditor(host, callbacks) {
   }
   host.addEventListener('pointerdown', event => {
     const button = event.target.closest('[data-guide]');
-    if (!button || event.button!==0) return;
+    if (event.button!==0) return;
+    if (!button) {
+      if (!event.shiftKey && !event.target.closest('.guide-control, .resize-handle, [data-resize]') && callbacks.canStart()) setSelection([]);
+      return;
+    }
     if (button.dataset.guideOperation === 'delete') { event.stopPropagation(); return; }
     const target=targets.find(t=>t.key===button.dataset.guide); if(!target)return;
-    const g=start(target,button.dataset.guideOperation??'move',event,button.dataset.guideEdge); if(!g)return;
+    if (!callbacks.available() || !callbacks.canStart()) return;
+    if (!button.dataset.guideOperation) {
+      // Clicks select without starting a resize transaction, clearing previews,
+      // or repainting the chart. Movement beyond the threshold starts a drag.
+      press = { target, clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId, shiftKey: event.shiftKey };
+      event.preventDefault(); event.stopPropagation(); host.setPointerCapture(event.pointerId); return;
+    }
+    const g=start(target,button.dataset.guideOperation,event,button.dataset.guideEdge); if(!g)return;
     event.preventDefault();event.stopPropagation();host.setPointerCapture(event.pointerId);
   });
-  host.addEventListener('pointermove', event => { if(gesture&&!gesture.ended&&gesture.pointer===event.pointerId)update(gesture,event.clientX,event.clientY); });
+  host.addEventListener('pointermove', event => {
+    if (press && press.pointerId === event.pointerId && !press.shiftKey && press.target.movable &&
+        Math.hypot(event.clientX-press.clientX, event.clientY-press.clientY) >= 4) {
+      const pending = press; press = null;
+      start(pending.target.moveTarget ?? pending.target, 'move', pending);
+    }
+    if(gesture&&!gesture.ended&&gesture.pointer===event.pointerId)update(gesture,event.clientX,event.clientY);
+  });
   host.addEventListener('pointerup', event => {
+    if (press?.pointerId === event.pointerId) {
+      const pending = press; press = null; host.releasePointerCapture(event.pointerId);
+      if (Math.hypot(event.clientX-pending.clientX, event.clientY-pending.clientY) < 4) pin(pending.target.key, pending.shiftKey);
+      return;
+    }
     const g=gesture;if(!g||g.pointer!==event.pointerId)return;
     update(g,event.clientX,event.clientY);g.ended=true;host.releasePointerCapture(event.pointerId);if(!g.running)finish(g);
   });
   host.addEventListener('pointercancel',cancel);
-  host.addEventListener('lostpointercapture',()=>{if(gesture&&!gesture.ended)cancel();});
+  host.addEventListener('lostpointercapture',()=>{if(press || gesture&&!gesture.ended)cancel();});
   window.addEventListener('blur',cancel);
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&gesture){event.preventDefault();cancel();}});
+  document.addEventListener('keydown',event=>{
+    if(event.key!=='Escape'||event.isComposing||document.querySelector('dialog[open]'))return;
+    if(gesture||press){event.preventDefault();cancel();}
+    else if(selected.size){event.preventDefault();setSelection([]);select(null);}
+  });
   host.addEventListener('keydown',event=>{
     const button=event.target.closest('[data-guide-operation="resize"]');
     if(!button||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
@@ -206,6 +266,24 @@ export function createGuideEditor(host, callbacks) {
     update(g,g.startX+(['ArrowRight','ArrowDown'].includes(event.key)?amount:-amount),g.startY);g.ended=true;if(!g.running)finish(g);
   });
   new ResizeObserver(()=>{if(!gesture&&display&&host.classList.contains('canvas-editor'))mount(display);}).observe(host);
-  function clear(){ overlay?.remove();overlay=null;targets=[];targetSource=null;active=null;delete host.dataset.guideHover; }
-  return { mount,clear,cancel };
+  function clear({ selection = false } = {}) {
+    overlay?.remove();overlay=null;targets=[];targetSource=null;active=null;delete host.dataset.guideHover;
+    if (selection) setSelection([]);
+  }
+  function legendScopeTargets(part) {
+    const chosen = targets.filter(t => selected.has(t.key));
+    const legendKeys = new Set(chosen.flatMap(t => t.members?.map(m => m.key) ?? (t.legendKey ? [t.legendKey] : [])));
+    return targets.filter(t => t.legendPart === part && (part === 'all' || legendKeys.has(t.legendKey)));
+  }
+  function selectLegendScope(part) {
+    const matches = legendScopeTargets(part);
+    if (!matches.length) return;
+    const chosen = targets.filter(t => selected.has(t.key));
+    const keys = chosen.filter(t => !t.legendPart).map(t => t.key);
+    keys.push(...matches.map(t => t.key));
+    setSelection(keys);
+  }
+  return { mount,clear,cancel, clearSelection: () => setSelection([]), selectLegendScope,
+    canSelectLegendScope: part => legendScopeTargets(part).length > 0,
+    selection: () => targets.filter(t => selected.has(t.key)) };
 }

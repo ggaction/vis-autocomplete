@@ -9,6 +9,7 @@ import { resolveTextBounds } from '../vendor/ggaction/src/core/textMetrics.js';
 import { scopedCall } from './composition-context.js';
 import { prepareGuidedAction } from './prepare.js';
 import { signature } from './cache.js';
+import { selectedGuideTextTargets } from './guide-manipulation.js';
 
 export const TEXT_GROUPS = [
   ['ticks', 'Axis tick labels'], ['axisTitles', 'Axis titles'], ['titles', 'Chart titles'],
@@ -130,13 +131,13 @@ export function textUnderlines(program, groups) {
   });
 }
 
-export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), fontSize, delta, deltas, fontFamily }) {
+export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), elements, fontSize, delta, deltas, fontFamily }) {
   if (fontSize !== undefined && (!Number.isFinite(fontSize) || fontSize < 6 || fontSize > 96)) throw new Error('Font size must be between 6 and 96.');
   if (delta !== undefined && ![-1, 1].includes(delta)) throw new Error('Font size step must be −1 or +1.');
   if (deltas !== undefined && (!Array.isArray(deltas) || !deltas.every(n => [-1, 1].includes(n)))) throw new Error('Invalid font size steps.');
   if (fontFamily !== undefined && (typeof fontFamily !== 'string' || !fontFamily.trim())) throw new Error('Choose a font family.');
   const calls = [];
-  if (fontFamily) {
+  if (fontFamily && !elements) {
     function themes(p, wrap = call => call) {
       // Preserve every existing color token, and override only font defaults.
       const theme = resolveEffectiveThemeFrame(p.materializationConfigs.theme);
@@ -146,8 +147,8 @@ export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), 
     }
     themes(program);
   }
-  for (const target of chartTextTargets(program)) {
-    if (!fontFamily && !groups.includes(target.group)) continue;
+  for (const target of elements ? selectedGuideTextTargets(program, elements) : chartTextTargets(program)) {
+    if (!elements && !fontFamily && !groups.includes(target.group)) continue;
     const adjusted = () => (deltas ?? [delta]).reduce((size, step) => Math.max(6, Math.min(96, size + step)), target.config.fontSize ?? 12);
     const style = fontFamily ? { fontFamily } : { fontSize: fontSize ?? adjusted() };
     calls.push(target.call(style));

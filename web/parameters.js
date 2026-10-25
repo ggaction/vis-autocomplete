@@ -638,6 +638,7 @@ export function recommendationParameters(recommendation, profile) {
   // Visibility values stay flat for argument construction. The display grouping
   // below moves each switch to the heading for the part it actually controls.
   const axisEditors = ['editAxes', 'editXAxis', 'editYAxis', 'editThetaAxis', 'editRadialAxis', 'editParallelAxis'];
+  let gridVisibility;
   const toggle = (control, key, label, caption, value = true) => {
     if (!control) return;
     control.toggles = [...(control.toggles ?? []), { key, label, caption, value, defaultPolicy: 'context' }];
@@ -680,13 +681,18 @@ export function recommendationParameters(recommendation, profile) {
         ...(changed('titlesVisible', 'titleStyle') ? { titleStyle: { ...out.titleStyle, visible: v.titlesVisible } } : {}) };
     };
   } else if (['editGrid', 'editHorizontalGrid', 'editVerticalGrid', 'editThetaGrid', 'editRadialGrid'].includes(method)) {
-    toggle(leaves[0], 'guideVisible', 'Grid', 'Grid', recommendation.guideContext?.visible !== false);
+    // Grid visibility belongs to the whole editor, never to whichever parameter
+    // happens to be first (often Width). Keep it outside slider definitions.
+    gridVisibility = { key: 'guideVisible', label: 'Grid', caption: '',
+      value: recommendation.guideContext?.visible !== false, defaultPolicy: 'context' };
     const baseBuild = build;
     build = v => { const out = baseBuild(v); return method === 'editGrid'
       ? Object.fromEntries(Object.entries(out).map(([direction, style]) => [direction, { ...style, visible: v.guideVisible && style.visible !== false }]))
       : { ...out, visible: v.guideVisible }; };
   }
   const groupControls = list => {
+    if (gridVisibility) return [{ key: 'grid', label: 'Grid', type: 'group',
+      toggles: [gridVisibility], controls: list }];
     const seen = new Set();
     const grouped = list.flatMap(control => {
       if (!control.section) return [control];
@@ -729,13 +735,10 @@ export function recommendationParameters(recommendation, profile) {
           section('legend-title', 'Title', [], 'titlesVisible')) };
       });
     }
-    // A grid's visibility belongs to Grid, not its Direction or Color control.
-    if (switches.has('guideVisible')) return [section('grid', 'Grid',
-      [without(grouped[0], ['guideVisible'])], 'guideVisible'), ...grouped.slice(1)];
     return grouped;
   };
   const defaultDecisions = applyParameterDefaults(controls, build, recommendation);
-  const defaults = valuesFor(controls);
+  const defaults = valuesFor(groupControls(controls));
   const modes = controls.some(c => c.key === 'mode') ? ['fixed', 'variable'] : [undefined];
   for (const mode of modes) {
     const count = groupControls(controls.filter(c => !c.when || c.when({ ...defaults, mode }))).length;

@@ -11,14 +11,15 @@ const fixture=()=>chart().createCanvas(defaultCanvasOptions()).createData({id:'d
 function editor(p,method){const profile=profileDataset(p,'d'); const rec=generateCandidates(p,{layer:p.semanticSpec.layers[0],profile}).find(r=>r.method===method); assert.ok(rec,method);return recommendationParameters(rec,profile);}
 
 test('inline guide switches keep four groups and produce one native action with retained state',()=>{
-  for(const method of ['editAxes','editXAxis','editYAxis','editLegend','editGrid']){
-    const p=fixture(), e=editor(p,method), values=valuesFor(e.controls);
+  for(const method of ['editAxes','editXAxis','editYAxis','editLegend','editGrid','editHorizontalGrid','editVerticalGrid']){
+    const p=method==='editVerticalGrid'?fixture().createVerticalGrid({}):fixture();
+    const e=editor(p,method), values=valuesFor(e.controls);
     assert.ok(e.controls.length<=4);assert.equal(values.guideVisible,true);
     assert.ok(activeControls(e.controls,values).some(c=>c.key==='guideVisible'));
     // Visibility switches must be beside their scope, never on an unrelated slider.
     const headings = list => list.flatMap(c => [c, ...(c.type==='group' ? headings(c.controls) : [])]);
     const owners = headings(e.resolveControls(values));
-    for (const [key,label] of [['guideVisible',method==='editLegend'?'Legend':method==='editGrid'?'Grid':'Axes'],
+    for (const [key,label] of [['guideVisible',method==='editLegend'?'Legend':method.endsWith('Grid')?'Grid':'Axes'],
       ['labelsVisible','Labels'],['titlesVisible',method==='editLegend'?'Title':'Titles']]) {
       if (!Object.hasOwn(values,key)) continue;
       const owner = owners.filter(c=>c.toggles?.some(t=>t.key===key));
@@ -31,6 +32,25 @@ test('inline guide switches keep four groups and produce one native action with 
     assert.equal(valuesFor(again.controls).guideVisible,false,method);
     const shown=prepareGuidedAction(next,{method,args:again.build({...valuesFor(again.controls),guideVisible:true}),allowUnchanged:true}).authoringPreview;
     assert.equal(valuesFor(editor(shown,method).controls).guideVisible,true,method);
+  }
+});
+
+test('individual grid width changes keep visibility independent of the slider',()=>{
+  for(const method of ['editHorizontalGrid','editVerticalGrid']){
+    const p=method==='editVerticalGrid'?fixture().createVerticalGrid({}):fixture();
+    const e=editor(p,method), initial=valuesFor(e.controls);
+    const width=activeControls(e.controls,initial).find(c=>c.path==='lineWidth');
+    for(const value of [0,.25,1,1.5,4]){
+      const values=e.normalizeValues({...initial,[width.key]:value,guideVisible:false},width.key);
+      const controls=e.resolveControls(values);
+      const slider=activeControls(controls,values).find(c=>c.key===width.key);
+      assert.equal(controls[0].label,'Grid');
+      assert.equal(controls[0].toggles[0].key,'guideVisible');
+      assert.equal(slider.toggles,undefined);
+      const args=e.build(values);
+      assert.equal(args.lineWidth,value);assert.equal(args.visible,false);
+      assert.doesNotThrow(()=>prepareGuidedAction(p,{method,args,allowUnchanged:true}));
+    }
   }
 });
 

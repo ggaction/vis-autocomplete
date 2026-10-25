@@ -1,5 +1,5 @@
 import { ChartProgram } from 'ggaction/extension';
-import { cloneAndFreeze } from '../vendor/ggaction/src/core/immutable.js';
+import { freezeOwned } from '../vendor/ggaction/src/core/immutable.js';
 
 // Internal worker transport, not the public project format. Native programs are
 // immutable: unchanged data, graphics, configs and trace branches can reference
@@ -19,7 +19,12 @@ function baseIndex(base) {
   visit(base, []); indexes.set(base, index); return index;
 }
 export function packProgramUpdate(base, next) {
-  const known = baseIndex(base), seen = new WeakMap(), equalities = new WeakMap(), nodes = [];
+  // Most edits preserve branches at the same path. Indexing every historical
+  // primitive before checking those paths made ordinary edits scale with the
+  // entire session. New data/composition branches use cross-path discovery;
+  // new guide/trace nodes can simply be sent as part of the small update.
+  let known = indexes.get(base);
+  const seen = new WeakMap(), equalities = new WeakMap(), nodes = [];
   // Facet regeneration can produce fresh but identical datasets/graphics.
   // Compare only the corresponding immutable branch; do this in the sender,
   // so the UI does not parse/freeze thousands of unchanged marks again.
@@ -36,8 +41,14 @@ export function packProgramUpdate(base, next) {
   }
   function pack(value, previous, path = []) {
     if (!value || typeof value !== 'object') return value;
-    if (known.has(value)) return { base: known.get(value) };
+    if (Object.is(value, previous)) return { base: path };
+    if (known?.has(value)) return { base: known.get(value) };
     if (equal(value, previous)) return { base: path };
+    if (previous === undefined && (path[0] === 'children' ||
+      path[0] === 'semanticSpec' && path[1] === 'datasets')) {
+      known ??= baseIndex(base);
+      if (known.has(value)) return { base: known.get(value) };
+    }
     if (seen.has(value)) return { node: seen.get(value) };
     const id = nodes.length; seen.set(value, id); nodes.push(null);
     nodes[id] = Array.isArray(value) ? { array: value.map((child, i) => pack(child, previous?.[i], [...path, String(i)])) }
@@ -49,6 +60,7 @@ export function packProgramUpdate(base, next) {
 function* restoreUpdate(base, update) {
   const restored = new Map(), visiting = new Set();
   function* unpack(value) {
+    if (typeof value === 'function') throw new TypeError('Cannot store a function in a worker state.');
     if (!value || typeof value !== 'object') return value;
     if (Array.isArray(value.base)) {
       let found = base;
@@ -75,11 +87,12 @@ function* restoreUpdate(base, update) {
       result = Object.fromEntries(entries);
       if (node.program) result = new ChartProgram(result);
     }
-    // Own each new plain node bottom-up through the native immutable utility.
+    // All descendants were restored/owned above, or reference the immutable
+    // baseline. Own this newly allocated node without copying it a second time.
     // Later ChartProgram construction then reuses its descendants, rather than
     // walking/freezing the entire facet trace in one uninterruptible operation.
     // Child program maps are owned by ChartProgram's ownChildPrograms instead.
-    if (!node.program && !Object.values(result).some(child => child instanceof ChartProgram)) result = cloneAndFreeze(result);
+    if (!node.program && !Object.values(result).some(child => child instanceof ChartProgram)) result = freezeOwned(result);
     visiting.delete(id); restored.set(id, result); yield; return result;
   }
   const result = yield* unpack(update.root);

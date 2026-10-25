@@ -274,8 +274,10 @@ test('grid controls offer Vertical, Horizontal and Both with matching native pre
     const rec = engine.recommend(start.preview, { target: 'plot', limit: 100, group: 'style' }).recommendations.find(r => r.method === 'editGrid');
     assert.ok(rec, method);
     const editor = recommendationParameters(rec, profileDataset(start.preview, 'dataset'));
-    assert.deepEqual(editor.controls[0].choices.map(c => c.label), ['Vertical', 'Horizontal', 'Both']);
-    assert.equal(editor.controls.length, 4);
+    const grid = editor.controls.find(c => c.key === 'grid');
+    assert.equal(grid.toggles[0].key, 'guideVisible');
+    assert.deepEqual(grid.controls.find(c => c.key === 'direction').choices.map(c => c.label), ['Vertical', 'Horizontal', 'Both']);
+    assert.equal(grid.controls.length, 4);
     const before = structuredClone(start.authoringPreview.graphicSpec);
     for (const direction of ['vertical', 'horizontal', 'both']) {
       const args = editor.build({ ...valuesFor(editor.controls), direction, color: '#6b7280', width: 2 });

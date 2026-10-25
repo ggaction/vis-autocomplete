@@ -1,6 +1,7 @@
 // Reproducible worker-side timings; run separately from tests/CPU profiling.
 // Browser input/animation timings are deliberately not inferred from these.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { chart } from 'ggaction';
 import { serializeProgram } from 'ggaction/persistence';
@@ -45,6 +46,7 @@ for (const [name, program, actions] of [
     assert.ok(clone.value.scene.nodes.length);
     assert.ok(cold.value.scene.nodes.every(node => !('svg' in node)));
     results.push({ chart: name, action: action.args.action?.options.field ?? action.args.value,
+      artifactHash: createHash('sha256').update(JSON.stringify(cold.value)).digest('hex'),
       prepareAndSceneMs: cold.ms, transferCloneMs: clone.ms, cachedMs: cached.ms });
   }
 }

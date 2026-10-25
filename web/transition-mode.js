@@ -1,7 +1,8 @@
 import { readViewPreference, writeViewPreference } from './view-preferences.js';
 import { CARD_TRANSITION_MS } from './parameter-motion.js';
 import { createCanvasTransitionPlayer } from '@ggaction/transition';
-import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
+import { createTransitionScene } from 'ggaction/scene';
+import { createSceneRenderer } from './scene-renderer.js';
 import { createLRU } from '../src/cache.js';
 import { transitionNodeBudget } from './transition-budget.js';
 
@@ -20,12 +21,14 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
   paintMode();
   const cache=createLRU(16);
   const scenes=new WeakMap();
+  const renderer=createSceneRenderer();
   const sceneFor=program=>{
     if(!scenes.has(program))scenes.set(program,createTransitionScene(program,{format:'canvas'}));
-    return scenes.get(program);
+    return renderer.remember(scenes.get(program));
   };
   function clear() {
     version++;player?.destroy();player=null;surface?.remove();surface=null;
+    renderer.clear();
     host.classList.remove('transition-active');
   }
   function rest() {
@@ -41,7 +44,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
       playerBudget=budget;
       surface=document.createElement('div');surface.className='transition-surface';host.append(surface);
       surface.style.padding = 'var(--control-inset, 12px)';
-      player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,maxAnimatedNodes:transitionNodeBudget(baselineScene),render:(scene, context, options) => renderTransitionScene(scene, context, { pixelRatio: Math.min(
+      player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,maxAnimatedNodes:transitionNodeBudget(baselineScene),render:(scene, context, options) => renderer.render(scene, context, { pixelRatio: Math.min(
         options.pixelRatio * Number(host.dataset.chartZoom ?? 1), 4096 / scene.width, 4096 / scene.height, Math.sqrt(16000000 / (scene.width * scene.height))) })});
       player.set(baselineScene);
     }else if(!surface.isConnected)host.append(surface);
@@ -63,6 +66,7 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
       }else if(card)return; // Keep the current picture while a preview prepares.
       else scene=sceneFor(getBaseline());
       if(request!==version||!enabled||!scene)return;
+      renderer.remember(scene);
       player.element.setAttribute('aria-label',card?.title??'Visualization');
       surface.dataset.method=card?.prepared?.recommendation?.method??'';
       surface.dataset.duration = String(duration);
@@ -90,5 +94,5 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     // Current's native renderer may replace its subtree on Apply/Undo/resize.
     remember(program,scene){if(scene)scenes.set(program,scene);},
     hasScene(program){return scenes.has(program);},
-    reset(){clear();cache.clear();},get stats(){return player?.stats??null;}};
+    reset(){clear();cache.clear();renderer.clear();},get stats(){return player?.stats??null;}};
 }

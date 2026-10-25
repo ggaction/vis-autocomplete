@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><title>Dense transition performance</title>
+<script type="importmap">{"imports":{"ggaction/scene":"/vendor/ggaction/src/scene.js"}}</script>
+<style>body{font-family:Arial;margin:0}.buttons{display:flex;gap:12px;padding:12px}button{padding:12px}#host{position:relative;width:900px;height:600px}#reference{display:none}</style>
+<div class="buttons"></div><div id="host"></div><canvas id="reference"></canvas>
+<script type="module">
+import {chart} from '/vendor/ggaction/src/index.js';
+import {createTransitionScene,renderTransitionScene} from 'ggaction/scene';
+import {createCanvasTransitionPlayer} from '/vendor/transition/src/index.js';
+import {createSceneRenderer} from '/web/scene-renderer.js';
+const params=new URLSearchParams(location.search),useCache=params.get('cache')!=='0';
+const rows=Array.from({length:5000},(_,i)=>({x:i%200,y:Math.sin(i/41)+Math.cos(i/23),g:`Group ${i%5}`}));
+const p=chart().createCanvas({plot:{width:500,height:350},margin:{left:70,right:160,top:40,bottom:60}})
+  .createData({id:'d',values:rows}).createScatterPlot({id:'p',data:'d',x:'x',y:'y',color:{field:'g',fieldType:'nominal'}}).createGuides();
+const programs=[p,...[.2,.4,.6,.8].map(value=>p.encodeOpacity({target:'p',value}))];
+// Match worker-delivered scenes: structured cloning deliberately removes
+// ggaction's local ownership caches from the receiving browser realm.
+const scenes=programs.map(p=>structuredClone(createTransitionScene(p,{format:'canvas'})));
+let draws=0;
+const renderer=createSceneRenderer({render:(...args)=>{draws++;return renderTransitionScene(...args);}});
+const draw=(scene,context,options)=>{if(useCache)renderer.render(scene,context,options);else{draws++;renderTransitionScene(scene,context,options);}};
+const host=document.querySelector('#host');
+const player=createCanvasTransitionPlayer(host,{render:draw,maxAnimatedNodes:2000,duration:90});
+const calls=[],frames=[];let last=performance.now(),measuring=false;
+function frame(t){if(measuring)frames.push(t-last);last=t;requestAnimationFrame(frame)}requestAnimationFrame(frame);
+function show(index,duration=90){
+  const start=performance.now();renderer.remember(scenes[index]);
+  const promise=player.transitionTo(scenes[index],{duration});
+  if(measuring)calls.push(performance.now()-start);
+  return promise;
+}
+for(let i=0;i<scenes.length;i++){
+  const button=document.createElement('button');button.textContent=`Option ${i+1}`;
+  button.addEventListener('pointerenter',()=>show(i));document.querySelector('.buttons').append(button);
+  await show(i,0);
+}
+await show(0,0);
+const quantile=(values,q)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*q))]??0;
+window.audit={player,renderer,scenes,show,
+  begin(){calls.length=frames.length=0;draws=0;last=performance.now();measuring=true;},
+  end(){measuring=false;return{calls:calls.length,callP50:quantile(calls,.5),callP95:quantile(calls,.95),frameP95:quantile(frames,.95),frames:frames.length,draws,nodes:player.scene.nodes.length,retainedPixels:renderer.retainedPixels,retainedEntries:renderer.retainedEntries};},
+  async compare(index){
+    await show(index,0);const actual=player.element,expected=document.querySelector('#reference');
+    renderTransitionScene(scenes[index],expected.getContext('2d'),{pixelRatio:Math.min(host.clientWidth/scenes[index].width,host.clientHeight/scenes[index].height)*devicePixelRatio});
+    if(actual.width!==expected.width||actual.height!==expected.height)throw new Error('Resolution changed');
+    const a=actual.getContext('2d').getImageData(0,0,actual.width,actual.height).data,b=expected.getContext('2d').getImageData(0,0,expected.width,expected.height).data;
+    let differences=0,max=0;for(let i=0;i<a.length;i++){if(a[i]!==b[i])differences++;max=Math.max(max,Math.abs(a[i]-b[i]));}
+    return{differences,max,nodes:scenes[index].nodes.length};
+  }
+};window.ready=true;
+</script>

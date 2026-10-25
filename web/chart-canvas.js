@@ -18,7 +18,10 @@ function paint(canvas){
   }
   const ratio=Math.max(.001,Math.min(density,4096/geometry.width,4096/geometry.height,Math.sqrt(16000000/(geometry.width*geometry.height))));
   const key=`${Math.round(geometry.width*ratio)}:${Math.round(geometry.height*ratio)}`;
-  if(record.painted===key)return;
+  if(record.painted===key){
+    if(record.static){records.delete(canvas);observer.unobserve(canvas);queued.delete(canvas);}
+    return;
+  }
   const style=canvas.style.cssText;
   if(record.fit){
     scratch??=document.createElement('canvas');render(program,scratch.getContext('2d'),{pixelRatio:ratio});
@@ -30,9 +33,18 @@ function paint(canvas){
   canvas.dataset.paint=String((Number(canvas.dataset.paint)||0)+1);
   if(record.static){records.delete(canvas);observer.unobserve(canvas);queued.delete(canvas);}
 }
+function drain(){
+  frame=0;const start=performance.now();
+  for(const item of queued){
+    queued.delete(item);paint(item);
+    // ResizeObserver can invalidate Current, previews and the whole history at
+    // once. Keep pointer/animation frames moving between complete paints.
+    if(performance.now()-start>=6)break;
+  }
+  if(queued.size)frame=requestAnimationFrame(drain);
+}
 function schedule(canvas){
-  queued.add(canvas);if(frame)return;
-  frame=requestAnimationFrame(()=>{frame=0;for(const item of queued){queued.delete(item);paint(item);}});
+  queued.add(canvas);if(!frame)frame=requestAnimationFrame(drain);
 }
 const observer=new ResizeObserver(entries=>{for(const {target} of entries)if(records.has(target))schedule(target);});
 // Galleries are cached/detached. Keep a single observer without retaining old
@@ -61,7 +73,11 @@ export function renderChartCanvas(host,program,label,{fit=false,retain=true}={})
   canvas.dataset.logicalWidth=geometry.width;canvas.dataset.logicalHeight=geometry.height;
   const viewport=fit?chartViewport(program):{x:0,y:0,width:geometry.width,height:geometry.height};
   canvas.dataset.viewBox=[viewport.x,viewport.y,viewport.width,viewport.height].join(' ');
-  records.set(canvas,{program,geometry,viewport,fit,static:!retain});
+  const previous=records.get(canvas);
+  const same=previous?.program.graphicSpec===program.graphicSpec&&previous.fit===fit&&
+    ['x','y','width','height'].every(key=>previous.viewport[key]===viewport[key]);
+  records.set(canvas,{program,geometry,viewport,fit,static:!retain,
+    ...(same?{painted:previous.painted,ratio:previous.ratio}:{})});
   if(canvas.parentNode!==host)host.replaceChildren(canvas);
   observer.observe(canvas);paint(canvas);if(records.has(canvas))schedule(canvas);
   return canvas;

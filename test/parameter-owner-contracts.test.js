@@ -13,13 +13,14 @@ const context = p => { const layer = primaryChartLayer(p); return { layer, profi
 const recipes = p => generateCandidates(p, context(p));
 const editor = (p, method) => { const alternatives = recipes(p).filter(rec => rec.method === method); assert.ok(alternatives.length, method); return recommendationParameters({ ...alternatives[0], alternatives, skipParameterDefaults: true }, context(p).profile); };
 const probes = c => c.choices?.filter(choice => !choice.disabled).map(choice => choice.value) ?? (c.type === 'number' ? [c.min, c.max] : [c.value]);
+const leaves = controls => controls.flatMap(control => control.type === 'group' ? leaves(control.controls) : [control]);
 
 test('coordinate-specific axis editors expose executable dimension and polar controls', () => {
   for (const p of [base().createPolarScatterPlot({ id: 'plot', theta: 'x', radius: 'y', color: 'g' }), base().createParallelCoordinates({ id: 'plot', dimensions: ['x', 'y', 'z'], color: 'g' })]) {
     const methods = p.semanticSpec.layers[0].encoding.parallel ? ['editParallelAxis'] : ['editThetaAxis', 'editRadialAxis', 'editThetaAxisLabels', 'editRadialAxisLabels', 'editThetaAxisTicks', 'editRadialAxisTicks', 'editThetaAxisLine', 'editRadialAxisLine', 'editThetaAxisTitle', 'editRadialAxisTitle'];
     for (const method of methods) {
       const e = editor(p, method), values = valuesFor(e.controls);
-      for (const control of e.controls) for (const value of probes(control)) assert.match(renderToSVG(p[method](e.build({ ...values, [control.key]: value }))), /<svg/, `${method}/${control.path}/${value}`);
+      for (const control of leaves(e.controls)) for (const value of probes(control)) assert.match(renderToSVG(p[method](e.build({ ...values, [control.key]: value }))), /<svg/, `${method}/${control.path}/${value}`);
     }
   }
 });
@@ -30,7 +31,7 @@ test('parallel axis tick counts follow the selected dimension role in both direc
   assert.equal(alternatives.length, 2);
   for (const rec of alternatives) {
     const e = recommendationParameters({ ...rec, alternatives, skipParameterDefaults: true }, context(p).profile);
-    const field = e.controls.find(c => c.path === 'field'), count = e.controls.find(c => c.path === 'ticksAndLabels.count');
+    const field = leaves(e.controls).find(c => c.path === 'field'), count = leaves(e.controls).find(c => c.path === 'ticksAndLabels.count');
     for (const selected of ['x', 'g', 'x']) {
       const values = e.normalizeValues({ ...valuesFor(e.controls), [field.key]: selected, [count.key]: 3 }, field.key);
       assert.equal(count.when(values), selected === 'x');

@@ -6,7 +6,8 @@ import { execFileSync } from 'node:child_process';
 const out = 'output/deploy';
 await rm(out, { recursive: true, force: true });
 await mkdir(`${out}/public/assets`, { recursive: true });
-for (const [entry, outfile] of [['web/app.js','assets/app.js'],['web/import-worker.js','assets/import-worker.js'],['web/calculation-worker.js','output/workers/calculation.js']]) {
+await build({entryPoints:['web/entry.js'],outdir:`${out}/public/assets`,entryNames:'entry',chunkNames:'[name]-[hash]',bundle:true,splitting:true,platform:'browser',format:'esm',target:'es2022',minify:true});
+for (const [entry, outfile] of [['web/import-worker.js','assets/import-worker.js'],['web/calculation-worker.js','output/workers/calculation.js']]) {
   await build({entryPoints:[entry],outfile:`${out}/public/${outfile}`,bundle:true,platform:'browser',format:'esm',target:'es2022',minify:true});
 }
 for (const file of ['web/style.css','web/data-table.css','web/import-dialog.css','web/cloud/menu.css']) {
@@ -17,7 +18,7 @@ await cp('web/data', `${out}/public/web/data`, {recursive:true});
 await mkdir(`${out}/public/data`,{recursive:true});
 for(const name of ['model-manifest.json','model.json','initial-model.json']) await cp(`data/${name}`,`${out}/public/data/${name}`);
 let html = await readFile('index.html','utf8');
-html = html.replace(/\s*<script type="importmap">[\s\S]*?<\/script>/,'').replace('src="/web/app.js"','src="/assets/app.js"');
+html = html.replace(/\s*<script type="importmap">[\s\S]*?<\/script>/,'').replace('src="/web/entry.js"','src="/assets/entry.js"');
 await writeFile(`${out}/public/index.html`,html);
 await cp('privacy.html', `${out}/public/privacy.html`);
 const scriptHashes = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>`'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`);

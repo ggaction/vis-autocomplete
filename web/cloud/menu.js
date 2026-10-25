@@ -1,4 +1,4 @@
-import { createAccount } from './client.js';
+import { accountSession } from './session.js';
 import { RESEARCH_NOTICE, CONSENT_VERSION } from './privacy.js';
 
 function element(tag, text, className) {
@@ -24,61 +24,27 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
   const header = document.querySelector('.app-header');
   const menuButton = button('☰', () => openMenu()); menuButton.id = 'workspace-menu'; menuButton.setAttribute('aria-label', 'Open workspace menu');
   menuButton.disabled = true; header.prepend(menuButton);
-  const accountButton = button('Sign in', () => account?.user ? settings() : signIn()); accountButton.id = 'account-button';
+  const accountButton = button('Account', () => settings()); accountButton.id = 'account-button';
   accountButton.disabled = true; header.append(accountButton);
   const cloudStatus = element('span', '', 'cloud-status'); cloudStatus.id = 'cloud-status'; cloudStatus.setAttribute('role', 'status'); header.append(cloudStatus);
-  let account, lastUser, greeted = new Set(), pendingState;
+  const session = await accountSession(), account = session.account;
+  let lastUser, greeted = new Set();
   const update = async state => {
-    if (!account) { pendingState = state; return; }
-    accountButton.textContent = state.user ? 'Account' : 'Sign in';
+    if (!state.user || (lastUser && lastUser !== state.user.id)) return;
     if (state.identityChanged || lastUser !== (state.user?.id ?? null)) {
       lastUser = state.user?.id ?? null; await switchAccount(state.user);
     }
-    if (state.recovery) { password(); return; }
     if (state.user && (!state.profile || state.profile.consent_version !== CONSENT_VERSION) && !greeted.has(state.user.id)) {
       greeted.add(state.user.id); consentDialog();
     }
   };
-  try { account = await createAccount({ changed: update, status: text => { cloudStatus.textContent = text; } }); }
-  catch { account = { configured: false, unavailable: true }; cloudStatus.textContent = 'Account connection unavailable'; }
-  await update(pendingState ?? {user: account.user, profile: account.profile, identityChanged: true, recovery: account.recovery});
+  session.subscribe(update);
+  session.onStatus(text => { cloudStatus.textContent = text; });
+  await update(session.state);
   menuButton.disabled = false; accountButton.disabled = false;
   function requireAccount() {
-    if (!account.configured) { const d = dialog('Account connection'); d.box.append(element('p', account.unavailable ? 'The account service is temporarily unavailable. You can still work locally and retry after reloading.' : 'Cloud accounts are not configured for this local preview.')); d.open(); return false; }
-    if (!account.user) { signIn(); return false; } return true;
-  }
-  function signIn(mode = 'signin') {
-    if (!account.configured) { requireAccount(); return; }
-    const d = dialog(mode === 'signup' ? 'Create your account' : 'Welcome back');
-    d.box.append(button('Continue with Google', async () => { await account.google(); }));
-    const form = element('form'), email = input('Email', 'email'), password = input('Password', 'password');
-    email.field.required = true; email.field.autocomplete = 'email';
-    password.field.required = true; password.field.minLength = mode === 'signup' ? 10 : 1;
-    password.field.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
-    const submit = element('button', mode === 'signup' ? 'Create account' : 'Sign in'); submit.type = 'submit';
-    form.append(email.wrapper, password.wrapper, submit);
-    form.addEventListener('submit', async event => {
-      event.preventDefault(); submit.disabled = true;
-      try {
-        if (mode === 'signup') {
-          const result = await account.signUp(email.field.value, password.field.value);
-          if (result.session) d.box.close(); else d.status.textContent = 'Check your email to confirm your account, then return here.';
-        } else { await account.signIn(email.field.value, password.field.value); d.box.close(); }
-      } catch { d.status.textContent = mode === 'signup' ? 'Could not complete signup. Check your email and password, or try signing in.' : 'Could not sign in. Check your details or reset your password.'; }
-      finally { submit.disabled = false; }
-    });
-    d.box.append(form, button(mode === 'signup' ? 'Already have an account? Sign in' : 'Create an account', () => { d.box.close(); signIn(mode === 'signup' ? 'signin' : 'signup'); }),
-      button('Forgot password?', async () => {
-        if (!email.field.reportValidity()) return;
-        await account.recover(email.field.value); d.status.textContent = 'If an account exists, a password reset link will arrive by email.';
-      }));
-    const privacy = element('a', 'Privacy and data use'); privacy.href = '/privacy.html'; privacy.target = '_blank'; privacy.rel = 'noopener noreferrer';
-    d.box.append(privacy); d.open();
-  }
-  function password() {
-    const d = dialog('Choose a new password'), entry = input('New password', 'password');
-    entry.field.minLength = 10; entry.field.required = true; entry.field.autocomplete = 'new-password';
-    d.box.append(entry.wrapper, button('Update password', async () => { if (entry.field.reportValidity()) { await account.password(entry.field.value); d.box.close(); } })); d.open();
+    if (!account.user) { location.reload(); return false; }
+    return true;
   }
   function consentDialog() {
     const d = dialog('Help improve visualization authoring'), choice = input('Share interaction history for research', 'checkbox');
@@ -160,7 +126,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
         const r = dialog('Rename visualization'), name = input('Name','text',account.current?.title ?? 'Untitled visualization');
         r.box.append(name.wrapper,button('Save name',async()=>{await account.rename(name.field.value); const p=snapshot(); if(p)await account.save(p,thumbnail());r.box.close();d.box.close();}));r.open();
       }), button('Duplicate current visualization', async () => { const p=snapshot(); if(!p)return; await account.newProject(`${account.current?.title ?? 'Visualization'} (copy)`);await account.save(p,thumbnail());d.box.close(); }));
-    } else list.append(button('Sign in to save your work', () => { d.box.close(); signIn(); }));
+    }
     const bottom = element('footer'); bottom.append(button('Report a problem', report), button('Settings', settings), button('About', about)); d.box.append(bottom);
   }
   return { save: (project) => account.user ? account.save(project, thumbnail()) : Promise.resolve(), record: (type, payload) => account.record?.(type, payload),

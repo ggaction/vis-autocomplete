@@ -20,7 +20,7 @@ The initial schema was applied manually, not through the CLI. When linking the C
 
 ## What ships
 
-- Google OAuth and email/password signup, email confirmation and password recovery, using Supabase Auth with PKCE and persistent sessions.
+- A sign-in landing page with a short introduction, Google OAuth, email/password signup, email confirmation and password recovery. The editor, recommendation workers and datasets load only after authentication; persisted sessions are verified by Supabase before restoring a draft. Sign-out (including in another tab) returns to the landing page and unloads the editor. Missing authentication configuration fails closed.
 - A workspace menu with private projects, imported datasets, rename/duplicate/delete, settings, reports and About.
 - Local-first automatic saving. Each committed edit, undo/redo or direct manipulation is queued durably before sync; datasets are content-addressed and uploaded once. A project snapshot plus revision deltas preserves branches discarded by Undo and coalesced resize entries. Revisions are operational private project storage, **not research records**.
 - Research collection starts only after an explicit Continue/Save preferences. The initial checkbox is checked, as requested; closing the dialog is not consent. Withdrawal immediately stops new client events, discards queued events, and the database rejects stale consent epochs, including after re-consent.
@@ -64,7 +64,7 @@ npm run build
 PORT=5184 npm start
 ```
 
-Open `http://127.0.0.1:5184/`. Without cloud variables the editor and About work locally; Sign in explains that accounts are not connected. For configured local testing, copy `.env.example` to `.env` and run `node --env-file=.env scripts/server.js`. Environment files are ignored. Keep the other main-branch dev server on its existing port.
+Open `http://127.0.0.1:5184/`. Without cloud variables the landing page explains that sign-in is not configured and keeps the editor unavailable. For configured local testing, copy `.env.example` to `.env` and run `node --env-file=.env scripts/server.js`. Environment files are ignored. Keep the other main-branch dev server on its existing port.
 
 ## Data boundaries and administrator access
 
@@ -95,7 +95,7 @@ Changing consent stops future collection; it does not erase previously consented
 - Future DB changes use new migration files, never edit an already applied migration. Test on a separate free development project or local Supabase first, apply additive migrations, then deploy the compatible app. There is intentionally no service-role secret or unattended destructive migration hook in Render.
 - To incorporate later main-branch features, merge `main` into `codex/cloud-deployment`, resolve and run the cloud/editor checks. Do not change the feature checkout in place. When updating native submodule commits, update `deployment-sources.json`; CI checks the pins. Docker uses these pins because Git metadata is excluded from its context.
 - Render rollback restores application code, not database migrations. Keep schema changes backward compatible and verify `/healthz` reports the intended app commit.
-- PNG/PDF/SVG export processes the requested chart transiently and does not log or persist chart bodies. The production server serves only `output/deploy/public`, denies framing, and uses a restrictive script policy. Native exports have a dimension cap, one-job concurrency cap and worker timeout.
+- PNG/PDF/SVG export requires a bearer token verified against Supabase Auth and processes the requested chart transiently and does not log or persist chart bodies. The production server serves only `output/deploy/public`, denies framing, and uses a restrictive script policy. Native exports have a dimension cap, one-job concurrency cap and worker timeout.
 
 ## Verification commands
 

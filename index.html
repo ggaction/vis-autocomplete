@@ -39,9 +39,59 @@
       ,"ggaction/persistence": "/node_modules/ggaction/src/persistence.js"
     }}
   </script>
-  <script type="module" src="/web/app.js"></script>
+  <script type="module" src="/web/entry.js"></script>
 </head>
 <body>
+  <section id="auth-gate" class="auth-gate" aria-label="Welcome to Visualization Autocomplete">
+    <header class="landing-header"><a class="landing-brand" href="/">Visualization Autocomplete <span>1.5</span></a></header>
+    <div class="landing-content">
+      <div class="landing-intro">
+        <h1>Build your chart,<br>one step at a time.</h1>
+        <p>Explore your data with chart recommendations. Preview a change, make it yours, and keep building.</p>
+        <ol class="landing-steps">
+          <li><strong>Start with your data.</strong><span>Upload a dataset or try one of our examples.</span></li>
+          <li><strong>Explore what comes next.</strong><span>Compare charts, encodings, and styles before applying them.</span></li>
+          <li><strong>Pick up where you left off.</strong><span>Your visualizations and datasets are saved to your account.</span></li>
+        </ol>
+        <nav class="landing-papers" aria-label="Research papers">
+          <p>Built on the research presented in these papers.</p>
+          <div class="landing-paper">
+            <a href="https://arxiv.org/abs/2607.15608" target="_blank" rel="noopener noreferrer">Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations</a>
+            <p class="paper-authors">Hyeon Jeon, Sungbok Shin, Niklas Elmqvist</p>
+            <small>TVCG · VIS 2026</small>
+          </div>
+          <div class="landing-paper">
+            <a href="https://arxiv.org/abs/2609.14353" target="_blank" rel="noopener noreferrer">ggaction: A Grammar of Graphical Actions</a>
+            <p class="paper-authors">Hyeon Jeon, Jinwook Seo</p>
+            <small>arXiv</small>
+          </div>
+        </nav>
+      </div>
+      <section class="auth-card" aria-labelledby="auth-heading">
+        <h2 id="auth-heading">Sign in</h2>
+        <p id="auth-description">Sign in to start creating and save your work.</p>
+        <form id="auth-form">
+          <fieldset id="auth-fields" disabled>
+            <button id="auth-google" class="auth-google" type="button">Continue with Google</button>
+            <div id="auth-divider" class="auth-divider"><span>or use your email</span></div>
+            <label id="auth-email-label" for="auth-email">Email<input id="auth-email" name="email" type="email" autocomplete="email" required></label>
+            <label id="auth-password-label" for="auth-password">Password<input id="auth-password" name="password" type="password" autocomplete="current-password" required></label>
+            <p id="auth-password-hint" class="auth-hint" hidden>Use at least 10 characters.</p>
+            <button id="auth-submit" class="auth-submit" type="submit">Sign in</button>
+            <button id="auth-forgot" class="auth-text-button" type="button">Forgot password?</button>
+            <p class="auth-switch"><span id="auth-switch-prompt">New here?</span> <button id="auth-switch" class="auth-text-button" type="button">Sign up</button></p>
+          </fieldset>
+        </form>
+        <p id="auth-status" class="auth-status" role="status" aria-live="polite">Checking your session…</p>
+        <button id="auth-retry" type="button" hidden>Try again</button>
+        <a class="auth-privacy" href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy and data use</a>
+        <noscript>Enable JavaScript to sign in and use Visualization Autocomplete.</noscript>
+      </section>
+    </div>
+    <footer class="landing-footer">Powered by <a href="https://ggaction.github.io/ggaction/" target="_blank" rel="noopener noreferrer">ggaction</a></footer>
+  </section>
+  <div id="editor-root" hidden inert></div>
+  <template id="editor-template">
   <header class="app-header">
     <h1>Visualization Autocomplete 1.5</h1>
     <div class="dataset-controls">
@@ -132,5 +182,6 @@
     </div>
   </main>
   <dialog id="chart-dialog" class="chart-dialog"><div class="dialog-heading"><h2 id="chart-dialog-title">Chart</h2><form method="dialog"><button aria-label="Close enlarged chart">Close</button></form></div><div id="enlarged-chart"></div></dialog>
+  </template>
 </body>
 </html>

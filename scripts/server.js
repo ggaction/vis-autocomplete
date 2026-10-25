@@ -4,11 +4,13 @@ import { resolve, extname, sep } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { publicConfig } from './cloud-config.js';
+import { createTokenVerifier } from './cloud-auth.js';
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml'};
-export async function createProductionServer({ env=process.env, directory='output/deploy' }={}) {
+export async function createProductionServer({ env=process.env, directory='output/deploy', verifyToken }={}) {
   const root=resolve(directory,'public'), config=publicConfig(env), build=JSON.parse(await readFile(resolve(directory,'build.json'),'utf8'));
   if(config.release==='development')config.release=build.commit;
   const authOrigin=config.supabaseUrl ? new URL(config.supabaseUrl).origin : '';
+  const authorized = verifyToken ?? createTokenVerifier(config);
   let exporting=false;
   const server=http.createServer(async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
@@ -23,8 +25,10 @@ export async function createProductionServer({ env=process.env, directory='outpu
       if(pathname==='/healthz')return reply(200,{ok:true,release:config.release});
       if(pathname.startsWith('/api/export/')) {
         if(req.method!=='POST')return reply(405,{});
-        if(exporting)return reply(429,{error:'Another export is running. Try again shortly.'});
         if(req.headers.origin && new URL(req.headers.origin).host!==req.headers.host)return reply(403,{});
+        const token = /^Bearer ([^\s]+)$/i.exec(req.headers.authorization ?? '')?.[1];
+        if (!token || !await authorized(token)) return reply(401,{error:'Sign in to export your visualization.'});
+        if(exporting)return reply(429,{error:'Another export is running. Try again shortly.'});
         const format=pathname.slice('/api/export/'.length);
         if(!['png','pdf','svg'].includes(format))return reply(400,{});
         exporting=true;

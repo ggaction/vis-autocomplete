@@ -7,7 +7,8 @@ function mock() {
   const map=new Map(),local={get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),remove:async k=>map.delete(k),keys:async()=>[...map.keys()]};
   const calls=[],rows=[],remote=new Map();let profile=null,listener;const owner={id:'test-user',email:'a@example.org'};
   let conflict=false,failSave=false;
-  const client={auth:{getSession:async()=>({data:{session:{user:owner}}}),onAuthStateChange:fn=>{listener=fn;return {data:{subscription:{unsubscribe(){}}}};},
+  let verifiedUser=owner;
+  const client={auth:{getSession:async()=>({data:{session:{user:owner}}}),getUser:async()=>({data:{user:verifiedUser}}),onAuthStateChange:fn=>{listener=fn;return {data:{subscription:{unsubscribe(){}}}};},
     signOut:async()=>{listener('SIGNED_OUT',null);return {data:{}}}},
     from(table){let eq={},value; const query={select(){return query},eq(k,v){eq[k]=v;return query},insert(v){value=v;return query},
       single:async()=>({data:table==='projects'?remote.get(eq.id):value}),maybeSingle:async()=>({data:table==='profiles'?profile:rows.find(r=>r.hash===eq.hash)??null}),
@@ -22,7 +23,7 @@ function mock() {
         return {data:args.expected+1};
       }return {data:args.events?.length??0};
     }};
-  return {client,local,map,calls,remote,rows,listener:(...args)=>listener(...args),setConflict:()=>conflict=true,setFail:v=>failSave=v};
+  return {client,local,map,calls,remote,rows,listener:(...args)=>{verifiedUser=args[1]?.user;listener(...args)},setConflict:()=>conflict=true,setFail:v=>failSave=v};
 }
 const imported={rows:[{secret:123}],fieldTypes:{secret:'quantitative'}};
 const project=n=>({format:'visualization-autocomplete',activeId:'a',savedAt:`${n}`,datasets:[{id:'a',name:'Private data',imported,session:{entries:[{calls:[n]}]}},{id:'unused',name:'Unopened example',imported:{rows:[]}}]});
@@ -68,4 +69,10 @@ test('Save conflicts create a recovered project and offline opening uses latest 
 test('Report without dataset permission strips inline data and storage paths as well',()=>{
  const context=reportContext({datasets:[{importRef:{path:'private',hash:'abc'},session:{calls:[{method:'createData',args:{values:[{secret:1}]}}]}}]});
  assert.ok(!JSON.stringify(context).includes('private'));assert.ok(!JSON.stringify(context).includes('secret'));assert.ok(JSON.stringify(context).includes('createData'));
+});
+test('A rejected persisted session cannot restore an account or private draft',async()=>{
+ environment();const m=mock();m.client.auth.getUser=async()=>({data:{user:null},error:{status:401,message:'Invalid token'}});
+ const a=await createAccount({...m,config});
+ try { assert.equal(a.user,null);assert.equal(a.current,null);await a.save(project(1));assert.equal(m.map.size,0); }
+ finally { a.destroy(); }
 });

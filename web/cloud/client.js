@@ -20,7 +20,14 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   const activeKey = id => `active:${id}`;
   const notify = extra => changed({ user, profile, current, configured: true, ...extra });
   async function authenticate(event, authSession) {
-    const identity = authSession?.user ?? null;
+    let identity = authSession?.user ?? null;
+    // A persisted session is only a candidate. Verify it before allowing the
+    // editor to restore private drafts, including on a fresh page load.
+    if (identity && (!loaded || identity.id !== user?.id)) {
+      const verified = await client.auth.getUser(authSession.access_token);
+      if (verified.error && ![401, 403].includes(verified.error.status)) throw verified.error;
+      identity = verified.error ? null : verified.data.user;
+    }
     const identityChanged = !loaded || identity?.id !== user?.id;
     if (identityChanged) {
       switching = true;

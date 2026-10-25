@@ -41,7 +41,11 @@ import { importDataset, parseCSV } from '../src/data-import.js';
 import { reviewDatasetImport } from './import-dialog.js';
 import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore } from './project.js';
 import { initializeAccountMenu } from './cloud/menu.js';
+import { accountSession } from './cloud/session.js';
 export { parseCSV } from '../src/data-import.js';
+
+const { account: signedInAccount } = await accountSession();
+if (!signedInAccount.user) throw new Error('Sign in to open the editor.');
 
 const $ = id => document.getElementById(id);
 const elements = Object.fromEntries(['current', 'preview', 'cards', 'notice',

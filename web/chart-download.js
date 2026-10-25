@@ -1,3 +1,5 @@
+import { authorizationHeaders } from './cloud/session.js';
+
 const filename = name => `${(name || 'visualization').normalize('NFKC')
   .replace(/\.(csv|json)$/i, '').replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '') || 'visualization'}-chart`;
 
@@ -19,7 +21,7 @@ export function initializeChartDownloads({ host, getCurrent, isBusy, onError }) 
       const cache = exports.get(program);
       if (!cache.has(format)) cache.set(format, (async () => {
         const response = await fetch(`/api/export/${format}`, { method: 'POST',
-          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graphicSpec: program.graphicSpec }) });
+          headers: { 'Content-Type': 'application/json', ...await authorizationHeaders() }, body: JSON.stringify({ graphicSpec: program.graphicSpec }) });
         if (!response.ok) {
           const result = await response.json().catch(() => ({}));
           throw new Error(result.error || `Could not export ${format.toUpperCase()}.`);

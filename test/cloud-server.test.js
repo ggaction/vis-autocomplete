@@ -2,6 +2,38 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProductionServer } from '../scripts/server.js';
 import { chart } from 'ggaction';
+test('link crawlers receive public sharing metadata and the full PNG without signing in or running JavaScript', async () => {
+ const server = await createProductionServer({ env: {}, verifyToken: async () => false });
+ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+ const origin = `http://127.0.0.1:${server.address().port}`;
+ try {
+  const headers = { 'User-Agent': 'facebookexternalhit/1.1; kakaotalk-scrap/1.0' };
+  const response = await fetch(origin, { headers });
+  assert.equal(response.status, 200);
+  const html = await response.text(), head = html.split('</head>')[0];
+  const entries = [...head.matchAll(/<meta (?:property|name)="([^"]+)" content="([^"]*)"/g)].map(match => [match[1], match[2]]);
+  const tags = Object.fromEntries(entries);
+  for (const key of ['og:type', 'og:title', 'og:description', 'og:url', 'og:image']) {
+   assert.equal(entries.filter(([name]) => name === key).length, 1, `${key} must be present exactly once in the initial head`);
+   assert.ok(tags[key]);
+  }
+  assert.equal(tags['og:type'], 'website');
+  assert.equal(tags['og:url'], 'https://vis.autocomplete.studio/');
+  assert.equal(tags['twitter:card'], 'summary_large_image');
+  assert.equal(tags['twitter:image'], tags['og:image']);
+  assert.equal(tags.description, tags['og:description']);
+  const imageUrl = new URL(tags['og:image']);
+  assert.equal(imageUrl.origin, new URL(tags['og:url']).origin);
+  const image = await fetch(origin + imageUrl.pathname, { headers });
+  assert.equal(image.status, 200);
+  assert.ok(image.headers.get('content-type').startsWith('image/png'));
+  const bytes = Buffer.from(await image.arrayBuffer());
+  assert.equal(bytes.subarray(1, 8).toString(), 'PNG\r\n\x1a\n');
+  assert.equal(bytes.readUInt32BE(16), Number(tags['og:image:width']));
+  assert.equal(bytes.readUInt32BE(20), Number(tags['og:image:height']));
+  assert.ok(bytes.length < 1024 * 1024, 'Keep the share image lightweight');
+ } finally { await new Promise(resolve => server.close(resolve)); }
+});
 test('Production serves built assets only, sets CSP, rejects abuse, and exports without retaining data',async()=>{
  const server=await createProductionServer({env:{NODE_ENV:'production',PRIVATE_SECRET:'never'},verifyToken:async token=>token==='verified-test-token'});
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const url=`http://127.0.0.1:${server.address().port}`;

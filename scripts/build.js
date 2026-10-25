@@ -16,6 +16,7 @@ for (const file of ['web/style.css','web/data-table.css','web/import-dialog.css'
 }
 await cp('web/data', `${out}/public/web/data`, {recursive:true});
 await cp('web/icons', `${out}/public/web/icons`, {recursive:true});
+await cp('web/social', `${out}/public/web/social`, {recursive:true});
 await mkdir(`${out}/public/data`,{recursive:true});
 for(const name of ['model-manifest.json','model.json','initial-model.json']) await cp(`data/${name}`,`${out}/public/data/${name}`);
 let html = await readFile('index.html','utf8');

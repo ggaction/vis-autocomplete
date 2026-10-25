@@ -5,6 +5,7 @@ import { cartesianAxisOwners, axisTargetArgs } from '../vendor/ggaction/src/sele
 import { legendBlockChannels, describeLegendBlock } from '../vendor/ggaction/src/grammar/legendBlocks.js';
 import { scopedCall } from './composition-context.js';
 import { prepareCompositionSnapshots } from '../vendor/ggaction/src/materialization/composition.js';
+import { sharedCompositionColorLegend } from '../vendor/ggaction/src/materialization/compositionLegends.js';
 import { namespaceGraphicId } from '../vendor/ggaction/src/materialization/compositionSnapshot.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
@@ -32,6 +33,13 @@ export function editableGuides(program) {
   }
   if (program.compositionSpec && !program.compositionSpec.facet) {
     const { children, layout } = prepareCompositionSnapshots(program);
+    const shared = sharedCompositionColorLegend(program, children);
+    const sharedId = `${program.compositionSpec.id}-shared-color-legend`;
+    if (shared && program.graphicSpec.objects[sharedId]) titles.push({
+      key: 'legend:shared-color', kind: 'legend', label: 'Shared color legend',
+      ids: [sharedId], bounds: guideBounds(program, [sharedId]), movable: false, resizable: false,
+      remove: { method: 'removeLegend', args: { target: shared.targets, channels: ['color'], suppress: true } },
+    });
     return [...titles, ...layout.children.flatMap(placement => editableGuides(children[placement.id]).map(localTarget => {
       const ids = localTarget.ids.map(id => namespaceGraphicId(`${program.compositionSpec.id}-${placement.id}`, id));
       const bounds = guideBounds(program, ids);
@@ -83,6 +91,7 @@ export function editableGuides(program) {
 
 export function removeGuide(target) {
   if (target.childPath) return scopedCall(removeGuide(target.localTarget), [{ childPath: target.childPath }]);
+  if (target.remove) return target.remove;
   if (target.kind === 'title') return target.part === 'subtitleStyle'
     ? { method: 'editTitle', args: { subtitle: false } } : { method: 'removeTitle', args: {} };
   if (target.kind === 'axis') {
@@ -92,6 +101,9 @@ export function removeGuide(target) {
   }
   if (target.kind === 'legend' && target.part === 'titleStyle') return {
     method: 'editLegend', args: { target: target.config.target, channel: target.channels[0], title: false },
+  };
+  if (target.kind === 'legend') return {
+    method: 'removeLegend', args: { target: target.config.target, channels: target.channels, suppress: true },
   };
   throw new Error('This guide has no supported removal action.');
 }

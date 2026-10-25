@@ -164,7 +164,7 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
       actionBase = actionBase[call.method](call.args); prerequisiteCalls.push(call);
     }
   }
-  const family = /^editLegend/.test(sourceAction.method) ? 'legend' : /^edit(?:Grid|HorizontalGrid|VerticalGrid)$/.test(sourceAction.method) ? 'grid'
+  const family = /^(?:editLegend|removeLegend)/.test(sourceAction.method) ? 'legend' : /^edit(?:Grid|HorizontalGrid|VerticalGrid)$/.test(sourceAction.method) ? 'grid'
     : /^edit(?:Axes|[XY]Axis|ThetaAxis|RadialAxis|ParallelAxis)/.test(sourceAction.method) ? 'axis' : null;
   if (family) {
     const createMethod = { legend: 'createLegend', grid: 'createGrid', axis: 'createAxes' }[family];
@@ -220,7 +220,8 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
       if (legend.kind !== 'series') continue;
       const layer = authoringPreview.semanticSpec.layers.find(layer => layer.id === legend.target);
       const channels = [...new Set([...(legend.channels ?? []), ...['color', 'strokeDash'].filter(channel =>
-        layer?.encoding[channel]?.field === legend.field && layer.encoding[channel].scale)])];
+        layer?.encoding[channel]?.field === legend.field && layer.encoding[channel].scale &&
+        !authoringPreview.guideConfigs.suppressedLegends?.[legend.target]?.channels.includes(channel))])];
       if (channels.length === legend.channels?.length) continue;
       const call = { method: 'editLegend', args: { target: legend.target, channels } };
       authoringPreview = authoringPreview.editLegend(call.args);

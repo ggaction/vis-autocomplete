@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chart } from 'ggaction';
+import { chart, hconcat } from 'ggaction';
 import { editableGuides, removeGuide } from '../src/guide-manipulation.js';
 import { removableChartPanels } from '../src/chart-removal.js';
 import { addDefaultGuides, prepareGuidedAction } from '../src/prepare.js';
@@ -19,7 +19,7 @@ for (const mode of ['unit','facet','concat']) test(`direct guide deletion uses r
   if(mode==='facet')p=p.facet({field:'g',columns:2,guides:{axes:'outer',legend:'shared'}});
   if(mode==='concat')p=adjacent(p).createTitle({text:'Shared heading'});
   const view=addDefaultGuides(p), original=JSON.stringify(view.graphicSpec);
-  for(const target of editableGuides(view).filter(t=>t.kind!=='legend'||t.part)) {
+  for(const target of editableGuides(view)) {
     const action=removeGuide(target), result=prepareGuidedAction(p,action,view);
     assert.deepEqual(replayPrepared(result).graphicSpec,result.preview.graphicSpec);
     const remaining=editableGuides(result.preview).map(t=>t.key);
@@ -75,5 +75,36 @@ test('polar and parallel axis title removal preserves their other axis component
       assert.ok(!editableGuides(result.preview).some(t=>t.key===target.key));
       assert.deepEqual(replayPrepared(result).graphicSpec,result.preview.graphicSpec);
     }
+  }
+});
+
+test('shared concat legend deletion reaches every contributing owner without removing size guides',()=>{
+  const source=base().encodeSize({target:'plot',field:'y'});
+  let p=addDefaultGuides(source).createAdjacentPlot({id:'chart2',source:'plot',position:'right',share:{color:true},
+    plot:{action:'createScatterPlot',options:{x:'x',y:'y',color:{field:'g',fieldType:'nominal'}}}})
+    .createGuides({target:[{childPath:['chart2']}],legend:{channels:['color']}});
+  const view=addDefaultGuides(p), target=editableGuides(view).find(t=>t.key==='legend:shared-color');
+  assert.ok(target);
+  const result=prepareGuidedAction(p,removeGuide(target),view);
+  assert.ok(!editableGuides(result.preview).some(t=>t.key==='legend:shared-color'));
+  assert.ok(result.preview.children.plot.guideConfigs.legend.size);
+  for(const child of Object.values(result.preview.children)) {
+    assert.ok(Object.values(child.guideConfigs.suppressedLegends).every(config=>config.channels.includes('color')));
+  }
+  assert.deepEqual(replayPrepared(result).graphicSpec,result.preview.graphicSpec);
+});
+
+
+test('nested shared and faceted legends route deletion through authored child paths',()=>{
+  const unit=addDefaultGuides(base());
+  const facet=unit.facet({field:'g',columns:2,guides:{legend:'shared'}});
+  const shared=hconcat({programs:[{id:'left',program:unit},{id:'right',program:facet}],share:{color:true},align:'plot'});
+  for(const p of [shared,hconcat({programs:[{id:'group',program:shared},{id:'other',program:unit}]})]) {
+    const view=addDefaultGuides(p), target=editableGuides(view).find(t=>t.key.endsWith('legend:shared-color'));
+    assert.ok(target);
+    const result=prepareGuidedAction(p,removeGuide(target),view);
+    assert.ok(!editableGuides(result.preview).some(t=>t.key===target.key));
+    assert.deepEqual(replayPrepared(result).graphicSpec,result.preview.graphicSpec);
+    if(p.children.other)assert.ok(result.preview.children.other.guideConfigs.legend.color);
   }
 });

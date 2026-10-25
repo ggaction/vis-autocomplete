@@ -44,18 +44,19 @@ export function createGuideEditor(host, callbacks) {
       size.dataset.guide = target.key; size.dataset.guideOperation = 'resize';
       size.dataset.guideEdge = 'se';
       size.setAttribute('aria-label', `Resize ${target.label}`); size.title = 'Drag to resize · arrow keys · Esc to cancel';
-      if (target.kind !== 'panel') node.append(hit, size);
-      if (target.kind !== 'legend' || target.part) {
+      if (target.kind !== 'panel') node.append(hit);
+      if (target.kind !== 'panel' && target.resizable !== false) node.append(size);
+      {
         const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'guide-delete';
         remove.textContent = '×'; remove.dataset.guide = target.key; remove.dataset.guideOperation = 'delete';
         remove.setAttribute('aria-label', `Delete ${target.label}`);
         remove.addEventListener('click', event => {
           event.preventDefault(); event.stopPropagation();
-          if (!gesture && callbacks.available() && callbacks.canStart()) callbacks.remove(target, target.remove ?? removeGuide(target));
+          if (!gesture && callbacks.available() && callbacks.canStart()) callbacks.remove(target, removeGuide(target));
         });
         node.append(remove);
       }
-      if (target.kind === 'legend' && !target.part) for (const edge of ['n', 'e', 's', 'w', 'ne', 'nw', 'sw']) {
+      if (target.kind === 'legend' && !target.part && target.resizable !== false) for (const edge of ['n', 'e', 's', 'w', 'ne', 'nw', 'sw']) {
         const handle = document.createElement('button'); handle.type = 'button';
         handle.className = `guide-edge guide-edge-${edge}`;
         handle.dataset.guide = target.key; handle.dataset.guideOperation = 'resize'; handle.dataset.guideEdge = edge;

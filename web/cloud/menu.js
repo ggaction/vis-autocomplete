@@ -104,20 +104,21 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       ['Keep control as charts grow.', ' Work step by step, revisit history, and reuse the generated ggaction code.']]) {
       const item = element('li'); item.append(element('strong', title), document.createTextNode(description)); benefits.append(item);
     }
-    const software = element('section'); software.append(element('h3', 'Software'));
+    const software = element('section'); software.append(element('h3', 'Underlying software'));
     for (const [name, links] of [
-      ['Visualization Autocomplete', [['Source', 'https://github.com/ggaction/vis-autocomplete']]],
       ['ggaction', [['Documentation', 'https://ggaction.github.io/ggaction/'], ['Source', 'https://github.com/ggaction/ggaction']]]]) {
       const row = element('div', '', 'about-software'); row.append(element('strong', name));
       const resources = element('span'); for (const [title, href] of links) resources.append(link(title, href));
       row.append(resources); software.append(row);
     }
     const papers = element('section'); papers.append(element('h3', 'Papers'), element('p', 'This tool builds on the following research:'));
-    for (const [title, href, authors, venue] of [
-      ['Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations', 'https://arxiv.org/abs/2607.15608', 'Hyeon Jeon · Sungbok Shin · Niklas Elmqvist', 'TVCG · VIS 2026'],
+    for (const [title, href, authors, venue, legacy] of [
+      ['Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations', 'https://arxiv.org/abs/2607.15608', 'Hyeon Jeon · Sungbok Shin · Niklas Elmqvist', 'TVCG · VIS 2026', 'https://oldvis.autocomplete.studio/'],
       ['ggaction: A Grammar of Graphical Actions', 'https://arxiv.org/abs/2609.14353', 'Hyeon Jeon · Jinwook Seo', 'arXiv']]) {
       const paper = element('article', '', 'about-paper');
-      paper.append(link(title, href), element('p', authors), element('small', venue)); papers.append(paper);
+      paper.append(link(title, href), element('p', authors), element('small', venue));
+      if (legacy) { const note = element('p'); note.append(link('legacy version for our academic paper', legacy)); paper.append(note); }
+      papers.append(paper);
     }
     d.box.append(benefits, software, papers, element('h3', 'Contributors'), element('p', 'Hyeon Jeon · Sungbok Shin · Jinwook Seo · Niklas Elmqvist')); d.open();
   }

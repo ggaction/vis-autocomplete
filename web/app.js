@@ -1653,6 +1653,8 @@ function scheduleSave() { return flushSave(); }
 addEventListener('pagehide', flushSave);
 function updateDatasetOptions() {
   const selected = state.datasetId;
+  $('upload').hidden = Boolean(selected);
+  $('dataset').hidden = Boolean(selected);
   const placeholder = document.createElement('option');
   placeholder.value = ''; placeholder.textContent = 'Try example dataset'; placeholder.disabled = true;
   $('dataset').replaceChildren(...(selected ? [] : [placeholder]), ...[...datasets.values()].map(record => {

@@ -23,9 +23,9 @@ function input(label, type = 'text', value = '') {
 export async function initializeAccountMenu({ snapshot, restore, newVisualization, useDataset, thumbnail, busy, switchAccount }) {
   const header = document.querySelector('.app-header');
   const menuButton = button('☰', () => openMenu()); menuButton.id = 'workspace-menu'; menuButton.setAttribute('aria-label', 'Open workspace menu');
-  header.prepend(menuButton);
+  menuButton.disabled = true; header.prepend(menuButton);
   const accountButton = button('Sign in', () => account?.user ? settings() : signIn()); accountButton.id = 'account-button';
-  header.append(accountButton);
+  accountButton.disabled = true; header.append(accountButton);
   const cloudStatus = element('span', '', 'cloud-status'); cloudStatus.id = 'cloud-status'; cloudStatus.setAttribute('role', 'status'); header.append(cloudStatus);
   let account, lastUser, greeted = new Set(), pendingState;
   const update = async state => {
@@ -42,6 +42,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
   try { account = await createAccount({ changed: update, status: text => { cloudStatus.textContent = text; } }); }
   catch { account = { configured: false, unavailable: true }; cloudStatus.textContent = 'Account connection unavailable'; }
   await update(pendingState ?? {user: account.user, profile: account.profile, identityChanged: true, recovery: account.recovery});
+  menuButton.disabled = false; accountButton.disabled = false;
   function requireAccount() {
     if (!account.configured) { const d = dialog('Account connection'); d.box.append(element('p', account.unavailable ? 'The account service is temporarily unavailable. You can still work locally and retry after reloading.' : 'Cloud accounts are not configured for this local preview.')); d.open(); return false; }
     if (!account.user) { signIn(); return false; } return true;

@@ -47,5 +47,396 @@
     "source": "https://github.com/ggaction/chart-datasets/blob/0333f33f043f0f18fb1b317333bd7cef61fb39a1/charts/vl_0150/data.json",
     "sha256": "90f5f29523476c2af3b718f8123b53a0ccb029ada50485f5a136a4e092e857df",
     "originalValuesPreserved": true
+  },
+  {
+    "name": "penguins",
+    "file": "penguins.json",
+    "source": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/data/penguins.json",
+    "sourceId": "penguins",
+    "sourceCommit": "8daa64c11a2986e8ca7c75d48831bad647173b35",
+    "metadataSource": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/datapackage.json",
+    "upstreamSources": [
+      {
+        "title": "Palmer Station Antarctica LTER",
+        "path": "https://pallter.marine.rutgers.edu/"
+      },
+      {
+        "title": "Allison Horst's Penguins Repository",
+        "path": "https://github.com/allisonhorst/penguins"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "CC0-1.0",
+        "title": "Creative Commons Zero 1.0 Universal",
+        "path": "https://github.com/allisonhorst/palmerpenguins?tab=CC0-1.0-1-ov-file#readme"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "0facf769609f1205b82cbceb8238c36af3e6147a0ca0e163902cc6281ce3e917",
+    "sourceSha256": "0facf769609f1205b82cbceb8238c36af3e6147a0ca0e163902cc6281ce3e917",
+    "rows": 344,
+    "fields": [
+      "Species",
+      "Island",
+      "Beak Length (mm)",
+      "Beak Depth (mm)",
+      "Flipper Length (mm)",
+      "Body Mass (g)",
+      "Sex"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": []
+  },
+  {
+    "name": "us-employment",
+    "file": "us-employment.csv",
+    "source": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/data/us-employment.csv",
+    "sourceId": "us_employment",
+    "sourceCommit": "8daa64c11a2986e8ca7c75d48831bad647173b35",
+    "metadataSource": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/datapackage.json",
+    "upstreamSources": [
+      {
+        "title": "U.S. Bureau of Labor Statistics Current Employment Statistics",
+        "path": "https://www.bls.gov/ces/"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "other-pd",
+        "title": "U.S. Government Dataset",
+        "path": "https://www.usa.gov/government-works"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "0fa5366929bf738ac420509b84ed120155f740b0fa9c265ca309dad4057d1b1b",
+    "sourceSha256": "0fa5366929bf738ac420509b84ed120155f740b0fa9c265ca309dad4057d1b1b",
+    "rows": 120,
+    "fields": [
+      "month",
+      "nonfarm",
+      "private",
+      "goods_producing",
+      "service_providing",
+      "private_service_providing",
+      "mining_and_logging",
+      "construction",
+      "manufacturing",
+      "durable_goods",
+      "nondurable_goods",
+      "trade_transportation_utilties",
+      "wholesale_trade",
+      "retail_trade",
+      "transportation_and_warehousing",
+      "utilities",
+      "information",
+      "financial_activities",
+      "professional_and_business_services",
+      "education_and_health_services",
+      "leisure_and_hospitality",
+      "other_services",
+      "government",
+      "nonfarm_change"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": []
+  },
+  {
+    "name": "unemployment",
+    "file": "unemployment.json",
+    "source": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/data/unemployment-across-industries.json",
+    "sourceId": "unemployment_across_industries",
+    "sourceCommit": "8daa64c11a2986e8ca7c75d48831bad647173b35",
+    "metadataSource": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/datapackage.json",
+    "upstreamSources": [
+      {
+        "title": "U.S. Census Bureau Current Population Survey",
+        "path": "https://www.census.gov/programs-surveys/cps.html"
+      },
+      {
+        "title": "BLS LAUS Data Tools",
+        "path": "https://www.bls.gov/lau/data.htm"
+      },
+      {
+        "title": "Bureau of Labor Statistics Table A-31",
+        "path": "https://www.bls.gov/web/empsit/cpseea31.htm"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "other-pd",
+        "title": "U.S. Government Dataset",
+        "path": "https://www.usa.gov/government-works"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "c12e32b5b8bf66d5ce40081a22b5557b2a8649dbdcbe03028b3df65cd66257a1",
+    "sourceSha256": "c12e32b5b8bf66d5ce40081a22b5557b2a8649dbdcbe03028b3df65cd66257a1",
+    "rows": 1708,
+    "fields": [
+      "series",
+      "year",
+      "month",
+      "count",
+      "rate",
+      "date"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": []
+  },
+  {
+    "name": "budgets",
+    "file": "budgets.json",
+    "source": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/data/budgets.json",
+    "sourceId": "budgets",
+    "sourceCommit": "8daa64c11a2986e8ca7c75d48831bad647173b35",
+    "metadataSource": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/datapackage.json",
+    "upstreamSources": [
+      {
+        "title": "Office of Management and Budget",
+        "path": "https://www.whitehouse.gov/omb/"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "other-pd",
+        "title": "U.S. Government Dataset",
+        "path": "https://resources.data.gov/open-licenses/"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "ae925bdb462aec46e7d57bec7cb59be538a635ceffa8f48a39365452da308318",
+    "sourceSha256": "ae925bdb462aec46e7d57bec7cb59be538a635ceffa8f48a39365452da308318",
+    "rows": 230,
+    "fields": [
+      "budgetYear",
+      "forecastYear",
+      "value"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": []
+  },
+  {
+    "name": "income",
+    "file": "income.json",
+    "source": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/data/income.json",
+    "sourceId": "income",
+    "sourceCommit": "8daa64c11a2986e8ca7c75d48831bad647173b35",
+    "metadataSource": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/datapackage.json",
+    "upstreamSources": [
+      {
+        "title": "U.S. Census Bureau American Community Survey 3-Year Data (2013)",
+        "path": "https://www.census.gov/data/developers/data-sets/acs-3year/2013.html"
+      },
+      {
+        "title": "Census Bureau Data API User Guide",
+        "path": "https://www.census.gov/data/developers/guidance/api-user-guide.html"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "other-open",
+        "title": "U.S. Census Bureau API Terms of Service",
+        "path": "https://www.census.gov/data/developers/about/terms-of-service.html"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "c04ac5db8f263ccfe43250fce2c4e808e362d5ccf6c5b904f029bc2b1ae5d260",
+    "sourceSha256": "c04ac5db8f263ccfe43250fce2c4e808e362d5ccf6c5b904f029bc2b1ae5d260",
+    "rows": 520,
+    "fields": [
+      "name",
+      "region",
+      "id",
+      "pct",
+      "total",
+      "group"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": []
+  },
+  {
+    "name": "global-temp",
+    "file": "global-temp.csv",
+    "source": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/data/global-temp.csv",
+    "sourceId": "global_temp",
+    "sourceCommit": "8daa64c11a2986e8ca7c75d48831bad647173b35",
+    "metadataSource": "https://raw.githubusercontent.com/vega/vega-datasets/8daa64c11a2986e8ca7c75d48831bad647173b35/datapackage.json",
+    "upstreamSources": [
+      {
+        "title": "NASA Goddard Institute for Space Studies",
+        "path": "https://data.giss.nasa.gov/gistemp/"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "other-pd",
+        "title": "U.S. Government Dataset",
+        "path": "https://www.usa.gov/government-works"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "5933dcb6d5e7fc5c0c241b956b802de2b02da12d0914d06031030579a0f1443b",
+    "sourceSha256": "5933dcb6d5e7fc5c0c241b956b802de2b02da12d0914d06031030579a0f1443b",
+    "rows": 144,
+    "fields": [
+      "year",
+      "temp"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": []
+  },
+  {
+    "name": "fashion_mnist_tsne",
+    "file": "fashion_mnist_tsne.csv",
+    "source": "http://oldvis.autocomplete.studio/data/fashion_mnist_tsne.csv",
+    "sourceRepository": "https://github.com/hj-n/visualization-autocomplete",
+    "sourcePath": "vis_autocomplete/data/fashion_mnist_tsne.csv",
+    "sourceCommit": "d1bfafc380ab7258d1040278e469fc3a49354db4",
+    "upstreamSources": [
+      {
+        "title": "Fashion-MNIST — Han Xiao, Kashif Rasul, Roland Vollgraf (2017), Zalando Research",
+        "path": "https://github.com/zalandoresearch/fashion-mnist"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "MIT",
+        "title": "Upstream Fashion-MNIST MIT license; the legacy t-SNE derivation has no separate license declaration",
+        "path": "https://github.com/zalandoresearch/fashion-mnist/blob/master/LICENSE"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "d91e9fb626ddf6354fb7073a7c0d5fb20a0239af8546b06b15489f8137265db9",
+    "sourceSha256": "d91e9fb626ddf6354fb7073a7c0d5fb20a0239af8546b06b15489f8137265db9",
+    "rows": 498,
+    "fields": [
+      "x_pos",
+      "y_pos",
+      "label",
+      "label_name"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": [],
+    "notes": "Exact legacy CSV, including CRLF, original positions and class labels. No resampling or recomputed t-SNE. Legacy HTTPS certificate hostname mismatch observed at retrieval; downloaded HTTP bytes independently matched the local Git snapshot whose commit matches the authenticated GitHub remote. The repository is not publicly readable. Legacy embedding parameters and sampling method are not documented."
+  },
+  {
+    "name": "wine",
+    "file": "wine.json",
+    "source": "https://archive.ics.uci.edu/static/public/109/wine.zip",
+    "sourceMember": "wine.data",
+    "metadataSource": "https://archive.ics.uci.edu/dataset/109/wine",
+    "citation": "Aeberhard, S. & Forina, M. (1992). Wine [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5PC7J.",
+    "licenses": [
+      {
+        "name": "CC-BY-4.0",
+        "title": "Creative Commons Attribution 4.0 International",
+        "path": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "2b937b98c24ca7bda05dc6dfd117c91f9db396628817ac344890d9b880002767",
+    "sourceSha256": "6be6b1203f3d51df0b553a70e57b8a723cd405683958204f96d23d7cd6aea659",
+    "archiveSha256": "2bae62c4481220623579d4c4fb36b55652b6b75e06e49fa1981b8198362dfdab",
+    "rows": 178,
+    "fields": [
+      "class",
+      "Alcohol",
+      "Malicacid",
+      "Ash",
+      "Alcalinity_of_ash",
+      "Magnesium",
+      "Total_phenols",
+      "Flavanoids",
+      "Nonflavanoid_phenols",
+      "Proanthocyanins",
+      "Color_intensity",
+      "Hue",
+      "OD280_OD315",
+      "Proline"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": [
+      "Headerless CSV converted to JSON objects using the ordered variable names documented by UCI; numeric text parsed to JSON numbers. All rows and values retained."
+    ]
+  },
+  {
+    "name": "glass",
+    "file": "glass.json",
+    "source": "https://archive.ics.uci.edu/static/public/42/glass+identification.zip",
+    "sourceMember": "glass.data",
+    "metadataSource": "https://archive.ics.uci.edu/dataset/42/glass+identification",
+    "citation": "German, B. (1987). Glass Identification [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5WW2P.",
+    "licenses": [
+      {
+        "name": "CC-BY-4.0",
+        "title": "Creative Commons Attribution 4.0 International",
+        "path": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "135fb4d09001e30ca6206deda6f5314c61aff1e310ca36441420a1c25fbbdc9d",
+    "sourceSha256": "dd67373f4baf2807345df02cbfef2093d342e61ad0d82a4fb79af43ef8ce449d",
+    "archiveSha256": "499c07a17115bf63100bb19cc1fdefad7f464bf5dc2b168930fa2071fd6b6e65",
+    "rows": 214,
+    "fields": [
+      "Id_number",
+      "RI",
+      "Na",
+      "Mg",
+      "Al",
+      "Si",
+      "K",
+      "Ca",
+      "Ba",
+      "Fe",
+      "class"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": [
+      "Headerless CSV converted to JSON objects using the ordered variable names documented by UCI; numeric text parsed to JSON numbers. All rows and values retained."
+    ]
+  },
+  {
+    "name": "bike-sharing",
+    "file": "bike-sharing.csv",
+    "source": "https://archive.ics.uci.edu/static/public/275/bike+sharing+dataset.zip",
+    "sourceMember": "day.csv",
+    "metadataSource": "https://archive.ics.uci.edu/dataset/275/bike+sharing+dataset",
+    "citation": "Fanaee-T, H. (2013). Bike Sharing [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5W894.",
+    "licenses": [
+      {
+        "name": "CC-BY-4.0",
+        "title": "Creative Commons Attribution 4.0 International",
+        "path": "https://creativecommons.org/licenses/by/4.0/"
+      }
+    ],
+    "retrievedOn": "2026-10-25",
+    "sha256": "a6bcf826782d3c0fbfdcbeead17cd0884185a0dafe8ff10cd48a874ee7ba18be",
+    "sourceSha256": "a6bcf826782d3c0fbfdcbeead17cd0884185a0dafe8ff10cd48a874ee7ba18be",
+    "archiveSha256": "b70182d0d0508e9abbb79306ce5c0cec34869000f8220175ac83d11dbe845401",
+    "rows": 731,
+    "fields": [
+      "instant",
+      "dteday",
+      "season",
+      "yr",
+      "mnth",
+      "holiday",
+      "weekday",
+      "workingday",
+      "weathersit",
+      "temp",
+      "atemp",
+      "hum",
+      "windspeed",
+      "casual",
+      "registered",
+      "cnt"
+    ],
+    "originalValuesPreserved": true,
+    "transformations": [
+      "Selected the complete daily day.csv table, not the hourly hour.csv table; no row sampling or value changes."
+    ]
   }
 ]

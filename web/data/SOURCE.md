@@ -14,3 +14,6 @@ available. The native mark policy `missing: "skip"` excludes missing selected
 values only from that mark's rendering; the source table stays unchanged.
 Source attribution and terms remain those recorded in that repository's
 `DATA_SOURCES.md` and chart metadata.
+
+For the ten examples added on 2026-10-25, see [EXAMPLES.md](./EXAMPLES.md)
+and the byte-level source and license records in [sources.json](./sources.json).

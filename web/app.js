@@ -677,11 +677,7 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
     const action = buildRecommendationCall(card, values);
     if (card.methodElement) card.methodElement.textContent = `${action.method}(…)`;
     const setupCalls = card.setup?.(values) ?? [];
-    if (card.usageElement) {
-      const used = card.usage(values);
-      card.usageElement.textContent = used.length < card.selectedFields.length ? `Uses ${used.length} of ${card.selectedFields.length} selected variables · ${used.join(', ')}` : '';
-      card.usageElement.title = used.join(', ');
-    }
+    if (card.usage) card.element.dataset.usedFields = JSON.stringify(card.usage(values));
     const signature = JSON.stringify([action, setupCalls]);
     if (!card.prepared || card.preparedSignature !== signature) {
       // Preview work never owns Apply availability. Apply validates the pinned
@@ -1002,11 +998,7 @@ async function createCard(spec, index) {
   const thumbnail = document.createElement('div'); thumbnail.className = 'thumbnail'; card.thumbnail = thumbnail;
   button.append(title, method, thumbnail);
   if (card.usage) {
-    const usage = document.createElement('p'); usage.className = 'field-usage'; card.usageElement = usage;
-    const used = card.usage(card.values);
-    usage.textContent = used.length < card.selectedFields.length ? `Uses ${used.length} of ${card.selectedFields.length} selected variables · ${used.join(', ')}` : '';
-    usage.title = used.join(', '); button.append(usage);
-    element.dataset.usedFields = JSON.stringify(used);
+    element.dataset.usedFields = JSON.stringify(card.usage(card.values));
   }
   card.controlsElement = document.createElement('div'); card.controlsElement.className = 'card-controls';
   setCardExpanded(card, false);

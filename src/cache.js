@@ -18,6 +18,7 @@ export function createLRU(limit = 64, onEvict = () => {}) {
       const value = entries.get(key); entries.delete(key); onEvict(key, value); return true;
     },
     clear() { entries.clear(); },
+    values() { return entries.values(); },
     get size() { return entries.size; },
   };
 }

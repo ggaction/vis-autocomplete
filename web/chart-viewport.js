@@ -6,7 +6,7 @@ let measurement;
 export function chartViewport(program) {
   if(boundsCache.has(program))return boundsCache.get(program);
   const spec=program.graphicSpec,root=spec.objects.canvas,geometry=root.properties;
-  measurement??=document.createElement('canvas');
+  measurement??=typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(1,1) : document.createElement('canvas');
   const ratio=Math.min(1,1200/geometry.width,1200/geometry.height);
   const transparent={graphicSpec:{...spec,objects:{...spec.objects,canvas:{...root,properties:{...geometry,background:'transparent'}}}}};
   render(transparent,measurement.getContext('2d'),{pixelRatio:ratio});

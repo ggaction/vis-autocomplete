@@ -1,8 +1,8 @@
 import { chart } from 'ggaction';
 import { PUBLIC_ACTION_NAMES } from '../src/public-actions.js';
 import { programCode } from './code-view.js';
-import { captureHistorySnapshot, isHistorySnapshot } from './history.js';
-import { freezeResult } from '../src/cache.js';
+import { captureHistorySnapshot, isHistorySnapshot, prepareCapturedHistory } from './history.js';
+import { createLRU, freezeResult } from '../src/cache.js';
 
 const publicMethods = new Set(PUBLIC_ACTION_NAMES.filter(name => name !== 'constructor'));
 const metadataKeys = ['setupCalls', 'calls', 'context', 'steps', 'guideCall', 'selection', 'plotData',
@@ -14,7 +14,9 @@ const validatedImports = new WeakMap();
 const packedSnapshots = new WeakMap(), trustedPacked = new WeakSet(), normalizedSnapshots = new WeakMap();
 const deferredSnapshots = new WeakMap();
 export async function prepareHistorySnapshot(snapshot) {
-  await deferredSnapshots.get(snapshot)?.prepare();
+  const deferred = deferredSnapshots.get(snapshot);
+  await deferred?.prepare();
+  await prepareCapturedHistory(deferred?.result ?? snapshot);
 }
 export const PROJECT_FORMAT = 'visualization-autocomplete';
 export const PROJECT_VERSION = 1;
@@ -173,19 +175,30 @@ export function parseProject(source) {
 export function restoreSession(stored, rows, { lazy = false, current = null } = {}) {
   if (!stored) return null;
   stored = normalizeSession(stored, new Set(rows.flatMap(Object.keys)));
-  const cache = new Map([['', chart()]]);
+  const base = chart(), cache = createLRU(16);
   const recorded = new Map();
-  const replay = calls => {
-    let program = cache.get(''), key = '';
-    for (const call of calls) {
-      validateCall(call);
-      key += JSON.stringify(call) + '\n';
-      if (cache.has(key)) { program = cache.get(key); continue; }
+  function* replaySteps(calls) {
+    const keys = [''];
+    for (const call of calls) { validateCall(call); keys.push(keys.at(-1) + JSON.stringify(call) + '\n'); }
+    let program = base, start = 0;
+    // Find the longest retained prefix before executing anything. Walking from
+    // zero would rebuild evicted prefixes and displace the useful recent ones.
+    for (let i = calls.length; i > 0; i--) {
+      const cached = cache.get(keys[i]);
+      if (cached) { program = cached; start = i; break; }
+    }
+    for (let i = start; i < calls.length; i++) {
+      const call = calls[i];
       const args = call.method === 'createData' && call.args.values === '__LOADED_DATA__'
         ? { ...call.args, values: rows } : call.args;
-      program = program[call.method](args); cache.set(key, program);
+      program = program[call.method](args); cache.set(keys[i + 1], program); yield;
     }
     return program;
+  }
+  const replay = calls => {
+    const work = replaySteps(calls); let step;
+    do { step = work.next(); } while (!step.done);
+    return step.value;
   };
   const materialize = snapshot => {
     const { axesCalls } = snapshot;
@@ -196,7 +209,7 @@ export function restoreSession(stored, rows, { lazy = false, current = null } = 
     const program = replay(calls), view = snapshot.guideCall ? replay([...calls, snapshot.guideCall]) : program;
     const selectionAxes = snapshot.phase === 'initial' ? { program: replay([...calls, ...axesCalls]), calls: axesCalls } : null;
     const shared = values => values.map(call => recorded.get(JSON.stringify(call)) ?? call);
-    const snapshotCopy = captureHistorySnapshot({ ...metadata, setupCalls: shared(metadata.setupCalls),
+    const snapshotCopy = captureHistorySnapshot({ ...metadata, rows, setupCalls: shared(metadata.setupCalls),
       calls: shared(metadata.calls), program, view, selectionAxes });
     for (const call of [...snapshotCopy.setupCalls, ...snapshotCopy.calls]) recorded.set(JSON.stringify(call), call);
     return snapshotCopy;
@@ -209,7 +222,7 @@ export function restoreSession(stored, rows, { lazy = false, current = null } = 
   });
   return { index: stored.index, entries: stored.entries.map((snapshot, index) => {
     if (index === stored.index && current) {
-      return captureHistorySnapshot({ ...snapshot, ...current, selectionAxes: null });
+      return captureHistorySnapshot({ ...snapshot, ...current, rows, selectionAxes: null });
     }
     if (!lazy) return materialize(snapshot);
     const { setupCalls, calls, axesCalls, ...metadata } = snapshot;
@@ -221,15 +234,9 @@ export function restoreSession(stored, rows, { lazy = false, current = null } = 
     deferred.prepare = async () => {
       if (deferred.result) return;
       const calls = [...saved.setupCalls, ...saved.calls];
-      let key = '';
-      for (let i = 0; i < calls.length; i++) {
-        key += JSON.stringify(calls[i]) + '\n';
-        if (!cache.has(key)) {
-          replay(calls.slice(0, i + 1));
-          // A distant history thumbnail may need a long missing prefix after
-          // checkpoint restore. Never monopolize the UI for that entire prefix.
-          await new Promise(resolve => setTimeout(resolve, 0));
-        }
+      for (const _ of replaySteps(calls)) {
+        // A distant history thumbnail may need a missing prefix after reload.
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
       resolve();
     };

@@ -28,6 +28,7 @@ function paint(canvas){
   record.painted=key;record.ratio=ratio;
   canvas.style.cssText=style;
   canvas.dataset.paint=String((Number(canvas.dataset.paint)||0)+1);
+  if(record.static){records.delete(canvas);observer.unobserve(canvas);queued.delete(canvas);}
 }
 function schedule(canvas){
   queued.add(canvas);if(frame)return;
@@ -51,7 +52,7 @@ let resolution;
 function densityChanged(){resolution?.removeEventListener('change',densityChanged);resolution=matchMedia(`(resolution: ${devicePixelRatio||1}dppx)`);resolution.addEventListener('change',densityChanged);refreshDensity();}
 densityChanged();
 
-export function renderChartCanvas(host,program,label,{fit=false}={}){
+export function renderChartCanvas(host,program,label,{fit=false,retain=true}={}){
   const geometry=program.canvasGeometry??program.graphicSpec.objects.canvas.properties;
   let canvas=host.querySelector(':scope > canvas[data-chart]');
   if(!canvas){canvas=document.createElement('canvas');canvas.dataset.chart='';}
@@ -60,9 +61,9 @@ export function renderChartCanvas(host,program,label,{fit=false}={}){
   canvas.dataset.logicalWidth=geometry.width;canvas.dataset.logicalHeight=geometry.height;
   const viewport=fit?chartViewport(program):{x:0,y:0,width:geometry.width,height:geometry.height};
   canvas.dataset.viewBox=[viewport.x,viewport.y,viewport.width,viewport.height].join(' ');
-  records.set(canvas,{program,geometry,viewport,fit});
+  records.set(canvas,{program,geometry,viewport,fit,static:!retain});
   if(canvas.parentNode!==host)host.replaceChildren(canvas);
-  paint(canvas);observer.observe(canvas);schedule(canvas);
+  observer.observe(canvas);paint(canvas);if(records.has(canvas))schedule(canvas);
   return canvas;
 }
 export function refreshChartCanvas(canvas){paint(canvas);}

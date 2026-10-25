@@ -66,3 +66,15 @@ test('worker display artifacts and transition scenes contain concrete graphics w
   assert.ok(scene.nodes.every(node => node.properties && !('svg' in node)));
   assert.ok(scene.nodes.some(node => node.type==='circle' && node.properties.opacity===.4));
 });
+
+test('restored current scenes are prepared in the worker without authoring a new history step', () => {
+  const program=chart().createCanvas(defaultCanvasOptions()).createData({id:'dataset',values:[{x:1,y:2},{x:2,y:3}]})
+    .createScatterPlot({id:'plot',data:'dataset',x:'x',y:'y'});
+  const service=createCalculationService(),guideCall={method:'createGuides',args:{}};
+  service.execute({type:'state',stateId:1,snapshot:serializeProgram(program),guideCall});
+  const before=service.execute({type:'checkpoint',stateId:1});
+  const scene=service.execute({type:'baseline-scene',stateId:1});
+  assert.equal(scene.version,2);assert.ok(scene.nodes.length);
+  assert.equal(service.execute({type:'baseline-scene',stateId:1}),scene);
+  assert.deepEqual(service.execute({type:'checkpoint',stateId:1}),before);
+});

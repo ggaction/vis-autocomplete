@@ -85,3 +85,13 @@ test('public facet preparation still reuses an exact preview and appends only it
   assert.equal(Object.keys(result.preview.children).length, 2);
   assert.equal(renderToSVG(result.preview), renderToSVG(base.facet(action.args).createGuides()));
 });
+
+test('dense paths and unit charts consume a shared complexity budget instead of 128 entries per history state', () => {
+  const path = { semanticSpec: {}, graphicSpec: { objects: { lines: { type: 'path', items: Array.from({ length: 2000 }, () => ({ properties: { commands: Array(6).fill({ op: 'L', x: 1, y: 2 }) } })) } } } };
+  const budget = createCompositionCacheBudget(40), owners = Array.from({ length: 20 }, () => createProgramResultCache({ compositionBudget: budget }));
+  const result = { next: path };
+  assert.ok(compositionResultWeight(result) >= 14);
+  owners.forEach(cache => cache.set('preview', result));
+  assert.ok(owners.filter(cache => cache.get('preview')).length <= 2);
+  assert.equal(owners.at(-1).get('preview'), result);
+});

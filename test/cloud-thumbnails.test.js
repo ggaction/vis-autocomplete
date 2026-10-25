@@ -92,3 +92,15 @@ test('a full thumbnail cache still displays the regenerated image', async () => 
   loader.observe(image, f.row); image.dispatchEvent(new Event('load')); observer.intersect(image, true);
   await until(() => image.src !== 'legacy'); assert.ok(pixels(image.src).height > 360); loader.dispose();
 });
+
+test('background PNG export preserves the exact foreground thumbnail and its byte budget', async () => {
+  const { createProjectThumbnailAsync } = await import('../web/cloud/thumbnail.js');
+  globalThis.OffscreenCanvas = class {
+    constructor(width,height) { const canvas=createCanvas(width,height);canvas.convertToBlob=async()=>new Blob([canvas.toBuffer('image/png')]);return canvas; }
+  };
+  try {
+    const p=chart().createCanvas({width:700,height:430,margin:{left:80,right:180,top:50,bottom:60}})
+      .createData({id:'dataset',values:rows}).createScatterPlot({id:'plot',data:'dataset',x:'x',y:'y',color:'group'}).createGuides();
+    assert.equal(await createProjectThumbnailAsync(p),createProjectThumbnail(p));
+  } finally { delete globalThis.OffscreenCanvas; }
+});

@@ -14,6 +14,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   let draining = null, recording = Promise.resolve(), packing = Promise.resolve(), switching = true, lastJobTime = 0;
   let loaded = false, initialized = false, authQueue = Promise.resolve(), recovery = false;
   const queuedSnapshots = new Map();
+  const pendingThumbnails = new Set();
   const importedCache = new WeakMap(), uploaded = new Set();
   const release = config.release ?? 'development';
   const redirectTo = location.origin + '/';
@@ -129,16 +130,34 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     const signature = JSON.stringify({ ...snapshot, savedAt: undefined, projectTitle: target.title });
     if (queuedSnapshots.get(target.id) === signature) return;
     const operation = crypto.randomUUID();
-    const job = { owner, id: target.id, operation, title: target.title, snapshot, thumbnail, time: lastJobTime = Math.max(Date.now(), lastJobTime + 1) };
-    await local.put(`job:${owner}:${String(job.time).padStart(16, '0')}:${operation}`, job);
-    await local.put(`head:${owner}:${target.id}`, { ...target, localSnapshot: snapshot, thumbnail, updated_at: new Date().toISOString() });
+    const deferred = typeof thumbnail?.then === 'function';
+    const job = { owner, id: target.id, operation, title: target.title, snapshot, thumbnail: deferred ? null : thumbnail, time: lastJobTime = Math.max(Date.now(), lastJobTime + 1) };
+    const key = `job:${owner}:${String(job.time).padStart(16, '0')}:${operation}`, headKey = `head:${owner}:${target.id}`;
+    if (deferred) pendingThumbnails.add(key);
+    try {
+      await local.put(key, job);
+      await local.put(headKey, { ...target, localSnapshot: snapshot, thumbnail: job.thumbnail,
+        thumbnailOperation: operation, updated_at: new Date().toISOString() });
+    } catch (error) { pendingThumbnails.delete(key); throw error; }
     if (user?.id === owner && current?.id === target.id) await local.put(activeKey(owner), current);
     queuedSnapshots.set(target.id, signature);
-    status('Saved locally · syncing…'); notify(); drain();
+    status('Saved locally · syncing…'); notify();
+    if (deferred) {
+      // Persist every revision before waiting for derived pixels. After a tab
+      // closes, the already durable job can sync without its optional image.
+      Promise.resolve(thumbnail).catch(() => null).then(async image => {
+        const pending = await local.get(key);
+        if (pending) await local.put(key, { ...pending, thumbnail: image });
+        const head = await local.get(headKey);
+        if (head?.thumbnailOperation === operation) await local.put(headKey, { ...head, thumbnail: image });
+      }).catch(() => {}).finally(() => { pendingThumbnails.delete(key); drain(); });
+    }
+    drain();
   }
   async function drainJobs(owner) {
     for (const key of (await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).sort()) {
       if (user?.id !== owner) return;
+      if (pendingThumbnails.has(key)) return;
       const job = await local.get(key);
       const headKey = `remote:${owner}:${job.id}`;
       let head = await local.get(headKey) ?? { revision: 0, snapshot: null };

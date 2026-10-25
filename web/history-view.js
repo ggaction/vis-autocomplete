@@ -63,12 +63,16 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
     paintPinned();
   }
 
-  function preview(index) {
+  async function preview(index) {
     if (locked || hovered === index || !entries[index]) return;
     hovered = index;
     for (const [snapshot, button] of nodes) button.classList.toggle('inspecting', snapshot === entries[index]);
     meta.textContent = `#${entries[index].steps} ${historyLabel(entries[index])}`;
-    onPreview(entries[index]);
+    const snapshot = entries[index];
+    try {
+      await prepareHistorySnapshot(snapshot);
+      if (hovered === index && entries[index] === snapshot && !locked) onPreview(snapshot);
+    } catch { /* Keep Current if an old preview cannot be restored. */ }
   }
   function clear({ restore = true } = {}) {
     const wasInspecting = hovered !== null;

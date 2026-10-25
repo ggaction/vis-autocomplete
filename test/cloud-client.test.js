@@ -189,3 +189,26 @@ test('view preference writes bind to the original bearer token across an account
   await assert.rejects(a.saveViewPreferences({vis_view_mode:'preview'},'test-user'),/Account changed/);
  }finally{globalThis.fetch=previousFetch;a.destroy();}
 });
+
+test('asynchronous thumbnails preserve every authored revision and the final image',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  let finish;const image=new Promise(resolve=>{finish=resolve});
+  const first=a.save(project(1),image),second=a.save(project(2),Promise.resolve(null)),third=a.save(project(3),Promise.resolve('last-image'));
+  await Promise.all([first,second,third]);
+  assert.equal([...m.map.keys()].filter(k=>k.startsWith('job:')).length,3,'all revisions are durable before the first PNG finishes');
+  finish('first-image');await pause();
+  const jobs=[...m.map].filter(([k])=>k.startsWith('job:')).map(([,job])=>job);
+  assert.deepEqual(jobs.map(job=>job.snapshot.datasets[0].session.entries[0].calls),[[1],[2],[3]]);
+  assert.deepEqual(jobs.map(job=>job.thumbnail),['first-image',null,'last-image']);
+  online(true);await a.drain();assert.equal(m.remote.get(a.current.id).thumbnail,'last-image');
+ }finally{a.destroy();}
+});
+
+test('restarting before a PNG completes still syncs the durable authored revision',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ await a.save(project(7),new Promise(()=>{}));const id=a.current.id;a.destroy();
+ online(true);const restored=await createAccount({...m,config});
+ try {await restored.drain();assert.deepEqual(m.remote.get(id).snapshot.datasets[0].session.entries[0].calls,[7]);}
+ finally {restored.destroy();}
+});

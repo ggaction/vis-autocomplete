@@ -7,7 +7,8 @@ import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
 import { getDatasetSchema } from 'ggaction/inspection';
 import { createRecommendationEngine, neighboringParameters } from '../src/engine.js';
 import { addDefaultGuides, prepareGuidedAction, rememberDisplayedGuides } from '../src/prepare.js';
-import { createLRU, signature } from '../src/cache.js';
+import { createLRU, createWeightedLRU, signature } from '../src/cache.js';
+import { graphicCost } from '../src/graphic-cost.js';
 import { profileDataset } from '../src/profile.js';
 import { recommendationParameters, valuesFor, buildRecommendationCall } from './parameters.js';
 import { filterActionRecommendations, normalizeSearchQuery } from '../src/action-search.js';
@@ -17,8 +18,14 @@ import { prepareTypography } from '../src/chart-typography.js';
 
 // Both worker roles use the exact public native calls and the shared preparer.
 export function createCalculationService(model) {
-  const states = createLRU(12);
-  const retain = (id, program, view) => states.set(id, { program, view, rankings: createLRU(8), decks: createLRU(8) });
+  const stateBudget = createWeightedLRU(128, id => states.delete(id));
+  const states = createLRU(12, id => stateBudget.delete(id));
+  const touch = (id, state) => {
+    const previews = new Set([...state.decks.values()].flatMap(deck => deck.defaults.map(entry => entry.prepared).filter(Boolean)));
+    const weight = graphicCost(state.program) + graphicCost(state.view) + [...previews].reduce((sum, entry) => sum + 2 * graphicCost(entry.preview), 0);
+    states.set(id, state); stateBudget.set(id, state, weight); return state;
+  };
+  const retain = (id, program, view) => touch(id, { program, view, rankings: createLRU(8), decks: createLRU(8) });
   const engine = model ? createRecommendationEngine(model) : null;
   const artifacts = new WeakMap();
   const artifact = prepared => {
@@ -35,7 +42,7 @@ export function createCalculationService(model) {
   const stateFor = id => {
     const state = states.get(id);
     if (!state) throw new Error('Calculation state expired.');
-    return state;
+    stateBudget.get(id); return state;
   };
   const prepareDefault = (program, view, recommendation, profile, diagnostics) => {
     const attempted = new Set();
@@ -121,6 +128,7 @@ export function createCalculationService(model) {
         return { exists: true };
       }
       const { program, view, rankings, decks } = stateFor(stateId);
+      if (type === 'baseline-scene') return createTransitionScene(view, { format: 'canvas' });
       if (type === 'typography' || type === 'guide-edits') {
         const result = type === 'guide-edits' ? prepareGuideEdits(program, view, options.calls) : prepareTypography(program, view, options);
         if (nextStateId !== undefined) retain(nextStateId, result.program, result.view);
@@ -229,6 +237,7 @@ export function createCalculationService(model) {
         const pageCount = deck.pages.length + Math.ceil((partialPageSize + remaining.length) / 5);
         const pending = deck.pages.length <= page && !complete;
         const range = deck.pages[page] ?? { start: deck.pageStart, end: deck.recommendations.length };
+        touch(stateId, stateFor(stateId));
         return { result: { ...ranked, recommendations: deck.recommendations.slice(0, range.end),
           diagnostics: { ...ranked.diagnostics, hierarchy: Boolean(deck.hierarchy), eligibleGroups: projected.length, validatedCalls: [...diagnostics.validatedCalls],
             rejected: [...diagnostics.rejected], scannedCandidates: deck.cursor } }, profile,

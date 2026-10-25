@@ -1,7 +1,8 @@
 import { serializeProgram } from 'ggaction/persistence';
 import { packProgramUpdate, unpackProgramUpdateAsync } from './program-transfer.js';
 import { rememberDisplayedGuides } from '../src/prepare.js';
-import { createLRU, signature } from '../src/cache.js';
+import { createLRU, createWeightedLRU, signature } from '../src/cache.js';
+import { graphicCost } from '../src/graphic-cost.js';
 import { collectRecommendationStream } from './recommendation-stream.js';
 
 export function latestQueue(run) {
@@ -52,15 +53,27 @@ function createEndpoint(role, workerFactory) {
 }
 
 export function createCalculationClient({ workerFactory = () => new Worker('/output/workers/calculation.js', { type: 'module' }) } = {}) {
+  const artifactCache = () => {
+    const cache = createWeightedLRU(64);
+    return { get: key => cache.get(key), clear: () => cache.clear(),
+      get weight() { return cache.weight; },
+      set: (key, value) => cache.set(key, value, 2 * graphicCost(value.preview)) };
+  };
   const endpoints = { recommendation: createEndpoint('recommendation', workerFactory), preview: createEndpoint('preview', workerFactory) };
   const contexts = new WeakMap(), active = {}; let nextState = 0;
   let recommendationRequest = 0;
-  const recent = createLRU(8, (_, context) => { context.cache.clear(); delete context.snapshot; delete context.transition; delete context.checkpoint; });
+  const budget = createWeightedLRU(128, id => recent.delete(id));
+  const recent = createLRU(8, (id, context) => { budget.delete(id); context.cache.clear(); delete context.snapshot; delete context.transition; delete context.checkpoint; delete context.baselineScene; });
+  const touch = context => {
+    recent.set(context.id, context);
+    budget.set(context.id, context, 2 * graphicCost(context.view) + context.cache.weight);
+    return context;
+  };
   const contextFor = (program, view, guideCall) => {
     if (!contexts.has(program)) contexts.set(program, new WeakMap());
     const views = contexts.get(program);
-    if (!views.has(view)) views.set(view, { id: ++nextState, program, view, guideCall, cache: createLRU(64), pending: new Map() });
-    const context = views.get(view); recent.set(context.id, context); return context;
+    if (!views.has(view)) views.set(view, { id: ++nextState, program, view, guideCall, cache: artifactCache(), pending: new Map() });
+    return touch(views.get(view));
   };
   const ensure = async (role, context) => {
     const endpoint = endpoints[role];
@@ -93,7 +106,7 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
     const pending = (async () => {
       const endpoint = await ensure(role, context);
       const prepared = { ...await endpoint.send({ type: 'prepare', stateId: context.id, action, setupCalls }), workerRole: role };
-      context.cache.set(key, prepared); return prepared;
+      context.cache.set(key, prepared); touch(context); return prepared;
     })().finally(() => context.pending.delete(key));
     context.pending.set(key, pending);
     return pending;
@@ -111,6 +124,13 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       // A validated persisted snapshot is already the lossless worker input.
       // Do not serialize its entire restored trace again on the UI thread.
       contextFor(program, view, guideCall).snapshot = snapshot;
+    },
+    baselineScene(program, view, guideCall) {
+      const context = contextFor(program, view, guideCall);
+      context.baselineScene ??= ensure('recommendation', context)
+        .then(endpoint => endpoint.send({ type: 'baseline-scene', stateId: context.id }))
+        .catch(error => { delete context.baselineScene; throw error; });
+      return context.baselineScene;
     },
     async checkpoint(program, view, guideCall) {
       const context = contextFor(program, view, guideCall);
@@ -144,6 +164,7 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
         for (const entry of response.defaults ?? []) if (entry.prepared) {
           context.cache.set(signature([entry.action, []]), { ...entry.prepared, workerRole: 'recommendation' });
         }
+        touch(context);
         onProgress?.(collect(response));
       };
       const response = await endpoint.send({ type: 'recommend', stream: Boolean(onProgress), stateId: context.id, options, group, page, searchQuery }, receive);
@@ -175,11 +196,11 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       const result = await endpoint.send({ type: 'materialize', stateId: context.id, nextStateId: nextId, action, setupCalls });
       const next = await unpackProgramUpdateAsync(program, result.update);
       const nextView = rememberDisplayedGuides(await unpackProgramUpdateAsync(next, result.viewUpdate), result.guideCall);
-      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64), pending: new Map(),
+      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: artifactCache(), pending: new Map(),
         // The other role can install the same finished native state, rather than
         // re-executing the selected action and all of its facet/guide derivations.
         transition: { baseStateId: context.id, update: result.update, viewUpdate: result.viewUpdate, guideCall: result.guideCall } };
-      contexts.set(next, new WeakMap([[nextView, nextContext]])); recent.set(nextId, nextContext);
+      contexts.set(next, new WeakMap([[nextView, nextContext]])); touch(nextContext);
       active[role] = { id: nextId, context: nextContext, promise: Promise.resolve() };
       return { program: next, view: nextView, guideCall: result.guideCall };
     },
@@ -192,9 +213,9 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       const result = await endpoint.send({ type, stateId: context.id, nextStateId: nextId, guideCall, options });
       const next = await unpackProgramUpdateAsync(program, result.update);
       const nextView = rememberDisplayedGuides(await unpackProgramUpdateAsync(next, result.viewUpdate), result.guideCall);
-      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64), pending: new Map(),
+      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: artifactCache(), pending: new Map(),
         transition: { baseStateId: context.id, update: result.update, viewUpdate: result.viewUpdate, guideCall: result.guideCall } };
-      contexts.set(next, new WeakMap([[nextView, nextContext]])); recent.set(nextId, nextContext);
+      contexts.set(next, new WeakMap([[nextView, nextContext]])); touch(nextContext);
       active.preview = { id: nextId, context: nextContext, promise: Promise.resolve() };
       return { program: next, view: nextView, guideCall: result.guideCall, calls: result.calls };
     },

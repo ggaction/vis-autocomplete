@@ -3,11 +3,12 @@ import { CARD_TRANSITION_MS } from './parameter-motion.js';
 import { createCanvasTransitionPlayer } from '@ggaction/transition';
 import { createTransitionScene, renderTransitionScene } from 'ggaction/scene';
 import { createLRU } from '../src/cache.js';
+import { transitionNodeBudget } from './transition-budget.js';
 
 const storageKey = 'vis-autocomplete.view-mode';
 
 export function createTransitionMode({host,layout,toggle,getBaseline,getCandidate,busy,onChange,onError}) {
-  let enabled=true,player=null,surface=null,version=0,returning=false;
+  let enabled=true,player=null,surface=null,version=0,returning=false,playerBudget=null;
   try { enabled=readViewPreference(storageKey)!=='preview'; } catch { /* Optional preference. */ }
   function paintMode() {
     document.documentElement.dataset.viewMode=enabled?'transition':'preview';
@@ -18,6 +19,11 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
   }
   paintMode();
   const cache=createLRU(16);
+  const scenes=new WeakMap();
+  const sceneFor=program=>{
+    if(!scenes.has(program))scenes.set(program,createTransitionScene(program,{format:'canvas'}));
+    return scenes.get(program);
+  };
   function clear() {
     version++;player?.destroy();player=null;surface?.remove();surface=null;
     host.classList.remove('transition-active');
@@ -29,12 +35,15 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
   }
   function ensure() {
     const current=getBaseline();if(!current)return false;
+    const baselineScene=sceneFor(current), budget=transitionNodeBudget(baselineScene);
+    if(player&&playerBudget!==budget){player.destroy();surface?.remove();player=null;surface=null;}
     if(!player){
+      playerBudget=budget;
       surface=document.createElement('div');surface.className='transition-surface';host.append(surface);
       surface.style.padding = 'var(--control-inset, 12px)';
-      player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,render:(scene, context, options) => renderTransitionScene(scene, context, { pixelRatio: Math.min(
+      player=createCanvasTransitionPlayer(surface,{duration:CARD_TRANSITION_MS,maxAnimatedNodes:transitionNodeBudget(baselineScene),render:(scene, context, options) => renderTransitionScene(scene, context, { pixelRatio: Math.min(
         options.pixelRatio * Number(host.dataset.chartZoom ?? 1), 4096 / scene.width, 4096 / scene.height, Math.sqrt(16000000 / (scene.width * scene.height))) })});
-      player.set(createTransitionScene(current,{format:'canvas'}));
+      player.set(baselineScene);
     }else if(!surface.isConnected)host.append(surface);
     host.classList.add('transition-active');return true;
   }
@@ -45,14 +54,14 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     returning=!card&&!program;
     try{
       let scene;
-      if(program)scene=createTransitionScene(program,{format:'canvas'});
+      if(program)scene=sceneFor(program);
       else if(card?.prepared){
         const artifact=card.prepared;
         const pending=cache.get(artifact)??cache.set(artifact,getCandidate(card));
         scene=await pending;
         if(!scene)cache.delete(artifact);
       }else if(card)return; // Keep the current picture while a preview prepares.
-      else scene=createTransitionScene(getBaseline(),{format:'canvas'});
+      else scene=sceneFor(getBaseline());
       if(request!==version||!enabled||!scene)return;
       player.element.setAttribute('aria-label',card?.title??'Visualization');
       surface.dataset.method=card?.prepared?.recommendation?.method??'';
@@ -70,6 +79,16 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
     onChange();
   });
   return {get enabled(){return enabled;},get active(){return Boolean(surface?.isConnected);},show,clear,
+    commit(program, paintBaseline) {
+      const pending = show(null, { program }), request = version, moving = surface;
+      // Replace Current beneath the independent animation layer. Authoring and
+      // the next deck can unlock now; a new hover may retarget this same player.
+      moving?.remove(); paintBaseline();
+      if (moving && moving === surface && enabled) { host.append(moving); host.classList.add('transition-active'); }
+      pending.then(() => { if (version === request) rest(); });
+    },
     // Current's native renderer may replace its subtree on Apply/Undo/resize.
-    reset(){clear();},get stats(){return player?.stats??null;}};
+    remember(program,scene){if(scene)scenes.set(program,scene);},
+    hasScene(program){return scenes.has(program);},
+    reset(){clear();cache.clear();},get stats(){return player?.stats??null;}};
 }

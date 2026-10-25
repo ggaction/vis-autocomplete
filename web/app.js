@@ -42,16 +42,17 @@ import { initializeHistoryShortcuts } from './history-shortcuts.js';
 import { createHistoryView } from './history-view.js';
 import { OPTION_GROUPS, FOLLOWUP_RECOMMENDATION_OPTIONS } from './option-groups.js';
 import { createCalculationClient } from './calculation-client.js';
-import { createLRU } from '../src/cache.js';
+import { createLRU, createWeightedLRU } from '../src/cache.js';
+import { graphicCost } from '../src/graphic-cost.js';
 import { actionTitle } from '../src/action-labels.js';
 import { normalizeSearchQuery } from '../src/action-search.js';
 import { importDataset, parseCSV } from '../src/data-import.js';
 import { reviewDatasetImport } from './import-dialog.js';
 import { chooseDatasetFile } from './upload-dialog.js';
-import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore, checkpointRevision } from './project.js';
+import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore, checkpointRevision, prepareHistorySnapshot } from './project.js';
 import { initializeAccountMenu } from './cloud/menu.js';
 import { accountSession } from './cloud/session.js';
-import { createProjectThumbnail } from './cloud/thumbnail.js';
+import { createThumbnailClient } from './cloud/thumbnail-client.js';
 export { parseCSV } from '../src/data-import.js';
 
 const { account: signedInAccount } = await accountSession();
@@ -114,7 +115,15 @@ function initialEngine() {
 }
 let activeRecommendation = null;
 const galleryCache = new WeakMap();
-const recentGalleries = createLRU(8, view => { galleryCache.delete(view); recommendationCache.delete(view); });
+const galleryBudget = createWeightedLRU(128, view => recentGalleries.delete(view));
+const recentGalleries = createLRU(8, view => { galleryBudget.delete(view); galleryCache.delete(view); recommendationCache.delete(view); });
+function touchGallery(view) {
+  const previews = new Set();
+  for (const deck of galleryCache.get(view)?.values() ?? []) for (const card of deck.cards) if (card.prepared) previews.add(card.prepared.preview);
+  for (const entry of recommendationCache.get(view)?.values() ?? []) for (const value of entry.latest?.defaults ?? []) if (value.prepared) previews.add(value.prepared.preview);
+  recentGalleries.set(view, true);
+  galleryBudget.set(view, true, graphicCost(view) + [...previews].reduce((sum, preview) => sum + 2 * graphicCost(preview), 0));
+}
 let mountedGallery = null;
 const renderedCharts = new WeakMap();
 let lastPreview = null;
@@ -123,7 +132,7 @@ const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
   isBusy: () => state.loading || state.committing || state.resizing, onError: message => notice(message, true) });
 let historyInspection = null;
 const historyView = createHistoryView($('history'), {
-  renderChart, meta: $('history-meta'),
+  renderChart: (host, program, label) => renderChartCanvas(host, program, label, { retain: false }), meta: $('history-meta'),
   onPreview: snapshot => { historyInspection = snapshot; showPreview(null); },
   onLeave: () => { historyInspection = null; showPreview(state.active); },
   onJump: index => restoreHistory(index),
@@ -496,6 +505,8 @@ async function restoreHistory(direction) {
   state.committing = true; updateHistoryButtons();
   pointerMotion.reset(); sliderHover.reset(); cancelChartTransfer();
   saveGallery();
+  try { await prepareHistorySnapshot(snapshot); }
+  catch (error) { state.committing = false; updateHistoryButtons(); notice(error.message, true); return; }
   const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
   Object.assign(state, structuredClone({ ...metadata, calls: [], setupCalls: [] }),
     { program, view, calls: [...snapshot.calls], setupCalls: snapshot.setupCalls, selectionAxes: axes, active: null });
@@ -1177,6 +1188,7 @@ function saveGallery() {
     const cache = galleryCache.get(deck.view), key = JSON.stringify([deck.context, deck.group, deck.searchQuery]);
     cache.delete(key); cache.set(key, deck);
     if (cache.size > 8) cache.delete(cache.keys().next().value);
+    touchGallery(deck.view);
   }
   for (const row of deck.rows) row.remove();
   mountedGallery = null;
@@ -1189,7 +1201,9 @@ function cancelRecommendationWork() {
 }
 
 function recommendationResponse(program = state.program, view = state.view, guideCall = state.guideCall, context = state.context, group = state.optionGroup, page = 0, searchQuery = state.searchQuery, onProgress) {
-  recentGalleries.set(view, true);
+  touchGallery(view);
+  if (!transitionMode.hasScene(view)) calculations.baselineScene(program, view, guideCall)
+    .then(scene => transitionMode.remember(view, scene)).catch(() => {});
   if (!recommendationCache.has(view)) recommendationCache.set(view, new Map());
   const cache = recommendationCache.get(view), key = JSON.stringify([context, group, page, searchQuery]);
   const previous = cache.get(key);
@@ -1203,6 +1217,7 @@ function recommendationResponse(program = state.program, view = state.view, guid
     entry.promise = calculations.recommend(program, view, guideCall, { ...context, fieldTypes: datasets.get(state.datasetId)?.imported.fieldTypes,
       ...FOLLOWUP_RECOMMENDATION_OPTIONS, excludeMethods: ['createOverlay', 'createLayerPlot'] }, group, page, searchQuery, response => {
         entry.latest = response;
+        touchGallery(view);
         for (const listener of entry.listeners) listener(response);
       }).then(response => { if (response.cancelled) remove(); return response; })
       .catch(error => { remove(); throw error; }).finally(() => {
@@ -1230,7 +1245,7 @@ function recommendationSpecs({ result, profile }) {
 async function updateCards() {
   cancelGalleryLeave();
   saveGallery();
-  if (state.phase === 'recommendations') recentGalleries.set(state.view, true);
+  if (state.phase === 'recommendations') touchGallery(state.view);
   pointerMotion.reset(); sliderHover.reset();
   pointerChoice = null; pointerCard = null; pointerInGallery = false;
   const generation = ++state.generation;
@@ -1509,6 +1524,7 @@ async function commit(card, { direct = false, refresh = false } = {}) {
       mountedGallery.rankingSource ??= { program: mountedGallery.program, view: mountedGallery.view, guideCall: mountedGallery.guideCall };
     }
     state.program = next; state.view = view; state.guideCall = committed.guideCall;
+    transitionMode.remember(view, pinned.scene);
     if (before) state.calls = [...before.calls];
     state.calls.push(...prerequisiteCalls.map(call => structuredClone(call)),
       { method: recommendation.method, args: structuredClone(recommendation.args) },
@@ -1540,8 +1556,9 @@ async function commit(card, { direct = false, refresh = false } = {}) {
     showCode(null, { settleApplied: true });
     // Compute the complete next recommendation set while the chart flies.
     if (!direct) recommendationResponse().catch(() => {});
-    if (!direct && transitionMode.enabled) {
-      await transitionMode.show(null, {program:view});
+    const movingTransition = !direct && transitionMode.enabled;
+    if (movingTransition) {
+      transitionMode.commit(view, () => renderChart(elements.current, view, 'Current visualization'));
     } else if (!direct) {
       renderChart(elements.preview, view, card.title);
       await transferChart(elements.preview, elements.current, host => renderChart(host, view, card.title), canvasGeometry(view));
@@ -1553,8 +1570,10 @@ async function commit(card, { direct = false, refresh = false } = {}) {
     elements.current.dataset.traceCount = view.trace.children.length;
     elements.current.dataset.steps = state.steps;
     elements.current.dataset.lastMethod = card.method;
-    transitionMode.reset();
-    renderChart(elements.current, view, 'Current visualization');
+    if (!movingTransition) {
+      transitionMode.reset();
+      renderChart(elements.current, view, 'Current visualization');
+    }
     elements['current-note'].textContent = card.title;
     elements['current-note'].title = elements['current-note'].textContent;
     // The chart is committed. Background recommendation thumbnails must not
@@ -1742,7 +1761,7 @@ async function emptyWorkspace() {
   pointerMotion.reset(); sliderHover.reset(); transitionMode.reset(); canvasResize.clear(); guideEditor.clear({ selection: true });
   historyView.clear({ restore: false }); historyInspection = null; history.clear(); resizeHistory.reset();
   state.tableView?.destroy?.(); state.galleryObserver?.disconnect();
-  mountedGallery = null; recentGalleries.clear(); renderedCharts.delete(elements.current); thumbnailView = null;
+  mountedGallery = null; galleryBudget.clear(); recentGalleries.clear(); renderedCharts.delete(elements.current); thumbnailView = null;
   Object.assign(state, { datasetId: null, rows: [], name: '', phase: 'initial', program: null, view: null, base: null,
     cards: [], active: null, context: {}, steps: 0, setupCalls: [], calls: [], baseCalls: [],
     selection: { fields: [] }, selectionAxes: null, profile: null, tableView: null, guideCall: null, adding: null });
@@ -1751,11 +1770,12 @@ async function emptyWorkspace() {
   $('selection-controls').hidden = true;
   resetCodeView($('code-content')); updateDatasetOptions(); await updateCards(); updateHistoryButtons();
 }
+const projectThumbnails = createThumbnailClient();
 let thumbnailView, thumbnailData;
 function cloudThumbnail() {
   if (state.phase === 'initial' || !state.view) return null;
   if (thumbnailView === state.view) return thumbnailData;
-  thumbnailData = createProjectThumbnail(state.view); thumbnailView = state.view; return thumbnailData;
+  thumbnailData = projectThumbnails.create(state.view).catch(() => null); thumbnailView = state.view; return thumbnailData;
 }
 
 async function resetVisualization() {

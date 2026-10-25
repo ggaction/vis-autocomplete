@@ -1,6 +1,9 @@
 import { freezeResult } from '../src/cache.js';
+import { createHistoryRuntimeCache } from './history-runtime.js';
 
 const snapshots = new WeakSet(), calls = new WeakSet();
+const runtime = createHistoryRuntimeCache();
+export const prepareCapturedHistory = snapshot => runtime.prepare(snapshot);
 export const isHistorySnapshot = snapshot => snapshots.has(snapshot);
 const recordCall = call => {
   if (calls.has(call)) return call;
@@ -10,12 +13,16 @@ const recordCall = call => {
 // Copy new authoring inputs once. Earlier immutable calls are shared across
 // history entries, so N edits do not retain N(N+1)/2 copies of their arguments.
 export function captureHistorySnapshot(state, currentNote = state.currentNote) {
-  const snapshot = Object.freeze({ program: state.program, view: state.view,
-    selectionAxes: state.selectionAxes, currentNote,
+  const metadata = { currentNote,
     ...freezeResult(structuredClone(Object.fromEntries(
       ['phase', 'context', 'steps', 'guideCall', 'selection', 'plotData', 'optionGroup'].map(key => [key, state[key]])))),
     setupCalls: Object.freeze(state.setupCalls.map(recordCall)), calls: Object.freeze(state.calls.map(recordCall)),
-  });
+  };
+  const value = { program: state.program, view: state.view, selectionAxes: state.selectionAxes };
+  const rows = Object.fromEntries(metadata.setupCalls.filter(call => call.method === 'createData' && call.args.values === '__LOADED_DATA__')
+    .map(call => [call.args.id, state.rows ?? state.program?.semanticSpec?.datasets.find(data => data.id === call.args.id)?.values]));
+  const snapshot = state.program?.semanticSpec && Object.values(rows).every(Array.isArray)
+    ? runtime.capture(metadata, value, rows) : Object.freeze({ ...metadata, ...value });
   snapshots.add(snapshot); return snapshot;
 }
 

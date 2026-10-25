@@ -13,7 +13,8 @@ page.on('pageerror', error => errors.push(error.message));
 try {
   await mkdir('output/cloud-testing', { recursive: true });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
-  await expect(page.locator('#auth-status')).toContainText('Sign in is not configured');
+  await expect(page.locator('#session-status')).toContainText('Sign in is not configured');
+  await expect(page.locator('#auth-gate')).toBeHidden();
   await expect(page.locator('#auth-submit')).toBeDisabled();
   assert.equal(await page.locator('#dataset').count(), 0);
   await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
@@ -24,8 +25,9 @@ try {
   await page.route('**/api/config', route => route.fulfill({ status: 503, body: '{}' }));
   await page.getByRole('button', { name: 'Try again' }).click();
   await expect(page.locator('#auth-submit')).toBeDisabled();
-  await expect(page.locator('#auth-status')).toContainText('Sign in is not configured');
+  await expect(page.locator('#session-status')).toContainText('Sign in is not configured');
+  await expect(page.locator('#auth-gate')).toBeHidden();
   assert.equal(await page.locator('#dataset').count(), 0);
   assert.deepEqual(errors, []);
-  console.log('Landing page: missing configuration, service failure, retry and mobile layout passed.');
+  console.log('Session screen: missing configuration, service failure, retry and mobile layout passed.');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

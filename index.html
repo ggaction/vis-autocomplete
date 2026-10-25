@@ -44,7 +44,13 @@
   <script type="module" src="/web/entry.js"></script>
 </head>
 <body>
-  <section id="auth-gate" class="auth-gate" aria-label="Welcome to Visualization Autocomplete">
+  <section id="session-gate" class="session-gate" aria-label="Opening Visualization Autocomplete" aria-busy="true">
+    <h1>Visualization Autocomplete</h1>
+    <p id="session-status" role="status" aria-live="polite">Checking your session…</p>
+    <button id="session-retry" type="button" hidden>Try again</button>
+    <noscript>Enable JavaScript to sign in and use Visualization Autocomplete.</noscript>
+  </section>
+  <section id="auth-gate" class="auth-gate" aria-label="Welcome to Visualization Autocomplete" hidden>
     <header class="landing-header"><a class="landing-brand" href="/">Visualization Autocomplete <span>1.5</span></a></header>
     <div class="landing-content">
       <div class="landing-intro">
@@ -84,8 +90,7 @@
             <p class="auth-switch"><span id="auth-switch-prompt">New here?</span> <button id="auth-switch" class="auth-text-button" type="button">Sign up</button></p>
           </fieldset>
         </form>
-        <p id="auth-status" class="auth-status" role="status" aria-live="polite">Checking your session…</p>
-        <button id="auth-retry" type="button" hidden>Try again</button>
+        <p id="auth-status" class="auth-status" role="status" aria-live="polite"></p>
         <a class="auth-privacy" href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy and data use</a>
         <noscript>Enable JavaScript to sign in and use Visualization Autocomplete.</noscript>
       </section>

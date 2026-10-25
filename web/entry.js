@@ -2,7 +2,7 @@ import { accountSession } from './cloud/session.js';
 import { initializeAccountViewPreferences } from './view-preferences.js';
 
 const $ = id => document.getElementById(id);
-const gate = $('auth-gate'), root = $('editor-root'), fields = $('auth-fields');
+const gate = $('auth-gate'), startup = $('session-gate'), root = $('editor-root'), fields = $('auth-fields');
 const status = $('auth-status');
 let account, mode = 'signin', loadingEditor = false, editorOwner = null;
 let stopPreferences;
@@ -45,7 +45,7 @@ async function run(action) {
 
 $('auth-switch').addEventListener('click', () => setMode(mode === 'signin' ? 'signup' : 'signin'));
 $('auth-forgot').addEventListener('click', () => { setMode('reset'); $('auth-email').focus(); });
-$('auth-retry').addEventListener('click', () => location.reload());
+$('session-retry').addEventListener('click', () => location.reload());
 $('auth-google').addEventListener('click', () => run(async () => {
   await account.google(); message('Opening Google sign in…');
 }));
@@ -70,26 +70,36 @@ $('auth-form').addEventListener('submit', event => {
 });
 
 function lockEditor() {
-  root.hidden = true; root.inert = true; gate.hidden = false;
+  root.hidden = true; root.inert = true;
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
+}
+function showStartup(text, error = false) {
+  gate.hidden = true; startup.hidden = false;
+  startup.setAttribute('aria-busy', String(!error));
+  $('session-status').textContent = text;
+  $('session-status').setAttribute('role', error ? 'alert' : 'status');
+  $('session-retry').hidden = !error;
+}
+function showAuth() {
+  startup.hidden = true; gate.hidden = false;
 }
 async function openEditor(user) {
   if (loadingEditor || !user) return;
   loadingEditor = true; editorOwner = user.id;
-  fields.disabled = true; message('Opening your workspace…');
+  fields.disabled = true; showStartup('Opening your workspace…');
   stopPreferences = initializeAccountViewPreferences(account);
   root.append($('editor-template').content.cloneNode(true));
-  // Measure the restored chart at its real viewport size while the landing
-  // page remains visible. display:none would initialize canvases at zero size.
+  // Keep the neutral startup screen until the verified account's chart is
+  // restored. display:none would initialize canvases at zero size.
   root.classList.add('editor-loading'); root.hidden = false;
   try {
     // No editor, recommendation workers, datasets, or draft reads before auth.
     await import('./app.js');
     if (account.user?.id !== editorOwner) return;
-    root.classList.remove('editor-loading'); root.inert = false; gate.hidden = true;
+    root.classList.remove('editor-loading'); root.inert = false; startup.hidden = true;
     window.dispatchEvent(new Event('resize'));
   } catch {
-    lockEditor(); message('Your workspace could not load. Please try again.', true); $('auth-retry').hidden = false;
+    lockEditor(); showStartup('Your workspace could not load. Please try again.', true);
   }
 }
 function identityChanged(state) {
@@ -97,9 +107,10 @@ function identityChanged(state) {
     stopPreferences?.();
     // Unmount workers, shortcuts and in-memory private charts together. A new
     // identity always starts a fresh editor, including sign-out in another tab.
-    lockEditor(); location.reload(); return;
+    lockEditor(); showStartup('Checking your session…'); location.reload(); return;
   }
-  if (state.recovery) { setMode('recovery'); fields.disabled = false; return; }
+  if (state.recovery) { setMode('recovery'); fields.disabled = false; showAuth(); return; }
+  if (!state.user) { showAuth(); return; }
   if (mode !== 'recovery' && state.user) void openEditor(state.user);
 }
 
@@ -110,6 +121,5 @@ try {
   fields.disabled = false; message(); identityChanged(session.state);
 } catch (error) {
   lockEditor(); fields.disabled = true;
-  message(error.message || 'Sign in is temporarily unavailable. Please try again.', true);
-  $('auth-retry').hidden = false;
+  showStartup(error.message || 'Could not check your session. Please try again.', true);
 }

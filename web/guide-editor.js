@@ -13,8 +13,10 @@ export function guideResizeFactor(bounds, dx, dy, edge = 'se') {
 }
 
 export function createGuideEditor(host, callbacks) {
-  let display, targets = [], active, overlay, gesture, stage;
-  function select(key) {
+  let display, targets = [], targetSource, active, overlay, gesture, stage;
+  const measured = new WeakMap();
+  function select(key, force = false) {
+    if (!force && active?.key === key && host.dataset.guideHover === key) return;
     active = targets.find(target => target.key === key);
     if (active) host.dataset.guideHover = active.key; else delete host.dataset.guideHover;
     for (const node of overlay?.querySelectorAll('.guide-control') ?? []) node.classList.toggle('active', node.dataset.guideKey === active?.key);
@@ -23,22 +25,30 @@ export function createGuideEditor(host, callbacks) {
     display = program; stage = host.querySelector('.canvas-stage');
     if (!stage || !callbacks.available()) { clear(); return; }
     const source = gesture?.source ?? callbacks.program();
-    targets = [...removableChartPanels(source), ...editableGuides(source)];
+    const changed = targetSource !== source;
+    if (changed) { targets = [...removableChartPanels(source), ...editableGuides(source)]; targetSource = source; }
+    let boundsByKey = measured.get(program);
+    if (!boundsByKey) { boundsByKey = new Map(); measured.set(program, boundsByKey); }
     const old = active?.key;
     overlay = stage.querySelector('.guide-editor');
     if (!overlay) { overlay = document.createElement('div'); overlay.className = 'guide-editor'; stage.append(overlay); }
     const scale = stage.clientWidth / canvasGeometry(program).width;
-    overlay.replaceChildren();
+    if (changed) overlay.replaceChildren();
+    const existing = new Map([...overlay.children].map(node => [node.dataset.guideKey, node]));
     for (const target of targets) {
-      const bounds = guideBounds(program, target.ids); if (!bounds) continue;
+      if (!boundsByKey.has(target.key)) boundsByKey.set(target.key, program === source ? target.bounds : guideBounds(program, target.ids));
+      const bounds = boundsByKey.get(target.key);
+      if (!bounds) { existing.get(target.key)?.remove(); continue; }
       const isTitleGroup = target.kind === 'title' && !target.part;
       const pad = isTitleGroup ? 10 : 3;
-      const node = document.createElement('div'); node.className = 'guide-control'; node.dataset.guideKey = target.key;
+      const retained = existing.get(target.key);
+      const node = retained ?? document.createElement('div'); node.className = 'guide-control'; node.dataset.guideKey = target.key;
       node.classList.toggle('compact-guide', (bounds.right-bounds.left)*scale < 24 || (bounds.bottom-bounds.top)*scale < 16);
       node.style.zIndex = target.kind === 'panel' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' && target.part ? '3' : '2';
       node.classList.toggle('panel-control', target.kind === 'panel');
       Object.assign(node.style, { left: `${bounds.left*scale-pad}px`, top: `${bounds.top*scale-pad}px`,
         width: `${(bounds.right-bounds.left)*scale+pad*2}px`, height: `${(bounds.bottom-bounds.top)*scale+pad*2}px` });
+      if (retained) { node.classList.toggle('active', target.key === (gesture?.target.key ?? old)); continue; }
       const hit = document.createElement('button'); hit.type = 'button'; hit.className = 'guide-hit';
       hit.dataset.guide = target.key; hit.setAttribute('aria-label', target.movable ? `Move ${target.label}` : `Select ${target.label}`);
       hit.style.cursor = target.movable ? 'move' : 'default';
@@ -76,7 +86,7 @@ export function createGuideEditor(host, callbacks) {
       }
       overlay.append(node);
     }
-    select(gesture?.target.key ?? old);
+    select(gesture?.target.key ?? old, true);
   }
   function pointer(event) {
     if (gesture || !callbacks.available()) return;
@@ -196,6 +206,6 @@ export function createGuideEditor(host, callbacks) {
     update(g,g.startX+(['ArrowRight','ArrowDown'].includes(event.key)?amount:-amount),g.startY);g.ended=true;if(!g.running)finish(g);
   });
   new ResizeObserver(()=>{if(!gesture&&display&&host.classList.contains('canvas-editor'))mount(display);}).observe(host);
-  function clear(){ overlay?.remove();overlay=null;targets=[];active=null;delete host.dataset.guideHover; }
+  function clear(){ overlay?.remove();overlay=null;targets=[];targetSource=null;active=null;delete host.dataset.guideHover; }
   return { mount,clear,cancel };
 }

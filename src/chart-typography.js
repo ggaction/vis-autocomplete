@@ -130,9 +130,10 @@ export function textUnderlines(program, groups) {
   });
 }
 
-export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), fontSize, delta, fontFamily }) {
+export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), fontSize, delta, deltas, fontFamily }) {
   if (fontSize !== undefined && (!Number.isFinite(fontSize) || fontSize < 6 || fontSize > 96)) throw new Error('Font size must be between 6 and 96.');
   if (delta !== undefined && ![-1, 1].includes(delta)) throw new Error('Font size step must be −1 or +1.');
+  if (deltas !== undefined && (!Array.isArray(deltas) || !deltas.every(n => [-1, 1].includes(n)))) throw new Error('Invalid font size steps.');
   if (fontFamily !== undefined && (typeof fontFamily !== 'string' || !fontFamily.trim())) throw new Error('Choose a font family.');
   const calls = [];
   if (fontFamily) {
@@ -147,10 +148,29 @@ export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), 
   }
   for (const target of chartTextTargets(program)) {
     if (!fontFamily && !groups.includes(target.group)) continue;
-    const style = fontFamily ? { fontFamily } : { fontSize: fontSize ?? Math.max(6, Math.min(96, (target.config.fontSize ?? 12) + delta)) };
+    const adjusted = () => (deltas ?? [delta]).reduce((size, step) => Math.max(6, Math.min(96, size + step)), target.config.fontSize ?? 12);
+    const style = fontFamily ? { fontFamily } : { fontSize: fontSize ?? adjusted() };
     calls.push(target.call(style));
   }
-  return [...new Map(calls.map(call => [JSON.stringify(call), call])).values()];
+  // One owner can expose several selected roles (axis labels + title, legend
+  // labels + title). Edit that native owner once, fitting its layout once.
+  const merged = new Map();
+  const identity = value => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+    return Object.fromEntries(Object.entries(value).flatMap(([key, child]) => {
+      if (['fontSize', 'fontFamily'].includes(key)) return [];
+      const next = identity(child);
+      return next && typeof next === 'object' && !Array.isArray(next) && !Object.keys(next).length ? [] : [[key, next]];
+    }));
+  };
+  const merge = (a, b) => Object.fromEntries([...new Set([...Object.keys(a), ...Object.keys(b)])].map(key =>
+    [key, a[key] && b[key] && typeof a[key] === 'object' && typeof b[key] === 'object' && !Array.isArray(b[key])
+      ? merge(a[key], b[key]) : b[key] ?? a[key]]));
+  for (const call of calls) {
+    const key = signature(call.method === 'applyTheme' ? call : identity(call));
+    merged.set(key, merged.has(key) ? merge(merged.get(key), call) : call);
+  }
+  return [...merged.values()];
 }
 
 export function prepareTypography(program, view, options) {

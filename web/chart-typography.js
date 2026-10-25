@@ -3,7 +3,7 @@ import { canvasGeometry } from './canvas-geometry.js';
 
 const FONTS = ['Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Times New Roman', 'Courier New'];
 export function createTypographyToolbar(host, chartHost, { read, apply, onError }) {
-  let program, items = [], selected = new Set(TEXT_GROUPS.map(g => g.id)), hovered = null, active = false, pending, timer, working = false;
+  let program, underlineProgram, underlineGeometry, highlightKey, underlineOverlay, items = [], selected = new Set(TEXT_GROUPS.map(g => g.id)), hovered = null, active = false, pending, timer, working = false;
   host.classList.add('typography-toolbar'); host.setAttribute('aria-label', 'Chart typography');
   const font = document.createElement('select'); font.id = 'chart-font'; font.setAttribute('aria-label', 'Chart font family'); font.title = 'Font family for the whole chart';
   for (const family of FONTS) font.add(new Option(family, family));
@@ -34,16 +34,17 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError 
   sizeGroup.append(decrease, size, increase); host.append(font, menu, sizeGroup);
   function request(options) {
     if (options.delta && pending?.delta && JSON.stringify(pending.groups) === JSON.stringify(options.groups)) {
-      pending.steps += options.delta;
-    } else pending = { ...options, ...(options.delta ? { steps: options.delta } : {}) };
+      pending.deltas.push(options.delta);
+    } else pending = { ...options, ...(options.delta ? { deltas: [options.delta] } : {}) };
     clearTimeout(timer); timer = setTimeout(flush, 120);
   }
   async function flush() {
     if (working || !pending) return;
     const next = pending; pending = null; working = true;
     try {
-      // Keep rapid repeated clicks intentional; native calls share one history run.
-      if (next.delta) for (let n = 0; n < Math.abs(next.steps); n++) await apply({ groups: next.groups, delta: Math.sign(next.steps) });
+      // Preserve every click (including clamping at the bounds), but materialize
+      // the final requested sizes only once per burst.
+      if (next.delta) await apply({ groups: next.groups, deltas: next.deltas });
       else await apply(next);
     } catch (error) { onError(error.message); }
     finally { working = false; refresh(); if (pending) flush(); }
@@ -68,13 +69,20 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError 
   document.addEventListener('pointerdown', event => { if (!host.contains(event.target)) { menu.open = false; hovered = null; active = false; highlight(false); } });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && menu.open) { menu.open = false; summary.focus(); } });
   function highlight(force) {
-    chartHost.querySelector('.text-underlines')?.remove();
-    if (!program || host.hidden || !(force ?? (active || menu.open || host.contains(document.activeElement)))) return;
+    if (!program || host.hidden || read().resizing || !(force ?? (active || menu.open || host.contains(document.activeElement)))) {
+      underlineOverlay?.remove(); underlineOverlay = null; highlightKey = null; return;
+    }
     const stage = chartHost.querySelector('.canvas-stage'); if (!stage) return;
-    const overlay = document.createElement('div'); overlay.className = 'text-underlines'; overlay.setAttribute('aria-hidden', 'true');
     const scale = stage.clientWidth / canvasGeometry(program).width;
     const groups = document.activeElement === font ? TEXT_GROUPS.map(g => g.id) : hovered ?? [...selected];
-    for (const b of textUnderlines(program, groups)) {
+    if (underlineProgram !== program) { underlineProgram = program; underlineGeometry = textUnderlines(program, TEXT_GROUPS.map(g => g.id)); highlightKey = null; }
+    const key = `${scale}:${[...groups].sort().join(',')}`;
+    if (key === highlightKey && underlineOverlay?.parentNode === stage) return;
+    highlightKey = key;
+    underlineOverlay?.remove();
+    const overlay = document.createElement('div'); overlay.className = 'text-underlines'; overlay.setAttribute('aria-hidden', 'true');
+    underlineOverlay = overlay;
+    for (const b of underlineGeometry.filter(b => groups.includes(b.group))) {
       const line = document.createElement('span'); line.dataset.textGroup = b.group;
       Object.assign(line.style, { left: `${b.x*scale}px`, top: `${b.y*scale}px`, width: `${Math.max(2,b.length*scale)}px`,
         transformOrigin: '0 0', transform: `rotate(${b.rotation}rad)` });

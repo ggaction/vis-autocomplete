@@ -1,5 +1,5 @@
 import { serializeProgram } from 'ggaction/persistence';
-import { packProgramUpdate, unpackProgramUpdate } from './program-transfer.js';
+import { packProgramUpdate, unpackProgramUpdateAsync } from './program-transfer.js';
 import { rememberDisplayedGuides } from '../src/prepare.js';
 import { createLRU, signature } from '../src/cache.js';
 import { collectRecommendationStream } from './recommendation-stream.js';
@@ -167,8 +167,8 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
       const endpoint = await ensure(role, context);
       const nextId = ++nextState;
       const result = await endpoint.send({ type: 'materialize', stateId: context.id, nextStateId: nextId, action, setupCalls });
-      const next = unpackProgramUpdate(program, result.update);
-      const nextView = rememberDisplayedGuides(unpackProgramUpdate(next, result.viewUpdate), result.guideCall);
+      const next = await unpackProgramUpdateAsync(program, result.update);
+      const nextView = rememberDisplayedGuides(await unpackProgramUpdateAsync(next, result.viewUpdate), result.guideCall);
       const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64), pending: new Map(),
         // The other role can install the same finished native state, rather than
         // re-executing the selected action and all of its facet/guide derivations.
@@ -180,9 +180,14 @@ export function createCalculationClient({ workerFactory = () => new Worker('/out
     async typography(program, view, guideCall, options) {
       preview.cancelPending();
       const context = contextFor(program, view, guideCall), endpoint = await ensure('preview', context);
-      const result = await endpoint.send({ type: 'typography', stateId: context.id, guideCall, options });
-      const next = unpackProgramUpdate(program, result.update);
-      const nextView = rememberDisplayedGuides(unpackProgramUpdate(next, result.viewUpdate), result.guideCall);
+      const nextId = ++nextState;
+      const result = await endpoint.send({ type: 'typography', stateId: context.id, nextStateId: nextId, guideCall, options });
+      const next = await unpackProgramUpdateAsync(program, result.update);
+      const nextView = rememberDisplayedGuides(await unpackProgramUpdateAsync(next, result.viewUpdate), result.guideCall);
+      const nextContext = { id: nextId, program: next, view: nextView, guideCall: result.guideCall, cache: createLRU(64), pending: new Map(),
+        transition: { baseStateId: context.id, update: result.update, viewUpdate: result.viewUpdate, guideCall: result.guideCall } };
+      contexts.set(next, new WeakMap([[nextView, nextContext]])); recent.set(nextId, nextContext);
+      active.preview = { id: nextId, context: nextContext, promise: Promise.resolve() };
       return { program: next, view: nextView, guideCall: result.guideCall, calls: result.calls };
     },
   };

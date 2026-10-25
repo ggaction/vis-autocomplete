@@ -98,3 +98,18 @@ test('underlines follow rotated axis titles instead of their axis-aligned boundi
   assert.ok(Math.abs(line.length-(line.bottom-line.top))<.01);
   assert.ok(Number.isFinite(line.x)&&Number.isFinite(line.y));
 });
+
+test('rapid size steps preserve clamping and merge selected roles into one native owner edit',()=>{
+  const p=unit().editCanvas({plot:{width:1000,height:1000},margin:500})
+    .editXAxis({ticksAndLabels:{count:2}}).editXAxis({labels:{fontSize:95},title:{fontSize:94}});
+  const options={groups:['ticks','axisTitles'],deltas:[1,1,1,-1]};
+  const calls=typographyCalls(p,options);
+  assert.equal(calls.filter(c=>c.method==='editXAxis').length,1);
+  assert.deepEqual(calls.find(c=>c.method==='editXAxis').args,{labels:{fontSize:95},title:{fontSize:95}});
+  const result=prepareTypography(p,p,options);
+  assert.equal(result.view.guideConfigs.axis.x.labels.fontSize,95);
+  assert.equal(result.view.guideConfigs.axis.x.title.fontSize,95);
+  let replay=p;for(const c of result.calls)replay=replay[c.method](c.args);
+  assert.deepEqual(replay.createGuides(result.guideCall.args).graphicSpec,result.view.graphicSpec);
+  assert.equal(p.guideConfigs.axis.x.labels.fontSize,95);
+});

@@ -269,7 +269,9 @@ const guideEditor = createGuideEditor(elements.current, {
     // Title and subtitle move one shared native title block. Different legends
     // and other edit operations must never overwrite one another's history.
     const historyKey = operation === 'move' ? guideMoveHistoryKey(target) : null;
-    return { base: state.program, view: state.view, guideCall: state.guideCall,
+    const heldCanvas = elements.current.querySelector('canvas');
+    holdChartCanvasDensity(heldCanvas);
+    return { base: state.program, view: state.view, guideCall: state.guideCall, heldCanvas,
       ...(historyKey ? { historyKey, resizeBefore: resizeHistory.begin(historyKey) } : {}),
       title: `${operation === 'resize' ? 'Resize' : 'Move'} ${target.label}` };
   },
@@ -289,7 +291,8 @@ const guideEditor = createGuideEditor(elements.current, {
   },
   restore(context) { renderedCharts.delete(elements.current); renderChart(elements.current, context.view, 'Current visualization'); showCode(); },
   feedback(message) { notice(message, true); },
-  end() {
+  end(context) {
+    holdChartCanvasDensity(context.heldCanvas, false);
     state.resizing = false; elements.cards.inert = state.committing;
     renderedCharts.delete(elements.current); renderChart(elements.current, state.view, 'Current visualization');
     refreshVisibleCards(); updateHistoryButtons(); updateGalleryNavigation(); notice();

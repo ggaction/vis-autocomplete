@@ -119,6 +119,7 @@ export function createCalculationService(model) {
       const { program, view, rankings, decks } = stateFor(stateId);
       if (type === 'typography') {
         const result = prepareTypography(program, view, options);
+        if (nextStateId !== undefined) retain(nextStateId, result.program, result.view);
         return { update: packProgramUpdate(program, result.program), viewUpdate: packProgramUpdate(result.program, result.view),
           guideCall: result.guideCall ?? guideCall, calls: result.calls };
       }

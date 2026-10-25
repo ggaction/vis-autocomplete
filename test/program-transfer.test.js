@@ -84,3 +84,37 @@ test('compiled reload checkpoint preserves native state, guides, history, and su
   service.execute({ type: 'state', stateId: 2, snapshot: checkpoint.snapshot, guideCall });
   assert.deepEqual(service.execute({ type: 'prepare', stateId: 2, action }).preview, expected.preview);
 });
+
+test('guide-only worker updates reuse unchanged data and graphics across fresh facet materializations', () => {
+  const base = scatter().facet({field:'C',columns:2,guides:{axes:'outer',legend:'shared'}});
+  const next = base.editLegend({channel:'color',labels:{fontSize:16}});
+  const update = structuredClone(packProgramUpdate(base,next));
+  // The receiver may have been restored from disk and have different sharing.
+  const receiver = deserializeProgram(serializeProgram(base));
+  const restored = unpackProgramUpdate(receiver,update);
+  assert.equal(serializeProgram(restored),serializeProgram(next));
+  assert.equal(restored.semanticSpec,receiver.semanticSpec);
+  for(const [id,graphic] of Object.entries(base.graphicSpec.objects)) {
+    if(JSON.stringify(graphic)===JSON.stringify(next.graphicSpec.objects[id])) {
+      assert.equal(restored.graphicSpec.objects[id],receiver.graphicSpec.objects[id],id);
+    }
+  }
+  assert.ok(JSON.stringify(update).length < serializeProgram(next).length / 2);
+  assert.ok(Object.isFrozen(restored.graphicSpec.objects));
+  assert.throws(()=>unpackProgramUpdate(base,{root:{base:['missing']},nodes:[]}),/Unknown worker state/);
+  assert.throws(()=>unpackProgramUpdate(base,{root:{node:0},nodes:[{array:[{node:0}]}]}),/Cyclic/);
+});
+
+test('cooperative worker restore yields without exposing a partial or mutable program', async () => {
+  const {unpackProgramUpdateAsync}=await import('../web/program-transfer.js');
+  const base=scatter();
+  const next=base.createData({id:'large',values:Array.from({length:5000},(_,i)=>({x:i,y:i*2}))});
+  const packet=structuredClone(packProgramUpdate(base,next));
+  let heartbeat=false;const timer=setTimeout(()=>{heartbeat=true;},0);
+  const restored=await unpackProgramUpdateAsync(base,packet);clearTimeout(timer);
+  assert.equal(heartbeat,true,'the event loop can handle input before restoration completes');
+  assert.equal(serializeProgram(restored),serializeProgram(next));
+  assert.equal(restored.graphicSpec,base.graphicSpec);
+  const old=serializeProgram(restored);packet.nodes.length=0;
+  assert.equal(serializeProgram(restored),old,'native state must not alias the mutable message');
+});

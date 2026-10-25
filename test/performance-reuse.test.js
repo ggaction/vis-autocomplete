@@ -243,3 +243,25 @@ test('successive Apply reuses worker states, cross-role advance and exact immuta
   assert.equal(renderSVG(restored.preview), renderSVG(prepareGuidedAction(original, { method: 'encodeSize', args: { target: 'plot', value: 120 } }, originalView).preview));
   assert.equal(requests.filter(r => r.type === 'state').length, 2, 'expired Undo states also transfer against a known baseline');
 });
+
+test('typography retains the completed worker state and transfers it to the other role without replay', async t => {
+  const threads=[],requests=[];
+  const client=createCalculationClient({workerFactory:role=>{
+    const worker=new Worker(new URL('./fixtures/calculation-thread.mjs',import.meta.url));threads.push(worker);
+    return {addEventListener:(type,cb)=>worker.on(type,type==='message'?data=>cb({data}):cb),
+      postMessage:data=>{requests.push({role,...data.request});worker.postMessage(data);}};
+  }});
+  t.after(()=>Promise.all(threads.map(w=>w.terminate())));await client.ready;
+  const p=scatter(),view=p.createGuides(),guideCall={method:'createGuides',args:{}};
+  const action={method:'encodeSize',args:{target:'plot',value:80}};
+  await client.prepareResized(p,view,guideCall,{method:'editCanvas',args:{plot:{width:330,height:314}}},action);
+  const result=await client.typography(p,view,guideCall,{groups:['ticks'],fontSize:16});
+  const count=requests.length;
+  await client.prepare(result.program,result.view,result.guideCall,action,[],{interactive:true});
+  assert.equal(requests.slice(count).filter(r=>['state','state-update','advance'].includes(r.type)).length,0);
+  await client.prepareResized(result.program,result.view,result.guideCall,
+    {method:'editCanvas',args:{plot:{width:330,height:314}}},action);
+  assert.ok(requests.slice(count).some(r=>r.role==='recommendation'&&r.type==='advance'&&r.viewUpdate));
+  assert.equal(result.view.guideConfigs.axis.x.labels.fontSize,16);
+  assert.equal(result.view.trace.children.at(-1).op,'createGuides');
+});

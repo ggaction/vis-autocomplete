@@ -18,7 +18,7 @@ await context.addInitScript(() => {
  requestAnimationFrame(sample);
 });
 const page=await context.newPage(),errors=[],events=[],reports=[],projects=new Map(),uploads=new Map();let profile=null,revision=0;const assetRequests=[];
-let refreshRequests=0,projectReads=0;
+let refreshRequests=0,projectReads=0;const failedDeletes=new Set();
 page.on('request', req=>assetRequests.push(new URL(req.url()).pathname));
 page.setDefaultTimeout(60000);
 const user={id:'11111111-1111-4111-8111-111111111111',aud:'authenticated',email:'user@example.org',app_metadata:{provider:'email',providers:['email']},user_metadata:{},identities:[],created_at:new Date().toISOString()};
@@ -47,7 +47,7 @@ const mockTransport = async route=>{
  }
  if(u.pathname==='/rest/v1/projects'){
   const id=u.searchParams.get('id')?.replace('eq.','');
-  if(req.method()==='DELETE'){projects.delete(id);return json(null);}
+  if(req.method()==='DELETE'){if(failedDeletes.delete(id))return json({message:'Delete failed. Please retry.'},503);projects.delete(id);return json(null);}
   if(id)projectReads++;
   return json(id?projects.get(id):[...projects.values()]);
  }
@@ -255,10 +255,12 @@ try{
  const savedBeforePreviews=JSON.stringify([...projects.values()]);
  const datasetBeforePreviews=await other.locator('#dataset').inputValue();
  await other.locator('#workspace-menu').click();
- const repaired=other.locator('.cloud-project img');await repaired.scrollIntoViewIfNeeded();
+ await expect(other.locator('.cloud-project-preview')).toBeHidden();
+ await other.locator('.cloud-project').first().hover();
+ const repaired=other.locator('.cloud-project-preview img:visible');
  await expect.poll(()=>repaired.evaluate(image=>Math.max(image.naturalWidth/1120,image.naturalHeight/720)),{timeout:30000}).toBeGreaterThan(.5);
  await expect(repaired).toHaveCSS('object-position','50% 50%');
- await expect(repaired).toHaveCSS('height','180px');
+ assert.ok((await repaired.boundingBox()).height >= 200);
  const repairedSource=await repaired.getAttribute('src');assert.notEqual(repairedSource,previewed.thumbnail);
  assert.equal(JSON.stringify([...projects.values()]),savedBeforePreviews,'Rendering saved thumbnails must never create or change project revisions');
  assert.equal(await other.locator('#dataset').inputValue(),datasetBeforePreviews,'Rendering a thumbnail must not open its project');
@@ -266,13 +268,18 @@ try{
  await other.locator('dialog.workspace-drawer[open]').getByRole('button',{name:'Close',exact:true}).click();
  const readsBeforeCache=projectReads;
  await other.locator('#workspace-menu').click();
- await expect(other.locator('.cloud-project img')).toHaveAttribute('src',repairedSource);
+ await other.locator('.cloud-project').first().hover();
+ await expect(other.locator('.cloud-project-preview img:visible')).toHaveAttribute('src',repairedSource);
  assert.equal(projectReads,readsBeforeCache,'Reopening the menu must reuse the derived thumbnail without downloading/replaying the project');
  previewed.thumbnail=originalThumbnail;
  await device.close();
  const second=await context.newPage();await second.goto(origin);await second.locator('#current canvas').waitFor();
  await expect(second.locator('#auth-gate')).toBeHidden();
- await page.locator('#workspace-menu').click();await page.getByRole('button',{name:'Rename current visualization',exact:true}).click();await dialog().getByLabel('Project name',{exact:true}).fill('My saved cars');await dialog().getByRole('button',{name:'Save name',exact:true}).click();
+ await page.locator('#workspace-menu').click();
+ await dialog().getByRole('button',{name:'Open Cars exploration',exact:true}).dblclick();
+ await dialog().getByLabel('Project name',{exact:true}).fill('My saved cars');
+ await dialog().getByLabel('Project name',{exact:true}).press('Enter');
+ await expect(dialog().getByLabel('Project name',{exact:true})).toHaveCount(0);await close();
  await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');await expect.poll(()=>[...projects.values()][0]?.title).toBe('My saved cars');
  const carsId=[...projects.values()][0].id;
  // Upload opens a keyboard-accessible drop zone, rather than opening the file
@@ -398,21 +405,91 @@ try{
  await dialog().getByRole('button',{name:'Cancel',exact:true}).click();
  assert.equal(projects.size,2);const salesDataset=await page.locator('#dataset').inputValue();
  await page.locator('#workspace-menu').click();
- const carsItem=page.locator('.cloud-project').filter({has:page.getByRole('button',{name:'Open My saved cars',exact:true})});
- const image=carsItem.locator('img');await expect(image).toBeVisible();
+ const carsItem=page.locator(`.cloud-project[data-project-id="${carsId}"]`);
+ await carsItem.hover();
+ const image=page.locator('.cloud-project-preview img:visible');await expect(image).toBeVisible();
  await expect(image).toHaveCSS('object-position','50% 50%');
- const imageBox=await image.boundingBox(),openBox=await carsItem.locator('.cloud-project-open').boundingBox();
- assert.ok(Math.abs(imageBox.width-openBox.width)<2);assert.ok(imageBox.height>100);
- await carsItem.getByRole('button',{name:'Rename My saved cars',exact:true}).dblclick();
+ const imageBox=await image.boundingBox(),drawerBox=await dialog().boundingBox();
+ assert.ok(imageBox.x>drawerBox.x+drawerBox.width);assert.ok(imageBox.height>=200);
+ assert.ok((await carsItem.boundingBox()).height<65);
+ await carsItem.getByRole('button',{name:'Open My saved cars',exact:true}).dblclick();
  await carsItem.getByRole('textbox',{name:'Project name',exact:true}).fill('Cancelled title');
  await carsItem.getByRole('textbox',{name:'Project name',exact:true}).press('Escape');
  assert.equal(projects.get(carsId).title,'My saved cars');await expect(dialog()).toBeVisible();
- await carsItem.getByRole('button',{name:'Rename My saved cars',exact:true}).dblclick();
+ await carsItem.getByRole('button',{name:'Open My saved cars',exact:true}).dblclick();
  await carsItem.getByRole('textbox',{name:'Project name',exact:true}).fill('Cars comparison');
  await carsItem.getByRole('textbox',{name:'Project name',exact:true}).press('Enter');
  await expect.poll(()=>projects.get(carsId).title).toBe('Cars comparison');
  assert.equal(await page.locator('#dataset').inputValue(),salesDataset,'Renaming another project must not open it');
+ // Compact list: controls stay disabled until there is a selection; hover
+ // previews are outside the drawer and never alter the current workspace.
+ const drawer=page.locator('dialog.workspace-drawer[open]');
+ await expect(drawer.getByRole('button',{name:'Rename current visualization',exact:true})).toHaveCount(0);
+ await expect(drawer.getByRole('button',{name:'Duplicate current visualization',exact:true})).toHaveCount(0);
+ await expect(drawer.getByRole('button',{name:'New visualization',exact:true})).toHaveText('+');
+ const duplicate=drawer.getByRole('button',{name:'Duplicate',exact:true}),remove=drawer.getByRole('button',{name:'Delete',exact:true});
+ await expect(duplicate).toBeDisabled();await expect(remove).toBeDisabled();
+ const headBox=await drawer.locator('header').boundingBox(),libraryBox=await drawer.getByRole('button',{name:'My datasets',exact:true}).boundingBox();
+ assert.ok(libraryBox.y-(headBox.y+headBox.height)<=12,'No empty status/header gap');
+ await carsItem.hover();await expect(page.locator('.cloud-project-preview')).toBeVisible();
  await page.screenshot({path:'output/cloud-testing/my-visualizations.png'});
+ await drawer.getByRole('heading',{name:'Workspace',exact:true}).hover();
+ await expect(page.locator('.cloud-project-preview')).toBeHidden();
+ // Copy an inactive project without changing the current chart or source.
+ const originalCars=structuredClone(projects.get(carsId)),activeCode=await page.locator('#code-content').innerText();
+ await carsItem.getByRole('checkbox',{name:'Select Cars comparison',exact:true}).check();
+ await expect(duplicate).toBeEnabled();await expect(remove).toBeEnabled();
+ await duplicate.click();
+ await expect.poll(()=>projects.size).toBe(3);
+ const firstCopy=[...projects.values()].find(row=>row.title==='Cars comparison (copy)');
+ assert.deepEqual(firstCopy.snapshot,originalCars.snapshot);assert.deepEqual(projects.get(carsId),originalCars);
+ assert.equal(await page.locator('#dataset').inputValue(),salesDataset);
+ assert.equal(await page.locator('#code-content').innerText(),activeCode);
+ await expect(drawer.getByRole('checkbox',{name:'Select Cars comparison (copy)',exact:true})).toBeChecked();
+ await duplicate.click();await expect.poll(()=>projects.size).toBe(4);
+ const secondCopy=[...projects.values()].find(row=>row.title==='Cars comparison (copy) (copy)');
+ await drawer.getByRole('checkbox',{name:'Select Cars comparison (copy)',exact:true}).check();
+ await expect(duplicate).toBeDisabled();await expect(remove).toBeEnabled();
+ await expect(drawer.locator('.cloud-selection-count')).toHaveText('2 selected');
+ await page.screenshot({path:'output/cloud-testing/workspace-selected.png'});
+ await remove.click();await expect(dialog().getByRole('heading')).toHaveText('Delete 2 visualizations?');
+ await dialog().getByRole('button',{name:'Cancel',exact:true}).click();assert.equal(projects.size,4);
+ // Select-all includes every saved project, then restore just the two copies.
+ const all=drawer.getByRole('checkbox',{name:'Select all visualizations',exact:true});
+ await all.check();await expect(drawer.locator('.cloud-selection-count')).toHaveText('4 selected');await expect(duplicate).toBeDisabled();
+ await all.uncheck();await expect(remove).toBeDisabled();
+ await drawer.getByRole('checkbox',{name:'Select Cars comparison (copy)',exact:true}).check();
+ await drawer.getByRole('checkbox',{name:'Select Cars comparison (copy) (copy)',exact:true}).check();
+ failedDeletes.add(secondCopy.id);
+ await remove.click();await dialog().getByRole('button',{name:'Delete',exact:true}).click();
+ await expect(dialog().getByRole('alert')).toContainText('Delete failed');
+ assert.equal(projects.size,3);assert.ok(!projects.has(firstCopy.id)&&projects.has(secondCopy.id));
+ await expect(drawer.locator('.cloud-selection-count')).toHaveText('1 selected');
+ await dialog().getByRole('button',{name:'Delete',exact:true}).click();
+ await expect.poll(()=>projects.size).toBe(2);assert.ok(!projects.has(firstCopy.id)&&!projects.has(secondCopy.id));
+ await expect(drawer.locator('.cloud-project')).toHaveCount(2);await expect(remove).toBeDisabled();
+ assert.equal(await page.locator('#dataset').inputValue(),salesDataset);assert.equal(await page.locator('#code-content').innerText(),activeCode);
+ // Outside clicks close, nested dialogs do not. Narrow screens keep previews
+ // in the viewport, and reduced-motion users do not get slide-in motion.
+ await page.mouse.click(700,180);await expect(drawer).toHaveCount(0);await expect(page.locator('#workspace-menu')).toBeFocused();
+ await page.locator('#workspace-menu').click();
+ assert.equal(await drawer.evaluate(el=>getComputedStyle(el).animationName),'workspace-enter');
+ await drawer.getByRole('button',{name:'My datasets',exact:true}).click();await close();await expect(drawer).toBeVisible();
+ await page.emulateMedia({reducedMotion:'reduce'});await expect(drawer).toHaveCSS('animation-name','none');
+ await page.setViewportSize({width:390,height:844});await carsItem.hover();
+ const narrowPreview=await page.locator('.cloud-project-preview').boundingBox();
+ assert.ok(narrowPreview.x>=0&&narrowPreview.x+narrowPreview.width<=390);assert.ok(narrowPreview.y>=0&&narrowPreview.y+narrowPreview.height<=844);
+ await page.screenshot({path:'output/cloud-testing/workspace-mobile.png'});
+ await page.setViewportSize({width:1600,height:1000});await page.emulateMedia({reducedMotion:'no-preference'});
+ // Deleting an active copy clears its local draft as well, without deleting
+ // the source or switching the original chart into the copied project.
+ await drawer.getByRole('checkbox',{name:'Select Sales study',exact:true}).check();
+ await duplicate.click();await expect.poll(()=>projects.size).toBe(3);
+ await drawer.getByRole('button',{name:'Open Sales study (copy)',exact:true}).click();await expect(drawer).toHaveCount(0);
+ await page.locator('#current canvas').waitFor();await page.locator('#workspace-menu').click();
+ await drawer.getByRole('checkbox',{name:'Select Sales study (copy)',exact:true}).check();
+ await remove.click();await dialog().getByRole('button',{name:'Delete',exact:true}).click();
+ await expect.poll(()=>projects.size).toBe(2);await expect(page.locator('#dataset')).toHaveValue('');
  await dialog().getByRole('button',{name:'Open Cars comparison',exact:true}).click();
  await expect(page.locator('#dataset')).toHaveValue('cars');await page.locator('#current canvas').waitFor();
  await page.locator('#workspace-menu').click();await page.getByRole('button',{name:'Report a problem',exact:true}).click();
@@ -439,5 +516,5 @@ try{
  await page.getByLabel('Password',{exact:true}).fill('new-test-password-only');
  await page.getByRole('button',{name:'Update password',exact:true}).click();
  await page.locator('#current canvas').waitFor();
- assert.deepEqual(errors,[]);console.log('Mock transport: signup, signin, consent, autosave, account view settings, fresh-device restore, rename, reports, flash-free reload/token refresh, verification retry/rejection, signout isolation passed.');
+ assert.deepEqual(errors,[]);console.log('Mock transport: signup, signin, consent, autosave, account view settings, fresh-device restore, compact workspace/hover previews, rename, selection, duplication, bulk delete/retry, active deletion, reports, flash-free reload/token refresh, verification retry/rejection, signout isolation passed.');
 }catch(error){console.error('UI failure',error,errors);await page.screenshot({path:'output/cloud-testing/auth-failure.png',fullPage:true}).catch(()=>{});throw error;}finally{await browser.close();await new Promise(r=>server.close(r));}

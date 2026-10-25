@@ -30,17 +30,41 @@
 .about-paper a {margin:0;text-underline-offset:3px}
 .about-paper p {font-size:12px;color:#626b78;margin:4px 0 2px}
 .about-paper small {display:block;font-size:12px;color:#626b78}
-.account-dialog.workspace-drawer {position:fixed;inset:0 auto 0 0;margin:0;height:100dvh;max-height:100dvh;width:320px;border-radius:0;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:18px}
-.workspace-drawer footer {margin-top:auto;display:flex;flex-direction:column;padding-top:20px;border-top:1px solid #e4e7eb}
-.cloud-projects {overflow:auto;flex:1;min-height:100px}
-.cloud-project {border:1px solid #e7eaee;border-radius:4px;padding:8px;margin-bottom:10px;min-width:0}
-.account-dialog .cloud-project-open {display:block;width:100%;padding:0;margin:0 0 8px;text-align:left;border:0;background:#fff;overflow:hidden}
-.cloud-project img {display:block;width:100%;height:180px;object-fit:contain;object-position:center}
-.cloud-project-placeholder {display:block;padding:22px 8px;color:#75808d;background:#f6f7f9}
-.account-dialog .cloud-project-title {display:block;width:100%;border:0;padding:3px 0;margin:0 0 4px;text-align:left;font-weight:600;line-height:1.4;overflow-wrap:anywhere;cursor:text;background:transparent}
-.cloud-project-name [hidden] {display:none!important}
-.cloud-project-name input {margin:0 0 4px}
-.cloud-project small {display:block;color:#75808d}
+.account-dialog.workspace-drawer {position:fixed;inset:0 auto 0 0;margin:0;height:100dvh;max-height:100dvh;width:min(320px,100vw);max-width:100vw;border-radius:0;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;padding:16px;overflow:visible;animation:workspace-enter 200ms cubic-bezier(.2,.7,.2,1)}
+@keyframes workspace-enter {from {transform:translateX(-100%);opacity:.5} to {transform:translateX(0);opacity:1}}
+@media(prefers-reduced-motion:reduce) {.account-dialog.workspace-drawer {animation:none}}
+.workspace-drawer header {margin-bottom:0;flex:none}
+.workspace-drawer .account-status:empty {display:none}
+.workspace-drawer .account-status {margin:0;font-size:12px}
+.workspace-drawer>button {text-align:left;margin:0;flex:none}
+.workspace-drawer footer {margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:10px;border-top:1px solid #e4e7eb;flex:none}
+.workspace-drawer footer button {margin:0;text-align:left;border-color:transparent;padding:8px}
+.workspace-drawer .cloud-projects-heading {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;flex:none}
+.workspace-drawer .cloud-projects-heading h3 {margin:0;font-size:13px;color:#596575}
+.workspace-drawer .cloud-project-add {margin:0;width:30px;height:30px;padding:0;display:grid;place-items:center;font-size:24px;line-height:1}
+.workspace-drawer .cloud-project-selection {display:flex;align-items:center;gap:6px;min-height:30px;flex:none}
+.workspace-drawer .cloud-project-selection button {font-size:12px;padding:6px 8px;margin:0}
+.workspace-drawer button:disabled {cursor:default;opacity:.4}
+.workspace-drawer input[type=checkbox] {width:15px;height:15px;flex:none;accent-color:#24639d;margin:0;cursor:pointer}
+.cloud-selection-count {font-size:11px;color:#75808d;flex:1;white-space:nowrap}
+.cloud-projects {overflow:auto;flex:1;min-height:60px;overscroll-behavior:contain;margin:0 -4px;padding:0 4px}
+.workspace-drawer .cloud-projects-empty {font-size:13px;color:#75808d;margin:12px 4px}
+.cloud-project {display:flex;align-items:center;gap:10px;border:1px solid transparent;border-radius:4px;padding:7px 8px;margin:0 0 2px;min-width:0;min-height:52px;box-sizing:border-box}
+.cloud-project:hover,.cloud-project:focus-within {background:#f4f6f9}
+.cloud-project.is-current {background:#f4f7fb}
+.cloud-project.is-selected {background:#edf4fc;border-color:#bdd3ed}
+.cloud-project-name {min-width:0;flex:1}
+.account-dialog .cloud-project-title {display:block;width:100%;border:0;padding:0;margin:0;text-align:left;font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;background:transparent}
+.account-dialog .cloud-project-title:hover {background:transparent;color:#24639d}
+.cloud-project-name [hidden],.workspace-drawer [hidden] {display:none!important}
+.account-dialog .cloud-project-name input {padding:2px 4px;margin:0;font-size:13px;line-height:18px}
+.cloud-project small {display:block;font-size:11px;line-height:16px;color:#75808d}
+.cloud-project-preview {position:fixed;box-sizing:border-box;padding:12px;background:#fff;border:1px solid #d8dce3;border-radius:6px;box-shadow:0 6px 24px #18253626;pointer-events:none;z-index:1}
+.cloud-project-preview-body {height:220px;max-height:50dvh;display:grid;place-items:center}
+.cloud-project-preview img {display:block;width:100%;height:100%;min-height:0;object-fit:contain;object-position:center}
+.cloud-project-preview strong {display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;margin-top:10px}
+.cloud-project-placeholder {font-size:13px;color:#75808d}
+.cloud-delete-list {max-height:220px;overflow:auto;padding-left:20px;overflow-wrap:anywhere}
 
 /* Keep both the initial HTML and signed-out state fail-closed. */
 #editor-root[hidden], #session-gate[hidden], .session-gate [hidden], #auth-gate[hidden], .auth-gate [hidden] {display:none!important}

@@ -254,6 +254,30 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     };
     packing = packing.catch(() => {}).then(run); return packing;
   }
+  function duplicate(id) {
+    const owner = user?.id;
+    if (!owner || !id) return Promise.reject(new Error('Select a visualization first.'));
+    const run = async () => {
+      const checkOwner = () => { if (user?.id !== owner || switching) throw new Error('Account changed.'); };
+      checkOwner();
+      let head = await local.get(`head:${owner}:${id}`);
+      const jobs = await Promise.all((await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).map(k => local.get(k)));
+      // Copy pending work when offline/unsynced; otherwise use the server's
+      // latest revision, including changes made on another device.
+      if (!head?.localSnapshot || (navigator.onLine && !jobs.some(job => job.id === id))) {
+        const row = fail(await client.from('projects').select('*').eq('id', id).single());
+        if (!row?.snapshot) throw new Error('Project unavailable.');
+        head = { ...row, localSnapshot: row.snapshot };
+      }
+      checkOwner();
+      const copy = { id: crypto.randomUUID(), title: `${head.title.slice(0, 153)} (copy)`, revision: 0 };
+      // Reuse immutable dataset references and the normal durable outbox. Do
+      // not open either project or change this device's active workspace.
+      await queueSnapshot(owner, copy, head.localSnapshot, head.thumbnail);
+      return local.get(`head:${owner}:${copy.id}`);
+    };
+    packing = packing.catch(() => {}).then(run); return packing;
+  }
   async function list() {
     await packing; await drain();
     const owner = user.id, cacheKey = `projects:${owner}`;
@@ -275,7 +299,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   document.addEventListener('visibilitychange', hidden);
   return { configured: true, client, local, release, recovery, get user() { return user; }, get profile() { return profile; },
     get current() { return current; }, get loaded() { return loaded; }, record, save, consent, drain, open, newProject, rename,
-    list, preview,
+    list, preview, duplicate,
     datasets: async () => fail(await client.from('datasets').select('id,name,path,hash,created_at').order('created_at', { ascending: false })),
     loadDataset: async row => JSON.parse(await fail(await client.storage.from('workspace').download(row.path)).text()),
     remove: async id => { await packing; await drain(); fail(await client.from('projects').delete().eq('id', id));

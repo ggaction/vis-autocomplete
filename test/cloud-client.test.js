@@ -91,6 +91,29 @@ test('Save conflicts create a recovered project and offline opening uses latest 
   const opened=await a.open(a.current.id);assert.deepEqual(opened.datasets[0].imported,imported);assert.deepEqual(opened.datasets[0].session.entries[0].calls,[2]);
  }finally{a.destroy();}
 });
+test('duplicating selected projects preserves the active workspace, all history, and latest offline or remote edits',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  await a.newProject('Source');await a.save(project(1),'source-thumbnail');const source=a.current.id;
+  online(true);await a.drain();
+  await a.newProject('Working');await a.save(project(2),'working-thumbnail');await a.drain();
+  const active=structuredClone(a.current),original=structuredClone(m.remote.get(source));
+  // Another device updates the source after the local head was cached.
+  const remote=m.remote.get(source);remote.snapshot.datasets[0].session.entries.push({calls:[99]});remote.title='Updated elsewhere';
+  const copy=await a.duplicate(source);await a.drain();
+  assert.notEqual(copy.id,source);assert.equal(copy.title,'Updated elsewhere (copy)');
+  assert.deepEqual(m.remote.get(copy.id).snapshot,remote.snapshot);assert.equal(m.remote.get(copy.id).thumbnail,'source-thumbnail');
+  assert.deepEqual(a.current,active);assert.deepEqual(await m.local.get('active:test-user'),active);
+  assert.equal(m.remote.get(source).revision,original.revision);
+  // Copy unsynced work, including its full history, without network access.
+  online(false);await a.save(project(3),'pending-thumbnail');
+  const offline=await a.duplicate(active.id);
+  assert.deepEqual(offline.localSnapshot.datasets[0].session.entries[0].calls,[3]);
+  assert.equal(offline.thumbnail,'pending-thumbnail');assert.equal(a.current.id,active.id);
+  online(true);await a.drain();assert.deepEqual(m.remote.get(offline.id).snapshot,m.remote.get(active.id).snapshot);
+  await assert.rejects(a.duplicate('missing'),/Project unavailable/);
+ }finally{a.destroy();}
+});
 test('Report without dataset permission strips inline data and storage paths as well',()=>{
  const context=reportContext({datasets:[{importRef:{path:'private',hash:'abc'},metadata:{sourceTable:[['secret']]},session:{calls:[{method:'createData',args:{values:[{secret:1}]}}]}}]});
  assert.ok(!JSON.stringify(context).includes('private'));assert.ok(!JSON.stringify(context).includes('secret'));assert.ok(JSON.stringify(context).includes('createData'));

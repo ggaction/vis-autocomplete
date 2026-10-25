@@ -110,6 +110,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       add('editAxes', 'action.editAxes', 'guide', '기존 축 표시 수정', axes);
       candidates.at(-1).guideContext = { axes: axisContexts };
     }
+    const legendCandidates = [];
     for (const [key, legend] of Object.entries(program.semanticSpec.guides.legend ?? {})) {
       const scales = [legend.scale, ...(legend.scales ?? [])].filter(Boolean);
       const channels = ['color', 'size', 'shape', 'stroke', 'strokeWidth', 'strokeDash', 'opacity']
@@ -125,8 +126,14 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
         categorical: ['nominal', 'ordinal'].includes(encoding[channel]?.fieldType),
         sharedFacetLegend: Boolean(program.compositionSpec?.facet && program.compositionSpec.facet.guides.legend !== false),
         itemCount: program.resolvedScales[encoding[channel]?.scale]?.domain?.length ?? 1,
-        overflow: config?.overflow ?? false };
+        overflow: config?.overflow ?? false, itemGap: config?.itemGap ?? 18,
+        itemSpacing: !config?.gradient || config?.representation === "symbols" };
+      legendCandidates.push(candidates.at(-1));
     }
+    // Keep every native block available even if recommendation validation/ranking
+    // chooses only one variant as the card default. Combined channels are one block.
+    const legendBlocks = legendCandidates.map(candidate => ({ args: candidate.args, context: candidate.guideContext }));
+    for (const candidate of legendCandidates) candidate.guideContext = { ...candidate.guideContext, legendBlocks };
     const directions = Object.entries(program.semanticSpec.guides.grid ?? {}).filter(([, grid]) =>
       grid && (!grid.coordinate || grid.coordinate === layer.coordinate));
     for (const [direction] of directions) {

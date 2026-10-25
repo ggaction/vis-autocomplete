@@ -162,7 +162,12 @@ export function recommendationParameters(recommendation, profile) {
   const quantitative = usable.filter(f => f.type === 'quantitative').map(f => f.name);
   const categories = usable.filter(f => ['nominal', 'ordinal'].includes(f.type)).map(f => f.name);
   const clone = () => structuredClone(args);
-  const legendContextFor = values => alternatives.find(option => option.args.channel === (values.channel ?? args.channel))?.guideContext ?? recommendation.guideContext ?? {};
+  const legendBlocks = recommendation.guideContext?.legendBlocks ?? alternatives.map(option => ({ args: option.args, context: option.guideContext ?? recommendation.guideContext ?? {} }));
+  const legendBlockFor = values => legendBlocks.find(block => block.args.channel === (values.channel ?? args.channel));
+  const legendContextFor = values => values.channel === 'all' ? {
+    visibility: Object.fromEntries(['all', 'labels', 'titleStyle'].map(part => [part, legendBlocks.every(block => block.context.visibility?.[part] !== false)])),
+    itemSpacing: legendBlocks.some(block => block.context.itemSpacing !== false),
+  } : legendBlockFor(values)?.context ?? recommendation.guideContext ?? {};
   const forField = field => structuredClone(alternatives.find(option => fieldOf(option.args) === field)?.args ?? args);
   const statisticAxis = values => recommendation.statisticalContext?.axes?.[values.axis ?? args.axis];
   const statisticGroups = values => {
@@ -502,20 +507,26 @@ export function recommendationParameters(recommendation, profile) {
     build = v => ({ ...clone(), field: v.field, line: { ...args.line, lineWidth: v.lineWidth },
       labels: { ...args.labels, fontSize: v.fontSize, offset: v.offset } });
   } else if (method === 'editLegend') {
-    const channels = [...new Set(alternatives.map(option => option.args.channel))];
+    const channels = [...new Set(legendBlocks.map(block => block.args.channel).filter(Boolean))];
     const legendContext = legendContextFor({});
-    controls = [select('channel', 'Legend', channels, args.channel),
+    controls = [select('channel', 'Legend', [...(channels.length > 1 ? [{ value: 'all', label: channels.length === 2 ? 'Both' : 'All' }] : []), ...channels], args.channel),
       select('position', 'Position', ['right', 'left', 'top', 'bottom', 'top-right', 'top-left', 'bottom-right', 'bottom-left'], args.position ?? 'right'),
       { key: 'appearance', label: 'Appearance', type: 'group', controls: [
         numeric('fontSize', 'Label size', args.labels?.fontSize ?? 12, 8, 18),
-        numeric('itemGap', 'Item gap', args.itemGap ?? 18, 4, 30)] },
+        { ...numeric('itemGap', 'Item gap', args.itemGap ?? legendContext.itemGap ?? 18, 4, 30), when: v => legendContextFor(v).itemSpacing !== false }] },
       ...([recommendation, ...alternatives].some(option => option.guideContext?.categorical) ? [{ key: 'entries', label: 'Entries', type: 'group', when: v => legendContextFor(v).categorical, controls: [
         { ...select('showAll', 'Entries', [{ value: true, label: 'Show all' }, { value: false, label: 'Limit' }], !legendContext.overflow), defaultPolicy: 'context' },
         { ...numeric('maxItems', 'Maximum entries', legendContext.overflow?.maxItems ?? Math.min(6, legendContext.itemCount ?? 6), 1,
           Math.max(1, legendContext.itemCount ?? 30)), when: v => !v.showAll, defaultPolicy: 'context' },
       ] }] : [])];
-    build = v => ({ ...structuredClone(alternatives.find(option => option.args.channel === v.channel)?.args ?? args),
-      channel: v.channel, position: v.position, itemGap: v.itemGap, labels: { fontSize: v.fontSize },
+    build = v => v.channel === 'all' ? {
+      target: args.target, channel: 'all', position: v.position,
+      // Choosing Both and moving it must not overwrite differing appearance.
+      ...(v.legendEdits?.includes('fontSize') || v.fontSize !== valuesFor(controls).fontSize ? { labels: { fontSize: v.fontSize } } : {}),
+      ...(v.legendEdits?.includes('itemGap') || v.itemGap !== valuesFor(controls).itemGap ? { itemGap: v.itemGap } : {}),
+    } : ({ ...structuredClone(legendBlockFor(v)?.args ?? args),
+      channel: v.channel, position: v.position,
+      ...(legendContextFor(v).itemSpacing !== false ? { itemGap: v.itemGap } : {}), labels: { fontSize: v.fontSize },
       ...(legendContextFor(v).categorical ? { overflow: v.showAll ? false : { maxItems: v.maxItems, summary: 'ellipsis-count' } } : {}) });
   } else if (method === 'editGrid') {
     const direction = recommendation.guideContext?.direction ?? Object.keys(args)[0];
@@ -659,10 +670,15 @@ export function recommendationParameters(recommendation, profile) {
     const visibility = recommendation.guideContext?.visibility ?? {};
     toggle(leaves[0], 'guideVisible', 'Legend', 'Legend', visibility.all !== false);
     toggle(leaves.find(c => /Label size/i.test(c.label)), 'labelsVisible', 'Labels', '', visibility.labels !== false);
-    toggle(leaves.find(c => /Item gap/i.test(c.label)), 'titlesVisible', 'Title', 'Title', visibility.titleStyle !== false);
+    toggle(leaves.find(c => c.key === 'position'), 'titlesVisible', 'Title', 'Title', visibility.titleStyle !== false);
     const baseBuild = build;
-    build = v => { const out = baseBuild(v); return { ...out, visible: v.guideVisible,
-      labels: { ...out.labels, visible: v.labelsVisible }, titleStyle: { ...out.titleStyle, visible: v.titlesVisible } }; };
+    build = v => {
+      const out = baseBuild(v), visibility = legendContextFor(v).visibility ?? {};
+      const changed = (key, part) => v.channel !== 'all' || v.legendEdits?.includes(key) || v[key] !== (visibility[part] !== false);
+      return { ...out, ...(changed('guideVisible', 'all') ? { visible: v.guideVisible } : {}),
+        ...(changed('labelsVisible', 'labels') ? { labels: { ...out.labels, visible: v.labelsVisible } } : {}),
+        ...(changed('titlesVisible', 'titleStyle') ? { titleStyle: { ...out.titleStyle, visible: v.titlesVisible } } : {}) };
+    };
   } else if (['editGrid', 'editHorizontalGrid', 'editVerticalGrid', 'editThetaGrid', 'editRadialGrid'].includes(method)) {
     toggle(leaves[0], 'guideVisible', 'Grid', 'Grid', recommendation.guideContext?.visible !== false);
     const baseBuild = build;
@@ -798,7 +814,11 @@ export function recommendationParameters(recommendation, profile) {
   };
   normalize = (input, changedKey) => {
     const values = { ...input };
+    if (method === 'editLegend' && ['fontSize', 'itemGap', 'guideVisible', 'labelsVisible', 'titlesVisible'].includes(changedKey)) {
+      values.legendEdits = [...new Set([...(values.legendEdits ?? []), changedKey])];
+    }
     if (method === 'editLegend' && changedKey === 'channel') {
+      values.legendEdits = [];
       const context = legendContextFor(values);
       values.guideVisible = context.visibility?.all !== false;
       values.labelsVisible = context.visibility?.labels !== false;

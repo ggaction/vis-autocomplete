@@ -143,6 +143,20 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   const sourceAction = action.method === 'editFacetSource' ? { method: action.args.action.method, args: action.args.action.options } : action;
   const sourceCall = (method, args) => action.method === 'editFacetSource'
     ? { method: 'editFacetSource', args: { action: { method, options: args } } } : { method, args };
+  // Initial parallel coordinates need room for each additional axis. Derive
+  // each preview from the unchanged starting canvas, never the last preview.
+  // An authored canvas or an existing chart keeps its user-chosen dimensions.
+  if (action.method === 'createParallelCoordinates' && !actionBase.compositionSpec &&
+      !actionBase.semanticSpec.layers.length && action.args.dimensions?.length > 3) {
+    const geometry = canvasGeometry(actionBase);
+    if (geometry?.plot.width === defaultCanvasOptions().plot.width &&
+        !actionBase.trace.children.some(node => node.op === 'editCanvas')) {
+      const width = Math.round(geometry.plot.width * (1 + .2 * (action.args.dimensions.length - 3)) * 100) / 100;
+      const call = { method: 'editCanvas', args: { plot: { ...geometry.plot, width }, margin: geometry.margin } };
+      actionBase = actionBase.editCanvas(call.args);
+      prerequisiteCalls.push(call);
+    }
+  }
   if (['encodeX', 'encodeY', 'encodeHistogram'].includes(sourceAction.method)) {
     const layer = actionBase.semanticSpec.layers.find(l => l.id === sourceAction.args.target);
     const rows = actionBase.semanticSpec.datasets.find(d => d.id === layer?.data)?.values ?? [];

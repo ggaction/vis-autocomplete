@@ -80,6 +80,9 @@ try {
     await apply(page, card); await saved(page);
     const record = await stored(page), call = record.session.entries.at(-1).calls.find(call => call.method === 'createParallelCoordinates');
     assert.deepEqual(call.args.dimensions, ['Sepal.Length', 'Sepal.Width', 'Petal.Width', 'Petal.Length']);
+    const canvasEdits = record.session.entries.at(-1).calls.filter(call => call.method === 'editCanvas');
+    assert.ok(canvasEdits.length, 'four dimensions include explicit native canvas setup');
+    assert.equal(canvasEdits.at(-1).args.plot.width, 376.8, 'four axes use 120% of the baseline width after Apply');
     await page.keyboard.press('Control+z'); await page.locator('.dataset-table').waitFor();
     await page.getByRole('button', { name: 'Deselect Species', exact: true }).click();
     await page.getByRole('button', { name: 'Select column Sepal.Length', exact: true }).click();

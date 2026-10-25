@@ -12,6 +12,7 @@ import { columnSelectionChange } from '../web/data-table.js';
 import { buildInitialIndex, canonicalDataFingerprint } from '../scripts/initial-corpus.js';
 import { captureHistorySnapshot } from '../web/history.js';
 import { packSession, restoreSession } from '../web/project.js';
+import { canvasGeometry } from '../src/canvas-geometry.js';
 const read = name => JSON.parse(readFileSync(new URL(`../web/data/${name}.json`, import.meta.url)));
 const model = JSON.parse(readFileSync(new URL('../data/initial-model.json', import.meta.url)));
 const engine = createInitialChartRecommender(model);
@@ -75,6 +76,31 @@ test('all selected numeric dimensions participate in parallel coordinates, with 
   assert.equal(result.recommendations[0], rec);
   const dims = fields.slice(0, 4).reverse(), { call } = prepare(result.program, rec, { dimensions: dims });
   assert.deepEqual(call.args.dimensions, dims); assert.equal(call.args.color.field ?? call.args.color, 'Species');
+});
+
+test('initial parallel width adds 20 percent of baseline per dimension beyond three, with replayable setup', () => {
+  const fields = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const rows = Array.from({ length: 12 }, (_, i) => Object.fromEntries(fields.map((field, j) => [field, (i + 1) * (j + 1)])));
+  const { program, recommendations } = recommend(rows, fields);
+  const rec = recommendations.find(rec => rec.method === 'createParallelCoordinates');
+  // Return to smaller and larger selections to catch compounding/stale sizing.
+  for (const count of [2, 3, 4, 5, 6, 3, 5]) {
+    const { prepared } = prepare(program, rec, { dimensions: fields.slice(0, count) });
+    const expected = Math.round(314 * (1 + .2 * Math.max(0, count - 3)) * 100) / 100;
+    assert.deepEqual(canvasGeometry(prepared.preview).plot, { width: expected, height: 314 });
+    let replay = program;
+    for (const call of [...prepared.prerequisiteCalls, prepared.recommendation, ...prepared.postActionCalls, prepared.guideCall]) {
+      replay = replay[call.method](call.args);
+    }
+    assert.equal(renderToSVG(replay), renderToSVG(prepared.preview));
+  }
+  assert.equal(canvasGeometry(program).plot.width, 314, 'hover leaves the initial canvas unchanged');
+  const custom = program.editCanvas({ plot: { width: 550, height: 240 } });
+  const { prepared } = prepare(custom, rec);
+  assert.deepEqual(canvasGeometry(prepared.preview).plot, { width: 550, height: 240 });
+  const resized = prepared.authoringPreview.editCanvas({ plot: { width: 420, height: 260 } });
+  const styled = prepareGuidedAction(resized, { method: 'encodeOpacity', args: { target: 'plot', value: .4 } });
+  assert.deepEqual(canvasGeometry(styled.preview).plot, { width: 420, height: 260 });
 });
 
 test('mapping edits preserve pinned settings, swap atomically, and update dependent controls', () => {

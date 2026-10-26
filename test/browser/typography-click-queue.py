@@ -1,4 +1,4 @@
-"""Keep every +/- click while the real toolbar awaits slow typography work.
+"""Keep typed drafts and every +/- click while typography work is pending.
 
 Run: python test/browser/typography-click-queue.py
 Uses an isolated DOM and native ggaction programs; no account/server required.
@@ -21,19 +21,20 @@ window.setup = (initial = 12, mixed = false) => {
       y:{labels:{fontSize:initial},title:{fontSize:mixed ? initial+5 : initial}}});
   const state = {phase:'recommendations',view,committing:false};
   const initialItems = chartTextItems(view);
-  let resolve, active = 0;
+  let resolve, reject, active = 0;
   window.audit = {calls:[],errors:[],maxActive:0,initial:initialItems.map(t=>t.fontSize)};
   const toolbar = createTypographyToolbar(document.querySelector('#toolbar'), document.querySelector('#chart'), {
     read:()=>state, onError:message=>audit.errors.push(message),
     async apply(options) {
       state.committing=true; audit.calls.push(options); audit.maxActive=Math.max(audit.maxActive,++active); toolbar.refresh();
       // Manually released worker result: arbitrarily many clicks may arrive first.
-      await new Promise(done=>{resolve=done});
-      state.view=prepareTypography(state.view,state.view,options).view;
-      active--; state.committing=false; toolbar.refresh();
+      try {
+        await new Promise((done,failed)=>{resolve=done;reject=failed});
+        state.view=prepareTypography(state.view,state.view,options).view;
+      } finally { active--; state.committing=false; toolbar.refresh(); }
     }
   });
-  window.finish = ()=>resolve();
+  window.finish = error=>error ? reject(new Error(error)) : resolve();
   window.busy = kind=>{state.loading=false;state.resizing=false;state.committing=false;if(kind)state[kind]=true;toolbar.refresh();};
   window.sizes = ()=>chartTextItems(state.view).map(t=>t.fontSize);
   toolbar.refresh();
@@ -88,5 +89,48 @@ with tempfile.TemporaryDirectory() as directory:
                 page.evaluate('busy', kind)
                 expect(plus).to_be_disabled(); expect(minus).to_be_disabled()
             print('PASS queued clicks:', initial, 'mixed:', mixed, 'final:', sorted(set(expected)), flush=True)
+            page.close()
+        # Drive refresh/commit boundaries explicitly so this regression does
+        # not rely on a particular machine losing the race between fill/Enter.
+        for outcome in ['accepted', 'failed', 'escape', 'scope']:
+            page = browser.new_page()
+            page.clock.install()
+            page.set_content('<div id="toolbar"></div><div id="chart"></div>')
+            page.add_script_tag(path=str(bundle), type='module')
+            page.wait_for_function("typeof window.setup === 'function'")
+            page.evaluate('setup(13)')
+            size = page.locator('#chart-font-size')
+            size.fill('18')
+            for kind in ['loading', None, 'resizing', None]:
+                page.evaluate('busy', kind)
+                expect(size).to_have_value('18')
+            if outcome == 'escape':
+                size.press('Escape')
+                expect(size).to_have_value('13')
+                page.clock.run_for(500)
+                assert page.evaluate('audit.calls') == []
+            elif outcome == 'scope':
+                # A selection update can arrive while the input retains focus.
+                # The old scope's unsent draft must not populate the new one.
+                page.get_by_label('Axis titles', exact=True).evaluate("node=>{node.checked=false;node.dispatchEvent(new Event('change'))}")
+                expect(size).to_have_value('13')
+                size.press('Enter'); page.clock.run_for(500)
+                assert page.evaluate('audit.calls') == []
+            else:
+                size.press('Enter'); size.press('Tab')
+                page.clock.run_for(200)
+                assert page.evaluate('audit.calls.length') == 1
+                assert page.evaluate('audit.calls[0].fontSize') == 18
+                expect(size).to_have_value('18')
+                expect(size).to_be_disabled()
+                page.evaluate('finish', 'Test failure' if outcome == 'failed' else None)
+                expect(size).to_be_enabled()
+                expect(size).to_have_value('13' if outcome == 'failed' else '18')
+                page.clock.run_for(500)
+                assert page.evaluate('audit.calls.length') == 1, 'Enter plus blur must submit once'
+                expected = 13 if outcome == 'failed' else 18
+                assert set(page.evaluate('sizes()')) == {expected}
+                assert page.evaluate('audit.errors') == (['Test failure'] if outcome == 'failed' else [])
+            print('PASS typed font-size draft:', outcome, flush=True)
             page.close()
         browser.close()

@@ -10,6 +10,7 @@ function fontOption(family, label = family) {
 }
 export function createTypographyToolbar(host, chartHost, { read, apply, onError, selection = () => [], clearSelection, selectLegendScope, canSelectLegendScope = () => true, editing = () => null, alignEditing }) {
   let program, underlineProgram, underlineGeometry, highlightKey, underlineOverlay, items = [], selected = new Set(TEXT_GROUPS.map(g => g.id)), hovered = null, active = false, pending, timer, working = false;
+  let sizeDraft, sizeDraftSequence = 0, activeSizeDraft;
   host.classList.add('typography-toolbar'); host.setAttribute('aria-label', 'Chart typography');
   const font = document.createElement('select'); font.id = 'chart-font'; font.setAttribute('aria-label', 'Chart font family'); font.title = 'Font family for the whole chart';
   for (const family of FONTS) font.add(fontOption(family));
@@ -72,33 +73,48 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
     const chosen = selection();
     return chosen.length ? { elements: chosen.map(t => t.key) } : { groups: [...selected] };
   };
-  function request(options) {
+  function request(options, sizeDraftId) {
+    // Enter and the native change on blur can report the same edit. Keep the
+    // submitted draft while rendering, without enqueueing it a second time.
+    if (sizeDraftId && (pending?.sizeDraftId === sizeDraftId || activeSizeDraft === sizeDraftId)) return;
+    if (pending?.sizeDraftId === sizeDraft?.id && !sizeDraftId) sizeDraft = null;
     if (options.delta && pending?.delta && JSON.stringify([pending.groups, pending.elements]) === JSON.stringify([options.groups, options.elements])) {
       pending.deltas.push(options.delta);
-    } else pending = { ...options, ...(options.delta ? { deltas: [options.delta] } : {}) };
+    } else pending = { ...options, ...(options.delta ? { deltas: [options.delta] } : {}), sizeDraftId };
     clearTimeout(timer); timer = setTimeout(flush, 120);
     if (options.delta) refresh();
   }
   async function flush() {
     if (working || !pending) return;
-    const next = pending; pending = null; working = true;
+    const { sizeDraftId, ...next } = pending; pending = null; working = true; activeSizeDraft = sizeDraftId;
     try {
       // Preserve every click (including clamping at the bounds), but materialize
       // the final requested sizes only once per burst.
       if (next.delta) await apply({ groups: next.groups, elements: next.elements, deltas: next.deltas });
       else await apply(next);
     } catch (error) { onError(error.message); }
-    finally { working = false; refresh(); if (pending) flush(); }
+    finally {
+      working = false; activeSizeDraft = null;
+      if (sizeDraft?.id === sizeDraftId) sizeDraft = null;
+      refresh(); if (pending) flush();
+    }
   }
   font.addEventListener('change', () => request({ ...(selection().length ? selectedScope() : {}), fontFamily: font.value }));
+  size.addEventListener('input', () => {
+    sizeDraft = { id: ++sizeDraftSequence, value: size.value, scope: JSON.stringify(selectedScope()) };
+  });
   size.addEventListener('change', () => {
-    if (size.value === '') return;
+    const state = read();
+    // Disabling a focused input can emit a native blur/change. Unrelated work
+    // must neither submit that unfinished edit nor erase it before Enter.
+    if (state.loading || state.committing || state.resizing) return;
+    if (!sizeDraft || size.value === '') return;
     if (!size.checkValidity()) { size.reportValidity(); return; }
-    request({ ...selectedScope(), fontSize: size.valueAsNumber });
+    request({ ...selectedScope(), fontSize: size.valueAsNumber }, sizeDraft.id);
   });
   size.addEventListener('keydown', event => {
     if (event.key === 'Enter') { event.preventDefault(); size.dispatchEvent(new Event('change')); }
-    if (event.key === 'Escape') { pending = null; clearTimeout(timer); refresh(); size.blur(); }
+    if (event.key === 'Escape') { pending = null; sizeDraft = null; clearTimeout(timer); refresh(); size.blur(); }
   });
   decrease.addEventListener('click', () => request({ ...selectedScope(), delta: -1 }));
   increase.addEventListener('click', () => request({ ...selectedScope(), delta: 1 }));
@@ -162,7 +178,12 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
     font.style.fontFamily = family || 'Arial, sans-serif';
     font.title = direct ? 'Font family for selected elements' : 'Font family for the whole chart';
     const sizes = [...new Set((configs ?? items.filter(item => selected.has(item.group))).map(item => item.fontSize ?? 12))];
-    if (document.activeElement !== size || busy) size.value = sizes.length === 1 ? sizes[0] : '';
+    if (!available || sizeDraft?.scope !== JSON.stringify(selectedScope())) sizeDraft = null;
+    // Focus is not edit ownership: disabling a focused input differs between
+    // browsers, and a refresh can arrive between typing and Enter. Preserve
+    // the draft until its transaction settles; otherwise show committed state.
+    const displayedSize = String(sizeDraft ? sizeDraft.value : sizes.length === 1 ? sizes[0] : '');
+    if (size.value !== displayedSize) size.value = displayedSize;
     size.placeholder = sizes.length > 1 ? 'Mixed' : '—';
     size.disabled = busy || !sizes.length;
     // Only our own typography transaction may accept more size steps while

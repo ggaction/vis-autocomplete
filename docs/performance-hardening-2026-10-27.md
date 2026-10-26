@@ -35,6 +35,13 @@ whole-legend stacking context lets individual handles stay reachable while keepi
 title/item selection above the body. The browser test now asserts the actual hit
 target before dragging, in both view modes and at two viewport sizes.
 
+Slow-run verification also caught a typography race: starting background work
+could replace a typed size with the previous size, or disabling the input could
+submit an unfinished draft through a native blur/change event. Explicit scoped
+draft ownership now preserves input through refreshes and settles it after commit,
+failure, cancellation, or scope changes. Eight deterministic browser cases cover
+this behavior together with queued size increments and boundary clamping.
+
 ## Measurements
 
 The comparison baseline is app `967d819` with ggaction `7cbdaea`. The optimized

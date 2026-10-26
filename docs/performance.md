@@ -31,6 +31,7 @@ The checks intentionally distinguish two kinds of evidence:
 | Graph History | Cursor movement does not read/rebuild the complete tree; viewport queries retain crossing edges and paint order. |
 | Linear History | Pointer hit testing is logarithmic; retain at most 80 non-visible/visible thumbnail rasters unless the current visible set itself exceeds the cap. Evicted rasters regenerate exactly. |
 | Code preview | Unchanged committed calls receive no DOM mutations on parameter hover. A folded panel retains current copy/export source while deferring its DOM update. |
+| Typography input | Background refresh preserves the scoped typed draft; successful/failed commits settle to canonical values. Enter/blur cannot submit twice, and queued size steps retain their order. |
 | Native Preview | Revisited immutable endpoints reuse exact pixels at the same density, viewport, zoom, and font epoch. Each preview host retains at most six images and eight million pixels; mutable callers and inline text masks bypass reuse. |
 | Persistence | Compare shared calls once per comparison; retain every revision, exact delta replay, and account isolation. Thumbnail completion cannot overwrite a newer pending revision. |
 | Saved-project thumbnails | Replay only the selected entry in the thumbnail worker; cancel invisible/disposed requests. Keep the existing full-resolution PNG dimensions and byte limit. |
@@ -74,6 +75,7 @@ python test/browser/history-performance.py --url http://127.0.0.1:5184
 python test/browser/history-scaling.py --url http://127.0.0.1:5184
 python test/browser/gallery-thumbnail-performance.py --url http://127.0.0.1:5184
 python test/browser/preview-raster-cache.py --url http://127.0.0.1:5184
+python test/browser/typography-click-queue.py
 APP_URL=http://127.0.0.1:5184 npm run test:performance-browser
 ```
 

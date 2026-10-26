@@ -1,7 +1,7 @@
 import { optionGroup } from '../src/recommendation-groups.js';
 export { optionGroup };
 
-// Original Visualization Autocomplete category colors.
+// Category colors from the original paper.
 export const OPTION_GROUPS = Object.freeze([
   { id: 'encoding', label: 'Encoding', color: '#0a6fc2', rgb: '10, 111, 194' },
   { id: 'transform', label: 'Transform', color: '#d6861a', rgb: '214, 134, 26' },

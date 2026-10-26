@@ -121,7 +121,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       button(account.guest?'End guest session':'Sign out',async()=>{await account.signOut();d.box.close();}));d.open();
   }
   function about() {
-    const d = dialog('About Visualization Autocomplete');
+    const d = dialog('About VisAutocomplete');
     d.box.classList.add('about-dialog');
     d.box.append(element('p', `Version v${packageInfo.version}`, 'about-version'));
     const link = (title, href) => {
@@ -177,7 +177,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     title.field.required = true; title.field.maxLength = 160; body.required = true; body.maxLength = 10000; body.setAttribute('aria-label', 'What happened?');
     const contextNote = element('p', 'Includes chart code, field names, and settings. Dataset rows are included only if you check the box below.'); contextNote.hidden = true;
     data.wrapper.hidden = true; kind.addEventListener('change', () => { data.wrapper.hidden = kind.value !== 'project'; contextNote.hidden = data.wrapper.hidden; });
-    d.box.append(element('p', 'Thank you for helping improve Visualization Autocomplete. We really appreciate your bug reports and feature ideas.'),
+    d.box.append(element('p', 'Thank you for helping improve VisAutocomplete. We really appreciate your bug reports and feature ideas.'),
       kind, title.wrapper, element('p','Describe what happened and what you expected.'), body, contextNote, data.wrapper, agent.wrapper,
       button('Send report', async () => {
         if (!title.field.reportValidity() || !body.reportValidity()) return;
@@ -187,7 +187,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
         const result = await account.report({kind:kind.value,title:title.field.value,description:body.value,project,
           shareData:kind.value === 'project' && data.field.checked,isAiAgent:agent.field.checked});
         d.box.replaceChildren(element('h2','Report received'),
-          element('p', 'Thank you for your feedback! We really appreciate your help improving Visualization Autocomplete.'),
+          element('p', 'Thank you for your feedback! We really appreciate your help improving VisAutocomplete.'),
           element('p', `Reference: ${result.id}`),button('Close',()=>d.box.close()));
       })); d.open();
   }

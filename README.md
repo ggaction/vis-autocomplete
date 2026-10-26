@@ -1,4 +1,4 @@
-# ggaction Visualization Autocomplete
+# VisAutocomplete
 
 현재 `ChartProgram`을 받아 다음에 실행할 **기존 ggaction 공개 함수 한 번**을 추천한다.
 추천 엔진과 로컬 웹 데모를 포함한다. 온라인 LLM 호출은 없다. 필요한 새 함수는 `vendor/ggaction`의 실제 라이브러리 API로 구현한다.

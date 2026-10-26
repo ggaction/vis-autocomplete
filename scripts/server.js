@@ -70,5 +70,5 @@ export async function createProductionServer({ env=process.env, directory='outpu
   return server;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  (await createProductionServer()).listen(Number(process.env.PORT??5174),'0.0.0.0',()=>console.log('Visualization Autocomplete server ready'));
+  (await createProductionServer()).listen(Number(process.env.PORT??5174),'0.0.0.0',()=>console.log('VisAutocomplete server ready'));
 }

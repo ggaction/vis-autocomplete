@@ -6,4 +6,4 @@ import { readFile, writeFile } from 'node:fs/promises';
 const image = await loadImage(await readFile('web/social/link-preview.svg'));
 const canvas = createCanvas(1200, 630);
 canvas.getContext('2d').drawImage(image, 0, 0, 1200, 630);
-await writeFile('web/social/link-preview-v1.png', canvas.toBuffer('image/png'));
+await writeFile('web/social/link-preview-v2.png', canvas.toBuffer('image/png'));

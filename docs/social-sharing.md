@@ -2,7 +2,7 @@
 
 `index.html` contains the public Open Graph and large-image Twitter/X metadata. Keep it in the initial HTML head: link crawlers should not need JavaScript, a session, or access to a saved visualization. The canonical URL is `https://vis.autocomplete.studio/`.
 
-The 1200 × 630 artwork lives in `web/social/link-preview.svg`. It uses the app's icon and group colors with illustrative charts, never a user's dataset. Run `node scripts/build-social-preview.js` after editing it and commit the generated `web/social/link-preview-v1.png` as a required runtime asset. The production build copies `web/social/`. For a subsequent image change, use a fresh image filename and update both image meta tags to avoid stale image caches.
+The 1200 × 630 artwork lives in `web/social/link-preview.svg`. It uses the app's icon and group colors with illustrative charts, never a user's dataset. Run `node scripts/build-social-preview.js` after editing it and commit the generated `web/social/link-preview-v2.png` as a required runtime asset. The production build copies `web/social/`. For a subsequent image change, use a fresh image filename and update both image meta tags to avoid stale image caches.
 
 Verify with `npm run build` and `node --test test/cloud-server.test.js`. This checks the built HTML and PNG over HTTP as an unauthenticated crawler. It does not send a KakaoTalk message or confirm Kakao's live cache.
 

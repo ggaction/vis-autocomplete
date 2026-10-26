@@ -46,7 +46,7 @@ with sync_playwright() as p:
         page.screenshot(path=str(OUT / (mode.split()[0].lower() + '-parameters.png')))
         card.locator('.apply-button').click()
         expect(page.locator('#current')).to_have_attribute('data-steps', '1', timeout=60000)
-        page.get_by_role('heading', name='Visualization Autocomplete 1.5').hover()
+        page.get_by_role('heading', name='VisAutocomplete').hover()
         expect(page.locator('#cards .card').first).to_be_visible(timeout=60000)
         assert not page.locator('#cards .card-row').first.locator('[data-method=editXScale], [data-method=editYScale], [data-method=editColorScale]').count(), 'scale editors must follow unused actions'
         for method in ['editXScale', 'editYScale', 'editColorScale']:
@@ -55,7 +55,7 @@ with sync_playwright() as p:
             expect(found).to_be_visible(timeout=60000)
             found.locator('.card-top').hover(position={'x': 40, 'y': 16})
             expect(found.locator('.apply-button')).to_be_enabled()
-            page.get_by_role('heading', name='Visualization Autocomplete 1.5').hover()
+            page.get_by_role('heading', name='VisAutocomplete').hover()
         expect(page.locator('#code-content')).to_have_attribute('data-preview-method', '', timeout=10000)
         committed = source(page)
         assert '"type": "log"' in committed and '"type": "sqrt"' in committed and '"palette": "set1"' in committed
@@ -63,13 +63,13 @@ with sync_playwright() as p:
         expect(page.get_by_role('button', name='Select column Horsepower', exact=True)).to_be_visible(timeout=60000)
         page.get_by_role('button', name='Redo', exact=True).click()
         expect(page.locator('#current')).to_have_attribute('data-steps', '1', timeout=60000)
-        page.get_by_role('heading', name='Visualization Autocomplete 1.5').hover()
+        page.get_by_role('heading', name='VisAutocomplete').hover()
         expect(page.locator('#code-content')).to_have_attribute('data-preview-method', '', timeout=10000)
         page.wait_for_function("async expected => (await import('/web/code-view.js')).displayedCode(document.querySelector('#code-content')) === expected", arg=committed, timeout=30000)
         page.reload()
         page.wait_for_load_state('networkidle')
         expect(page.locator('#current')).to_have_attribute('data-steps', '1', timeout=60000)
-        page.get_by_role('heading', name='Visualization Autocomplete 1.5').hover()
+        page.get_by_role('heading', name='VisAutocomplete').hover()
         expect(page.locator('#code-content')).to_have_attribute('data-preview-method', '', timeout=10000)
         page.wait_for_function("async expected => (await import('/web/code-view.js')).displayedCode(document.querySelector('#code-content')) === expected", arg=committed, timeout=30000)
         assert not errors, errors

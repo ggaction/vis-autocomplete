@@ -153,7 +153,7 @@ function normalizeSession(session, names) {
 
 export function validateProject(value) {
   if (value?.format !== PROJECT_FORMAT || ![1, PROJECT_VERSION].includes(value.version) || !Array.isArray(value.datasets) || !value.datasets.length) {
-    throw new TypeError('Choose a supported Visualization Autocomplete project file.');
+    throw new TypeError('Choose a supported VisAutocomplete project file.');
   }
   const ids = new Set();
   const datasets = value.datasets.map(record => {
@@ -287,7 +287,7 @@ export function createDraftStore(indexedDB = globalThis.indexedDB, name = 'visua
       resolve(db);
     };
     request.onerror = () => reject(request.error);
-    request.onblocked = () => reject(new Error('Close older Visualization Autocomplete tabs, then reload to upgrade draft storage.'));
+    request.onblocked = () => reject(new Error('Close older VisAutocomplete tabs, then reload to upgrade draft storage.'));
   });
   const persist = async project => {
     const db = await database();

@@ -8,7 +8,7 @@ Cloud work was initially isolated on `codex/cloud-deployment` and integrated int
 - Applied `202610250001_cloud.sql` transactionally through the SQL editor. All eight public tables have RLS; the workspace bucket is private. An unauthenticated REST read of projects is denied.
 - Executed `supabase/tests/hosted_smoke.sql` against hosted Postgres: private saves, retry idempotence, stale revisions, consent withdrawal, research sanitization and cross-account isolation pass. Synthetic users and edits were rolled back. This verifies the deployed database, not OAuth or email delivery.
 - Email confirmation and secure email changes are enabled. Minimum password length is 10 and secure password changes are enabled. Google OAuth is enabled, and an actual Google sign-in returned successfully to the new domain and displayed the first research-choice dialog. The dialog was dismissed without consenting during verification.
-- Render's GitHub installation is restricted to `ggaction/vis-autocomplete`. The approved $7/month `0.5c-512mb` service is live in Frankfurt: [Visualization Autocomplete](https://visualization-autocomplete.onrender.com/), service `srv-dbeou4vb9u1s73af5as0`. The first deployment and `/healthz` both identify commit `cd5fae58660df11e4989ece624b3abb7aabb39e1`.
+- Render's GitHub installation is restricted to `ggaction/vis-autocomplete`. The approved $7/month `0.5c-512mb` service is live in Frankfurt: [VisAutocomplete](https://visualization-autocomplete.onrender.com/), service `srv-dbeou4vb9u1s73af5as0`. The first deployment and `/healthz` both identify commit `cd5fae58660df11e4989ece624b3abb7aabb39e1`.
 - Verified the hosted Iris chart selection/application, public Supabase configuration, response security headers and native PNG/SVG/PDF export. Private source/configuration paths are not served. After real Google sign-in, `Deployment check · Iris` saved to the account, survived reload, and reopened from My visualizations after switching to a blank workspace. Cross-device testing and a complete email/password signup-confirmation flow remain pending.
 - The new canonical site is `https://vis.autocomplete.studio/`. Render confirms domain verification and certificate issuance, and the live health endpoint responds over HTTPS. The Blueprint retains that custom domain. Supabase Auth's Site URL and exact redirect use this URL; the onrender.com fallback and `http://127.0.0.1:5184/` development redirect remain allowed.
 - GoDaddy now points `vis` to `visualization-autocomplete.onrender.com` and `oldvis` to `hj-n.github.io`. The previous `hj-n/visualization-autocomplete` GitHub Pages custom domain is `oldvis.autocomplete.studio`; its new HTTPS certificate is still pending. The legacy Pages redeployment (run `40166136797`) passed and HTTP returns the original app. An attempt to enable HTTPS returned `The certificate does not exist yet`; do not bypass certificate validation. Existing root/WWW and mail records were preserved.
@@ -119,7 +119,7 @@ The presentation can embed the app with:
 
 ```html
 <iframe src="https://vis.autocomplete.studio/"
-  title="Visualization Autocomplete demo"
+  title="VisAutocomplete demo"
   style="width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
 ```
 

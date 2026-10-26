@@ -101,6 +101,10 @@ export async function checkElementSelection(page) {
     await page.locator('#redo').click(); await ready();
     assert.equal((await saved()).entry.program.titleConfig.titleStyle.fontSize,resized.entry.program.titleConfig.titleStyle.fontSize);
     await page.locator('#undo').click(); await ready();
+    // Undo enables the toolbar before the guide hit region has necessarily
+    // settled. Locator hover checks stability and hit testing; boundingBox alone
+    // would let the low-level mouse drag use a stale frame's coordinates.
+    await hit('title').hover();
     const moveBox = await hit('title').boundingBox();
     await page.mouse.move(moveBox.x + moveBox.width / 2, moveBox.y + moveBox.height / 2);
     await page.mouse.down();
@@ -111,6 +115,7 @@ export async function checkElementSelection(page) {
     assert.ok(moved.entry.program.guideConfigs.axis.x.title.alongOffset > (beforeGroup.entry.program.guideConfigs.axis.x.title.alongOffset ?? 0));
     assert.deepEqual(moved.entry.program.guideConfigs.axis.y,beforeGroup.entry.program.guideConfigs.axis.y);
     await expect(selected).toHaveCount(2);
+    await hit('title').hover();
     const moveCount = await page.locator('.history-item').count(), repeatBox = await hit('title').boundingBox();
     await page.mouse.move(repeatBox.x + repeatBox.width / 2, repeatBox.y + repeatBox.height / 2);
     await page.mouse.down();

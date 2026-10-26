@@ -27,7 +27,7 @@ async function empty(page) {
   assert.equal(await page.locator('#dataset option:checked').innerText(), 'Try example dataset');
   assert.equal(await page.locator('.dataset-table, #cards .card, .history-item, #current canvas').count(), 0);
   assert.equal(await page.locator('#code-content').innerText(), '');
-  for (const id of ['reset', 'save-project', 'edit-schema', 'code-export']) assert.ok(await page.locator(`#${id}`).isDisabled());
+  for (const id of ['reset', 'edit-schema', 'code-export']) assert.ok(await page.locator(`#${id}`).isDisabled());
 }
 const draft = page => page.evaluate(async () => {
   const { createDraftStore } = await import('/web/project.js');
@@ -54,7 +54,7 @@ try {
     const card = page.locator('#cards .card[data-method="createScatterPlot"]').first();
     await card.hover(); await card.locator('.apply-button').click();
     await page.waitForFunction(() => document.querySelectorAll('.history-item').length === 2 && !document.querySelector('#reset').disabled);
-    await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+    await page.waitForFunction(() => document.querySelector('#cloud-status').textContent === 'Saved');
     const saved = await page.evaluate(async () => {
       const { createDraftStore } = await import('/web/project.js');
       return createDraftStore().read();
@@ -78,7 +78,7 @@ try {
     await empty(page); assert.equal(await draft(page), false);
     await upload(page); await page.locator('.dataset-import-dialog').getByRole('button', { name: 'Use dataset', exact: true }).click();
     await page.getByRole('button', { name: 'Select column Amount', exact: true }).waitFor();
-    await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+    await page.waitForFunction(() => document.querySelector('#cloud-status').textContent === 'Saved');
     const selected = await page.locator('#dataset').inputValue();
     assert.equal(await page.locator('#dataset option:checked').innerText(), 'own-data.csv');
     await page.reload(); await ready(page);

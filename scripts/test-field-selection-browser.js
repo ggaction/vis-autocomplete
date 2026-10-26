@@ -39,7 +39,7 @@ async function apply(page, card) {
   await page.waitForFunction(() => document.querySelector('#undo').disabled === false);
 }
 const stored = page => page.evaluate(async () => (await (await import('/web/project.js')).createDraftStore().read()).datasets.find(record => record.id === document.querySelector('#dataset').value));
-async function saved(page) { await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device'); }
+async function saved(page) { await page.waitForFunction(() => document.querySelector('#cloud-status').textContent === 'Saved'); }
 try {
   for (const mode of ['preview', 'transition']) {
     const { context, page } = await open(mode);

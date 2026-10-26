@@ -1,3 +1,4 @@
+from saved_project import save_project
 from playwright.sync_api import sync_playwright
 from pathlib import Path
 import os
@@ -33,9 +34,8 @@ with sync_playwright() as p:
  card.locator('.apply-button').click();page.wait_for_timeout(1800)
  page.locator('h1').hover();page.screenshot(path=str(output / 'line-right-axis.png'))
  # Export authored code to check actual applied methods and parameters.
- page.locator('.project-menu > summary').click()
- with page.expect_download() as download:page.locator('#save-project').click()
- download.value.save_as(str(output / 'axis-curve-project.json'))
+
+ save_project(page, str(output / 'axis-curve-project.json'))
  assert not errors,errors
  print('PASS: curve hover/selection, conditional tension, Apply and numeric Y position; no browser errors',flush=True)
  b.close()

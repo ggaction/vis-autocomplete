@@ -62,7 +62,7 @@ try {
     await page.waitForFunction(() => document.querySelector('#cards').dataset.optionGroup === 'style'
       && document.querySelectorAll('.card[data-preview-state="ready"]').length >= 5 && !document.querySelector('#cards').getAttribute('aria-busy'));
     sample.styleCardsMs = performance.now() - start;
-    await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+    await page.waitForFunction(() => document.querySelector('#cloud-status').textContent === 'Saved');
     start = performance.now(); await page.reload();
     await page.waitForFunction(() => document.querySelectorAll('.history-item').length >= 2 && document.querySelectorAll('.card[data-preview-state="ready"]').length >= 5);
     sample.restoreMs = performance.now() - start;

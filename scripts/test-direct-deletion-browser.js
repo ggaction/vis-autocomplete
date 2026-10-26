@@ -77,7 +77,7 @@ try {
       assert.equal(await legendHit.count(),0,'Applying another option must not restore a deleted legend');
       await key(page,'Control+z',initial+1);await page.locator('#action-search').fill('');
     }
-    await page.waitForFunction(()=>document.querySelector('#draft-status').textContent==='Draft saved on this device');
+    await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');
     await page.reload();await page.waitForLoadState('networkidle');await steps(page,initial+1);await ready(page);
     assert.equal(await legendHit.count(),0);
     await key(page,'Control+z',initial);assert.ok(await legendHit.count());
@@ -121,7 +121,7 @@ try {
       await steps(page,initial);await ready(page);
       await key(page,'Control+y',initial+1);
     }
-    await page.waitForFunction(()=>document.querySelector('#draft-status').textContent==='Draft saved on this device');
+    await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');
     await page.reload();await page.waitForLoadState('networkidle');await steps(page,initial+1);await ready(page);
     await key(page,'Control+z',initial);await key(page,'Control+y',initial+1);
     await page.screenshot({path:new URL(`${mode}-${kind}.png`,out).pathname});

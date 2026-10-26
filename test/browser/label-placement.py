@@ -1,4 +1,5 @@
 """Gapminder rose label placement: real controls, hover/pin/Apply, persisted native options."""
+from saved_project import read_saved_project
 import subprocess,json
 from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
@@ -44,9 +45,8 @@ with sync_playwright() as p:
  page.screenshot(path='output/label-placement/card.png')
  card.locator('.apply-button').click()
  expect(page.locator('#current')).to_have_attribute('data-steps','3',timeout=60000)
- page.locator('.project-menu summary').click()
- with page.expect_download() as d:page.locator('#save-project').click()
- project=json.loads(Path(d.value.path()).read_text());session=next(ds for ds in project['datasets'] if ds['id']==project['activeId'])['session']
+
+ project=read_saved_project(page);session=next(ds for ds in project['datasets'] if ds['id']==project['activeId'])['session']
  call=next(c for c in reversed(session['entries'][session['index']]['calls']) if c['method']=='editMarkLabelPlacement')
  assert call['args']['placement']['anchor']=='insideEnd',call
  assert call['args']['placement']['gap']==5,call

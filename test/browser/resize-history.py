@@ -1,4 +1,5 @@
 """Consecutive direct resizes coalesce code, native traces and history cells."""
+from saved_project import read_saved_project
 import json, re, subprocess
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
@@ -22,10 +23,7 @@ with sync_playwright() as p:
    page.wait_for_function('!document.querySelector("#current").classList.contains("resizing") && !document.querySelector("#current").dataset.resizeSettling')
    return page.locator('#current').evaluate('e=>[e.querySelector("canvas").dataset.logicalWidth,e.querySelector("canvas").dataset.logicalHeight,e.querySelector(".plot-boundary").textContent]')
   def session():
-   page.locator('.project-menu summary').click()
-   with page.expect_download() as downloaded: page.locator('#save-project').click()
-   page.locator('.project-menu summary').click()
-   doc=json.loads(Path(downloaded.value.path()).read_text())
+   doc=read_saved_project(page)
    return next(d['session'] for d in doc['datasets'] if d['id']==doc['activeId'])
   def drag(handle,dx,dy,step,cancel=False):
    page.locator('h1').hover()

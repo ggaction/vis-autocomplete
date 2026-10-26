@@ -1,4 +1,5 @@
 """Real typography controls, selected text highlights, history and reload."""
+from saved_project import read_saved_project
 import json, os, subprocess
 from pathlib import Path
 from itertools import product
@@ -35,10 +36,8 @@ with sync_playwright() as p:
   def groups():
    if page.locator('.text-group-menu').get_attribute('open') is None:page.get_by_label('Choose text groups',exact=True).click()
   def session():
-   ready();page.locator('.project-menu summary').click()
-   with page.expect_download() as download:page.locator('#save-project').click()
-   page.locator('.project-menu summary').click()
-   doc=json.loads(Path(download.value.path()).read_text());return next(d['session'] for d in doc['datasets'] if d['id']==doc['activeId'])
+   ready()
+   doc=read_saved_project(page);return next(d['session'] for d in doc['datasets'] if d['id']==doc['activeId'])
   try:
    ready();page.locator('#chart-font').select_option('Georgia')
    expect(page.locator('#current')).to_have_attribute('data-steps',str(initial+1),timeout=60000);ready()

@@ -1,4 +1,5 @@
 """Small guide drags, edge docking and history replay in both display modes."""
+from saved_project import read_saved_project
 import json, subprocess, os
 from pathlib import Path
 from itertools import product
@@ -32,10 +33,7 @@ with sync_playwright() as p:
   expect(page.locator('#current')).to_have_attribute('data-steps',str(initial),timeout=60000)
   page.locator(f'#view-mode [data-mode={mode}]').click();page.locator('h1').hover()
   def session():
-   page.locator('.project-menu summary').click()
-   with page.expect_download() as download:page.locator('#save-project').click()
-   page.locator('.project-menu summary').click()
-   doc=json.loads(Path(download.value.path()).read_text());return next(d['session'] for d in doc['datasets'] if d['id']==doc['activeId'])
+   doc=read_saved_project(page);return next(d['session'] for d in doc['datasets'] if d['id']==doc['activeId'])
   def drag(key,dx,dy,steps):
    expect(page.locator('#reset')).to_be_enabled(timeout=60000)
    page.locator('h1').hover()

@@ -126,12 +126,7 @@
       <label class="sr-only" for="dataset">Dataset</label>
       <select id="dataset" disabled><option value="" disabled selected>Try example dataset</option></select>
       <button id="reset" type="button" title="Reset this dataset's chart, variable selections and history" disabled>Reset</button>
-      <details class="project-menu"><summary>Project</summary><div>
-        <button id="save-project" type="button" disabled>Save project</button>
-        <button id="open-project" type="button">Open project</button>
-        <button id="edit-schema" type="button" disabled>Data types</button>
-        <span id="draft-status" role="status" aria-live="polite"></span>
-      </div></details>
+      <button id="edit-schema" type="button" disabled>Data types</button>
       <input id="project-file" type="file" accept=".json,.visauto,application/json" hidden>
     </div>
     <div id="view-mode" class="view-mode" role="group" aria-label="Visualization mode"><button type="button" data-mode="preview" aria-pressed="false">Preview mode</button><button type="button" data-mode="transition" aria-pressed="true">Transition mode</button></div>

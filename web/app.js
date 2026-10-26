@@ -420,8 +420,8 @@ function updateHistoryButtons() {
   const busy = state.loading || state.committing || state.resizing;
   chartDownloads.refresh(); compositionControls.refresh();
   typographyToolbar.refresh();
-  for (const id of ['dataset', 'upload', 'open-project', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
-  for (const id of ['edit-schema', 'reset', 'save-project', 'code-export']) $(id).disabled = busy || !state.datasetId;
+  for (const id of ['dataset', 'upload', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
+  for (const id of ['edit-schema', 'reset', 'code-export']) $(id).disabled = busy || !state.datasetId;
   $('undo').disabled = busy || !history.canUndo;
   $('redo').disabled = busy || !history.canRedo;
   for (const group of OPTION_GROUPS) $(`group-${group.id}`).disabled = busy;
@@ -1663,16 +1663,14 @@ function projectSnapshot() {
 }
 function flushSave() {
   if (restoringProject || switchingAccount || !state.datasetId) return;
-  $('draft-status').textContent = 'Saving draft…';
   // Start durable writes without a debounce gap: a dataset switch followed by
   // reload must not restore the previously selected dataset.
   try {
     const project = projectSnapshot();
     const cloudSave = accountMenu?.save(project);
     cloudSave?.catch(() => { $('cloud-status').textContent = 'Account save failed. Keep this tab open and retry.'; });
-    savingDraft = drafts.write(project).then(() => {
-      $('draft-status').textContent = 'Draft saved on this device';
-    }).catch(error => { $('draft-status').textContent = 'Draft not saved. Use Save project.'; $('draft-status').title = error.message; });
+    // This local recovery cache is independent of the account save status.
+    savingDraft = drafts.write(project).catch(error => { console.warn('Local recovery cache could not be saved:', error.message); });
     clearTimeout(checkpointTimer);
     if (state.phase === 'recommendations' && sourceVersion?.runtimeHash) {
       // Cache the committed history entry, never a transient drag/hover view.
@@ -1690,7 +1688,7 @@ function flushSave() {
       };
       checkpointTimer = setTimeout(cache, 500);
     }
-  } catch (error) { $('draft-status').textContent = 'Draft not saved. Use Save project.'; $('draft-status').title = error.message; }
+  } catch (error) { notice(`Could not save changes: ${error.message}`, true); }
   return savingDraft;
 }
 function scheduleSave() { return flushSave(); }
@@ -2012,11 +2010,6 @@ initializeHistoryShortcuts({ run: restoreHistory,
   } });
 $('undo').title = 'Undo (Ctrl/Cmd+Z)';
 $('redo').title = 'Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y)';
-$('save-project').addEventListener('click', () => {
-  try { downloadText(JSON.stringify(projectSnapshot()), `${filename(state.name)}.visauto.json`); }
-  catch (error) { notice(error.message, true); }
-});
-$('open-project').addEventListener('click', () => $('project-file').click());
 $('project-file').addEventListener('change', async event => {
   if (state.committing) { event.target.value = ''; return; }
   const file = event.target.files[0]; if (!file) return;
@@ -2073,7 +2066,6 @@ try {
           } catch (error) { document.body.dataset.checkpointError = error.message; }
           document.body.dataset.restoration = current ? 'checkpoint' : 'calls';
           await openProject(draft, { lazy: true, current, onReady: () => { state.loading = false; startupLoading = false; } });
-          $('draft-status').textContent = 'Draft restored on this device';
         }
       } catch (error) { notice(`Could not restore the draft: ${error.message}`, true); }
       finally { switchingAccount = false; state.committing = false; updateHistoryButtons(); }

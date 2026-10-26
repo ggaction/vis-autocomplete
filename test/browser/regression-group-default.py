@@ -1,4 +1,5 @@
 """Cars categorical color remains the default regression group with/without facets."""
+from saved_project import read_saved_project
 import json,re
 from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
@@ -38,9 +39,8 @@ with sync_playwright() as p:
   group.get_by_role('button',name='Origin',exact=True).click()
   card.locator('.apply-button').click();step+=1
   expect(page.locator('#current')).to_have_attribute('data-steps',str(step),timeout=60000)
-  page.locator('h1').hover();page.locator('.project-menu summary').click()
-  with page.expect_download() as d:page.locator('#save-project').click()
-  project=json.loads(Path(d.value.path()).read_text());page.locator('.project-menu summary').click()
+  page.locator('h1').hover()
+  project=read_saved_project(page)
   current=next(ds for ds in project['datasets'] if ds['id']==project['activeId'])['session']
   calls=current['entries'][current['index']]['calls']
   reg=next(call for call in reversed(calls) if call['method']=='createRegression' or call['args'].get('action',{}).get('method')=='createRegression')

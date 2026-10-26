@@ -1,7 +1,8 @@
+import { readSavedProject } from './browser-project.js';
 import assert from 'node:assert/strict';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { expect } from '@playwright/test';
-import { createProject, parseProject, restoreSession } from '../web/project.js';
+import { createProject, restoreSession } from '../web/project.js';
 import { editableGuides } from '../src/guide-manipulation.js';
 import { addDefaultGuides } from '../src/prepare.js';
 import { compositionPlotBounds } from '../vendor/ggaction/src/materialization/composition.js';
@@ -47,10 +48,8 @@ export async function checkElementSelection(page) {
     await menu.getByRole('button', { name: `Select ${label}`, exact: true }).click();
   };
   async function saved() {
-    await ready(); await page.locator('.project-menu > summary').click();
-    const pending = page.waitForEvent('download'); await page.locator('#save-project').click();
-    const download = await pending, doc = parseProject(await readFile(await download.path(), 'utf8'));
-    await page.locator('.project-menu > summary').click();
+    await ready();
+    const doc = await readSavedProject(page);
     const record = doc.datasets.find(d => d.id === doc.activeId), session = restoreSession(record.session, record.imported.rows);
     return { session, entry: session.entries[session.index] };
   }
@@ -150,8 +149,11 @@ export async function checkElementSelection(page) {
     assert.equal(all.entry.program.titleConfig.titleStyle.fontSize, 21);
     await page.screenshot({ path: `${output}/${mode}-all-legends.png` });
     await page.keyboard.press('Escape'); await expect(selected).toHaveCount(0);
-    // Item-body drags move symbols and labels independently from the title.
-    const labels = hit('legend:color:items'), box = await labels.boundingBox();
+    // Explicitly select the items scope before detaching it from the title.
+    // An unselected item-body drag intentionally moves the whole legend.
+    const labels = hit('legend:color:items');
+    await labels.click(); await expect(selected).toHaveCount(1);
+    const box = await labels.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 12, box.y + box.height / 2 + 12, { steps: 5 }); await page.mouse.up();
     await ready();

@@ -423,7 +423,7 @@ try{
  await expect(page.locator('html')).toHaveAttribute('data-view-mode','transition');
  await expect(page.locator('#code-content')).toContainText('createScatterPlot');
  await expect(page.locator('#dataset option:checked')).toHaveText('Research — Inventory');
- await page.locator('.project-menu summary').click();await page.locator('#edit-schema').click();
+ await page.locator('#edit-schema').click();
  await expect(dialog().getByRole('status')).toContainText('2 rows · 3 fields');
  await expect(dialog().getByLabel('Units: type',{exact:true}).locator('option:checked')).toHaveText('Auto → quantitative');
  await dialog().getByRole('button',{name:'Cancel',exact:true}).click();

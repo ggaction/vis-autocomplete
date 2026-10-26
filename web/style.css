@@ -311,11 +311,6 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .parameter-choice.color-swatch { width: 22px; height: 22px; padding: 0; color: transparent; font-size: 0; border: 2px solid white; box-shadow: 0 0 0 1px #ccd0d4; }
 .parameter-choice.color-swatch[aria-pressed="true"], .parameter-choice.color-swatch.previewing { box-shadow: 0 0 0 2px #333; }
 
-.project-menu { position: relative; font-size: 11px; }
-.project-menu summary { cursor: pointer; border: 1px solid var(--border); border-radius: 3px; padding: 6px 8px; background: #fff; list-style-position: inside; }
-.project-menu > div { position: absolute; top: calc(100% + 5px); left: 0; z-index: 30; width: 205px; padding: 8px; display: grid; gap: 6px; border: 1px solid var(--border); border-radius: 4px; background: #fff; box-shadow: 0 5px 15px #0001; }
-.project-menu button { text-align: left; padding: 7px; }
-#draft-status { color: #747c85; font-size: 10px; line-height: 1.4; }
 .action-search { position: relative; }
 .action-search input { padding-right: 25px; }
 #clear-search { position: absolute; right: 3px; top: 4px; width: 22px; height: 22px; padding: 0; border: 0; font-size: 16px; background: transparent; }

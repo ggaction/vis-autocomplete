@@ -1,8 +1,9 @@
+import { readSavedProject } from './browser-project.js';
 // Run inside the signed-in browser suite using its isolated mock account.
 import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
 import { expect } from '@playwright/test';
-import { parseProject, restoreSession } from '../web/project.js';
+import { restoreSession } from '../web/project.js';
 
 export async function checkAdjacentFilteredCars(page) {
   const read = async path => JSON.parse(await readFile(new URL(path, import.meta.url), 'utf8'));
@@ -49,9 +50,7 @@ export async function checkAdjacentFilteredCars(page) {
     await area.hover(); await area.locator('.apply-button').click();
     await expect(page.locator('.history-item')).toHaveCount(historyCount + 1);
     await expect(page.locator('#current')).toHaveAttribute('data-last-method', 'createAdjacentPlot');
-    await page.locator('.project-menu > summary').click();
-    const pending = page.waitForEvent('download'); await page.locator('#save-project').click();
-    const download = await pending, project = parseProject(await readFile(await download.path(), 'utf8'));
+    const project = await readSavedProject(page);
     const record = project.datasets.find(d => d.id === project.activeId);
     const session = restoreSession(record.session, record.imported.rows), snapshot = session.entries[session.index];
     const restoredMethod = snapshot.calls.at(-1).method;
@@ -60,14 +59,12 @@ export async function checkAdjacentFilteredCars(page) {
     assert.ok(snapshot.program.children.chart2);
     assert.equal(snapshot.program.children.plot.semanticSpec.datasets.find(d => d.id === 'dataset-selected-1').values.length,
       rows.filter(row => row.Miles_per_Gallon != null).length);
-    await page.locator('.project-menu > summary').click();
     await page.locator('#undo').click(); await expect(page.locator('#redo')).toBeEnabled();
     await page.locator('#redo').click();
     await expect(page.locator('#current')).toHaveAttribute('data-last-method', restoredMethod);
     // Rendering the restored history entry precedes its asynchronous durable
     // save. Reload the saved state, rather than racing an in-flight write.
     await expect(page.locator('#reset')).toBeEnabled();
-    await expect(page.locator('#draft-status')).toHaveText('Draft saved on this device');
     await expect(page.locator('#cloud-status')).toHaveText('Saved');
     await page.reload(); await page.locator('#current canvas').waitFor();
     await expect(page.locator('#current')).toHaveAttribute('data-last-method', restoredMethod);

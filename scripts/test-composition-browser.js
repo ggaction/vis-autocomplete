@@ -1,7 +1,8 @@
+import { readSavedProject } from './browser-project.js';
 import assert from 'node:assert/strict';
-import { readFile, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { chromium } from '../vendor/ggaction/node_modules/playwright/index.mjs';
-import { parseProject, restoreSession } from '../web/project.js';
+import { restoreSession } from '../web/project.js';
 import { editableChartTargets } from '../src/composition-context.js';
 
 const output = new URL('../output/composition-v025/', import.meta.url);
@@ -60,9 +61,7 @@ try {
     await page.waitForTimeout(25);
    }
    await page.locator('h1').hover();
-   await page.locator('.project-menu > summary').click();
-   const pending=page.waitForEvent('download');await page.locator('#save-project').click();
-   const download=await pending, project=parseProject(await readFile(await download.path(),'utf8'));
+   const project = await readSavedProject(page);
    const record=project.datasets.find(d=>d.id===project.activeId), session=restoreSession(record.session,record.imported.rows);
    const snapshot=session.entries[session.index], targets=editableChartTargets(snapshot.program);
    assert.equal(targets.length,3); assert.equal(targets.filter(t=>t.overlay).length,1);
@@ -71,7 +70,6 @@ try {
    assert.equal(snapshot.guideCall.method,'createGuides');
    assert.equal(snapshot.calls.filter(call=>call.method==='createAdjacentPlot').length,1);
    const restoredLastMethod=snapshot.calls.at(-1).method;
-   await page.locator('.project-menu > summary').click();
    await page.locator('#undo').click();await page.waitForFunction(()=>!document.querySelector('#redo').disabled);
    await page.locator('#redo').click();await page.waitForFunction(method=>document.querySelector('#current').dataset.lastMethod===method && !document.querySelector('#undo').disabled,restoredLastMethod);
    await page.reload();await page.waitForFunction(()=>document.querySelectorAll('#editing-target button').length===4);

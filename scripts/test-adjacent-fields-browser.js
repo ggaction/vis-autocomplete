@@ -42,7 +42,7 @@ try {
         await page.getByRole('button', { name: `Select column ${field}`, exact: true }).click();
       }
       await apply(page, await findCard(page, /^Area plot$/i));
-      await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+      await page.waitForFunction(() => document.querySelector('#cloud-status').textContent === 'Saved');
       await page.reload(); await page.waitForLoadState('networkidle');
       await page.waitForFunction(() => !document.querySelector('#dataset').disabled && document.querySelector('#current canvas'));
       await addRight(page);
@@ -66,7 +66,7 @@ try {
       await page.getByLabel('Add variable', { exact: true }).click();
       await page.getByRole('button', { name: 'Add variable Miles_per_Gallon', exact: true }).click();
       await apply(page, await findCard(page, /^Add Scatter plot$/i));
-      await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+      await page.waitForFunction(() => document.querySelector('#cloud-status').textContent === 'Saved');
       const project = await page.evaluate(async () => (await import('/web/project.js')).createDraftStore().read());
       const calls = project.datasets.find(d => d.id === 'cars').session.entries.at(-1).calls;
       const added = calls.findLast(c => c.method === 'createAdjacentPlot').args.plot.options;
@@ -107,7 +107,7 @@ try {
       await parallel.hover(); await page.screenshot({ path: new URL(`${mode}-cards.png`, output).pathname });
       await apply(page, parallel);
       await page.waitForFunction(() => document.querySelector('#current').dataset.lastMethod === 'createAdjacentPlot');
-      await page.waitForFunction(() => document.querySelector('#draft-status').textContent === 'Draft saved on this device');
+      await page.waitForFunction(() => document.querySelector('#cloud-status').textContent === 'Saved');
       const record = await page.evaluate(async () => (await (await import('/web/project.js')).createDraftStore().read()).datasets.find(d => d.id === 'iris'));
       const call = record.session.entries.at(-1).calls.find(c => c.method === 'createAdjacentPlot');
       assert.equal(call.args.plot.action, 'createParallelCoordinates'); assert.deepEqual(call.args.plot.options.dimensions, fields.slice(0, 4));

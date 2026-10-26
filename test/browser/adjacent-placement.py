@@ -1,4 +1,5 @@
 """Exercise panel/group placement through the same controls used by chart authors."""
+from saved_project import save_project
 from pathlib import Path
 import os
 from playwright.sync_api import sync_playwright, expect
@@ -34,11 +35,7 @@ with sync_playwright() as p:
         expect(page.locator('#add-overlay')).to_be_enabled()
 
     def save(path):
-        page.locator('.project-menu > summary').click()
-        with page.expect_download() as download:
-            page.locator('#save-project').click()
-        download.value.save_as(str(path))
-        page.locator('.project-menu > summary').click()
+        save_project(page, str(path))
 
     baseline = os.environ.get('ADJACENT_BASELINE')
     if baseline:
@@ -124,7 +121,7 @@ with sync_playwright() as p:
     expect(page.locator('.target-chart-group')).to_have_count(2)
     page.locator('#redo').click()
     expect(page.locator('.target-chart-group')).to_have_count(3)
-    expect(page.locator('#draft-status')).to_have_text('Draft saved on this device')
+    expect(page.locator('#cloud-status')).to_have_text('Saved')
     page.reload()
     expect(page.locator('.target-chart-group')).to_have_count(3)
     page.locator('#current-shell').hover()

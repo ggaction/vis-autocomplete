@@ -760,9 +760,10 @@ Stocks, Gapminder, Barley, Iowa electricity를 제공하며 원본 출처는
 변수를 바꾸거나 다른 차트를 Apply하면 그 지점에서 새로 분기한다.
 상단바의 `Reset`은 현재 데이터셋을 유지하면서 차트, X/Y/Color 선택, 검색과
 히스토리를 초기화한다. 초기화한 상태도 자동 저장되며 다른 데이터셋의 작업은 유지된다.
-이 브라우저의 IndexedDB에 자동 저장하고 새로고침 시 복구한다. 원본 데이터는
+프로젝트는 계정에 자동 저장하며 Workspace의 `My visualizations`에서 다시 연다.
+계정별 IndexedDB 복구 캐시도 유지해 새로고침 시 복구한다. 원본 데이터는
 한 번 저장하고 일반 액션 적용에서는 히스토리 메타데이터만 갱신한다.
-`Project → Save project`의 `.visauto.json` 파일로 다른 세션에서도 이어서 작업한다.
+데이터 타입은 상단바의 `Data types` 버튼에서 수정한다.
 프로젝트를 읽을 때는 등록된 ggaction 공개 호출만 재생하며 JavaScript를 평가하지 않는다.
 
 Facet와 Facet grid, Arrange facets의 간격은 `spacing: "plot"`으로 데이터 영역

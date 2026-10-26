@@ -1,3 +1,4 @@
+from saved_project import save_project
 from playwright.sync_api import sync_playwright
 from pathlib import Path
 import os
@@ -13,9 +14,7 @@ with sync_playwright() as p:
  def search(group,query):
   page.locator('#group-'+group).click(); page.locator('#action-search').fill(query);page.wait_for_timeout(1800)
  def save(path):
-  page.locator('.project-menu > summary').click()
-  with page.expect_download() as download:page.locator('#save-project').click()
-  download.value.save_as(path);page.locator('.project-menu > summary').click()
+  save_project(page, path)
  page.goto(os.environ.get('APP_URL', 'http://127.0.0.1:5173/'));page.locator('#dataset').select_option('barley')
  for field in ['variety','yield','site']:page.get_by_role('button',name='Select column '+field,exact=True).click()
  page.locator('#cards .card').first.wait_for()

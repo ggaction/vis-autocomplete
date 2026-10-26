@@ -19,7 +19,7 @@ try {for(const mode of ['preview','transition']){
   const adjacent=page.locator('.card[data-method="createAdjacentPlot"]').filter({has:page.locator('h3',{hasText:/^Add Bar plot$/i})});await apply(adjacent);
   const shared=page.locator('.guide-control[data-guide-key="legend:shared-color"]');await shared.waitFor({state:'attached'});
   async function geometry(){return page.evaluate(async()=>{const {createDraftStore,restoreSession}=await import('/web/project.js');const draft=await createDraftStore().read(),record=draft.datasets.find(d=>d.id===draft.activeId);const session=restoreSession(record.session,record.imported.rows);const p=session.entries[session.index].view??session.entries[session.index].program;const {editableGuides}=await import('/src/guide-manipulation.js');const {compositionPlotBounds}=await import('/vendor/ggaction/src/materialization/composition.js');return {guide:editableGuides(p).find(t=>t.key==='legend:shared-color'),plot:compositionPlotBounds(p)};});}
-  async function saved(){await page.waitForFunction(()=>document.querySelector('#draft-status').textContent==='Draft saved on this device');}
+  async function saved(){await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');}
   await saved();let g=await geometry();assert.ok(g.guide.bounds.top>g.plot.y+g.plot.height,'bottom position survives adding left');
   await legendCard('top');await saved();g=await geometry();assert.ok(g.guide.bounds.bottom<g.plot.y,'card on new chart edits visible shared legend');
   const oldSize=g.guide.config.labels.fontSize;let b=await shared.boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);

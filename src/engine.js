@@ -322,6 +322,7 @@ export function createRecommendationEngine(model) {
           radialContext: candidate.radialContext,
           arcContext: candidate.arcContext,
           statisticalContext: candidate.statisticalContext,
+          labelContext: candidate.labelContext,
           positionFields: candidate.positionFields,
           sourceMethod: candidate.sourceMethod,
           facetFields: candidate.facetFields,

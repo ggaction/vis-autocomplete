@@ -12,6 +12,7 @@ import { regressionFilterLimits } from './regression-context.js';
 import { editableFilterRows } from './filter-context.js';
 import { labelPlacementCandidates } from './label-placement-candidates.js';
 import { statisticalContext } from './statistical-context.js';
+import { valueLabelCandidates } from './value-labels.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -35,6 +36,7 @@ export function extendedCandidates(program, { layer, profile }) {
   if (!hasChartContext(program, layer)) return [];
   const out = specializedAxisCandidates(program, layer), target = layer.id, encoding = layer.encoding ?? {}, mark = layer.mark?.type;
   out.push(...labelPlacementCandidates(program, layer));
+  out.push(...valueLabelCandidates(program, layer, profile));
   const owner = chartOwner(program, layer);
   const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
   const resourceId = stem => {
@@ -119,19 +121,6 @@ export function extendedCandidates(program, { layer, profile }) {
       [choices('field', 'Series', field.name, [...groupFields.map(f => f.name),
         ...[...incompatibleSeries].map(([value, reason]) => ({ value, label: value, disabled: true, reason }))])], 'encoding.group');
   }
-  if (['point', 'bar', 'rect', 'arc', 'rule'].includes(mark) &&
-      !program.semanticSpec.layers.some(l => l.source === target && program.markConfigs[l.id]?.labelAuthoring)) {
-    const semantic = ['bar', 'arc'].includes(mark);
-    const field = encoding.color?.field ?? program.markConfigs[target]?.gradientPlot?.category ??
-      encoding.y?.field ?? encoding.x?.field;
-    if (semantic || fields.some(f => f.name === field)) {
-      const args = { source: target, ...(semantic ? { content: 'value' } : { field }),
-        fontSize: 11, placement: { anchor: semantic ? 'outsideEnd' : 'center' } };
-      add('createMarkLabels', 'encoding', args, semantic ? [] : [choices('field', 'Label variable', field, fields.map(f => f.name)),
-        number('fontSize', 'Label size', 11, 8, 18)], 'action.createMarkLabels', 'Add value labels');
-    }
-  }
-
   if (program.markConfigs[target]?.markFilter) add('removeMarkFilter', 'transform', { target }, [], 'action.removeMarkFilter', 'Restore filtered values');
   // The style family is based on the real mark type, including heatmap/arc/text/
   // rule/tick marks. A default opacity is not a reason to hide all mark editing.

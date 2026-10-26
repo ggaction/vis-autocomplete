@@ -5,6 +5,7 @@ import { binnedPositionExpression } from '../src/plot-aggregation.js';
 import { applyParameterDefaults } from '../src/control-defaults.js';
 import { defaultFacetColumns } from '../src/facet-layout.js';
 import { DEFAULT_TITLE_FONT_SIZE, DEFAULT_SUBTITLE_FONT_SIZE } from '../src/parameter-defaults.js';
+import { valueLabelParameters } from './value-label-parameters.js';
 const select = (key, label, choices, value) => ({ key, label, type: 'select',
   choices: choices.map(v => typeof v === 'object' ? v : { value: v, label: v }), value });
 const numeric = (key, label, value, min, max, step = 1) => ({ key, label, type: 'number', value, min, max, step });
@@ -179,7 +180,9 @@ export function recommendationParameters(recommendation, profile) {
   let normalize = values => ({ ...values });
   let resolve = () => controls;
 
-  if (method === 'editArcMark' && recommendation.arcContext) {
+  if (recommendation.labelContext) {
+    ({ controls, build } = valueLabelParameters(recommendation));
+  } else if (method === 'editArcMark' && recommendation.arcContext) {
     const context = recommendation.arcContext;
     const geometry = args.innerRadius !== undefined || args.padAngle !== undefined;
     if (geometry) {

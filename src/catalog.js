@@ -27,8 +27,11 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
   // card must not bypass the same mark's coordinate/grain-aware editor.
   const editors = new Set(candidates.filter(candidate => /^edit.*Mark$/.test(candidate.method))
     .map(candidate => `${candidate.method}:${candidate.args.target}`));
+  const labelEditors = new Set(candidates.filter(candidate => candidate.labelContext)
+    .map(candidate => `${candidate.method}:${candidate.args.source ?? candidate.args.target}`));
   candidates.push(...corpusCandidates(program, { layer, profile }, actionEvidence)
-    .filter(candidate => !editors.has(`${candidate.method}:${candidate.args.target}`)));
+    .filter(candidate => !editors.has(`${candidate.method}:${candidate.args.target}`) &&
+      !labelEditors.has(`${candidate.method}:${candidate.args.source ?? candidate.args.target}`)));
   const add = (method, feature, category, label, args, inspectionTarget) => {
     candidates.push({ method, feature, category, label, args, inspectionTarget });
   };

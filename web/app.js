@@ -1,3 +1,4 @@
+import { createMarkSelection } from './mark-selection.js';
 import { createResearchCollector } from './research/collector.js';
 import { createTextEditor } from './text-editor.js';
 import { createChartZoom } from './chart-zoom.js';
@@ -258,7 +259,7 @@ function rebaseCard(card) {
   card.prepared = null; card.preparedSignature = null; card.needsResizeRefresh = true;
 }
 const canvasResize = createCanvasResize(elements.current, {
-  canStart: () => state.phase !== 'initial' && !state.loading && !state.committing && !state.resizing && !transitionMode.active,
+  canStart: () => state.phase !== 'initial' && !state.loading && !state.committing && !state.resizing && !state.markSelecting && !transitionMode.active,
   start(handle) {
     research.begin('resize',{handle});
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
@@ -337,7 +338,7 @@ const guideEditor = createGuideEditor(elements.current, {
   scope: () => state.datasetId,
   selectionChanged: () => typographyToolbar.refresh(),
   available: () => state.phase !== 'initial' && !transitionMode.active,
-  canStart: () => !state.loading && !state.committing && !state.resizing,
+  canStart: () => !state.loading && !state.committing && !state.resizing && !state.markSelecting,
   async remove(target, action) {
     research.begin('delete',{target:target.id,method:action.method});
     leaveGallery(); cardMotion.finish(); resizeHistory.reset();
@@ -443,6 +444,36 @@ function commitGuideGroup(context) {
   elements['current-note'].textContent = context.title;
   showCode(null, { settleApplied: true });
 }
+
+let markPreviewRequest = 0;
+const markSelection = createMarkSelection(document.querySelector('.current-view-tools'), elements.current, {
+  available: () => state.phase !== 'initial' && Boolean(state.view) && !state.loading && !state.committing,
+  program: () => state.view,
+  error: message => notice(message, true),
+  start() {
+    leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
+    transitionMode.reset(); cardMotion.finish(); state.markSelecting = true;
+    research.begin('highlight', { target: state.target });
+  },
+  async preview(action) {
+    const request = ++markPreviewRequest;
+    if (!action) { renderChart(elements.current, state.view, 'Current visualization'); showCode(null); return; }
+    try {
+      const prepared = await calculations.prepare(state.program, state.view, state.guideCall, action, [], { interactive: true });
+      if (request !== markPreviewRequest || !state.markSelecting) return;
+      renderChart(elements.current, prepared.preview, 'Highlight selection');
+      showCode({ base: state.program, view: state.view, guideCall: state.guideCall, prepared });
+      notice();
+    } catch (error) { if (request === markPreviewRequest) notice(error.message, true); }
+  },
+  cancel() { markPreviewRequest++; state.markSelecting = false; renderChart(elements.current, state.view, 'Current visualization'); showCode(null); },
+  async apply(action) {
+    markPreviewRequest++; state.markSelecting = false;
+    await commit({ base: state.program, view: state.view, guideCall: state.guideCall,
+      method: action.method, values: {}, build: () => action.args, title: 'Highlight selected marks',
+      interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true, refresh: true });
+  }
+});
 
 const typographyToolbar = createTypographyToolbar($('chart-typography'), elements.current, {
   read: () => state, apply: commitTypography, onError: message => notice(message, true),
@@ -647,7 +678,7 @@ function notice(message = '', isError = false) {
 function placeholder(host, message) {
   renderedCharts.delete(host);
   if (host === elements.current) { lastPreview = null; transitionMode.reset(); canvasResize.clear(); guideEditor.clear({ selection: state.phase === 'initial' }); }
-  if (host === elements.current) chartDownloads.refresh();
+  if (host === elements.current) { chartDownloads.refresh(); markSelection.mount(); }
   const wrapper = document.createElement('div'); wrapper.className = 'empty-state';
   const text = document.createElement('p'); text.textContent = message;
   wrapper.append(text); host.replaceChildren(wrapper);
@@ -667,7 +698,7 @@ function renderChart(host, program, label) {
   if (host === elements.preview) lastPreview = { program, label, generation: state.generation };
   if (host === elements.current) {
     chartDownloads.refresh();
-    if (state.phase !== 'initial') { canvasResize.mount(program, canvas); guideEditor.mount(program); compositionControls.layout(); typographyToolbar.mount(); }
+    if (state.phase !== 'initial') { canvasResize.mount(program, canvas); guideEditor.mount(program); compositionControls.layout(); typographyToolbar.mount(); markSelection.mount(); }
   }
 }
 
@@ -726,6 +757,7 @@ function showCode(card = null, { settleApplied = false } = {}) {
 }
 
 function showPreview(card, { showCodeChange = true, duration } = {}) {
+  if (state.markSelecting) return;
   if(transitionMode.enabled){
     if(state.committing)return;
     if(historyInspection){showCode();transitionMode.show(null,{program:historyPreview(historyInspection)});return;}
@@ -958,7 +990,15 @@ function addControl(card, definition, parent = card.controlsElement) {
       const colorInput = label.querySelector('input[type="color"]');
       if (colorInput) colorInput.value = card.values[definition.key];
     };
-    for (const choice of definition.choices) {
+    const choiceHost = definition.paged ? document.createElement('div') : choices;
+    if (definition.paged) { choiceHost.className = 'parameter-options'; choices.append(choiceHost); }
+    const renderChoices = entries => {
+      if (definition.paged) {
+        const previous = new Set(buttons.map(entry => entry.button));
+        card.parameterButtons = card.parameterButtons.filter(button => !previous.has(button));
+        buttons.length = 0; choiceHost.replaceChildren();
+      }
+      for (const choice of entries) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'parameter-choice';
       button.textContent = choice.label; button.dataset.value = choice.value; button.disabled = Boolean(choice.disabled);
       if (definition.type === 'color') {
@@ -985,8 +1025,26 @@ function addControl(card, definition, parent = card.controlsElement) {
         pinValues(card, draft(), definition.key, !(definition.type === 'multiselect' && definition.selectAll));
         refresh();
       });
-      (choice.featured === false ? moreOptions : choices).append(button);
-    }
+      (choice.featured === false ? moreOptions : choiceHost).append(button);
+      }
+      refresh();
+    };
+    if (definition.paged) {
+      const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'Find a value';
+      search.setAttribute('aria-label', `${card.title}: Find ${definition.label}`);
+      const previous = document.createElement('button'), next = document.createElement('button'), status = document.createElement('span');
+      previous.type = next.type = 'button'; previous.textContent = '‹'; next.textContent = '›';
+      previous.setAttribute('aria-label', 'Previous values'); next.setAttribute('aria-label', 'Next values');
+      let page = 0;
+      const display = () => {
+        const matching = definition.choices.filter(choice => String(choice.label).toLowerCase().includes(search.value.toLowerCase()));
+        const pages = Math.max(1, Math.ceil(matching.length / 40)); page = Math.min(page, pages - 1);
+        renderChoices(matching.slice(page * 40, (page + 1) * 40));
+        previous.disabled = page === 0; next.disabled = page + 1 >= pages; status.textContent = `${page + 1} / ${pages}`;
+      };
+      search.oninput = () => { page = 0; display(); }; previous.onclick = () => { page--; display(); }; next.onclick = () => { page++; display(); };
+      choices.prepend(search); choices.append(previous, status, next); display();
+    } else renderChoices(definition.choices);
     if (definition.type === 'multiselect' && definition.ordered) {
       const order = document.createElement('div'); order.className = 'dimension-order';
       for (const [index, name] of card.values[definition.key].entries()) {

@@ -71,7 +71,7 @@ const expected = Object.fromEntries(Object.entries({
     encodeR encodeShape encodeSize encodeStroke encodeStrokeDash encodeStrokeWidth encodeText
     encodeTheta encodeX2 encodeXOffset encodeY2 facet facetGrid createMarkLabels orderCategories encodePathOrder`,
   transform: `createRegression createStatisticalReference editBin2DData editRegression editDensity filterMarks jitterPoints layoutSeries packPoints`,
-  style: `createAnnotation createTitle editAxes editGrid editLegend editCompositionLayout
+  style: `highlightMarks removeMarkHighlight createAnnotation createTitle editAxes editGrid editLegend editCompositionLayout
     editArcMark editAreaMark editBarMark editCanvas editCoordinate editErrorBand editFacetGuides editFacetHeaders
     editHorizontalGrid editRadialGrid editThetaGrid editLegendBlock editLegendBorder editLegendLabels editLegendLayout editLegendSymbols editLegendTitle
     editLineMark editPointMark editRectMark editRuleMark editTextMark editTickMark editVerticalGrid

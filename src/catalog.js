@@ -1,3 +1,4 @@
+import { highlightCandidates } from './highlight-candidates.js';
 import { getPlotComposition } from 'ggaction/inspection';
 import { overlayCandidates } from './overlay-candidates.js';
 import { positionCandidates, ownedPositionCandidates } from './position-candidates.js';
@@ -27,7 +28,7 @@ export function generateCandidates(program, { layer, profile, actionEvidence, re
 }
 
 function candidateRecipes(program, { layer, profile, actionEvidence, regressionContext }) {
-  const candidates = [...overlayCandidates(program, layer), ...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile })];
+  const candidates = [...highlightCandidates(program, layer), ...overlayCandidates(program, layer), ...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile })];
   // Corpus defaults already feed the parameter editors. A second opaque preset
   // card must not bypass the same mark's coordinate/grain-aware editor.
   const editors = new Set(candidates.filter(candidate => /^edit.*Mark$/.test(candidate.method))

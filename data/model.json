@@ -11,7 +11,7 @@
       "repository": "https://github.com/ggaction/ggaction",
       "directory": "vendor/ggaction",
       "branch": "codex/overlay-composition-v025",
-      "commit": "d45ca559fcfa6b36f77063b0383a2ba358b6ed9f",
+      "commit": "913fca08d819584017d370afaeab35e69f5bcbf0",
       "modified": false
     },
     "trainingUnit": "one-chart-id",
@@ -40,7 +40,7 @@
     "programCount": 10174,
     "dataFiles": 1452,
     "dataBytes": 562448488,
-    "generation": "db884ff4054893b9d5e7c491eed3b0e9ec15f792caf340a8c85fe6b409acd4fd"
+    "generation": "9f8f539df9f42c0eb6a65b3701d71bdb3d5277f254b0685e6a25dacb0c1e9897"
   },
   "featureCounts": {
     "action.applyTextMetrics": 373,
@@ -137,8 +137,10 @@
     "action.encodeXRange": 25,
     "action.encodeYRange": 27,
     "action.facet": 42,
+    "action.highlightMarks": 10,
     "action.layoutSeries": 8,
     "action.removeEncoding": 18,
+    "action.selectMarks": 9,
     "composition.hconcat": 20,
     "composition.vconcat": 16,
     "data.tabular": 747,
@@ -271,8 +273,10 @@
     "[\"action.applyTextMetrics\",\"action.encodeXRange\"]": 10,
     "[\"action.applyTextMetrics\",\"action.encodeYRange\"]": 6,
     "[\"action.applyTextMetrics\",\"action.facet\"]": 19,
+    "[\"action.applyTextMetrics\",\"action.highlightMarks\"]": 3,
     "[\"action.applyTextMetrics\",\"action.layoutSeries\"]": 3,
     "[\"action.applyTextMetrics\",\"action.removeEncoding\"]": 14,
+    "[\"action.applyTextMetrics\",\"action.selectMarks\"]": 3,
     "[\"action.applyTextMetrics\",\"composition.hconcat\"]": 19,
     "[\"action.applyTextMetrics\",\"composition.vconcat\"]": 16,
     "[\"action.applyTextMetrics\",\"data.tabular\"]": 207,
@@ -606,8 +610,10 @@
     "[\"action.createComputedData\",\"action.encodeXRange\"]": 20,
     "[\"action.createComputedData\",\"action.encodeYRange\"]": 21,
     "[\"action.createComputedData\",\"action.facet\"]": 26,
+    "[\"action.createComputedData\",\"action.highlightMarks\"]": 4,
     "[\"action.createComputedData\",\"action.layoutSeries\"]": 4,
     "[\"action.createComputedData\",\"action.removeEncoding\"]": 18,
+    "[\"action.createComputedData\",\"action.selectMarks\"]": 4,
     "[\"action.createComputedData\",\"composition.hconcat\"]": 7,
     "[\"action.createComputedData\",\"composition.vconcat\"]": 9,
     "[\"action.createComputedData\",\"data.tabular\"]": 389,
@@ -1450,8 +1456,10 @@
     "[\"action.createVerticalGrid\",\"action.encodeXRange\"]": 4,
     "[\"action.createVerticalGrid\",\"action.encodeYRange\"]": 2,
     "[\"action.createVerticalGrid\",\"action.facet\"]": 1,
+    "[\"action.createVerticalGrid\",\"action.highlightMarks\"]": 1,
     "[\"action.createVerticalGrid\",\"action.layoutSeries\"]": 1,
     "[\"action.createVerticalGrid\",\"action.removeEncoding\"]": 1,
+    "[\"action.createVerticalGrid\",\"action.selectMarks\"]": 1,
     "[\"action.createVerticalGrid\",\"composition.hconcat\"]": 11,
     "[\"action.createVerticalGrid\",\"composition.vconcat\"]": 10,
     "[\"action.createVerticalGrid\",\"data.tabular\"]": 66,
@@ -1677,8 +1685,10 @@
     "[\"action.editAxes\",\"action.encodeXRange\"]": 25,
     "[\"action.editAxes\",\"action.encodeYRange\"]": 24,
     "[\"action.editAxes\",\"action.facet\"]": 39,
+    "[\"action.editAxes\",\"action.highlightMarks\"]": 8,
     "[\"action.editAxes\",\"action.layoutSeries\"]": 7,
     "[\"action.editAxes\",\"action.removeEncoding\"]": 18,
+    "[\"action.editAxes\",\"action.selectMarks\"]": 8,
     "[\"action.editAxes\",\"composition.hconcat\"]": 17,
     "[\"action.editAxes\",\"composition.vconcat\"]": 13,
     "[\"action.editAxes\",\"data.tabular\"]": 659,
@@ -1764,6 +1774,8 @@
     "[\"action.editBarMark\",\"action.encodeXRange\"]": 4,
     "[\"action.editBarMark\",\"action.encodeYRange\"]": 11,
     "[\"action.editBarMark\",\"action.facet\"]": 13,
+    "[\"action.editBarMark\",\"action.highlightMarks\"]": 3,
+    "[\"action.editBarMark\",\"action.selectMarks\"]": 2,
     "[\"action.editBarMark\",\"composition.hconcat\"]": 13,
     "[\"action.editBarMark\",\"composition.vconcat\"]": 7,
     "[\"action.editBarMark\",\"data.tabular\"]": 146,
@@ -2469,7 +2481,9 @@
     "[\"action.editGrid\",\"action.encodeBarWidth\"]": 38,
     "[\"action.editGrid\",\"action.encodeXRange\"]": 2,
     "[\"action.editGrid\",\"action.encodeYRange\"]": 3,
+    "[\"action.editGrid\",\"action.highlightMarks\"]": 2,
     "[\"action.editGrid\",\"action.removeEncoding\"]": 3,
+    "[\"action.editGrid\",\"action.selectMarks\"]": 2,
     "[\"action.editGrid\",\"composition.hconcat\"]": 3,
     "[\"action.editGrid\",\"data.tabular\"]": 102,
     "[\"action.editGrid\",\"data.time-series\"]": 131,
@@ -2548,8 +2562,10 @@
     "[\"action.editHorizontalGrid\",\"action.encodeXRange\"]": 9,
     "[\"action.editHorizontalGrid\",\"action.encodeYRange\"]": 24,
     "[\"action.editHorizontalGrid\",\"action.facet\"]": 10,
+    "[\"action.editHorizontalGrid\",\"action.highlightMarks\"]": 1,
     "[\"action.editHorizontalGrid\",\"action.layoutSeries\"]": 2,
     "[\"action.editHorizontalGrid\",\"action.removeEncoding\"]": 4,
+    "[\"action.editHorizontalGrid\",\"action.selectMarks\"]": 1,
     "[\"action.editHorizontalGrid\",\"composition.hconcat\"]": 2,
     "[\"action.editHorizontalGrid\",\"composition.vconcat\"]": 1,
     "[\"action.editHorizontalGrid\",\"data.tabular\"]": 296,
@@ -2680,7 +2696,9 @@
     "[\"action.editLegend\",\"action.encodeXRange\"]": 5,
     "[\"action.editLegend\",\"action.encodeYRange\"]": 1,
     "[\"action.editLegend\",\"action.facet\"]": 10,
+    "[\"action.editLegend\",\"action.highlightMarks\"]": 1,
     "[\"action.editLegend\",\"action.layoutSeries\"]": 1,
+    "[\"action.editLegend\",\"action.selectMarks\"]": 1,
     "[\"action.editLegend\",\"composition.hconcat\"]": 6,
     "[\"action.editLegend\",\"composition.vconcat\"]": 3,
     "[\"action.editLegend\",\"data.tabular\"]": 114,
@@ -2760,7 +2778,9 @@
     "[\"action.editLegendBlock\",\"action.encodeXRange\"]": 4,
     "[\"action.editLegendBlock\",\"action.encodeYRange\"]": 1,
     "[\"action.editLegendBlock\",\"action.facet\"]": 1,
+    "[\"action.editLegendBlock\",\"action.highlightMarks\"]": 1,
     "[\"action.editLegendBlock\",\"action.layoutSeries\"]": 1,
+    "[\"action.editLegendBlock\",\"action.selectMarks\"]": 1,
     "[\"action.editLegendBlock\",\"composition.hconcat\"]": 1,
     "[\"action.editLegendBlock\",\"data.tabular\"]": 68,
     "[\"action.editLegendBlock\",\"data.time-series\"]": 45,
@@ -2863,7 +2883,9 @@
     "[\"action.editLegendLabels\",\"action.encodeXRange\"]": 2,
     "[\"action.editLegendLabels\",\"action.encodeYRange\"]": 3,
     "[\"action.editLegendLabels\",\"action.facet\"]": 16,
+    "[\"action.editLegendLabels\",\"action.highlightMarks\"]": 1,
     "[\"action.editLegendLabels\",\"action.layoutSeries\"]": 2,
+    "[\"action.editLegendLabels\",\"action.selectMarks\"]": 1,
     "[\"action.editLegendLabels\",\"composition.hconcat\"]": 6,
     "[\"action.editLegendLabels\",\"composition.vconcat\"]": 8,
     "[\"action.editLegendLabels\",\"data.tabular\"]": 120,
@@ -3072,7 +3094,9 @@
     "[\"action.editLegendTitle\",\"action.encodeXRange\"]": 6,
     "[\"action.editLegendTitle\",\"action.encodeYRange\"]": 5,
     "[\"action.editLegendTitle\",\"action.facet\"]": 16,
+    "[\"action.editLegendTitle\",\"action.highlightMarks\"]": 1,
     "[\"action.editLegendTitle\",\"action.layoutSeries\"]": 4,
+    "[\"action.editLegendTitle\",\"action.selectMarks\"]": 1,
     "[\"action.editLegendTitle\",\"composition.hconcat\"]": 6,
     "[\"action.editLegendTitle\",\"composition.vconcat\"]": 8,
     "[\"action.editLegendTitle\",\"data.tabular\"]": 151,
@@ -3147,8 +3171,10 @@
     "[\"action.editLineMark\",\"action.encodeXRange\"]": 1,
     "[\"action.editLineMark\",\"action.encodeYRange\"]": 1,
     "[\"action.editLineMark\",\"action.facet\"]": 9,
+    "[\"action.editLineMark\",\"action.highlightMarks\"]": 2,
     "[\"action.editLineMark\",\"action.layoutSeries\"]": 1,
     "[\"action.editLineMark\",\"action.removeEncoding\"]": 18,
+    "[\"action.editLineMark\",\"action.selectMarks\"]": 2,
     "[\"action.editLineMark\",\"composition.hconcat\"]": 1,
     "[\"action.editLineMark\",\"data.tabular\"]": 120,
     "[\"action.editLineMark\",\"data.time-series\"]": 305,
@@ -3267,7 +3293,9 @@
     "[\"action.editPointMark\",\"action.encodeXRange\"]": 5,
     "[\"action.editPointMark\",\"action.encodeYRange\"]": 2,
     "[\"action.editPointMark\",\"action.facet\"]": 1,
+    "[\"action.editPointMark\",\"action.highlightMarks\"]": 1,
     "[\"action.editPointMark\",\"action.removeEncoding\"]": 18,
+    "[\"action.editPointMark\",\"action.selectMarks\"]": 1,
     "[\"action.editPointMark\",\"composition.hconcat\"]": 1,
     "[\"action.editPointMark\",\"composition.vconcat\"]": 1,
     "[\"action.editPointMark\",\"data.tabular\"]": 136,
@@ -3475,6 +3503,8 @@
     "[\"action.editShapeScale\",\"action.editYAxisTitle\"]": 9,
     "[\"action.editShapeScale\",\"action.editYScale\"]": 9,
     "[\"action.editShapeScale\",\"action.encodeXRange\"]": 2,
+    "[\"action.editShapeScale\",\"action.highlightMarks\"]": 4,
+    "[\"action.editShapeScale\",\"action.selectMarks\"]": 4,
     "[\"action.editShapeScale\",\"data.tabular\"]": 9,
     "[\"action.editShapeScale\",\"data.time-series\"]": 2,
     "[\"action.editShapeScale\",\"encoding.color\"]": 6,
@@ -3512,6 +3542,8 @@
     "[\"action.editSizeScale\",\"action.editYAxisTitle\"]": 39,
     "[\"action.editSizeScale\",\"action.editYScale\"]": 53,
     "[\"action.editSizeScale\",\"action.encodeXRange\"]": 3,
+    "[\"action.editSizeScale\",\"action.highlightMarks\"]": 3,
+    "[\"action.editSizeScale\",\"action.selectMarks\"]": 3,
     "[\"action.editSizeScale\",\"data.tabular\"]": 42,
     "[\"action.editSizeScale\",\"data.time-series\"]": 13,
     "[\"action.editSizeScale\",\"encoding.color\"]": 32,
@@ -3584,6 +3616,8 @@
     "[\"action.editStrokeScale\",\"action.encodeXRange\"]": 6,
     "[\"action.editStrokeScale\",\"action.encodeYRange\"]": 6,
     "[\"action.editStrokeScale\",\"action.facet\"]": 1,
+    "[\"action.editStrokeScale\",\"action.highlightMarks\"]": 4,
+    "[\"action.editStrokeScale\",\"action.selectMarks\"]": 4,
     "[\"action.editStrokeScale\",\"data.tabular\"]": 30,
     "[\"action.editStrokeScale\",\"data.time-series\"]": 30,
     "[\"action.editStrokeScale\",\"encoding.color\"]": 25,
@@ -3746,8 +3780,10 @@
     "[\"action.editTitle\",\"action.encodeXRange\"]": 6,
     "[\"action.editTitle\",\"action.encodeYRange\"]": 4,
     "[\"action.editTitle\",\"action.facet\"]": 32,
+    "[\"action.editTitle\",\"action.highlightMarks\"]": 5,
     "[\"action.editTitle\",\"action.layoutSeries\"]": 6,
     "[\"action.editTitle\",\"action.removeEncoding\"]": 18,
+    "[\"action.editTitle\",\"action.selectMarks\"]": 4,
     "[\"action.editTitle\",\"composition.hconcat\"]": 16,
     "[\"action.editTitle\",\"composition.vconcat\"]": 10,
     "[\"action.editTitle\",\"data.tabular\"]": 384,
@@ -3812,8 +3848,10 @@
     "[\"action.editVerticalGrid\",\"action.encodeXRange\"]": 14,
     "[\"action.editVerticalGrid\",\"action.encodeYRange\"]": 11,
     "[\"action.editVerticalGrid\",\"action.facet\"]": 4,
+    "[\"action.editVerticalGrid\",\"action.highlightMarks\"]": 1,
     "[\"action.editVerticalGrid\",\"action.layoutSeries\"]": 2,
     "[\"action.editVerticalGrid\",\"action.removeEncoding\"]": 4,
+    "[\"action.editVerticalGrid\",\"action.selectMarks\"]": 1,
     "[\"action.editVerticalGrid\",\"composition.hconcat\"]": 11,
     "[\"action.editVerticalGrid\",\"composition.vconcat\"]": 11,
     "[\"action.editVerticalGrid\",\"data.tabular\"]": 221,
@@ -3898,8 +3936,10 @@
     "[\"action.editXAxis\",\"action.encodeXRange\"]": 24,
     "[\"action.editXAxis\",\"action.encodeYRange\"]": 24,
     "[\"action.editXAxis\",\"action.facet\"]": 35,
+    "[\"action.editXAxis\",\"action.highlightMarks\"]": 8,
     "[\"action.editXAxis\",\"action.layoutSeries\"]": 7,
     "[\"action.editXAxis\",\"action.removeEncoding\"]": 18,
+    "[\"action.editXAxis\",\"action.selectMarks\"]": 8,
     "[\"action.editXAxis\",\"composition.hconcat\"]": 17,
     "[\"action.editXAxis\",\"composition.vconcat\"]": 13,
     "[\"action.editXAxis\",\"data.tabular\"]": 648,
@@ -3961,8 +4001,10 @@
     "[\"action.editXAxisLabels\",\"action.encodeXRange\"]": 16,
     "[\"action.editXAxisLabels\",\"action.encodeYRange\"]": 18,
     "[\"action.editXAxisLabels\",\"action.facet\"]": 23,
+    "[\"action.editXAxisLabels\",\"action.highlightMarks\"]": 9,
     "[\"action.editXAxisLabels\",\"action.layoutSeries\"]": 4,
     "[\"action.editXAxisLabels\",\"action.removeEncoding\"]": 18,
+    "[\"action.editXAxisLabels\",\"action.selectMarks\"]": 8,
     "[\"action.editXAxisLabels\",\"composition.hconcat\"]": 19,
     "[\"action.editXAxisLabels\",\"composition.vconcat\"]": 16,
     "[\"action.editXAxisLabels\",\"data.tabular\"]": 458,
@@ -4023,8 +4065,10 @@
     "[\"action.editXAxisLine\",\"action.encodeXRange\"]": 20,
     "[\"action.editXAxisLine\",\"action.encodeYRange\"]": 20,
     "[\"action.editXAxisLine\",\"action.facet\"]": 23,
+    "[\"action.editXAxisLine\",\"action.highlightMarks\"]": 8,
     "[\"action.editXAxisLine\",\"action.layoutSeries\"]": 6,
     "[\"action.editXAxisLine\",\"action.removeEncoding\"]": 18,
+    "[\"action.editXAxisLine\",\"action.selectMarks\"]": 7,
     "[\"action.editXAxisLine\",\"composition.hconcat\"]": 20,
     "[\"action.editXAxisLine\",\"composition.vconcat\"]": 16,
     "[\"action.editXAxisLine\",\"data.tabular\"]": 480,
@@ -4083,8 +4127,10 @@
     "[\"action.editXAxisTicks\",\"action.encodeXRange\"]": 20,
     "[\"action.editXAxisTicks\",\"action.encodeYRange\"]": 22,
     "[\"action.editXAxisTicks\",\"action.facet\"]": 27,
+    "[\"action.editXAxisTicks\",\"action.highlightMarks\"]": 6,
     "[\"action.editXAxisTicks\",\"action.layoutSeries\"]": 5,
     "[\"action.editXAxisTicks\",\"action.removeEncoding\"]": 18,
+    "[\"action.editXAxisTicks\",\"action.selectMarks\"]": 6,
     "[\"action.editXAxisTicks\",\"composition.hconcat\"]": 20,
     "[\"action.editXAxisTicks\",\"composition.vconcat\"]": 16,
     "[\"action.editXAxisTicks\",\"data.tabular\"]": 450,
@@ -4141,8 +4187,10 @@
     "[\"action.editXAxisTicksAndLabels\",\"action.encodeXRange\"]": 11,
     "[\"action.editXAxisTicksAndLabels\",\"action.encodeYRange\"]": 5,
     "[\"action.editXAxisTicksAndLabels\",\"action.facet\"]": 16,
+    "[\"action.editXAxisTicksAndLabels\",\"action.highlightMarks\"]": 2,
     "[\"action.editXAxisTicksAndLabels\",\"action.layoutSeries\"]": 1,
     "[\"action.editXAxisTicksAndLabels\",\"action.removeEncoding\"]": 7,
+    "[\"action.editXAxisTicksAndLabels\",\"action.selectMarks\"]": 2,
     "[\"action.editXAxisTicksAndLabels\",\"composition.hconcat\"]": 10,
     "[\"action.editXAxisTicksAndLabels\",\"composition.vconcat\"]": 10,
     "[\"action.editXAxisTicksAndLabels\",\"data.tabular\"]": 250,
@@ -4197,8 +4245,10 @@
     "[\"action.editXAxisTitle\",\"action.encodeXRange\"]": 22,
     "[\"action.editXAxisTitle\",\"action.encodeYRange\"]": 25,
     "[\"action.editXAxisTitle\",\"action.facet\"]": 18,
+    "[\"action.editXAxisTitle\",\"action.highlightMarks\"]": 7,
     "[\"action.editXAxisTitle\",\"action.layoutSeries\"]": 3,
     "[\"action.editXAxisTitle\",\"action.removeEncoding\"]": 18,
+    "[\"action.editXAxisTitle\",\"action.selectMarks\"]": 7,
     "[\"action.editXAxisTitle\",\"composition.hconcat\"]": 15,
     "[\"action.editXAxisTitle\",\"composition.vconcat\"]": 12,
     "[\"action.editXAxisTitle\",\"data.tabular\"]": 533,
@@ -4268,8 +4318,10 @@
     "[\"action.editXScale\",\"action.encodeXRange\"]": 21,
     "[\"action.editXScale\",\"action.encodeYRange\"]": 24,
     "[\"action.editXScale\",\"action.facet\"]": 24,
+    "[\"action.editXScale\",\"action.highlightMarks\"]": 10,
     "[\"action.editXScale\",\"action.layoutSeries\"]": 8,
     "[\"action.editXScale\",\"action.removeEncoding\"]": 18,
+    "[\"action.editXScale\",\"action.selectMarks\"]": 9,
     "[\"action.editXScale\",\"composition.hconcat\"]": 17,
     "[\"action.editXScale\",\"composition.vconcat\"]": 16,
     "[\"action.editXScale\",\"data.tabular\"]": 640,
@@ -4325,8 +4377,10 @@
     "[\"action.editYAxis\",\"action.encodeXRange\"]": 24,
     "[\"action.editYAxis\",\"action.encodeYRange\"]": 24,
     "[\"action.editYAxis\",\"action.facet\"]": 39,
+    "[\"action.editYAxis\",\"action.highlightMarks\"]": 7,
     "[\"action.editYAxis\",\"action.layoutSeries\"]": 7,
     "[\"action.editYAxis\",\"action.removeEncoding\"]": 18,
+    "[\"action.editYAxis\",\"action.selectMarks\"]": 7,
     "[\"action.editYAxis\",\"composition.hconcat\"]": 17,
     "[\"action.editYAxis\",\"composition.vconcat\"]": 13,
     "[\"action.editYAxis\",\"data.tabular\"]": 648,
@@ -4381,8 +4435,10 @@
     "[\"action.editYAxisLabels\",\"action.encodeXRange\"]": 13,
     "[\"action.editYAxisLabels\",\"action.encodeYRange\"]": 16,
     "[\"action.editYAxisLabels\",\"action.facet\"]": 27,
+    "[\"action.editYAxisLabels\",\"action.highlightMarks\"]": 8,
     "[\"action.editYAxisLabels\",\"action.layoutSeries\"]": 5,
     "[\"action.editYAxisLabels\",\"action.removeEncoding\"]": 18,
+    "[\"action.editYAxisLabels\",\"action.selectMarks\"]": 7,
     "[\"action.editYAxisLabels\",\"composition.hconcat\"]": 19,
     "[\"action.editYAxisLabels\",\"composition.vconcat\"]": 16,
     "[\"action.editYAxisLabels\",\"data.tabular\"]": 450,
@@ -4436,8 +4492,10 @@
     "[\"action.editYAxisLine\",\"action.encodeXRange\"]": 20,
     "[\"action.editYAxisLine\",\"action.encodeYRange\"]": 20,
     "[\"action.editYAxisLine\",\"action.facet\"]": 28,
+    "[\"action.editYAxisLine\",\"action.highlightMarks\"]": 9,
     "[\"action.editYAxisLine\",\"action.layoutSeries\"]": 6,
     "[\"action.editYAxisLine\",\"action.removeEncoding\"]": 18,
+    "[\"action.editYAxisLine\",\"action.selectMarks\"]": 8,
     "[\"action.editYAxisLine\",\"composition.hconcat\"]": 19,
     "[\"action.editYAxisLine\",\"composition.vconcat\"]": 16,
     "[\"action.editYAxisLine\",\"data.tabular\"]": 472,
@@ -4489,8 +4547,10 @@
     "[\"action.editYAxisTicks\",\"action.encodeXRange\"]": 17,
     "[\"action.editYAxisTicks\",\"action.encodeYRange\"]": 22,
     "[\"action.editYAxisTicks\",\"action.facet\"]": 32,
+    "[\"action.editYAxisTicks\",\"action.highlightMarks\"]": 7,
     "[\"action.editYAxisTicks\",\"action.layoutSeries\"]": 6,
     "[\"action.editYAxisTicks\",\"action.removeEncoding\"]": 18,
+    "[\"action.editYAxisTicks\",\"action.selectMarks\"]": 6,
     "[\"action.editYAxisTicks\",\"composition.hconcat\"]": 20,
     "[\"action.editYAxisTicks\",\"composition.vconcat\"]": 16,
     "[\"action.editYAxisTicks\",\"data.tabular\"]": 436,
@@ -4540,8 +4600,10 @@
     "[\"action.editYAxisTicksAndLabels\",\"action.encodeXRange\"]": 9,
     "[\"action.editYAxisTicksAndLabels\",\"action.encodeYRange\"]": 5,
     "[\"action.editYAxisTicksAndLabels\",\"action.facet\"]": 18,
+    "[\"action.editYAxisTicksAndLabels\",\"action.highlightMarks\"]": 2,
     "[\"action.editYAxisTicksAndLabels\",\"action.layoutSeries\"]": 2,
     "[\"action.editYAxisTicksAndLabels\",\"action.removeEncoding\"]": 7,
+    "[\"action.editYAxisTicksAndLabels\",\"action.selectMarks\"]": 2,
     "[\"action.editYAxisTicksAndLabels\",\"composition.hconcat\"]": 10,
     "[\"action.editYAxisTicksAndLabels\",\"composition.vconcat\"]": 10,
     "[\"action.editYAxisTicksAndLabels\",\"data.tabular\"]": 244,
@@ -4589,8 +4651,10 @@
     "[\"action.editYAxisTitle\",\"action.encodeXRange\"]": 20,
     "[\"action.editYAxisTitle\",\"action.encodeYRange\"]": 25,
     "[\"action.editYAxisTitle\",\"action.facet\"]": 27,
+    "[\"action.editYAxisTitle\",\"action.highlightMarks\"]": 8,
     "[\"action.editYAxisTitle\",\"action.layoutSeries\"]": 4,
     "[\"action.editYAxisTitle\",\"action.removeEncoding\"]": 18,
+    "[\"action.editYAxisTitle\",\"action.selectMarks\"]": 7,
     "[\"action.editYAxisTitle\",\"composition.hconcat\"]": 8,
     "[\"action.editYAxisTitle\",\"composition.vconcat\"]": 10,
     "[\"action.editYAxisTitle\",\"data.tabular\"]": 512,
@@ -4639,8 +4703,10 @@
     "[\"action.editYScale\",\"action.encodeXRange\"]": 20,
     "[\"action.editYScale\",\"action.encodeYRange\"]": 26,
     "[\"action.editYScale\",\"action.facet\"]": 26,
+    "[\"action.editYScale\",\"action.highlightMarks\"]": 9,
     "[\"action.editYScale\",\"action.layoutSeries\"]": 8,
     "[\"action.editYScale\",\"action.removeEncoding\"]": 18,
+    "[\"action.editYScale\",\"action.selectMarks\"]": 8,
     "[\"action.editYScale\",\"composition.hconcat\"]": 19,
     "[\"action.editYScale\",\"composition.vconcat\"]": 16,
     "[\"action.editYScale\",\"data.tabular\"]": 652,
@@ -4688,7 +4754,9 @@
     "[\"action.encodeBarWidth\",\"action.encodeXRange\"]": 5,
     "[\"action.encodeBarWidth\",\"action.encodeYRange\"]": 12,
     "[\"action.encodeBarWidth\",\"action.facet\"]": 18,
+    "[\"action.encodeBarWidth\",\"action.highlightMarks\"]": 3,
     "[\"action.encodeBarWidth\",\"action.layoutSeries\"]": 2,
+    "[\"action.encodeBarWidth\",\"action.selectMarks\"]": 2,
     "[\"action.encodeBarWidth\",\"composition.hconcat\"]": 17,
     "[\"action.encodeBarWidth\",\"composition.vconcat\"]": 11,
     "[\"action.encodeBarWidth\",\"data.tabular\"]": 271,
@@ -4815,6 +4883,27 @@
     "[\"action.facet\",\"style.point.opacity\"]": 10,
     "[\"action.facet\",\"transform.aggregate\"]": 7,
     "[\"action.facet\",\"transform.filter\"]": 12,
+    "[\"action.highlightMarks\",\"action.selectMarks\"]": 9,
+    "[\"action.highlightMarks\",\"data.tabular\"]": 7,
+    "[\"action.highlightMarks\",\"data.time-series\"]": 3,
+    "[\"action.highlightMarks\",\"encoding.color\"]": 1,
+    "[\"action.highlightMarks\",\"encoding.shape\"]": 5,
+    "[\"action.highlightMarks\",\"encoding.size\"]": 6,
+    "[\"action.highlightMarks\",\"encoding.stroke\"]": 5,
+    "[\"action.highlightMarks\",\"encoding.strokeDash\"]": 2,
+    "[\"action.highlightMarks\",\"encoding.x\"]": 10,
+    "[\"action.highlightMarks\",\"encoding.y\"]": 10,
+    "[\"action.highlightMarks\",\"guide.axis\"]": 10,
+    "[\"action.highlightMarks\",\"guide.grid\"]": 8,
+    "[\"action.highlightMarks\",\"guide.legend\"]": 9,
+    "[\"action.highlightMarks\",\"guide.title\"]": 5,
+    "[\"action.highlightMarks\",\"mark.bar\"]": 3,
+    "[\"action.highlightMarks\",\"mark.line\"]": 2,
+    "[\"action.highlightMarks\",\"mark.point\"]": 6,
+    "[\"action.highlightMarks\",\"mark.tick\"]": 1,
+    "[\"action.highlightMarks\",\"style.point.opacity\"]": 6,
+    "[\"action.highlightMarks\",\"style.tick.opacity\"]": 1,
+    "[\"action.highlightMarks\",\"transform.filter\"]": 1,
     "[\"action.layoutSeries\",\"data.tabular\"]": 2,
     "[\"action.layoutSeries\",\"data.time-series\"]": 6,
     "[\"action.layoutSeries\",\"encoding.color\"]": 7,
@@ -4848,6 +4937,26 @@
     "[\"action.removeEncoding\",\"mark.rule\"]": 18,
     "[\"action.removeEncoding\",\"style.point.opacity\"]": 15,
     "[\"action.removeEncoding\",\"style.rule.opacity\"]": 18,
+    "[\"action.selectMarks\",\"data.tabular\"]": 6,
+    "[\"action.selectMarks\",\"data.time-series\"]": 3,
+    "[\"action.selectMarks\",\"encoding.color\"]": 1,
+    "[\"action.selectMarks\",\"encoding.shape\"]": 5,
+    "[\"action.selectMarks\",\"encoding.size\"]": 6,
+    "[\"action.selectMarks\",\"encoding.stroke\"]": 5,
+    "[\"action.selectMarks\",\"encoding.strokeDash\"]": 2,
+    "[\"action.selectMarks\",\"encoding.x\"]": 9,
+    "[\"action.selectMarks\",\"encoding.y\"]": 9,
+    "[\"action.selectMarks\",\"guide.axis\"]": 9,
+    "[\"action.selectMarks\",\"guide.grid\"]": 8,
+    "[\"action.selectMarks\",\"guide.legend\"]": 8,
+    "[\"action.selectMarks\",\"guide.title\"]": 4,
+    "[\"action.selectMarks\",\"mark.bar\"]": 2,
+    "[\"action.selectMarks\",\"mark.line\"]": 2,
+    "[\"action.selectMarks\",\"mark.point\"]": 6,
+    "[\"action.selectMarks\",\"mark.tick\"]": 1,
+    "[\"action.selectMarks\",\"style.point.opacity\"]": 6,
+    "[\"action.selectMarks\",\"style.tick.opacity\"]": 1,
+    "[\"action.selectMarks\",\"transform.filter\"]": 1,
     "[\"composition.hconcat\",\"composition.vconcat\"]": 6,
     "[\"composition.hconcat\",\"data.tabular\"]": 19,
     "[\"composition.hconcat\",\"data.time-series\"]": 1,
@@ -5533,7 +5642,7 @@
         "repository": "https://github.com/ggaction/ggaction",
         "directory": "vendor/ggaction",
         "branch": "codex/overlay-composition-v025",
-        "commit": "d45ca559fcfa6b36f77063b0383a2ba358b6ed9f",
+        "commit": "913fca08d819584017d370afaeab35e69f5bcbf0",
         "modified": false
       },
       "trainingUnit": "one-chart-id",
@@ -5562,7 +5671,7 @@
       "programCount": 10174,
       "dataFiles": 1452,
       "dataBytes": 562448488,
-      "generation": "db884ff4054893b9d5e7c491eed3b0e9ec15f792caf340a8c85fe6b409acd4fd"
+      "generation": "9f8f539df9f42c0eb6a65b3701d71bdb3d5277f254b0685e6a25dacb0c1e9897"
     },
     "methods": [
       {
@@ -7657,18 +7766,6 @@
             "active": true
           },
           {
-            "path": "x",
-            "required": true,
-            "kind": "field",
-            "active": true
-          },
-          {
-            "path": "y",
-            "required": true,
-            "kind": "field",
-            "active": true
-          },
-          {
             "path": "color",
             "required": false,
             "kind": "object",
@@ -7693,9 +7790,26 @@
             "active": true
           },
           {
+            "path": "x",
+            "required": true,
+            "kind": "field",
+            "active": true
+          },
+          {
+            "path": "y",
+            "required": true,
+            "kind": "field",
+            "active": true
+          },
+          {
             "path": "guides",
             "required": false,
             "kind": "boolean",
+            "choices": [
+              false,
+              "horizontal",
+              "vertical"
+            ],
             "active": true
           },
           {
@@ -10752,6 +10866,12 @@
         "via": "editYAxis",
         "parameters": [
           {
+            "path": "visible",
+            "required": false,
+            "kind": "boolean",
+            "active": true
+          },
+          {
             "path": "underlay",
             "required": false,
             "kind": "boolean",
@@ -11067,6 +11187,12 @@
         "role": "recommendation",
         "via": "editXAxis",
         "parameters": [
+          {
+            "path": "visible",
+            "required": false,
+            "kind": "boolean",
+            "active": true
+          },
           {
             "path": "underlay",
             "required": false,
@@ -12961,6 +13087,12 @@
         "via": "editVerticalGrid",
         "parameters": [
           {
+            "path": "visible",
+            "required": false,
+            "kind": "boolean",
+            "active": true
+          },
+          {
             "path": "strokeDashMap",
             "required": false,
             "kind": "object",
@@ -13152,6 +13284,12 @@
         "role": "recommendation",
         "via": "editHorizontalGrid",
         "parameters": [
+          {
+            "path": "visible",
+            "required": false,
+            "kind": "boolean",
+            "active": true
+          },
           {
             "path": "strokeDashMap",
             "required": false,
@@ -13903,6 +14041,12 @@
             "path": "target",
             "required": false,
             "kind": "resource",
+            "active": true
+          },
+          {
+            "path": "textOverrides",
+            "required": false,
+            "kind": "array",
             "active": true
           },
           {
@@ -15553,7 +15697,7 @@
           {
             "path": "interval",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           }
         ],
@@ -15728,7 +15872,7 @@
           {
             "path": "bar",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -22633,7 +22777,7 @@
           {
             "path": "overflow",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -22684,7 +22828,7 @@
           {
             "path": "at",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -22713,6 +22857,13 @@
             "required": false,
             "kind": "number",
             "unit": "count",
+            "active": true
+          },
+          {
+            "path": "alongOffset",
+            "required": false,
+            "kind": "number",
+            "unit": "logical-pixel",
             "active": true
           },
           {
@@ -22758,7 +22909,7 @@
           {
             "path": "gradient",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -23099,6 +23250,24 @@
         "via": "editLegend",
         "parameters": [
           {
+            "path": "visible",
+            "required": false,
+            "kind": "boolean",
+            "active": true
+          },
+          {
+            "path": "itemsOffset",
+            "required": false,
+            "kind": "object",
+            "active": true
+          },
+          {
+            "path": "labels",
+            "required": false,
+            "kind": "object",
+            "active": true
+          },
+          {
             "path": "clipHeight",
             "required": false,
             "kind": "number",
@@ -23132,6 +23301,7 @@
             "required": false,
             "kind": "enum",
             "choices": [
+              "all",
               "color",
               "opacity",
               "shape",
@@ -23231,7 +23401,7 @@
           {
             "path": "overflow",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -23260,7 +23430,7 @@
           {
             "path": "at",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -23279,6 +23449,13 @@
             "required": false,
             "kind": "number",
             "unit": "count",
+            "active": true
+          },
+          {
+            "path": "alongOffset",
+            "required": false,
+            "kind": "number",
+            "unit": "logical-pixel",
             "active": true
           },
           {
@@ -23309,17 +23486,11 @@
           {
             "path": "gradient",
             "required": false,
-            "kind": "number",
-            "active": true
-          },
-          {
-            "path": "symbol",
-            "required": false,
             "kind": "object",
             "active": true
           },
           {
-            "path": "labels",
+            "path": "symbol",
             "required": false,
             "kind": "object",
             "active": true
@@ -23776,6 +23947,17 @@
               "stroke",
               "strokeDash",
               "strokeWidth"
+            ],
+            "active": true
+          },
+          {
+            "path": "align",
+            "required": false,
+            "kind": "enum",
+            "choices": [
+              "center",
+              "left",
+              "right"
             ],
             "active": true
           },
@@ -24958,7 +25140,7 @@
           {
             "path": "guides",
             "required": false,
-            "kind": "boolean",
+            "kind": "object",
             "active": true
           },
           {
@@ -26473,7 +26655,7 @@
           {
             "path": "gradient",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           }
         ],
@@ -27416,13 +27598,13 @@
           {
             "path": "bar",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
             "path": "guides",
             "required": false,
-            "kind": "boolean",
+            "kind": "object",
             "active": true
           },
           {
@@ -27836,7 +28018,7 @@
           {
             "path": "rect",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -28853,7 +29035,7 @@
           {
             "path": "guides",
             "required": false,
-            "kind": "boolean",
+            "kind": "object",
             "active": true
           },
           {
@@ -29146,7 +29328,7 @@
           {
             "path": "box",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -29158,7 +29340,7 @@
           {
             "path": "outlier",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           }
         ],
@@ -29511,7 +29693,7 @@
           {
             "path": "box",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -29523,7 +29705,7 @@
           {
             "path": "outlier",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -32821,7 +33003,7 @@
           {
             "path": "at",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -32851,6 +33033,13 @@
             "required": false,
             "kind": "number",
             "unit": "count",
+            "active": true
+          },
+          {
+            "path": "alongOffset",
+            "required": false,
+            "kind": "number",
+            "unit": "logical-pixel",
             "active": true
           },
           {
@@ -33494,7 +33683,7 @@
           {
             "path": "sequence",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -33607,15 +33796,21 @@
         "via": "encodeShape",
         "parameters": [
           {
-            "path": "field",
-            "required": true,
-            "kind": "field",
+            "path": "value",
+            "required": false,
+            "kind": "object",
             "active": true
           },
           {
             "path": "target",
             "required": false,
             "kind": "resource",
+            "active": true
+          },
+          {
+            "path": "field",
+            "required": false,
+            "kind": "field",
             "active": true
           },
           {
@@ -33981,6 +34176,13 @@
         "via": "highlightMarks",
         "parameters": [
           {
+            "path": "fontSize",
+            "required": false,
+            "kind": "number",
+            "unit": "logical-pixel",
+            "active": true
+          },
+          {
             "path": "id",
             "required": false,
             "kind": "resource",
@@ -34057,14 +34259,14 @@
           {
             "path": "offset",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "unit": "logical-pixel",
             "active": true
           },
           {
             "path": "dimOthers",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -34599,6 +34801,12 @@
             "active": true
           },
           {
+            "path": "rows",
+            "required": false,
+            "kind": "array",
+            "active": true
+          },
+          {
             "path": "field",
             "required": false,
             "kind": "field",
@@ -34636,7 +34844,7 @@
           },
           {
             "path": "op",
-            "required": true,
+            "required": false,
             "kind": "enum",
             "choices": [
               "eq",
@@ -34644,11 +34852,7 @@
               "gte",
               "lt",
               "lte",
-              "max",
-              "min",
-              "neq",
-              "oneOf",
-              "range"
+              "neq"
             ],
             "active": true
           },
@@ -34856,6 +35060,16 @@
         "via": "editCompositionLayout",
         "reason": "Retained facet templates support native source and layout editing.",
         "parameters": [
+          {
+            "path": "legends",
+            "required": false,
+            "kind": "enum",
+            "choices": [
+              "collect",
+              "local"
+            ],
+            "active": true
+          },
           {
             "path": "columns",
             "required": false,
@@ -37222,7 +37436,7 @@
           {
             "path": "statistics",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -41417,7 +41631,7 @@
           {
             "path": "sequence",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           }
         ],
@@ -41546,6 +41760,12 @@
             "active": true
           },
           {
+            "path": "rows",
+            "required": false,
+            "kind": "array",
+            "active": true
+          },
+          {
             "path": "field",
             "required": false,
             "kind": "field",
@@ -41583,7 +41803,7 @@
           },
           {
             "path": "op",
-            "required": true,
+            "required": false,
             "kind": "enum",
             "choices": [
               "eq",
@@ -41591,11 +41811,7 @@
               "gte",
               "lt",
               "lte",
-              "max",
-              "min",
-              "neq",
-              "oneOf",
-              "range"
+              "neq"
             ],
             "active": true
           },
@@ -42502,7 +42718,7 @@
           {
             "path": "statistics",
             "required": false,
-            "kind": "number",
+            "kind": "object",
             "active": true
           },
           {
@@ -44706,7 +44922,7 @@
         "repository": "https://github.com/ggaction/ggaction",
         "directory": "vendor/ggaction",
         "branch": "codex/overlay-composition-v025",
-        "commit": "d45ca559fcfa6b36f77063b0383a2ba358b6ed9f",
+        "commit": "913fca08d819584017d370afaeab35e69f5bcbf0",
         "modified": false
       },
       "trainingUnit": "one-chart-id",
@@ -44735,7 +44951,7 @@
       "programCount": 10174,
       "dataFiles": 1452,
       "dataBytes": 562448488,
-      "generation": "db884ff4054893b9d5e7c491eed3b0e9ec15f792caf340a8c85fe6b409acd4fd"
+      "generation": "9f8f539df9f42c0eb6a65b3701d71bdb3d5277f254b0685e6a25dacb0c1e9897"
     },
     "policy": "one-vote-per-chart-and-explicit-parameter-split-across-distinct-values",
     "methods": {

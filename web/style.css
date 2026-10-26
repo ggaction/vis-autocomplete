@@ -606,3 +606,20 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .history-graph-node:not(.on-path):not([aria-current]) { border-color: #c6d0da; background: #f8fafc; }
 .history-graph-node[aria-current="step"] { box-shadow: 0 0 0 2px var(--history-accent); }
 .history-graph-node:focus-visible { outline: 2px solid #394a5a; outline-offset: 3px; }
+
+/* Direct mark selection is explicit; ordinary guide editing stays unchanged. */
+.panel:has(.mark-selection-panel:not([hidden])) { position: relative; }
+.mark-selection-panel { position: fixed; z-index: 35; width: min(420px, 85%); max-height: 70%; overflow: auto; padding: 12px; border: 1px solid #9fb3ca; border-radius: 8px; background: white; box-shadow: 0 4px 20px #172b4d22; }
+.mark-selection-panel[hidden] { display: none; }
+.mark-selection-panel > * { margin: 3px; }
+.mark-selection-panel > strong { display: block; }
+.mark-selection-panel p { font-size: 12px; color: #556575; }
+.mark-selection-rows { max-height: 210px; overflow: auto; }
+.mark-selection-rows label { display: flex; gap: 8px; font-size: 12px; padding: 4px; }
+.mark-selection-rows span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selecting-marks { cursor: crosshair; }
+.selecting-marks .guide-editor, .selecting-marks .canvas-resize-overlay, .selecting-marks .add-adjacent { pointer-events: none; visibility: hidden; }
+
+.mark-selection-panel { font-size: 13px; user-select: none; }
+.mark-selection-panel button, .mark-selection-panel select, .mark-selection-panel input[type="search"] { font: inherit; padding: 5px 7px; border: 1px solid #ccd4df; border-radius: 4px; background: white; color: #27313e; }
+.mark-selection-panel button:disabled { opacity: .45; }

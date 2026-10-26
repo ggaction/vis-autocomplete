@@ -1,3 +1,4 @@
+import { highlightParameters } from './highlight-parameters.js';
 import { scopeRecommendationCall } from '../src/composition-context.js';
 import { paletteChoices } from '../src/palette-options.js';
 // At most four visible parameter groups. Native ggaction options only.
@@ -147,6 +148,7 @@ export function recommendationParameters(recommendation, profile) {
     const editor = recommendationParameters(source, profile);
     return { ...editor, build: values => ({ action: { method: source.method, options: editor.build(values) } }) };
   }
+  if (method === 'highlightMarks' && recommendation.highlightContext) return highlightParameters(recommendation);
   // Corpus recipes choose defaults, not a less capable editor for the same function.
   if (recommendation.parameterMode === 'presets') {
     const schema = recommendation.alternatives?.find(option => option.parameters?.length);

@@ -288,7 +288,8 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
     // Canvas margins. Native fitting still handles genuinely insufficient room.
     const positionedGuide = ['editLegend', 'editLegendLayout', 'editTitle', 'editXAxisTitle', 'editYAxisTitle'].includes(sourceAction.method) &&
       (sourceAction.args.alongOffset !== undefined || sourceAction.args.itemsOffset !== undefined);
-    const centered = positionedGuide ? { program: authoringPreview, view: preview, calls: [] }
+    const keepsMarkPositions = ['highlightMarks', 'removeMarkHighlight', 'selectMarks', 'editMarkSelection'].includes(sourceAction.method);
+    const centered = positionedGuide || keepsMarkPositions ? { program: authoringPreview, view: preview, calls: [] }
       : sourceAction.method === 'createAdjacentPlot' && ['left', 'right'].includes(sourceAction.args.position ?? 'right')
       ? compactAdjacentCanvases(authoringPreview, preview, call)
       : centerCanvasContent(authoringPreview, preview, call);

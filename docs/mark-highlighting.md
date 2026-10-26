@@ -1,6 +1,6 @@
 # Mark highlighting integration
 
-Status: public extensions ready for review; existing API integration can proceed independently.
+Status: public extensions explicitly approved by the user on 2026-10-26 ("이 API 확장으로 진행"); implemented and regression-tested.
 
 ## Existing contract
 
@@ -9,7 +9,7 @@ the resolved final items, not a chart-name allowlist. Field conditions, ranges,
 ranked selections, dimming and mark-compatible appearance use the existing API.
 Facet source and composition paths retain native scoped targets.
 
-## Proposed public extensions
+## Approved public extensions
 
 1. `highlightMarks({ id, target, select, ...style })` updates an existing highlight
    with that explicit ID on the same target atomically. Omitted IDs keep their
@@ -45,3 +45,28 @@ adjacent chart paths; filtered/aggregated/duplicate rows; repeated edits and
 immutable failures; Canvas/SVG output; history replay; training feature coverage
 and actual recommendation availability. Cache inspection by immutable program
 identity and resolve detailed picking data only when selection is active.
+
+## Implementation and validation
+
+- Style recommendations derive their conditions from public final-item inspection,
+  including all facet cells. Search, ranking and replay retain the native action.
+- The Highlight toolbar stages exact rows or clicked marks; Shift-click adds/removes
+  membership, Clear restores the original preview, Apply commits, and Escape cancels.
+- Composite components retain a live owner selection. Re-encoding, faceting and
+  draw-order changes preserve semantic row membership; removing the assignment
+  restores the native baseline. Attached text labels use emitted text-item grain.
+- Row lists render 50 entries per page. Large parameter value lists render 40 choices
+  per page with search. Immutable inspection and selector context are weakly cached.
+- Training now retains `action.highlightMarks` (10 corpus programs) and selection
+  features instead of dropping their method prefixes.
+- Automated coverage: all 29 starting chart families; source rows and available
+  condition/grain combinations; composite ownership, duplicate rows, text, removal,
+  facets and concat. Browser tests cover Preview/Transition × unit/facet/concat,
+  actual click/Shift-click, cancellation, Apply, Undo/Redo and the native card editor.
+- Local timing sample with 5,000 rows: initial selector inspection about 273 ms for
+  scatter and 127 ms for parallel coordinates; repeated cached lookup below 0.001 ms.
+  These are local measurements, not a latency guarantee on every device.
+
+Reproduce with `node --test test/highlighting.test.js` and
+`node scripts/test-highlighting-browser.js` (local development server on port 5187,
+with isolated mocked account endpoints; no production writes).

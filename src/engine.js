@@ -342,6 +342,7 @@ export function createRecommendationEngine(model) {
           arcContext: candidate.arcContext,
           statisticalContext: candidate.statisticalContext,
           labelContext: candidate.labelContext,
+          highlightContext: candidate.highlightContext,
           positionFields: candidate.positionFields,
           sourceMethod: candidate.sourceMethod,
           facetFields: candidate.facetFields,

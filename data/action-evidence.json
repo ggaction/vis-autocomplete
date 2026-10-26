@@ -9,7 +9,7 @@
       "repository": "https://github.com/ggaction/ggaction",
       "directory": "vendor/ggaction",
       "branch": "codex/overlay-composition-v025",
-      "commit": "d45ca559fcfa6b36f77063b0383a2ba358b6ed9f",
+      "commit": "913fca08d819584017d370afaeab35e69f5bcbf0",
       "modified": false
     },
     "trainingUnit": "one-chart-id",
@@ -38,7 +38,7 @@
     "programCount": 10174,
     "dataFiles": 1452,
     "dataBytes": 562448488,
-    "generation": "db884ff4054893b9d5e7c491eed3b0e9ec15f792caf340a8c85fe6b409acd4fd"
+    "generation": "9f8f539df9f42c0eb6a65b3701d71bdb3d5277f254b0685e6a25dacb0c1e9897"
   },
   "methods": [
     {
@@ -2133,18 +2133,6 @@
           "active": true
         },
         {
-          "path": "x",
-          "required": true,
-          "kind": "field",
-          "active": true
-        },
-        {
-          "path": "y",
-          "required": true,
-          "kind": "field",
-          "active": true
-        },
-        {
           "path": "color",
           "required": false,
           "kind": "object",
@@ -2169,9 +2157,26 @@
           "active": true
         },
         {
+          "path": "x",
+          "required": true,
+          "kind": "field",
+          "active": true
+        },
+        {
+          "path": "y",
+          "required": true,
+          "kind": "field",
+          "active": true
+        },
+        {
           "path": "guides",
           "required": false,
           "kind": "boolean",
+          "choices": [
+            false,
+            "horizontal",
+            "vertical"
+          ],
           "active": true
         },
         {
@@ -5228,6 +5233,12 @@
       "via": "editYAxis",
       "parameters": [
         {
+          "path": "visible",
+          "required": false,
+          "kind": "boolean",
+          "active": true
+        },
+        {
           "path": "underlay",
           "required": false,
           "kind": "boolean",
@@ -5543,6 +5554,12 @@
       "role": "recommendation",
       "via": "editXAxis",
       "parameters": [
+        {
+          "path": "visible",
+          "required": false,
+          "kind": "boolean",
+          "active": true
+        },
         {
           "path": "underlay",
           "required": false,
@@ -7437,6 +7454,12 @@
       "via": "editVerticalGrid",
       "parameters": [
         {
+          "path": "visible",
+          "required": false,
+          "kind": "boolean",
+          "active": true
+        },
+        {
           "path": "strokeDashMap",
           "required": false,
           "kind": "object",
@@ -7628,6 +7651,12 @@
       "role": "recommendation",
       "via": "editHorizontalGrid",
       "parameters": [
+        {
+          "path": "visible",
+          "required": false,
+          "kind": "boolean",
+          "active": true
+        },
         {
           "path": "strokeDashMap",
           "required": false,
@@ -8379,6 +8408,12 @@
           "path": "target",
           "required": false,
           "kind": "resource",
+          "active": true
+        },
+        {
+          "path": "textOverrides",
+          "required": false,
+          "kind": "array",
           "active": true
         },
         {
@@ -10029,7 +10064,7 @@
         {
           "path": "interval",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         }
       ],
@@ -10204,7 +10239,7 @@
         {
           "path": "bar",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -17109,7 +17144,7 @@
         {
           "path": "overflow",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -17160,7 +17195,7 @@
         {
           "path": "at",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -17189,6 +17224,13 @@
           "required": false,
           "kind": "number",
           "unit": "count",
+          "active": true
+        },
+        {
+          "path": "alongOffset",
+          "required": false,
+          "kind": "number",
+          "unit": "logical-pixel",
           "active": true
         },
         {
@@ -17234,7 +17276,7 @@
         {
           "path": "gradient",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -17575,6 +17617,24 @@
       "via": "editLegend",
       "parameters": [
         {
+          "path": "visible",
+          "required": false,
+          "kind": "boolean",
+          "active": true
+        },
+        {
+          "path": "itemsOffset",
+          "required": false,
+          "kind": "object",
+          "active": true
+        },
+        {
+          "path": "labels",
+          "required": false,
+          "kind": "object",
+          "active": true
+        },
+        {
           "path": "clipHeight",
           "required": false,
           "kind": "number",
@@ -17608,6 +17668,7 @@
           "required": false,
           "kind": "enum",
           "choices": [
+            "all",
             "color",
             "opacity",
             "shape",
@@ -17707,7 +17768,7 @@
         {
           "path": "overflow",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -17736,7 +17797,7 @@
         {
           "path": "at",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -17755,6 +17816,13 @@
           "required": false,
           "kind": "number",
           "unit": "count",
+          "active": true
+        },
+        {
+          "path": "alongOffset",
+          "required": false,
+          "kind": "number",
+          "unit": "logical-pixel",
           "active": true
         },
         {
@@ -17785,17 +17853,11 @@
         {
           "path": "gradient",
           "required": false,
-          "kind": "number",
-          "active": true
-        },
-        {
-          "path": "symbol",
-          "required": false,
           "kind": "object",
           "active": true
         },
         {
-          "path": "labels",
+          "path": "symbol",
           "required": false,
           "kind": "object",
           "active": true
@@ -18252,6 +18314,17 @@
             "stroke",
             "strokeDash",
             "strokeWidth"
+          ],
+          "active": true
+        },
+        {
+          "path": "align",
+          "required": false,
+          "kind": "enum",
+          "choices": [
+            "center",
+            "left",
+            "right"
           ],
           "active": true
         },
@@ -19434,7 +19507,7 @@
         {
           "path": "guides",
           "required": false,
-          "kind": "boolean",
+          "kind": "object",
           "active": true
         },
         {
@@ -20949,7 +21022,7 @@
         {
           "path": "gradient",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         }
       ],
@@ -21892,13 +21965,13 @@
         {
           "path": "bar",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
           "path": "guides",
           "required": false,
-          "kind": "boolean",
+          "kind": "object",
           "active": true
         },
         {
@@ -22312,7 +22385,7 @@
         {
           "path": "rect",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -23329,7 +23402,7 @@
         {
           "path": "guides",
           "required": false,
-          "kind": "boolean",
+          "kind": "object",
           "active": true
         },
         {
@@ -23622,7 +23695,7 @@
         {
           "path": "box",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -23634,7 +23707,7 @@
         {
           "path": "outlier",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         }
       ],
@@ -23987,7 +24060,7 @@
         {
           "path": "box",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -23999,7 +24072,7 @@
         {
           "path": "outlier",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -27297,7 +27370,7 @@
         {
           "path": "at",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -27327,6 +27400,13 @@
           "required": false,
           "kind": "number",
           "unit": "count",
+          "active": true
+        },
+        {
+          "path": "alongOffset",
+          "required": false,
+          "kind": "number",
+          "unit": "logical-pixel",
           "active": true
         },
         {
@@ -27970,7 +28050,7 @@
         {
           "path": "sequence",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -28083,15 +28163,21 @@
       "via": "encodeShape",
       "parameters": [
         {
-          "path": "field",
-          "required": true,
-          "kind": "field",
+          "path": "value",
+          "required": false,
+          "kind": "object",
           "active": true
         },
         {
           "path": "target",
           "required": false,
           "kind": "resource",
+          "active": true
+        },
+        {
+          "path": "field",
+          "required": false,
+          "kind": "field",
           "active": true
         },
         {
@@ -28457,6 +28543,13 @@
       "via": "highlightMarks",
       "parameters": [
         {
+          "path": "fontSize",
+          "required": false,
+          "kind": "number",
+          "unit": "logical-pixel",
+          "active": true
+        },
+        {
           "path": "id",
           "required": false,
           "kind": "resource",
@@ -28533,14 +28626,14 @@
         {
           "path": "offset",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "unit": "logical-pixel",
           "active": true
         },
         {
           "path": "dimOthers",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -29075,6 +29168,12 @@
           "active": true
         },
         {
+          "path": "rows",
+          "required": false,
+          "kind": "array",
+          "active": true
+        },
+        {
           "path": "field",
           "required": false,
           "kind": "field",
@@ -29112,7 +29211,7 @@
         },
         {
           "path": "op",
-          "required": true,
+          "required": false,
           "kind": "enum",
           "choices": [
             "eq",
@@ -29120,11 +29219,7 @@
             "gte",
             "lt",
             "lte",
-            "max",
-            "min",
-            "neq",
-            "oneOf",
-            "range"
+            "neq"
           ],
           "active": true
         },
@@ -29332,6 +29427,16 @@
       "via": "editCompositionLayout",
       "reason": "Retained facet templates support native source and layout editing.",
       "parameters": [
+        {
+          "path": "legends",
+          "required": false,
+          "kind": "enum",
+          "choices": [
+            "collect",
+            "local"
+          ],
+          "active": true
+        },
         {
           "path": "columns",
           "required": false,
@@ -31698,7 +31803,7 @@
         {
           "path": "statistics",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {
@@ -35893,7 +35998,7 @@
         {
           "path": "sequence",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         }
       ],
@@ -36022,6 +36127,12 @@
           "active": true
         },
         {
+          "path": "rows",
+          "required": false,
+          "kind": "array",
+          "active": true
+        },
+        {
           "path": "field",
           "required": false,
           "kind": "field",
@@ -36059,7 +36170,7 @@
         },
         {
           "path": "op",
-          "required": true,
+          "required": false,
           "kind": "enum",
           "choices": [
             "eq",
@@ -36067,11 +36178,7 @@
             "gte",
             "lt",
             "lte",
-            "max",
-            "min",
-            "neq",
-            "oneOf",
-            "range"
+            "neq"
           ],
           "active": true
         },
@@ -36978,7 +37085,7 @@
         {
           "path": "statistics",
           "required": false,
-          "kind": "number",
+          "kind": "object",
           "active": true
         },
         {

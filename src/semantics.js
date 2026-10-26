@@ -90,7 +90,7 @@ export function actionFeatures(action, options = {}) {
   if (action === 'createSummaryData') return ['transform.aggregate'];
   if (['filterData', 'filterMarks'].includes(action)) return ['transform.filter'];
   // Retain other design operations in the corpus instead of silently discarding them.
-  if (/^(create|edit|encode|facet|jitter|pack|filter|layout|order|apply|remove|bind|revise|repeat)/.test(action) &&
+  if (/^(highlight|select|create|edit|encode|facet|jitter|pack|filter|layout|order|apply|remove|bind|revise|repeat)/.test(action) &&
       !['createCanvas', 'createData', 'createDerivedData', 'editSemantic', 'createGraphics', 'editGraphics'].includes(action)) return [`action.${action}`];
   return [];
 }
@@ -125,7 +125,7 @@ export function extractFeatures(program, { target, data, datasetType = 'tabular'
       continue;
     }
     if (node.op === 'removeEncoding' && !otherMark) fixedEncodings.delete(`${owner}:${canonicalChannel(node.args.channel)}`);
-    if (/^(edit|encode|filterMarks|order|layout|jitter|pack|apply|remove|bind|revise|repeat)/.test(node.op) &&
+    if (/^(highlight|select|edit|encode|filterMarks|order|layout|jitter|pack|apply|remove|bind|revise|repeat)/.test(node.op) &&
       !(target && node.args.target && program.semanticSpec.layers.some(l => l.id === node.args.target) && node.args.target !== target)) {
         for (const feature of actionFeatures(node.op, node.args)) features.add(feature);
       }

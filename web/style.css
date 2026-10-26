@@ -561,3 +561,18 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .parameter-toggle[aria-checked="true"] {background:rgba(var(--group-rgb,48,95,153),.12);border-color:var(--group-accent,#305f99);color:var(--group-accent,#305f99)}
 .parameter-toggle[aria-checked="false"] {background:#f4f5f7;color:#737b87;border-color:#d7dce3}
 .control-caption .slider-value {margin-left:auto}
+
+.canvas-text-editor {
+  position: fixed; z-index: 1000; box-sizing: border-box; padding: 12px;
+  background: white; color: #1f2937; border: 1px solid #1976d2; border-radius: 8px;
+  box-shadow: 0 6px 24px #172b4d26; display: grid; gap: 8px;
+}
+.canvas-text-editor textarea { box-sizing: border-box; width: 100%; min-height: 70px;
+  resize: vertical; font: 16px/1.4 Arial, sans-serif; padding: 8px; color: inherit;
+  border: 1px solid #cbd5e1; border-radius: 4px; background: white; }
+.canvas-text-editor small { color: #64748b; font-size: 11px; line-height: 1.4; }
+.text-edit-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.text-edit-actions button { min-width: 60px; padding: 5px 10px; }
+.text-edit-error:empty { display: none; }
+.text-edit-error { font-size: 12px; color: #b42318; }
+.text-editing .guide-editor { visibility: hidden; }

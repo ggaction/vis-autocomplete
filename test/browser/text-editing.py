@@ -1,0 +1,95 @@
+"""Direct Canvas text editing in an isolated authenticated local browser."""
+import argparse, json, subprocess, os
+from pathlib import Path
+from playwright.sync_api import sync_playwright, expect
+parser=argparse.ArgumentParser();parser.add_argument('--cdp',required=True);args=parser.parse_args()
+out=Path('output/text-editing');out.mkdir(parents=True,exist_ok=True)
+subprocess.run(['node','--input-type=module','-e',r'''
+import {writeFileSync} from 'node:fs';import {createProject,restoreSession} from './web/project.js';import {importDataset} from './src/data-import.js';import {editableTextTargets} from './src/text-editing.js';
+import {resolvePrimitiveGraphicBounds,resolveGraphicParentOffset} from './vendor/ggaction/src/grammar/schemas/graphicBounds.js';
+const c=(method,args)=>({method,args}), imported=importDataset(JSON.stringify([{x:1,y:2,g:'A'},{x:2,y:4,g:'B'},{x:3,y:6,g:'A'}]),{format:'json',name:'Text editing'});
+for(const kind of ['unit','facet','adjacent','parallel','polar','bar','continuous']){
+ const setupCalls=[c('createCanvas',{plot:{width:314,height:314},margin:180}),c('createData',{id:'dataset',values:'__LOADED_DATA__'})];
+ const constructor=kind==='parallel'?c('createParallelCoordinates',{id:'plot',data:'dataset',dimensions:['g','x','y'],color:'g'}):kind==='polar'?c('createRosePlot',{id:'plot',data:'dataset',category:'g',value:'y'}):kind==='bar'?c('createBarPlot',{id:'plot',data:'dataset',x:'g',y:{field:'y',aggregate:'sum'},color:'g'}):c('createScatterPlot',{id:'plot',data:'dataset',x:'x',y:'y',color:'g'});
+ const calls=[constructor,c('createTitle',{text:'Title',subtitle:'Subtitle'})];
+ if(kind==='continuous')calls.push(c('encodeColor',{target:'plot',field:'x',fieldType:'quantitative'}),c('encodeSize',{target:'plot',field:'y',fieldType:'quantitative'}));
+ if(['unit','facet','adjacent'].includes(kind))calls.splice(1,0,c('createLegend',{target:'plot',channels:['color']}));
+ if(['unit','facet','adjacent'].includes(kind))calls.push(c('createMarkLabels',{id:'labels',source:'plot',field:'g'}));
+ if(kind==='facet')calls.push(c('facet',{field:'g',columns:2,guides:{axes:'outer',legend:'shared'}}));
+ if(kind==='adjacent')calls.push(c('createAdjacentPlot',{id:'right',source:'plot',position:'right',plot:{action:'createScatterPlot',options:{x:'x',y:'y'}},share:{color:true}}));
+ const guideCall=c('createGuides',kind==='adjacent'?{target:[{childPath:['plot']},{childPath:['right']}]}:kind==='continuous'?{legend:{target:'plot',channels:['color','size']}}:{}),snapshot={setupCalls,calls,guideCall,steps:calls.length,phase:'recommendations',selection:{x:'x',y:'y',color:'g'},currentNote:kind,context:{target:'plot'},plotData:'dataset',optionGroup:'style'};
+ const session={entries:[snapshot],index:0},project=createProject([{id:`text-${kind}`,name:'Text editing',imported,session}],`text-${kind}`);
+ writeFileSync(`output/text-editing/${kind}.json`,JSON.stringify(project));
+ const view=restoreSession(session,imported.rows).entries[0].view;
+ const blocked=kind!=='continuous'?[]:['xAxisLabels','yAxisLabels','colorGradientLabels','sizeLegendLabels'].map(id=>{
+  const object=view.graphicSpec.objects[id],item=object.items[0],b=resolvePrimitiveGraphicBounds('text',item.properties,view.materializationConfigs.textMetrics),[dx,dy]=resolveGraphicParentOffset(view.graphicSpec,id);
+  return {id,bounds:{left:b.left+dx,right:b.right+dx,top:b.top+dy,bottom:b.bottom+dy}};
+ });
+ writeFileSync(`output/text-editing/${kind}-targets.json`,JSON.stringify({width:view.graphicSpec.objects.canvas.properties.width,targets:editableTextTargets(view).map(({id,text,label,bounds})=>({id,text,label,bounds})),blocked}));
+}
+'''],check=True)
+with sync_playwright() as p:
+ browser=p.chromium.connect_over_cdp(args.cdp);page=browser.contexts[0].pages[0];errors=[]
+ page.on('pageerror',lambda e:errors.append(str(e)))
+ page.wait_for_load_state('networkidle');expect(page.locator('#dataset')).to_be_enabled(timeout=60000)
+ def load(kind,mode):
+  if page.locator('#current canvas').count(): expect(page.locator('#reset')).to_be_enabled(timeout=60000)
+  page.locator('#project-file').set_input_files(str(out/f'{kind}.json'))
+  expect(page.locator('#current-note')).to_have_text(kind,timeout=60000)
+  expect(page.locator('#reset')).to_be_enabled(timeout=60000)
+  page.locator(f'#view-mode [data-mode="{mode}"]').click()
+  page.mouse.move(0,0)
+  page.evaluate('''()=>new Promise(resolve=>{let last='',stable=0;function frame(){const r=document.querySelector('#current .canvas-stage').getBoundingClientRect(),value=[r.x,r.y,r.width,r.height].join();stable=value===last?stable+1:0;last=value;if(stable>=4)resolve();else requestAnimationFrame(frame);}requestAnimationFrame(frame);})''')
+ def open_target(kind,label,text=None):
+  data=json.loads((out/f'{kind}-targets.json').read_text());target=next(t for t in data['targets'] if t['label']==label and (text is None or t['text']==text))
+  stage=page.locator('#current .canvas-stage');r=stage.bounding_box();b=target['bounds'];scale=r['width']/data['width']
+  x=r['x']+(b['left']+b['right'])/2*scale;y=r['y']+(b['top']+b['bottom'])/2*scale
+  page.mouse.dblclick(x,y,delay=100)
+  try:
+   expect(page.locator('.canvas-text-editor')).to_be_visible(timeout=5000)
+  except Exception:
+   page.screenshot(path=str(out/'failure.png'));print('Failed target',kind,label,target,r,x,y,flush=True);raise
+  expect(page.locator('.canvas-text-editor textarea')).to_have_value(target['text'])
+  return page.locator('.canvas-text-editor textarea')
+ for mode in ['transition','preview']:
+  for kind,label,text in [('unit','Title',None),('unit','Legend item','A'),('unit','Mark label','B'),('facet','Facet heading','A'),('adjacent','Legend item','A'),('parallel','Category label','A'),('polar','Category label','A'),('bar','Category label','A')]:
+   if os.environ.get('TEXT_CASE') and os.environ['TEXT_CASE']!=f'{mode}-{kind}': continue
+   load(kind,mode)
+   area=open_target(kind,label,text);area.fill('Edited')
+   area.press('Meta+Enter');area.press('X');expect(area).to_have_value('Edited\nX')
+   area.press('Escape');expect(page.locator('.canvas-text-editor')).to_have_count(0)
+   area=open_target(kind,label,text);area.fill('Edited');area.press('Control+Enter');area.press('X');area.press('Enter')
+   expect(page.locator('.canvas-text-editor')).to_have_count(0,timeout=60000)
+   expect(page.locator('#current-note')).to_have_text(f'Edit {label.lower()}',timeout=60000)
+   page.locator('#current').screenshot(path=str(out/f'{mode}-{kind}-{label.replace(" ","-")}.png'))
+   page.keyboard.press('Meta+z');expect(page.locator('#current-note')).to_have_text(kind,timeout=60000)
+   page.keyboard.press('Meta+Shift+z');expect(page.locator('#current-note')).to_have_text(f'Edit {label.lower()}',timeout=60000)
+   print(mode,kind,label,'OK',flush=True)
+ # Continuous axis and legend numbers are not text-edit targets in either mode.
+ for mode in ['transition','preview']:
+  load('continuous',mode)
+  data=json.loads((out/'continuous-targets.json').read_text())
+  for target in data['blocked']:
+   r=page.locator('#current .canvas-stage').bounding_box();b=target['bounds'];scale=r['width']/data['width']
+   page.mouse.dblclick(r['x']+(b['left']+b['right'])/2*scale,r['y']+(b['top']+b['bottom'])/2*scale,delay=100)
+   expect(page.locator('.canvas-text-editor')).to_have_count(0)
+  print(mode,'continuous numeric text stays read-only',flush=True)
+ # IME Enter must not apply or add a newline.
+ load('unit','transition');area=open_target('unit','Title');area.fill('한글')
+ area.evaluate("e=>e.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))")
+ area.press('Enter');expect(area).to_be_visible()
+ area.evaluate("e=>e.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))")
+ area.press('Escape');expect(page.locator('.canvas-text-editor')).to_have_count(0)
+ # Accepted text survives autosave and a complete application reload.
+ area=open_target('unit','Title');area.fill('Persisted title');area.press('Enter')
+ expect(page.locator('.canvas-text-editor')).to_have_count(0,timeout=60000)
+ expect(page.locator('#cloud-status')).to_have_text('Saved',timeout=60000)
+ expect(page.locator('#reset')).to_be_enabled(timeout=60000)
+ page.reload();page.wait_for_load_state('networkidle')
+ expect(page.locator('#reset')).to_be_enabled(timeout=60000)
+ expect(page.locator('#current-note')).to_have_text('Edit title',timeout=60000)
+ page.locator('#code-content .code-call[data-method="editTitle"]').last.locator('summary').click()
+ expect(page.locator('#code-content')).to_contain_text('Persisted title',timeout=10000)
+ assert not errors,errors
+ print('PASS: requested mode/chart cases plus IME, Enter, Cmd/Ctrl+Enter, Escape, Undo/Redo',flush=True)
+ browser.close()

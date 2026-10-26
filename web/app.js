@@ -1,3 +1,4 @@
+import { createTextEditor } from './text-editor.js';
 import { createChartZoom } from './chart-zoom.js';
 import { selectionFields } from '../src/field-selection.js';
 import { loadModel } from './model-loader.js';
@@ -325,6 +326,30 @@ const guideEditor = createGuideEditor(elements.current, {
     renderedCharts.delete(elements.current); renderChart(elements.current, state.view, 'Current visualization');
     refreshVisibleCards(); updateHistoryButtons(); updateGalleryNavigation(); notice();
   },
+});
+
+const textEditor = createTextEditor(elements.current, {
+  program: () => state.view,
+  available: () => state.phase !== 'initial' && !transitionMode.active && !state.loading && !state.committing && !state.resizing,
+  start(target) {
+    leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
+    cardMotion.finish(); resizeHistory.reset();
+    state.resizing = true; elements.cards.inert = true;
+    updateHistoryButtons(); updateGalleryNavigation();
+    return { base: state.program, view: state.view, guideCall: state.guideCall, title: `Edit ${target.label.toLowerCase()}` };
+  },
+  async apply(context, action, current) {
+    const result = await calculations.guideEdits(context.base, context.view, context.guideCall, [action]);
+    if (!current()) return;
+    if (state.program !== context.base) throw new Error('The visualization changed. Double-click the text again.');
+    commitGuideGroup({ ...context, groupResult: result });
+  },
+  end() {
+    state.resizing = false; elements.cards.inert = state.committing;
+    renderedCharts.delete(elements.current); renderChart(elements.current, state.view, 'Current visualization');
+    refreshVisibleCards(); updateHistoryButtons(); updateGalleryNavigation();
+  },
+  error: message => notice(message, true),
 });
 
 function commitGuideGroup(context) {
@@ -1982,7 +2007,7 @@ initializeHistoryShortcuts({ run: restoreHistory,
   busy: () => state.loading || state.committing || state.resizing, dataset: () => state.datasetId,
   cancelGesture() {
     const dragging = state.resizing;
-    canvasResize.cancel(); guideEditor.cancel();
+    canvasResize.cancel(); guideEditor.cancel(); textEditor.cancel();
     return dragging && !state.resizing;
   } });
 $('undo').title = 'Undo (Ctrl/Cmd+Z)';

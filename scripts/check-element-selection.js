@@ -30,6 +30,10 @@ export async function checkElementSelection(page) {
       session: { entries: [snapshot], index: 0 } }], `selection-${kind}`);
     await page.locator('#project-file').setInputFiles({ name: `${kind}.visauto.json`, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)) });
     await expect(page.locator('#dataset')).toHaveValue(`selection-${kind}`);
+    // Dataset selection changes before the asynchronously restored chart. Wait
+    // for its committed entry instead of reading the previous project's styles.
+    await expect(page.locator('#current-note')).toHaveText('Overview');
+    await expect(page.locator('.history-item')).toHaveCount(1);
     await expect(page.locator('#chart-font')).toBeEnabled();
   }
   const selected = page.locator('.guide-control.selected');

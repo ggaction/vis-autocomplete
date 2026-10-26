@@ -32,6 +32,10 @@ CI partitions the same discovered processes into four disjoint shards, each with
 
 Tags do **not** automatically apply database migrations or Blueprint configuration changes. Review and apply backward-compatible infrastructure/schema changes separately before releasing a version that needs them. This avoids granting deployment code database-owner access. Changes to runtime assets are included by the normal Docker build.
 
+The first release containing guest access requires the additive guest-permission
+migration and Supabase anonymous sign-in setting before the app release. Follow
+[the guest access checklist](guest-access.md#before-releasing-this-feature).
+
 Native favicon source: `web/icons/favicon.svg`. Regenerate the committed PNG fallbacks with `node scripts/build-icons.js`; these are required runtime assets, not audit output.
 
 References: [Render deploy hooks](https://render.com/docs/deploy-hooks), [Render automatic deployments](https://render.com/docs/deploys).

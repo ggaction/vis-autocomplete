@@ -17,17 +17,18 @@
 <body><main>
   <a href="/">← Visualization Autocomplete</a>
   <h1>Privacy and data use</h1>
-  <p class="date">Updated October 25, 2026</p>
+  <p class="date">Updated October 26, 2026</p>
   <p>Visualization Autocomplete helps you create and save visualizations. This notice describes account data, private saved work, optional research history, and reports. Contact Hyeon Jeon at <a href="mailto:jeonhyun97@gmail.com">jeonhyun97@gmail.com</a> with questions or requests about your data.</p>
   <p>Your workspace layout, panel sizes and visibility, preview mode, and code font size are saved as private account preferences so they can be restored when you return or sign in on another device. They are used to operate your workspace, independently of optional research collection.</p>
   <h2>Accounts and sign-in</h2>
   <p>Supabase provides authentication. Email accounts use your email address and password through Supabase Auth. Google sign-in requests your basic profile, email address, and account identifier to establish your account. It does not request access to Google Drive, Gmail messages, or your contacts. Authentication sessions are retained in browser storage so you can stay signed in.</p>
   <h2>Your private work</h2>
+  <p>“Try without account” creates a guest session with Supabase, without asking for an email or password. Its identifier and session credentials are retained in this browser so you can return to the same draft. Signing in from the guest editor carries your current visualization into a new private project in your account.</p>
   <p>Guest work is stored in your browser. When signed in, your projects, visualization programs, edit revisions, and datasets are saved privately in Supabase to let you reopen and continue your work. Edit revisions can include earlier states and discarded undo branches. These records and dataset contents are not used as research data.</p>
   <p>PNG, PDF, and SVG export sends the chart specification and its included values to the application server for rendering. The export handler processes this transiently and does not persist the chart body.</p>
   <h2>Optional research history</h2>
-  <p>After account creation, you choose whether to share interaction history for research on visualization authoring. The initial checkbox is selected, but collection starts only after you confirm your choice. You can use the editor without opting in and change your choice in Settings.</p>
-  <p>With permission, we record action names, option exploration, parameter interaction metrics, counts, ranks, timing, error events, and application version. These events are linked to your account and session; they are not anonymous. Research events exclude uploaded files, dataset rows, field names, chart text, search text, action arguments, and raw error messages. Authorized research administrators can access the history.</p>
+  <p>When you first start a guest session or create an account, you choose whether to share interaction history for research on visualization authoring. The initial checkbox is selected, but collection starts only after you confirm your choice. You can use the editor without opting in and change your choice in Settings.</p>
+  <p>With permission, we record action names, option exploration, parameter interaction metrics, counts, ranks, timing, error events, and application version. These events are linked to your account or guest session identifier and include whether they came from a guest. Guest history is pseudonymous, not guaranteed anonymous. Research events exclude uploaded files, dataset rows, field names, chart text, search text, action arguments, and raw error messages. Authorized research administrators can access the history.</p>
   <p>Turning off research sharing stops future collection and discards queued events. It does not automatically delete previously shared history. Contact us to request removal.</p>
   <h2>Problem reports</h2>
   <p>Reports contain the text you submit. If you include project context, the report can contain your visualization code, field names, and chart text. Dataset rows are excluded unless you separately choose to attach the dataset. Report administrators can view reports and any attachments you explicitly share. Reports are separate from the research history.</p>

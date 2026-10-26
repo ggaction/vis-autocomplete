@@ -11,7 +11,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   const client = suppliedClient ?? createClient(config.supabaseUrl, config.supabaseKey, { auth: { flowType: 'pkce', detectSessionInUrl: true,
     persistSession: true, autoRefreshToken: true } });
   let user = null, profile = null, sequence = 0, session = crypto.randomUUID(), current = null;
-  let draining = null, recording = Promise.resolve(), packing = Promise.resolve(), switching = true, lastJobTime = 0;
+  let draining = null, drainAgain = false, recording = Promise.resolve(), packing = Promise.resolve(), switching = true, lastJobTime = 0;
   let loaded = false, initialized = false, authQueue = Promise.resolve(), recovery = false;
   const queuedSnapshots = new Map();
   const pendingThumbnails = new Set();
@@ -19,6 +19,8 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   const release = config.release ?? 'development';
   const redirectTo = location.origin + '/';
   const activeKey = id => `active:${id}`;
+  const guest = () => user?.is_anonymous === true;
+  const requireMember = () => { if (!user || guest()) throw new Error('Sign in to save and manage projects.'); };
   const notify = extra => changed({ user, profile, current, configured: true, ...extra });
   async function authenticate(event, authSession) {
     let identity = authSession?.user ?? null;
@@ -29,12 +31,12 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
       if (verified.error && ![401, 403].includes(verified.error.status)) throw verified.error;
       identity = verified.error ? null : verified.data.user;
     }
-    const identityChanged = !loaded || identity?.id !== user?.id;
+    const identityChanged = !loaded || identity?.id !== user?.id || identity?.is_anonymous !== user?.is_anonymous;
     if (identityChanged) {
       switching = true;
       await packing.catch(() => {}); user = identity; profile = null; current = null; uploaded.clear();
       session = crypto.randomUUID(); sequence = 0;
-      if (user) current = await local.get(activeKey(user.id));
+      if (user && !guest()) current = await local.get(activeKey(user.id));
     }
     if (user) {
       const result = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
@@ -114,7 +116,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     return { ...snapshot, datasets: records };
   }
   function save(project, thumbnail) {
-    if (!user || switching) return Promise.resolve();
+    if (!user || guest() || switching) return Promise.resolve();
     const owner = user.id, target = current ?? { id: crypto.randomUUID(), title: 'Untitled visualization', revision: 0, snapshot: null };
     current = target;
     // Serialize before project switches; jobs keep their own immutable identity.
@@ -155,6 +157,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     drain();
   }
   async function drainJobs(owner) {
+    if (guest()) return;
     for (const key of (await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).sort()) {
       if (user?.id !== owner) return;
       if (pendingThumbnails.has(key)) return;
@@ -195,10 +198,17 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     for (const key of keys) await local.remove(key);
   }
   function drain() {
-    if (!user || !navigator.onLine || draining) return draining;
+    if (!user || !navigator.onLine) return draining;
+    if (draining) { drainAgain = true; return draining; }
     const owner = user.id;
-    draining = (async () => { await drainJobs(owner); if (user?.id === owner) await drainEvents(owner); })()
-      .catch(() => status('Saved locally · sync will retry', true)).finally(() => { draining = null; });
+    draining = (async () => {
+      do {
+        drainAgain = false;
+        await drainJobs(owner); await recording;
+        if (user?.id === owner) await drainEvents(owner);
+      } while (drainAgain && user?.id === owner && navigator.onLine);
+    })()
+      .catch(() => status(guest() ? 'History sync will retry' : 'Saved locally · sync will retry', true)).finally(() => { draining = null; });
     return draining;
   }
   function record(type, input) {
@@ -212,6 +222,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     }).catch(() => {});
   }
   async function open(id) {
+    requireMember();
     await packing; await drain();
     const pending = await local.get(`head:${user.id}:${id}`);
     const pendingJobs = await Promise.all((await local.keys()).filter(k => k.startsWith(`job:${user.id}:`)).map(k => local.get(k)));
@@ -228,12 +239,14 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     await local.put(activeKey(user.id), current); notify(); return project;
   }
   async function newProject(title = 'Untitled visualization') {
+    if (guest()) { current = null; return; }
     await packing; current = { id: crypto.randomUUID(), title, revision: 0 };
     if (user) await local.put(activeKey(user.id), current); notify();
   }
   // Thumbnail repair reads only the selected dataset. It must never activate a
   // project, replay its history, or create an autosave/research revision.
   async function preview(row) {
+    requireMember();
     const owner = user?.id;
     const checkOwner = () => { if (!owner || switching || user?.id !== owner) throw new Error('Account changed.'); };
     checkOwner(); await packing; checkOwner();
@@ -252,6 +265,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     checkOwner(); return project.datasets[0];
   }
   function rename(title, id = current?.id) {
+    requireMember();
     const owner = user?.id, name = title.trim().slice(0, 160);
     if (!owner || !id) return Promise.reject(new Error('Create a visualization first.'));
     if (!name) return Promise.reject(new Error('Enter a project name.'));
@@ -274,6 +288,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     packing = packing.catch(() => {}).then(run); return packing;
   }
   function duplicate(id) {
+    requireMember();
     const owner = user?.id;
     if (!owner || !id) return Promise.reject(new Error('Select a visualization first.'));
     const run = async () => {
@@ -298,6 +313,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     packing = packing.catch(() => {}).then(run); return packing;
   }
   async function list() {
+    requireMember();
     await packing; await drain();
     const owner = user.id, cacheKey = `projects:${owner}`;
     const result = await client.from('projects').select('id,title,revision,thumbnail,updated_at').order('updated_at', { ascending: false });
@@ -316,20 +332,20 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   const interval = setInterval(drain, 5000); window.addEventListener('online', drain);
   const hidden = () => { if (document.hidden) drain(); };
   document.addEventListener('visibilitychange', hidden);
-  return { configured: true, client, local, release, recovery, get user() { return user; }, get profile() { return profile; },
+  return { configured: true, client, local, release, recovery, get user() { return user; }, get guest() { return guest(); }, get profile() { return profile; },
     get current() { return current; }, get loaded() { return loaded; }, record, save, consent, drain, open, newProject, rename,
     list, preview, duplicate,
-    datasets: async () => fail(await client.from('datasets').select('id,name,path,hash,created_at').order('created_at', { ascending: false })),
-    loadDataset: async row => JSON.parse(await fail(await client.storage.from('workspace').download(row.path)).text()),
-    remove: async id => { await packing; await drain(); fail(await client.from('projects').delete().eq('id', id));
+    datasets: async () => { requireMember(); return fail(await client.from('datasets').select('id,name,path,hash,created_at').order('created_at', { ascending: false })); },
+    loadDataset: async row => { requireMember(); return JSON.parse(await fail(await client.storage.from('workspace').download(row.path)).text()); },
+    remove: async id => { requireMember(); await packing; await drain(); fail(await client.from('projects').delete().eq('id', id));
       for (const key of await local.keys()) if (key.startsWith(`job:${user.id}:`) && (await local.get(key)).id === id) await local.remove(key);
       await local.remove(`head:${user.id}:${id}`); await local.remove(`remote:${user.id}:${id}`);
       await local.remove(`thumbnail:${user.id}:${id}`);
       const cached = await local.get(`projects:${user.id}`); if (cached) await local.put(`projects:${user.id}`, cached.filter(row => row.id !== id));
       if (current?.id === id) await newProject(); },
     async report({ kind, title, description, project, shareData, isAiAgent = false }) {
-      let context = project ? await ensureData(await pack(project), user.id) : null;
-      if (context && !shareData) context = reportContext(context);
+      if (shareData) requireMember();
+      let context = project ? shareData ? await ensureData(await pack(project), user.id) : reportContext(await pack(project)) : null;
       // Per-report self-identification, separate from data-sharing or research consent.
       context = { ...context, reporter: { isAiAgent: isAiAgent === true } };
       return fail(await client.from('bug_reports').insert({ owner_id: user.id, kind, title, description, context,
@@ -348,6 +364,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
       if (user?.id === owner) user = { ...user, user_metadata: { ...user.user_metadata, ...patch } };
     },
     async signOut() { await packing; await drain(); await this.flushViewPreferences?.(); fail(await client.auth.signOut()); },
+    tryWithoutAccount: async () => user ?? fail(await client.auth.signInAnonymously()).user,
     google: async () => fail(await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } })),
     signIn: async (email, password) => fail(await client.auth.signInWithPassword({ email, password })),
     signUp: async (email, password) => fail(await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } })),

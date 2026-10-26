@@ -47,13 +47,18 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r test/browser/requirements.txt
       - name: Browser checks
         run: |
-          PORT=5184 npm start > /tmp/vis-autocomplete.log 2>&1 &
+          PORT=5184 SUPABASE_URL=https://cloud-test.supabase.co SUPABASE_PUBLISHABLE_KEY=sb_publishable_test npm start > /tmp/vis-autocomplete.log 2>&1 &
           trap 'kill $!' EXIT
           for attempt in $(seq 1 30); do curl -sf http://127.0.0.1:5184/healthz && break; sleep 1; done
           npm run test:cloud-browser
           node scripts/test-cloud-auth-browser.js
+          python test/browser/guest-access.py --url http://127.0.0.1:5184
       - name: Docker build
         run: docker build -t vis-autocomplete-test .
       - name: Start production container

@@ -51,13 +51,14 @@ import { importDataset, parseCSV } from '../src/data-import.js';
 import { reviewDatasetImport } from './import-dialog.js';
 import { chooseDatasetFile } from './upload-dialog.js';
 import { createProject, parseProject, validateProject, restoreSession, runnableCode, createDraftStore, checkpointRevision, prepareHistorySnapshot } from './project.js';
+import { pendingGuestTransfer, clearGuestTransfer } from './cloud/guest-transfer.js';
 import { initializeAccountMenu } from './cloud/menu.js';
 import { accountSession } from './cloud/session.js';
 import { createThumbnailClient } from './cloud/thumbnail-client.js';
 export { parseCSV } from '../src/data-import.js';
 
 const { account: signedInAccount } = await accountSession();
-if (!signedInAccount.user) throw new Error('Sign in to open the editor.');
+if (!signedInAccount.user) throw new Error('Start a guest session or sign in to open the editor.');
 
 const $ = id => document.getElementById(id);
 const elements = Object.fromEntries(['current', 'preview', 'cards', 'notice',
@@ -2040,6 +2041,7 @@ zoomCurrent.addEventListener('click', () => enlarge(elements.current, 'Current v
 $('chart-exports').append(zoomCurrent);
 
 let startupLoading = true;
+signedInAccount.prepareGuestTransfer = async () => { await savingDraft; const project = projectSnapshot(); if (project) await drafts.write(project); };
 try {
   const sourceResponse = await fetch('/output/workers/source.json');
   if (sourceResponse.ok) sourceVersion = await sourceResponse.json();
@@ -2054,7 +2056,13 @@ try {
       try {
         clearTimeout(checkpointTimer); await savingDraft; await emptyWorkspace();
         drafts = createDraftStore(undefined, `visualization-autocomplete-account-${user.id}`);
-        const draft = await drafts.read();
+        const transfer = pendingGuestTransfer(user);
+        const guestDraft = transfer && await createDraftStore(undefined, `visualization-autocomplete-account-${transfer.owner}`).read();
+        const draft = guestDraft ?? await drafts.read();
+        if (guestDraft) {
+          await signedInAccount.newProject((guestDraft.datasets.find(d => d.id === guestDraft.activeId)?.name ?? 'My visualization').slice(0, 160));
+          await drafts.write(guestDraft);
+        }
         if (draft) {
           let current;
           try {
@@ -2068,7 +2076,9 @@ try {
           } catch (error) { document.body.dataset.checkpointError = error.message; }
           document.body.dataset.restoration = current ? 'checkpoint' : 'calls';
           await openProject(draft, { lazy: true, current, onReady: () => { state.loading = false; startupLoading = false; } });
+          if (guestDraft) await signedInAccount.save(guestDraft, cloudThumbnail());
         }
+        if (transfer) clearGuestTransfer();
       } catch (error) { notice(`Could not restore the draft: ${error.message}`, true); }
       finally { switchingAccount = false; state.committing = false; updateHistoryButtons(); }
     }

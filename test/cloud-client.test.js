@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { createAccount } from '../web/cloud/client.js';
 import { reportContext } from '../web/cloud/documents.js';
 const pause=()=>new Promise(r=>setTimeout(r,20));
-function mock() {
+function mock(owner={id:'test-user',email:'a@example.org'}) {
   const map=new Map(),local={get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),remove:async k=>map.delete(k),keys:async()=>[...map.keys()]};
-  const calls=[],rows=[],remote=new Map();let profile=null,listener;const owner={id:'test-user',email:'a@example.org'};
+  const calls=[],rows=[],remote=new Map();let profile=null,listener;
   let conflict=false,failSave=false;
   let verifiedUser=owner;
   const client={auth:{getSession:async()=>({data:{session:{user:owner}}}),getUser:async()=>({data:{user:verifiedUser}}),onAuthStateChange:fn=>{listener=fn;return {data:{subscription:{unsubscribe(){}}}};},
@@ -30,6 +30,40 @@ const project=n=>({format:'visualization-autocomplete',activeId:'a',savedAt:`${n
 function environment(){globalThis.window=new EventTarget();globalThis.document=new EventTarget();globalThis.location={origin:'http://localhost'};Object.defineProperty(globalThis.navigator,'onLine',{value:false,configurable:true});}
 function online(value){Object.defineProperty(globalThis.navigator,'onLine',{value,configurable:true});}
 const config={supabaseUrl:'https://example.supabase.co',supabaseKey:'test'};
+test('Guest sessions retain consented history on the server without any workspace upload',async()=>{
+ environment();const m=mock({id:'guest',is_anonymous:true}),a=await createAccount({...m,config});
+ try{
+  assert.equal(a.guest,true);
+  await a.save(project(1));await a.newProject('Guest draft');online(true);await a.drain();
+  assert.equal(m.map.size,0);assert.equal(m.calls.length,0);assert.equal(m.rows.length,0);
+  await assert.rejects(a.list(),/Sign in/);await assert.rejects(a.datasets(),/Sign in/);
+  await assert.rejects(a.open('private-project'),/Sign in/);await assert.rejects(a.remove('private-project'),/Sign in/);
+  assert.throws(()=>a.duplicate('private-project'),/Sign in/);assert.throws(()=>a.rename('Private','private-project'),/Sign in/);
+  a.record('apply',{method:'encodeColor'});await a.drain();assert.equal(m.calls.length,0);
+  await a.consent(true);a.record('apply',{method:'encodeColor',field:'secret',args:imported});await a.drain();
+  const sent=m.calls.filter(([n])=>n==='record_interactions');assert.equal(sent.length,1);
+  assert.deepEqual(sent[0][1].events[0].payload,{type:'apply',method:'encodeColor'});
+  await a.report({kind:'project',title:'Bug',description:'Repro',project:project(1),shareData:false});
+  assert.equal(m.rows.length,0,'report without sharing data never uploads a dataset');
+  await assert.rejects(a.report({kind:'project',project:project(1),shareData:true}),/Sign in/);
+  await a.consent(false);a.record('apply',{method:'encodeSize'});await a.drain();
+  assert.equal(m.calls.filter(([n])=>n==='record_interactions').length,1);
+ }finally{a.destroy();}
+});
+test('Guest creation is explicit, persisted auth is reused, and sign-in enables private saving',async()=>{
+ environment();const m=mock(null);let starts=0;
+ m.client.auth.getSession=async()=>({data:{session:null}});
+ m.client.auth.signInAnonymously=async()=>{starts++;const user={id:'guest',is_anonymous:true};m.listener('SIGNED_IN',{user});return {data:{user}};};
+ const a=await createAccount({...m,config});
+ try{
+  assert.equal(starts,0);assert.equal(a.user,null);
+  await a.tryWithoutAccount();await pause();assert.equal(a.guest,true);
+  await a.tryWithoutAccount();assert.equal(starts,1);
+  m.listener('SIGNED_IN',{user:{id:'registered',is_anonymous:false,email:'member@example.org'}});await pause();
+  assert.equal(a.guest,false);await a.save(project(1));online(true);await a.drain();
+  assert.equal(m.remote.size,1);assert.ok(m.rows[0].path.startsWith('registered/'));
+ }finally{a.destroy();}
+});
 test('Durable jobs keep every committed revision, exclude unused examples, upload datasets once, isolate account switches',async()=>{
  environment();const m=mock();const identities=[];const a=await createAccount({...m,config,changed:s=>{if(s.identityChanged)identities.push(s.user?.id)}});
  try{

@@ -24,15 +24,16 @@ test('Postgres policies, ownership, idempotency, conflicts and consent epochs',a
   const db=new PGlite();
   try {
     await db.exec(`create role anon; create role authenticated;
-      create schema auth; create table auth.users(id uuid primary key);
+      create schema auth; create table auth.users(id uuid primary key,is_anonymous boolean not null default false);
       create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
       grant usage on schema auth to anon,authenticated;grant execute on function auth.uid() to anon,authenticated;
       create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
       create table storage.objects(bucket_id text,name text); alter table storage.objects enable row level security;
       grant usage on schema storage to authenticated; grant select,insert on storage.objects to authenticated;
       create function storage.foldername(text) returns text[] language sql immutable as $$ select string_to_array($1,'/') $$;
-      insert into auth.users values('${alice}'),('${bob}');`);
+      insert into auth.users(id) values('${alice}'),('${bob}');`);
     await db.exec(await readFile(new URL('../supabase/migrations/202610250001_cloud.sql',import.meta.url),'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/202610260001_guest_access.sql',import.meta.url),'utf8'));
     const as=async uid=>db.exec(`reset role; set role authenticated; select set_config('request.jwt.claim.sub','${uid}',false);`);
     const hash='a'.repeat(64),path=`${alice}/datasets/${hash}.json`,project='33333333-3333-4333-8333-333333333333',op='44444444-4444-4444-8444-444444444444';
     const document={format:'visualization-autocomplete',datasets:[{importRef:{path}}]};
@@ -71,6 +72,28 @@ test('Postgres policies, ownership, idempotency, conflicts and consent epochs',a
     await as(alice);
     await db.query(`insert into bug_reports(owner_id,kind,title,description,context,share_data,release) values($1,'project','Bug','Repro',$2,true,'test')`,[alice,document]);
     await as(bob);assert.equal((await db.query('select * from storage.objects')).rows.length,1);
+    const guest='88888888-8888-4888-8888-888888888888';
+    await db.exec(`reset role; insert into auth.users(id,is_anonymous) values('${guest}',true);`);
+    await as(guest);
+    assert.equal((await db.query('select public.has_registered_account() as member')).rows[0].member,false);
+    assert.equal((await db.query('select * from projects')).rows.length,0);
+    assert.equal((await db.query('select * from storage.objects')).rows.length,0);
+    await assert.rejects(db.query(`insert into public.datasets(owner_id,name,hash,path) values($1,'Guest',$2,$3)`,[guest,hash,`${guest}/datasets/${hash}.json`]),/row-level security/);
+    await assert.rejects(db.query(`insert into storage.objects values('workspace',$1)`,[`${guest}/datasets/${hash}.json`]),/row-level security/);
+    await assert.rejects(db.query(`select public.save_project($1,'Guest',$2,0,$3,'[]',null)`,[guest,{format:'visualization-autocomplete',datasets:[]},op]),/Sign in/);
+    await db.query(`insert into bug_reports(owner_id,kind,title,description,context,share_data,release) values($1,'general','Guest bug','Repro',null,false,'test')`,[guest]);
+    await assert.rejects(db.query(`insert into bug_reports(owner_id,kind,title,description,context,share_data,release) values($1,'project','Guest upload','Repro',null,true,'test')`,[guest]),/row-level security/);
+    event.id='99999999-9999-4999-8999-999999999999';event.sequence=1;
+    await record(0);assert.equal((await db.query('select * from research_events')).rows.length,0);
+    await db.query('select public.set_research_consent(true)');await record(1);
+    const guestEvents=(await db.query('select * from research_events')).rows;
+    assert.equal(guestEvents.length,1);assert.equal(guestEvents[0].is_guest,true);
+    assert.deepEqual(guestEvents[0].payload,{type:'apply',method:'encodeColor',rank:1});
+    await db.query('select public.set_research_consent(false)');event.sequence=2;
+    event.id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';await record(1);
+    assert.equal((await db.query('select * from research_events')).rows.length,1);
+    await as(alice);assert.ok((await db.query('select * from research_events')).rows.every(e=>e.is_guest===false));
+    await as(bob);assert.ok((await db.query('select * from research_events')).rows.some(e=>e.is_guest===true));
     await db.exec(`reset role;set role anon;`);await assert.rejects(db.query('select * from projects'),/permission denied/);
   }finally{await db.close();}
 });

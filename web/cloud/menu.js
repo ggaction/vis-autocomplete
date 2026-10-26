@@ -1,5 +1,5 @@
 import { accountSession } from './session.js';
-import { RESEARCH_NOTICE, CONSENT_VERSION } from './privacy.js';
+import { RESEARCH_NOTICE, GUEST_RESEARCH_NOTICE, CONSENT_VERSION } from './privacy.js';
 import { projectThumbnails } from './project-thumbnails.js';
 import packageInfo from '../../package.json' with { type: 'json' };
 
@@ -71,11 +71,15 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
   const accountButton = button('', () => settings()); accountButton.id = 'account-button';
   accountButton.disabled = true; header.append(accountButton);
   const cloudStatus = element('span', '', 'cloud-status'); cloudStatus.id = 'cloud-status'; cloudStatus.setAttribute('role', 'status'); header.append(cloudStatus);
+  const guestButtons = element('div', '', 'guest-account-buttons'); guestButtons.hidden = true;
+  const requestAccount = mode => window.dispatchEvent(new CustomEvent('vis-account-access', { detail: mode }));
+  guestButtons.append(button('Sign up', () => requestAccount('signup')), button('Sign in', () => requestAccount('signin'))); header.append(guestButtons);
   const session = await accountSession(), account = session.account;
   let lastUser, greeted = new Set();
   const update = async state => {
     if (!state.user || (lastUser && lastUser !== state.user.id)) return;
     const metadata = state.user.user_metadata ?? {};
+    accountButton.hidden = account.guest; cloudStatus.hidden = account.guest; guestButtons.hidden = !account.guest;
     const name = [metadata.full_name, metadata.name, metadata.display_name, state.user.email, state.user.id]
       .find(value => typeof value === 'string' && value.trim())?.trim();
     accountButton.textContent = name;
@@ -94,20 +98,21 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
   menuButton.disabled = false; accountButton.disabled = false;
   function requireAccount() {
     if (!account.user) { location.reload(); return false; }
+    if (account.guest) { requestAccount('signin'); return false; }
     return true;
   }
   function consentDialog() {
     const d = dialog('Help improve visualization authoring', { dismissible: false }), choice = input('Share interaction history for research', 'checkbox');
-    choice.field.checked = true; d.box.append(element('p', RESEARCH_NOTICE), choice.wrapper,
+    choice.field.checked = true; d.box.append(element('p', account.guest ? GUEST_RESEARCH_NOTICE : RESEARCH_NOTICE), choice.wrapper,
       button('Continue', async () => { await account.consent(choice.field.checked); d.box.close(); })); d.open();
   }
   function settings() {
-    if (!requireAccount()) return;
+    if (!account.user) return;
     const d = dialog('Settings'), choice = input('Share interaction history for research', 'checkbox');
     choice.field.checked = account.profile?.research_enabled === true;
-    d.box.append(element('p', account.user.email), element('p', RESEARCH_NOTICE), choice.wrapper,
+    d.box.append(element('p', account.guest ? 'Guest session' : account.user.email), element('p', account.guest ? GUEST_RESEARCH_NOTICE : RESEARCH_NOTICE), choice.wrapper,
       button('Save preferences', async () => { await account.consent(choice.field.checked); d.status.textContent = 'Preference saved.'; }),
-      button('Sign out', async () => { await account.signOut(); d.box.close(); })); d.open();
+      button(account.guest ? 'End guest session' : 'Sign out', async () => { await account.signOut(); d.box.close(); })); d.open();
   }
   function about() {
     const d = dialog('About Visualization Autocomplete');
@@ -153,7 +158,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     d.box.append(benefits, software, papers, contributors); d.open();
   }
   function report() {
-    if (!requireAccount()) return;
+    if (!account.user) return;
     const d = dialog('Report a problem or suggest a feature');
     d.box.classList.add('report-dialog');
     const kind = element('select'); kind.setAttribute('aria-label', 'Report type');
@@ -162,6 +167,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     }
     const title = input('Summary'), body = element('textarea'), data = input('Allow the team to use this dataset to reproduce this report (not for research)', 'checkbox');
     const agent = input('I am an AI agent using this system.', 'checkbox');
+    if (account.guest) { data.field.disabled = true; data.wrapper.title = 'Sign in to attach a dataset.'; }
     title.field.required = true; title.field.maxLength = 160; body.required = true; body.maxLength = 10000; body.setAttribute('aria-label', 'What happened?');
     const contextNote = element('p', 'Includes chart code, field names, and settings. Dataset rows are included only if you check the box below.'); contextNote.hidden = true;
     data.wrapper.hidden = true; kind.addEventListener('change', () => { data.wrapper.hidden = kind.value !== 'project'; contextNote.hidden = data.wrapper.hidden; });
@@ -190,11 +196,24 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     }));
   }
   function nameNewProject(datasetName) {
+    if (account.guest) return Promise.resolve(true);
     return projectNameDialog({ value: datasetName.replace(/\.(csv|tsv|json|xlsx)$/i, ''), save: name => account.newProject(name) });
   }
   async function openMenu() {
-    if (!requireAccount() || document.querySelector('.workspace-drawer[open]')) return;
+    if (!account.user || document.querySelector('.workspace-drawer[open]')) return;
     const d = dialog('Workspace'); d.box.classList.add('workspace-drawer');
+    if (account.guest) {
+      const actions = element('div', '', 'guest-workspace-actions');
+      actions.append(button('Sign up', () => requestAccount('signup')), button('Sign in', () => requestAccount('signin')));
+      const bottom = element('footer'); bottom.append(button('Report a problem', report), button('Settings', settings), button('About', about));
+      const heading = element('div', '', 'cloud-projects-heading');
+      const create = button('+', async () => { if (!busy()) { await newVisualization(); d.close(); } });
+      create.className = 'cloud-project-add'; create.title = 'New visualization'; create.setAttribute('aria-label', 'New visualization');
+      heading.append(element('h3', 'My visualizations'), create);
+      d.box.append(heading, element('p', 'Sign in to save and manage your projects.'),
+        element('p', 'Your current visualization stays in this browser while you try the editor.', 'guest-workspace-note'), actions, bottom);
+      dismissOutside(d); d.open(); return;
+    }
     const selected = new Set(), items = new Map(), images = new Map();
     let working = false, previewed = null, openTimer;
     const list = element('div', '', 'cloud-projects'); list.setAttribute('aria-label', 'My visualizations');
@@ -347,16 +366,8 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     const bottom = element('footer'); bottom.append(button('Report a problem', () => { hidePreview(); report(); }),
       button('Settings', () => { hidePreview(); settings(); }), button('About', () => { hidePreview(); about(); }));
     d.box.append(bottom, preview);
-    let outsideDown = false;
-    const outside = event => {
-      const r = d.box.getBoundingClientRect();
-      return event.target === d.box && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom);
-    };
-    d.box.addEventListener('pointerdown', event => {
-      outsideDown = outside(event);
-      if (!event.target.closest('.cloud-project-title')) clearTimeout(openTimer);
-    });
-    d.box.addEventListener('click', event => { if (outsideDown && outside(event)) d.close(); outsideDown = false; });
+    dismissOutside(d);
+    d.box.addEventListener('pointerdown', event => { if (!event.target.closest('.cloud-project-title')) clearTimeout(openTimer); });
     list.addEventListener('scroll', hidePreview); window.addEventListener('resize', hidePreview);
     d.box.addEventListener('close', () => {
       clearTimeout(openTimer); thumbnails.dispose(); window.removeEventListener('resize', hidePreview); images.clear();
@@ -368,6 +379,16 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       rows.forEach(row => addProject(row)); d.status.textContent = ''; syncSelection();
     } catch (error) { if (d.box.open) { d.status.textContent = error.message; d.status.setAttribute('role', 'alert'); } }
   }
-  return { save: (project) => account.user ? account.save(project, thumbnail()) : Promise.resolve(), record: (type, payload) => account.record?.(type, payload),
+  return { save: (project) => account.user && !account.guest ? account.save(project, thumbnail()) : Promise.resolve(), record: (type, payload) => account.record?.(type, payload),
     get user() { return account.user; }, settings, about, nameNewProject, newProject: () => account.newProject?.(), ready: true };
+}
+
+function dismissOutside(d) {
+  let outsideDown = false;
+  const outside = event => {
+    const r = d.box.getBoundingClientRect();
+    return event.target === d.box && (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom);
+  };
+  d.box.addEventListener('pointerdown', event => { outsideDown = outside(event); });
+  d.box.addEventListener('click', event => { if (outsideDown && outside(event)) d.close(); outsideDown = false; });
 }

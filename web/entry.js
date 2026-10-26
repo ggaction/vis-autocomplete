@@ -1,5 +1,6 @@
 import { accountSession } from './cloud/session.js';
 import { initializeAccountViewPreferences } from './view-preferences.js';
+import { stageGuestTransfer, clearGuestTransfer } from './cloud/guest-transfer.js';
 
 const $ = id => document.getElementById(id);
 const gate = $('auth-gate'), startup = $('session-gate'), root = $('editor-root'), fields = $('auth-fields');
@@ -15,7 +16,7 @@ function setMode(next) {
   mode = next;
   const signup = next === 'signup', reset = next === 'reset', recovery = next === 'recovery';
   $('auth-heading').textContent = signup ? 'Create your account' : reset ? 'Reset your password' : recovery ? 'Choose a new password' : 'Sign in';
-  $('auth-description').textContent = signup ? 'A place for your data, charts, and next ideas.' : reset ? 'We’ll email you a link to reset your password.' : recovery ? 'Choose a password with at least 10 characters.' : 'Sign in to start creating and save your work.';
+  $('auth-description').textContent = signup ? 'A place for your data, charts, and next ideas.' : reset ? 'We’ll email you a link to reset your password.' : recovery ? 'Choose a password with at least 10 characters.' : 'Sign in to save your work, or try the editor without an account.';
   $('auth-submit').textContent = signup ? 'Create account' : reset ? 'Send reset link' : recovery ? 'Update password' : 'Sign in';
   $('auth-google').hidden = reset || recovery;
   $('auth-divider').hidden = reset || recovery;
@@ -33,6 +34,8 @@ function setMode(next) {
   $('auth-switch-prompt').textContent = signup ? 'Already have an account?' : reset ? 'Remember your password?' : 'New here?';
   $('auth-switch').textContent = signup || reset ? 'Sign in' : 'Sign up';
   document.querySelector('.auth-switch').hidden = recovery;
+  $('auth-guest').hidden = recovery;
+  $('auth-guest').textContent = account?.guest && editorOwner ? 'Back to your visualization' : 'Try without account';
   message();
 }
 
@@ -40,15 +43,35 @@ async function run(action) {
   fields.disabled = true; message();
   try { await action(); }
   catch (error) { message(error.message || 'Please try again.', true); }
-  finally { if (!loadingEditor) fields.disabled = false; }
+  finally { if (!loadingEditor || !gate.hidden) fields.disabled = false; }
+}
+
+async function prepareSignIn() {
+  if (!account.guest) return;
+  await account.prepareGuestTransfer?.();
+  stageGuestTransfer(account.user);
+  await account.drain();
 }
 
 $('auth-switch').addEventListener('click', () => setMode(mode === 'signin' ? 'signup' : 'signin'));
 $('auth-forgot').addEventListener('click', () => { setMode('reset'); $('auth-email').focus(); });
 $('session-retry').addEventListener('click', () => location.reload());
 $('auth-google').addEventListener('click', () => run(async () => {
+  await prepareSignIn();
   await account.google(); message('Opening Google sign in…');
 }));
+$('auth-guest').addEventListener('click', () => run(async () => {
+  if (account.guest && editorOwner) {
+    clearGuestTransfer(); gate.hidden = true; startup.hidden = true; root.hidden = false; root.inert = false;
+    window.dispatchEvent(new Event('resize')); return;
+  }
+  await account.tryWithoutAccount();
+}));
+window.addEventListener('vis-account-access', event => {
+  if (!account?.guest) return;
+  lockEditor(); setMode(event.detail === 'signup' ? 'signup' : 'signin');
+  fields.disabled = false; showAuth(); $('auth-email').focus();
+});
 $('auth-form').addEventListener('submit', event => {
   event.preventDefault();
   const requested = mode, email = $('auth-email').value.trim(), password = $('auth-password').value;
@@ -59,10 +82,11 @@ $('auth-form').addEventListener('submit', event => {
     } else if (requested === 'recovery') {
       await account.password(password); await openEditor(account.user);
     } else if (requested === 'signup') {
+      await prepareSignIn();
       await account.signUp(email, password);
-      if (!loadingEditor) message('Check your email to confirm your account, then return here to sign in.');
+      if (!gate.hidden) message('Check your email to confirm your account, then return here to sign in.');
     } else {
-      try { await account.signIn(email, password); }
+      try { await prepareSignIn(); await account.signIn(email, password); }
       catch { throw new Error('Could not sign in. Check your details or reset your password.'); }
       message('Opening your workspace…');
     }
@@ -93,7 +117,7 @@ async function openEditor(user) {
   // restored. display:none would initialize canvases at zero size.
   root.classList.add('editor-loading'); root.hidden = false;
   try {
-    // No editor, recommendation workers, datasets, or draft reads before auth.
+    // A verified member or guest session precedes private draft reads.
     await import('./app.js');
     if (account.user?.id !== editorOwner) return;
     root.classList.remove('editor-loading'); root.inert = false; startup.hidden = true;

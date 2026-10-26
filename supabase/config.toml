@@ -11,6 +11,7 @@ enabled = true
 site_url = "http://localhost:5184"
 additional_redirect_urls = ["http://localhost:5184/"]
 minimum_password_length = 10
+enable_anonymous_sign_ins = true
 [auth.email]
 enable_signup = true
 enable_confirmations = true
@@ -18,3 +19,4 @@ secure_password_change = true
 [auth.rate_limit]
 sign_in_sign_ups = 30
 email_sent = 5
+anonymous_users = 30

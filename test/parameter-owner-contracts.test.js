@@ -5,7 +5,7 @@ import { renderToSVG } from 'ggaction/svg';
 import { generateCandidates } from '../src/catalog.js';
 import { profileDataset } from '../src/profile.js';
 import { primaryChartLayer } from '../src/chart-owner.js';
-import { recommendationParameters, valuesFor } from '../web/parameters.js';
+import { recommendationParameters, valuesFor, activeControls } from '../web/parameters.js';
 import { statisticalContext } from '../src/statistical-context.js';
 const rows = ['A', 'B', 'C'].flatMap((g, j) => Array.from({ length: 7 }, (_, i) => ({ g, h: i % 2 ? 'odd' : 'even', x: i + 1, y: i * (j + 1) + 3, z: i + 7 })));
 const base = () => chart().createCanvas({ plot: { width: 500, height: 400 }, margin: { left: 120, right: 220, top: 80, bottom: 100 } }).createData({ id: 'data', values: rows });
@@ -35,6 +35,7 @@ test('parallel axis tick counts follow the selected dimension role in both direc
     for (const selected of ['x', 'g', 'x']) {
       const values = e.normalizeValues({ ...valuesFor(e.controls), [field.key]: selected, [count.key]: 3 }, field.key);
       assert.equal(count.when(values), selected === 'x');
+      assert.equal(activeControls(e.resolveControls(values),values).some(c=>c.key==='ticksVisible'), selected === 'x');
       const args = e.build(values);
       assert.equal(args.ticksAndLabels.count, selected === 'x' ? 3 : undefined);
       const next = p.editParallelAxis(args);

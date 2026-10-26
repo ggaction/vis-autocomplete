@@ -634,27 +634,24 @@ export function recommendationParameters(recommendation, profile) {
     controls = [];
     build = clone;
   }
-  // Keep argument construction flat; grouping only changes the visible editor.
-  // Visibility values stay flat for argument construction. The display grouping
-  // below moves each switch to the heading for the part it actually controls.
+  // Visibility belongs to guide scopes, never numeric properties. Declare it
+  // independently from sliders so regrouping cannot leave duplicate switches
+  // on width, size, offset or count controls. Native argument values stay flat.
   const axisEditors = ['editAxes', 'editXAxis', 'editYAxis', 'editThetaAxis', 'editRadialAxis', 'editParallelAxis'];
   let gridVisibility;
-  const toggle = (control, key, label, caption, value = true) => {
-    if (!control) return;
-    control.toggles = [...(control.toggles ?? []), { key, label, caption, value, defaultPolicy: 'context' }];
-  };
+  const switches = new Map();
+  const toggle = (key, label, value = true) => switches.set(key,
+    { key, label, caption: '', value, defaultPolicy: 'context' });
   const leaves = controls.flatMap(c => c.type === 'group' ? c.controls : [c]);
   if (axisEditors.includes(method)) {
     const contexts = method === 'editAxes' ? Object.values(recommendation.guideContext?.axes ?? {}) : [recommendation.guideContext ?? {}];
     const enabled = part => contexts.every(context => context.visibility?.[part] !== false);
-    toggle(leaves[0], 'guideVisible', 'Axes', 'Axes', enabled('all'));
-    toggle(leaves.find(c => /Label size/i.test(c.label)), 'labelsVisible', 'Labels', '', enabled('labels'));
-    toggle(leaves.find(c => /Axis width/i.test(c.label)), 'lineVisible', 'Axis line', '', enabled('line'));
-    toggle(leaves.find(c => c.label === 'Ticks'), 'ticksVisible', 'Ticks', '', enabled('ticks'));
-    toggle(leaves.find(c => /offset/i.test(c.label)) ?? leaves[0], 'titlesVisible', 'Titles', 'Titles', enabled('title'));
+    toggle('guideVisible', 'Axes', enabled('all'));
+    if (leaves.some(c => /Label size/i.test(c.label))) toggle('labelsVisible', 'Labels', enabled('labels'));
+    if (leaves.some(c => c.label === 'Ticks')) toggle('ticksVisible', 'Ticks', enabled('ticks'));
+    toggle('titlesVisible', 'Titles', enabled('title'));
     const baseBuild = build;
     const apply = (out, v) => ({ ...out, visible: v.guideVisible,
-      ...(v.lineVisible === undefined ? {} : { line: { ...(out.line || {}), visible: v.lineVisible } }),
       title: { ...(out.title || {}), visible: v.titlesVisible },
       ...(out.ticksAndLabels ? { ticksAndLabels: { ...out.ticksAndLabels,
         labels: { ...out.ticksAndLabels.labels, visible: v.labelsVisible },
@@ -669,9 +666,9 @@ export function recommendationParameters(recommendation, profile) {
     };
   } else if (method === 'editLegend') {
     const visibility = recommendation.guideContext?.visibility ?? {};
-    toggle(leaves[0], 'guideVisible', 'Legend', 'Legend', visibility.all !== false);
-    toggle(leaves.find(c => /Label size/i.test(c.label)), 'labelsVisible', 'Labels', '', visibility.labels !== false);
-    toggle(leaves.find(c => c.key === 'position'), 'titlesVisible', 'Title', 'Title', visibility.titleStyle !== false);
+    toggle('guideVisible', 'Legend', visibility.all !== false);
+    toggle('labelsVisible', 'Labels', visibility.labels !== false);
+    toggle('titlesVisible', 'Title', visibility.titleStyle !== false);
     const baseBuild = build;
     build = v => {
       const out = baseBuild(v), visibility = legendContextFor(v).visibility ?? {};
@@ -706,20 +703,15 @@ export function recommendationParameters(recommendation, profile) {
       if (position > 1) grouped.splice(1, 0, grouped.splice(position, 1)[0]);
     }
     const allControls = list.flatMap(c => c.type === 'group' ? c.controls : [c]);
-    const switches = new Map(allControls.flatMap(c => c.toggles ?? []).map(toggle => [toggle.key, { ...toggle, caption: '' }]));
     if (!switches.size) return grouped;
-    const without = (control, keys) => ({ ...control,
-      toggles: control.toggles?.filter(toggle => !keys.includes(toggle.key)),
-      ...(control.type === 'group' ? { controls: control.controls.map(child => without(child, keys)) } : {}),
-    });
     const section = (key, label, children, toggleKey) => ({ key, label, type: 'group', controls: children,
       ...(switches.has(toggleKey) ? { toggles: [switches.get(toggleKey)] } : {}),
     });
     if (axisEditors.includes(method)) {
-      const clean = allControls.map(c => without(c, ['guideVisible', 'labelsVisible', 'titlesVisible']));
-      const labels = clean.filter(c => /Label size|Label offset/i.test(c.label));
-      const positions = clean.filter(c => /position/i.test(c.label));
-      const axes = clean.filter(c => !labels.includes(c) && !positions.includes(c));
+      const labels = allControls.filter(c => /Label size|Label offset/i.test(c.label));
+      const positions = allControls.filter(c => /position/i.test(c.label));
+      const axes = allControls.filter(c => !labels.includes(c) && !positions.includes(c)).map(c => c.label === 'Ticks'
+        ? { ...section('axis-ticks', 'Ticks', [{ ...c, label: 'Count' }], 'ticksVisible'), when: c.when } : c);
       return [section('axes', 'Axes', axes, 'guideVisible'),
         ...(positions.length ? [section('section-Position', 'Position', positions)] : []),
         ...(labels.length ? [section('section-Labels', 'Labels', labels, 'labelsVisible')] : []),
@@ -727,10 +719,9 @@ export function recommendationParameters(recommendation, profile) {
     }
     if (method === 'editLegend') {
       return grouped.map(control => {
-        const clean = without(control, ['guideVisible', 'labelsVisible', 'titlesVisible']);
-        if (control.key === 'channel') return { ...clean, toggles: [switches.get('guideVisible')] };
-        if (control.key !== 'appearance') return clean;
-        return { ...clean, controls: clean.controls.map(child => child.key === 'fontSize'
+        if (control.key === 'channel') return { ...control, toggles: [switches.get('guideVisible')] };
+        if (control.key !== 'appearance') return control;
+        return { ...control, controls: control.controls.map(child => child.key === 'fontSize'
           ? section('legend-labels', 'Labels', [child], 'labelsVisible') : child).concat(
           section('legend-title', 'Title', [], 'titlesVisible')) };
       });

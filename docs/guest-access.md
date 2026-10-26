@@ -20,9 +20,12 @@ guest to name a cloud project.
   private project/dataset/storage access. A trigger also guards the privileged
   `save_project` RPC, which otherwise bypasses RLS.
 - Consent uses the existing versioned choice and withdrawal flow. After consent,
-  allowlisted interaction events are queued and sent through
-  `record_interactions` under the verified guest ID. The server stamps
-  `research_events.is_guest`; raw rows, text and action arguments are excluded.
+  interaction events are queued and sent through the research-ingestion path
+  under the verified guest ID. The server records guest identity separately
+  from membership. Current logging can include field names, chart text, search
+  text, and action/parameter context; raw dataset rows and credentials are
+  excluded. See [research logging v2](research-logging-v2.md) and the
+  [privacy notice](../privacy.html) for the current schema and consent scope.
 - Guest project-context reports are sanitized locally and do not upload the
   underlying dataset. Attaching a dataset requires sign-in. Native chart export
   still sends the chart transiently to the authenticated rendering endpoint.

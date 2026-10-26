@@ -1,0 +1,57 @@
+name: Bug or performance problem
+description: Report an incorrect chart, broken interaction, or slow operation.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve VisAutocomplete. Please use a public example or synthetic data. Do not include private datasets, tokens, participant records, or production logs. For vulnerabilities, follow SECURITY.md instead of opening a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Find the app version in About. For local development, include the Git commit.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce
+      description: Include the dataset, selected fields, chart type, target, action cards, and parameter values. For slowness, include history length and whether reload helps.
+      placeholder: |
+        1. Choose the Cars example and select ...
+        2. Apply ... with ...
+        3. Hover or drag ...
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Preview mode
+      options:
+        - Transition
+        - Preview
+        - Both
+        - Not applicable or unknown
+  - type: input
+    id: environment
+    attributes:
+      label: Browser, operating system, and device
+      description: Include versions and approximate device resources for performance reports.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Minimal code, screenshots, or measurements
+      description: Optional. ggaction code plus synthetic data is useful. Remove personal information before attaching files or traces.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Sharing check
+      options:
+        - label: I have removed private data and credentials from this report.
+          required: true

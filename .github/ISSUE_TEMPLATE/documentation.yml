@@ -1,0 +1,21 @@
+name: Documentation or example data
+description: Improve setup instructions, examples, explanations, or dataset provenance.
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: What needs improving?
+      description: Link the page, command, example, or dataset.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested correction or addition
+    validations:
+      required: true
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Dataset source and terms, if relevant
+      description: Provide the source URL, license, transformations, and size. Do not upload private or unlicensed data.

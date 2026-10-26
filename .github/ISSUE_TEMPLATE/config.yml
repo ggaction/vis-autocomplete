@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ggaction/vis-autocomplete/blob/main/SECURITY.md
+    about: Use the private reporting route; do not post exploit details or user data publicly.
+  - name: Try VisAutocomplete
+    url: https://vis.autocomplete.studio/
+    about: Explore the hosted app without setting up a development environment.

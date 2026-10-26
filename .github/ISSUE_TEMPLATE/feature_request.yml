@@ -1,0 +1,39 @@
+name: Feature or design proposal
+description: Describe an authoring task that the current tool does not support well.
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: What are you trying to create or change?
+      description: Explain the user task before proposing an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Include an example, expected chart, and interaction when possible. Use synthetic or shareable data.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround and alternatives
+  - type: dropdown
+    id: area
+    attributes:
+      label: Likely area
+      options:
+        - Recommendations or parameters
+        - Chart editing or direct manipulation
+        - Overlay, facet, or adjacent charts
+        - History, code, or export
+        - Accessibility or keyboard interaction
+        - Accounts or collaboration
+        - Native ggaction or transition library
+        - Unsure
+  - type: textarea
+    id: validation
+    attributes:
+      label: How would we know it works?
+      description: Include important edge cases or constraints, especially for existing projects and large charts.

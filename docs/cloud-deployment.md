@@ -1,6 +1,6 @@
 # Accounts and deployment
 
-Cloud work was initially isolated on `codex/cloud-deployment` and integrated into `main`. Guest access is implemented separately on `codex/guest-access`; see [guest access and release prerequisites](guest-access.md). The editor and native ggaction/transition dependencies share the same source in local and hosted builds.
+Accounts and guest access are integrated into `main`. For contributor setup, start with the [developer guide](development.md). The dated hosted checkpoint below is historical operational evidence, not a recipe to reuse production configuration. See [guest access](guest-access.md) and [research logging v2](research-logging-v2.md) for current data boundaries. The editor and native ggaction/transition dependencies share the same source in local and hosted builds.
 
 ## Hosted setup checkpoint (2026-10-25)
 
@@ -33,7 +33,7 @@ The initial schema was applied manually, not through the CLI. When linking the C
 ## One-time setup: new FREE Supabase project
 
 1. Open [Supabase](https://supabase.com/dashboard/new), select a **Free organization**, create `vis-autocomplete`, and choose a nearby European region (Render is configured in Frankfurt). Store the database password in your password manager; do not put it in Git or chat. This repository does not provision a paid Supabase tier.
-2. Apply `supabase/migrations/202610250001_cloud.sql` using the Supabase SQL editor. Alternatively use the CLI:
+2. On a fresh development project, apply **all** files in `supabase/migrations/` in filename order using the Supabase SQL editor. The initial migration alone does not install guest permissions or research logging v2. Alternatively use the CLI linked to your own project:
 
    ```sh
    npx supabase login
@@ -76,10 +76,10 @@ Open `http://127.0.0.1:5184/`. Without cloud variables the landing page explains
 | `projects`, `project_revisions` | Current private program and full edit revisions | Owner only; saving/reopening, not research |
 | `datasets`, private `workspace` bucket | Uploaded/imported datasets once per content hash | Owner only; private work storage |
 | `profiles`, `consent_history` | Current choice, version, timestamp, consent epochs | Owner; verifiable permission boundary |
-| `research_events` | Allowed event types, public action names, ranks/indices/counts/timing, release version | Consenting owner and explicitly appointed research admins |
+| `research_events` | Consented interactions, recommendation/parameter context, field names, chart text, search text, timing, and release context | Consenting owner and explicitly appointed research admins |
 | `bug_reports` | Report text and optional chart context | Author and appointed admins; dataset access only for the particular report's opt-in attachments |
 
-Research ingestion projects an allowlist again on the server. It drops action arguments, dataset rows, column names, chart text, search text and raw error messages. Reports and private project revisions are **not joined into the research export**. Do not use database-owner/service-role privileges to bypass this boundary in research analysis.
+Research ingestion enforces a schema and size limits on the server. Under the current consent, allowed interaction context can include field names, chart text, search text, and action/parameter details; raw dataset rows and credentials are excluded. See [research logging v2](research-logging-v2.md) and [privacy.html](../privacy.html) for the current contract. Reports and private project revisions are **not joined into the research export**. Do not use database-owner/service-role privileges to bypass this boundary in research analysis.
 
 App admin membership is set by a database owner only:
 
@@ -96,7 +96,7 @@ Changing consent stops future collection; it does not erase previously consented
 - A stale revision never overwrites another device's work. The client keeps a recovered copy and redirects subsequent queued changes to it. Unsynced edits remain in IndexedDB; closing a tab before its local write finishes cannot be guaranteed durable. Do not clear site storage while sync is pending.
 - Requests cap snapshots/deltas at 8 MiB and dataset objects at 20 MiB. These are operational limits, not a guarantee that the Free quota covers every study. Monitor DB and Storage usage; research event volume and private revision history grow over time. Export/back up study data before capacity limits and before schema changes. The Free tier is not a retention or availability guarantee.
 - Future DB changes use new migration files, never edit an already applied migration. Test on a separate free development project or local Supabase first, apply additive migrations, then deploy the compatible app. There is intentionally no service-role secret or unattended destructive migration hook in Render.
-- To incorporate later main-branch features, merge `main` into `codex/cloud-deployment`, resolve and run the cloud/editor checks. Do not change the feature checkout in place. When updating native submodule commits, update `deployment-sources.json`; CI checks the pins. Docker uses these pins because Git metadata is excluded from its context.
+- Base new contribution branches on `main`, preserve unrelated local changes, and run the relevant cloud/editor checks before integration. When updating native submodule commits, update `deployment-sources.json`; CI checks the pins. Docker uses these pins because Git metadata is excluded from its context.
 - Render rollback restores application code, not database migrations. Keep schema changes backward compatible and verify `/healthz` reports the intended app commit.
 - PNG/PDF/SVG export requires a bearer token verified against Supabase Auth and processes the requested chart transiently and does not log or persist chart bodies. The production server serves only `output/deploy/public`, restricts framing to the [presentation origins](#embedding-in-presentation-pages), and uses a restrictive script policy. Native exports have a dimension cap, one-job concurrency cap and worker timeout.
 

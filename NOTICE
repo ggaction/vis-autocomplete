@@ -1,0 +1,9 @@
+VisAutocomplete
+Copyright 2026 Hyeon Jeon and the VisAutocomplete contributors.
+
+Original project code and documentation are licensed under the Apache License,
+Version 2.0, except for material carrying separate terms.
+
+Third-party dependencies, example datasets, corpus-derived material, and fixtures
+retain their respective terms. See THIRD_PARTY_NOTICES.md and the applicable
+source and license records. This notice does not relicense those materials.

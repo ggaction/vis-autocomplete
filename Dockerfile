@@ -13,6 +13,7 @@ WORKDIR /app
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/vendor ./vendor
 COPY --from=build --chown=node:node /app/scripts ./scripts
+COPY --from=build --chown=node:node /app/LICENSE /app/NOTICE /app/THIRD_PARTY_NOTICES.md ./
 COPY --from=build --chown=node:node /app/web/research ./web/research
 COPY --from=build --chown=node:node /app/output/deploy ./output/deploy
 USER node

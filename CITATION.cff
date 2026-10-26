@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you use VisAutocomplete in research, cite the paper below and record the software release or commit used."
+type: software
+title: VisAutocomplete
+url: https://vis.autocomplete.studio/
+repository-code: https://github.com/ggaction/vis-autocomplete
+license: Apache-2.0
+authors:
+  - family-names: Jeon
+    given-names: Hyeon
+    affiliation: Aarhus University
+  - family-names: Shin
+    given-names: Sungbok
+    affiliation: Sogang University
+  - family-names: Seo
+    given-names: Jinwook
+    affiliation: Seoul National University
+  - family-names: Elmqvist
+    given-names: Niklas
+    affiliation: Aarhus University
+preferred-citation:
+  type: article
+  title: "Visualization Autocomplete: Visualization Authoring via Stepwise Design Recommendations"
+  authors:
+    - family-names: Jeon
+      given-names: Hyeon
+    - family-names: Shin
+      given-names: Sungbok
+    - family-names: Elmqvist
+      given-names: Niklas
+  journal: "Transactions on Visualization and Computer Graphics (TVCG, Proc. VIS 2026)"
+  year: 2026
+  url: https://arxiv.org/abs/2607.15608
+references:
+  - type: article
+    title: "ggaction: A Grammar of Graphical Actions"
+    authors:
+      - family-names: Jeon
+        given-names: Hyeon
+      - family-names: Seo
+        given-names: Jinwook
+    journal: arXiv
+    year: 2026
+    doi: 10.48550/arXiv.2609.14353
+    url: https://arxiv.org/abs/2609.14353

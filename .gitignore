@@ -26,3 +26,6 @@ __pycache__/
 /chart.svg
 /chart.png
 /chart.pdf
+
+# Optional local Python browser-test environment.
+.venv/

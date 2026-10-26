@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderToSVG } from 'ggaction/svg';
 import { createHistory, normalizeHistoryGraph } from '../web/history.js';
 import { createResizeHistory } from '../web/resize-history.js';
-import { layoutHistoryGraph, historyGraphRowZoom } from '../web/history-graph-layout.js';
+import { layoutHistoryGraph, historyGraphRowZoom, queryHistoryGraph } from '../web/history-graph-layout.js';
 import { createProject, parseProject, restoreSession, prepareHistorySnapshot, checkpointRevision } from '../web/project.js';
 
 function example() {
@@ -170,4 +170,38 @@ test('two-row default zoom fits both nodes, the gap and padding without changing
     assert.ok(Math.abs((75 * zoom) / (48 * zoom) - aspect) < 1e-10);
     assert.deepEqual([layout.nodeWidth, layout.nodeHeight], [75, 48]);
   }
+});
+
+test('viewport index returns every visible node and crossing connector in chronological paint order', () => {
+  let seed = 12481;
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
+  const nodes = [{ id: '0', parentId: null }];
+  for (let i = 1; i < 1200; i++) nodes.push({ id: String(i), parentId: String(Math.floor(random() * i)) });
+  const layout = layoutHistoryGraph(nodes, { width: 86, height: 52, gapX: 48 });
+  for (let i = 0; i < 100; i++) {
+    const left = random() * layout.width - 100, top = random() * layout.height - 100;
+    const bounds = { left, top, right: left + random() * 1000, bottom: top + random() * 500 };
+    const expected = layout.items.filter(node => {
+      if (node.x <= bounds.right && node.x + layout.nodeWidth >= left &&
+          node.y <= bounds.bottom && node.y + layout.nodeHeight >= top) return true;
+      const parent = layout.positions.get(node.parentId);
+      return parent && node.x >= left && parent.x + layout.nodeWidth <= bounds.right &&
+        Math.max(parent.y, node.y) + layout.nodeHeight / 2 >= top && Math.min(parent.y, node.y) + layout.nodeHeight / 2 <= bounds.bottom;
+    });
+    assert.deepEqual(queryHistoryGraph(layout, bounds).map(n => n.id), expected.map(n => n.id));
+  }
+  assert.deepEqual(queryHistoryGraph(layoutHistoryGraph([]), { left: 0, top: 0, right: 100, bottom: 100 }), []);
+});
+
+test('viewport work is bounded by visible geometry in a ten-thousand-node history', () => {
+  const nodes = [{ id: 'root', parentId: null }];
+  for (let branch = 0; branch < 100; branch++) for (let depth = 0; depth < 100; depth++) {
+    nodes.push({ id: `${branch}-${depth}`, parentId: depth ? `${branch}-${depth - 1}` : 'root' });
+  }
+  const layout = layoutHistoryGraph(nodes), middle = layout.positions.get('50-50'), stats = {};
+  const visible = queryHistoryGraph(layout, { left: middle.x, top: middle.y,
+    right: middle.x + 350, bottom: middle.y + 150 }, stats);
+  assert.ok(visible.some(node => node.id === middle.id));
+  assert.ok(visible.length < 25, `Only the nearby three rows/four columns are visible: ${visible.length}`);
+  assert.ok(stats.visited < 150, `Viewport queries must not visit all ${nodes.length} nodes: ${stats.visited}`);
 });

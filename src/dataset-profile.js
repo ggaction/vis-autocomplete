@@ -11,13 +11,15 @@ export const FEATURE_BLOCKS = Object.freeze({
   time: ['timeUnique', 'timeRepetition'],
 });
 export const FEATURE_NAMES = Object.freeze(Object.values(FEATURE_BLOCKS).flat());
-const average = values => values.length ? [...values].sort((a, b) => a - b).reduce((a, b) => a + b / values.length, 0) : 0;
-export const quantile = (values, p) => {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b), at = (sorted.length - 1) * p;
+const sortedAverage = values => values.length ? values.reduce((a, b) => a + b / values.length, 0) : 0;
+const average = values => sortedAverage([...values].sort((a, b) => a - b));
+const sortedQuantile = (sorted, p) => {
+  if (!sorted.length) return 0;
+  const at = (sorted.length - 1) * p;
   const low = Math.floor(at), high = Math.ceil(at);
   return sorted[low] + (sorted[high] - sorted[low]) * (at - low);
 };
+export const quantile = (values, p) => sortedQuantile([...values].sort((a, b) => a - b), p);
 const date = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) && Number.isFinite(Date.parse(value));
 const numberString = value => typeof value === 'string' && /^[+-]?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value) && Number.isFinite(Number(value));
 const present = value => value !== null && value !== undefined;
@@ -33,7 +35,9 @@ export function describeColumn(values, typeHint) {
   const type = hint ?? (numbers ? 'quantitative' : temporal ? 'temporal' : categorical ? 'nominal' : 'mixed');
   const frequencies = new Map();
   for (const value of available) {
-    const key = JSON.stringify([typeof value, value]);
+    // Finite numeric columns need no per-cell JSON allocation. Map uses the
+    // same equality as the previous encoding, including treating -0 as 0.
+    const key = numbers ? value : JSON.stringify([typeof value, value]);
     frequencies.set(key, (frequencies.get(key) ?? 0) + 1);
   }
   const distinct = frequencies.size, missing = 1 - count / Math.max(1, values.length);
@@ -46,7 +50,7 @@ export function describeColumn(values, typeHint) {
     if (hi > lo) {
       for (const value of numeric) bins[Math.min(9, Math.floor((value - lo) / (hi - lo) * 10))]++;
       entropy = -bins.filter(Boolean).reduce((sum, n) => sum + n / count * Math.log(n / count), 0) / Math.log(10);
-      const q1 = quantile(numeric, 0.25), mid = quantile(numeric, 0.5), q3 = quantile(numeric, 0.75), iqr = q3 - q1;
+      const q1 = sortedQuantile(numeric, 0.25), mid = sortedQuantile(numeric, 0.5), q3 = sortedQuantile(numeric, 0.75), iqr = q3 - q1;
       skew = iqr > 0 ? (q3 + q1 - 2 * mid) / iqr : 0;
       tail = numeric.filter(v => v < q1 - 1.5 * iqr || v > q3 + 1.5 * iqr).length / count;
     }
@@ -78,7 +82,9 @@ function pairRows(rows, names) {
 export function describeDataset(rows, fieldTypes = {}) {
   if (!Array.isArray(rows)) throw new TypeError('Expected an array of data rows.');
   const normalized = rows.map(row => row && typeof row === 'object' && !Array.isArray(row) ? row : { value: row });
-  const names = [...new Set(normalized.flatMap(row => Object.keys(row)))].sort();
+  const fieldNames = new Set();
+  for (const row of normalized) for (const name of Object.keys(row)) fieldNames.add(name);
+  const names = [...fieldNames].sort();
   const fields = names.map(name => ({ name, ...describeColumn(normalized.map(row => row[name]), fieldTypes[name]) }));
   const numeric = fields.filter(f => f.type === 'quantitative' || f.numericString);
   const categories = fields.filter(f => ['nominal', 'ordinal'].includes(f.type) && !f.numericString);
@@ -88,9 +94,10 @@ export function describeDataset(rows, fieldTypes = {}) {
   // change the participating variables. Scalar summaries use every field/row.
   const signature = field => JSON.stringify([field.unique, field.entropy, field.missing,
     field.skew, field.tail, field.zero, field.nonnegative, field.count]);
-  const ordered = numeric.filter(field => field.distinct > 1).sort((a, b) => signature(a).localeCompare(signature(b)));
-  const cutoff = ordered[31] && signature(ordered[31]);
-  const selected = cutoff ? ordered.filter((field, index) => index < 32 || signature(field) === cutoff) : ordered;
+  const signatures = new Map(numeric.map(field => [field, signature(field)]));
+  const ordered = numeric.filter(field => field.distinct > 1).sort((a, b) => signatures.get(a).localeCompare(signatures.get(b)));
+  const cutoff = ordered[31] && signatures.get(ordered[31]);
+  const selected = cutoff ? ordered.filter((field, index) => index < 32 || signatures.get(field) === cutoff) : ordered;
   const sample = selected.length >= 2 ? pairRows(normalized, names) : [];
   for (let a = 0; a < selected.length; a++) for (let b = a + 1; b < selected.length; b++) {
     const points = sample.filter(row => present(row[selected[a].name]) && present(row[selected[b].name]))
@@ -98,7 +105,9 @@ export function describeDataset(rows, fieldTypes = {}) {
     coverage.push(points.length / Math.max(1, sample.length));
     const sx = points.reduce((max, p) => Math.max(max, Math.abs(p[0])), 0) || 1;
     const sy = points.reduce((max, p) => Math.max(max, Math.abs(p[1])), 0) || 1;
-    const mx = average(points.map(p => p[0] / sx)), my = average(points.map(p => p[1] / sy));
+    // Points already have ascending X order and sx is positive. Preserve the
+    // exact summation order without sorting the same column a second time.
+    const mx = sortedAverage(points.map(p => p[0] / sx)), my = average(points.map(p => p[1] / sy));
     let xx = 0, yy = 0, xy = 0;
     for (const [rawX, rawY] of points) { const x = rawX / sx, y = rawY / sy;
       xx += (x - mx) ** 2; yy += (y - my) ** 2; xy += (x - mx) * (y - my); }

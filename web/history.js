@@ -51,8 +51,15 @@ export function normalizeHistoryGraph(graph, count, index) {
 
 export function createHistory() {
   let nodes = [], byId = new Map(), snapshotIds = new WeakMap(), activeId = null, path = [], revision = 0;
+  let pathIndices = new Map(), index = -1, structureRevision = 0, pathRevision = 0;
   function select(id) {
     activeId = id;
+    // Undo, Redo and jumps within the displayed branch only move its cursor.
+    // Walking every ancestor here made a long session progressively slower.
+    if (pathIndices.has(id)) {
+      index = pathIndices.get(id); revision++;
+      return byId.get(id)?.snapshot ?? null;
+    }
     let node = byId.get(id);
     const ancestors = [];
     while (node) {
@@ -66,6 +73,9 @@ export function createHistory() {
     while (node?.preferredChildId) {
       node = byId.get(node.preferredChildId); path.push(node);
     }
+    pathIndices = new Map(path.map((node, i) => [node.id, i]));
+    index = pathIndices.get(id) ?? -1;
+    pathRevision++;
     revision++;
     return byId.get(id)?.snapshot ?? null;
   }
@@ -74,10 +84,16 @@ export function createHistory() {
     const node = { id: crypto.randomUUID(), parentId: activeId, preferredChildId: null, snapshot, children: [] };
     nodes.push(node); byId.set(node.id, node); snapshotIds.set(snapshot,node.id);
     if (parent) parent.children.push(node.id);
-    select(node.id);
+    // Appending to the active leaf is the common edit path. Existing path
+    // indices stay valid; branching removes only the abandoned Redo tail.
+    for (let i = index + 1; i < path.length; i++) pathIndices.delete(path[i].id);
+    path.length = index + 1;
+    if (parent) parent.preferredChildId = node.id;
+    path.push(node); index++; pathIndices.set(node.id, index);
+    activeId = node.id; structureRevision++; pathRevision++; revision++;
   }
   return {
-    clear() { nodes = []; byId = new Map(); snapshotIds = new WeakMap(); activeId = null; path = []; revision++; },
+    clear() { nodes = []; byId = new Map(); snapshotIds = new WeakMap(); activeId = null; path = []; pathIndices = new Map(); index = -1; structureRevision++; pathRevision++; revision++; },
     reset(snapshot) { this.clear(); push(snapshot); },
     restore(snapshots, position, graph = null) {
       if (!Array.isArray(snapshots) || !snapshots.length || !Number.isInteger(position) || position < 0 || position >= snapshots.length) {
@@ -89,6 +105,7 @@ export function createHistory() {
         id: ids[i], parentId: ids[i - 1] ?? null, preferredChildId: ids[i + 1] ?? null }), snapshot, children: [] }));
       byId = new Map(nodes.map(node => [node.id, node])); snapshotIds=new WeakMap(nodes.map(node=>[node.snapshot,node.id]));
       for (const node of nodes) byId.get(node.parentId)?.children.push(node.id);
+      path = []; pathIndices = new Map(); index = -1; structureRevision++;
       return select(ids[position]);
     },
     push,
@@ -97,7 +114,7 @@ export function createHistory() {
       if (!node) throw new Error('Cannot replace empty history.');
       // An ancestor is immutable once another state depends on it.
       if (node.children.length) push(snapshot);
-      else { node.snapshot = snapshot; snapshotIds.set(snapshot,node.id); revision++; }
+      else { node.snapshot = snapshot; snapshotIds.set(snapshot,node.id); pathRevision++; revision++; }
     },
     undo() { return byId.get(activeId)?.parentId ? select(byId.get(activeId).parentId) : null; },
     redo() { return byId.get(activeId)?.preferredChildId ? select(byId.get(activeId).preferredChildId) : null; },
@@ -107,13 +124,21 @@ export function createHistory() {
     },
     // Linear View is a projection of the chosen branch, including its Redo tail.
     nodeId(snapshot) { return snapshotIds.get(snapshot) ?? null; },
+    snapshotFor(id) { return byId.get(id)?.snapshot ?? null; },
+    preferredChild(id) { return byId.get(id)?.preferredChildId ?? null; },
+    isActiveAncestor(id) { const at = pathIndices.get(id); return at !== undefined && at <= index; },
     get current() { return byId.get(activeId)?.snapshot ?? null; },
     get entries() { return path.map(node => node.snapshot); },
-    get index() { return path.findIndex(node => node.id === activeId); },
+    get index() { return index; },
+    get rootId() { return nodes[0]?.id ?? null; },
     get nodes() { return nodes.map(({ children, ...node }) => ({ ...node, children: [...children] })); },
     get pathIds() { return path.map(node => node.id); },
     get activeId() { return activeId; },
     get revision() { return revision; },
+    // Geometry depends on parent/child structure, not on the selected state,
+    // preferred Redo path, or replacement of a coalesced leaf snapshot.
+    get structureRevision() { return structureRevision; },
+    get pathRevision() { return pathRevision; },
     get canUndo() { return Boolean(byId.get(activeId)?.parentId); },
     get canRedo() { return Boolean(byId.get(activeId)?.preferredChildId); },
     exportSession() {

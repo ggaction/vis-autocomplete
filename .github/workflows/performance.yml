@@ -1,0 +1,60 @@
+name: Performance regression checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Work, retention, and replay budgets
+        run: npm run test:performance
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r test/browser/requirements.txt
+      - run: npx playwright install --with-deps chromium
+      - name: Browser work budgets and complete authoring workflows
+        run: |
+          PORT=5184 node scripts/dev-server.js > /tmp/performance-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID"' EXIT
+          for attempt in $(seq 1 30); do curl -sf http://127.0.0.1:5184/privacy.html > /dev/null && break; sleep 1; done
+          python test/browser/code-performance.py --url http://127.0.0.1:5184
+          python test/browser/history-performance.py --url http://127.0.0.1:5184
+          python test/browser/history-scaling.py --url http://127.0.0.1:5184
+          python test/browser/gallery-thumbnail-performance.py --url http://127.0.0.1:5184
+          python test/browser/preview-raster-cache.py --url http://127.0.0.1:5184
+          APP_URL=http://127.0.0.1:5184 npm run test:performance-browser
+          APP_URL=http://127.0.0.1:5184 PERF_CPU_RATE=4 PERF_CASES=scatter,parallel PERF_OUTPUT=output/performance-hardening/browser-cpu4.json npm run test:performance-browser
+      - name: Record reproducible CPU and storage benchmarks
+        run: |
+          mkdir -p output/performance-hardening
+          node scripts/benchmark-data-profiling.js > output/performance-hardening/data-profiling.json
+          node scripts/benchmark-persistence.js > output/performance-hardening/persistence.json
+          BENCH_TRIALS=1 node scripts/benchmark-operation-workflows.js > output/performance-hardening/workflows.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-${{ github.sha }}
+          path: |
+            output/performance-hardening/
+            output/history-performance/
+          retention-days: 14

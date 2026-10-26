@@ -3,12 +3,17 @@ import { readViewPreference, writeViewPreference } from './view-preferences.js';
 import { OPTION_GROUPS } from './option-groups.js';
 import { historyLabel, historyPreview } from './history.js';
 import { prepareHistorySnapshot } from './project.js';
+import { createLRU } from '../src/cache.js';
 
 // Mount each immutable snapshot once. Hovering and navigation only change the
 // cursor/highlight; they never rebuild thumbnails or run recommendation work.
 function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump, meta }) {
   const nodes = new Map();
   const pending = new Map(), visible = new Set();
+  const rasters = createLRU(80, (button, record) => {
+    record.thumb.replaceChildren();
+    if (button.isConnected) pending.set(button, record);
+  });
   let paintQueued = false, shown = false;
   function queuePaint() {
     if (!shown || paintQueued || !visible.size) return;
@@ -18,15 +23,15 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
       const ready = [...visible].filter(button => pending.has(button) && button.isConnected);
       const button = ready.find(button => button.hasAttribute('aria-current')) ?? ready[0];
       if (!button) { paintQueued = false; return; }
-      const { snapshot, thumb, label } = pending.get(button);
+      const record = pending.get(button), { snapshot, thumb, label } = record;
       try {
         await prepareHistorySnapshot(snapshot);
         if (!shown || !button.isConnected) { paintQueued = false; queuePaint(); return; }
         await renderChart(thumb, historyPreview(snapshot), label);
+        rasters.set(button, record);
       }
       catch (error) { thumb.textContent = 'Preview unavailable'; thumb.title = error.message; }
       pending.delete(button);
-      observer.unobserve(button); visible.delete(button);
       paintQueued = false;
       queuePaint();
     };
@@ -37,13 +42,14 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
   }
   const observer = new IntersectionObserver(changes => {
     for (const { target, isIntersecting } of changes) {
-      if (isIntersecting) visible.add(target); else visible.delete(target);
+      if (isIntersecting) { visible.add(target); rasters.get(target); } else visible.delete(target);
     }
     queuePaint();
   }, { root: host });
   const scrub = document.createElement('span');
   scrub.className = 'history-scrub-bar'; scrub.setAttribute('aria-hidden', 'true');
   let entries = [], hovered = null, current = -1, locked = false, pointerX = null, pinned = null, needsScroll = false;
+  let pathRevision = -1, previousHistory = null;
 
   function paintPinned() {
     const button = pinned && nodes.get(pinned.snapshot);
@@ -69,8 +75,9 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
 
   async function preview(index) {
     if (locked || hovered === index || !entries[index]) return;
+    nodes.get(entries[hovered])?.classList.remove('inspecting');
     hovered = index;
-    for (const [snapshot, button] of nodes) button.classList.toggle('inspecting', snapshot === entries[index]);
+    nodes.get(entries[index])?.classList.add('inspecting');
     meta.textContent = `#${entries[index].steps} ${historyLabel(entries[index])}`;
     const snapshot = entries[index];
     try {
@@ -81,8 +88,8 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
   function clear({ restore = true } = {}) {
     if (hovered === null && pointerX === null) return;
     const wasInspecting = hovered !== null;
+    nodes.get(entries[hovered])?.classList.remove('inspecting');
     hovered = null; pointerX = null; meta.textContent = ''; host.classList.remove('is-scrubbing');
-    for (const button of nodes.values()) button.classList.remove('inspecting');
     if (wasInspecting && restore) onLeave();
   }
   function move(clientX) {
@@ -91,11 +98,13 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
     const x = clientX - host.getBoundingClientRect().left + host.scrollLeft;
     if (!pinned) scrub.style.left = `${x}px`;
     host.classList.add('is-scrubbing');
-    let nearest = null, distance = Infinity;
-    for (const button of nodes.values()) {
-      const delta = Math.abs(button.offsetLeft + button.offsetWidth / 2 - x);
-      if (delta < distance) { distance = delta; nearest = Number(button.dataset.historyIndex); }
-    }
+    // Ordered strip positions support logarithmic hit testing. Reading every
+    // historical element's layout on every pointer event caused long scrubs.
+    const center = index => { const button = nodes.get(entries[index]); return button.offsetLeft + button.offsetWidth / 2; };
+    let lo = 0, hi = entries.length;
+    while (lo < hi) { const mid = (lo + hi) >>> 1; if (center(mid) < x) lo = mid + 1; else hi = mid; }
+    const nearest = !entries.length ? null : lo === 0 ? 0 : lo === entries.length ? lo - 1
+      : x - center(lo - 1) <= center(lo) - x ? lo - 1 : lo;
     if (nearest !== null) preview(nearest);
   }
   host.addEventListener('scroll', () => { if (pointerX !== null) move(pointerX); }, { passive: true });
@@ -122,11 +131,26 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
     refreshLayout,
     move(event) { move(event.clientX); },
     update(history, busy = false) {
+      const nextRevision = history.pathRevision ?? history.revision;
+      if (previousHistory === history && pathRevision === nextRevision) {
+        if (locked !== busy) for (const button of nodes.values()) button.disabled = busy;
+        locked = busy; host.setAttribute('aria-busy', String(busy));
+        if (current !== history.index) {
+          nodes.get(entries[current])?.removeAttribute('aria-current');
+          nodes.get(entries[history.index])?.setAttribute('aria-current', 'step');
+          for (let i = Math.max(0, Math.min(current, history.index)); i <= Math.max(current, history.index); i++) {
+            nodes.get(entries[i])?.classList.toggle('future', i > history.index);
+          }
+          current = history.index; needsScroll = true; refreshLayout();
+        }
+        return;
+      }
+      previousHistory = history; pathRevision = nextRevision;
       entries = history.entries; locked = busy; host.setAttribute('aria-busy', String(busy));
       const retained = new Set(entries);
       for (const [snapshot, button] of nodes) if (!retained.has(snapshot)) {
         observer.unobserve(button); pending.delete(button); visible.delete(button);
-        button.remove(); nodes.delete(snapshot);
+        button.remove(); rasters.delete(button); nodes.delete(snapshot);
       }
       for (const [index, snapshot] of entries.entries()) {
         let button = nodes.get(snapshot);

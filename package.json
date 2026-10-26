@@ -15,6 +15,8 @@
     "benchmark:recommendations": "node scripts/benchmark-lazy-recommendations.js",
     "demo": "node examples/demo.js",
     "test": "node scripts/test-suite.js",
+    "test:performance": "node scripts/test-performance.js",
+    "test:performance-browser": "node scripts/test-performance-browser.js",
     "corpus:update": "node scripts/update-corpus.js",
     "corpus:train": "node scripts/train-corpus.js",
     "catalog:check": "node scripts/check-catalog.js",

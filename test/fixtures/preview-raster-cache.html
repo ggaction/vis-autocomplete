@@ -1,0 +1,80 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Exact native preview raster checks</title>
+<script type="importmap">{"imports":{"ggaction":"/node_modules/ggaction/src/index.js"}}</script>
+<style>body{font:14px Arial;margin:16px}.pair{display:flex;gap:16px}.chart{width:640px;height:400px;flex:none}pre{white-space:pre-wrap}</style>
+<body><div class="pair"><div id="reference" class="chart"></div><div id="cached" class="chart"></div></div><pre id="report">Preparing dense native charts…</pre>
+<script type="module">
+import { chart } from 'ggaction';
+import { renderChartCanvas, hideChartText } from '/web/chart-canvas.js';
+const reference=document.querySelector('#reference'),cached=document.querySelector('#cached');
+const rows=Array.from({length:1500},(_,i)=>({a:(i*19)%119,b:(i*31)%137,c:(i*43)%103,d:(i*47)%181,e:(i*53)%97,group:i%2,series:['A','B','C'][i%3]}));
+const base=chart().createCanvas({plot:{width:420,height:314},margin:{left:65,right:100,top:65,bottom:40}})
+  .createData({id:'data',values:rows}).createParallelCoordinates({id:'plot',data:'data',dimensions:['a','b','c','d','e'],line:{opacity:.4}})
+  .encodeColor({target:'plot',field:'series',fieldType:'nominal'}).facet({field:'group',data:'data',columns:2,guides:{axes:'each',legend:'shared'}}).createGuides();
+const native=[base,base.editFacetSource({action:{method:'encodeOpacity',options:{target:'plot',value:.2}}}),
+  base.editFacetSource({action:{method:'encodeOpacity',options:{target:'plot',value:.7}}})];
+const owned=native.map(program=>({graphicSpec:structuredClone(program.graphicSpec),canvasGeometry:structuredClone(program.canvasGeometry)}));
+const tick=()=>new Promise(requestAnimationFrame),assert=(value,message)=>{if(!value)throw Error(message);};
+function show(host,program,cacheRaster=false,fit=true){return renderChartCanvas(host,program,'Dense faceted parallel coordinates',{fit,cacheRaster});}
+function strokes(action){
+  let count=0;const prototypes=[CanvasRenderingContext2D.prototype,...(globalThis.OffscreenCanvasRenderingContext2D?[OffscreenCanvasRenderingContext2D.prototype]:[])];
+  const originals=prototypes.map(proto=>proto.stroke);
+  prototypes.forEach((proto,i)=>proto.stroke=function(...args){count++;return originals[i].apply(this,args);});
+  const start=performance.now();
+  try {action();return {strokes:count,ms:performance.now()-start};}
+  finally {prototypes.forEach((proto,i)=>proto.stroke=originals[i]);}
+}
+function samePixels(left,right,message){assert(left.width===right.width&&left.height===right.height,`${message}: raster dimensions`);assert(left.toDataURL()===right.toDataURL(),`${message}: exact native pixels`);}
+window.harness={async run(){
+  await document.fonts.ready;
+  const result={dpr:devicePixelRatio,cases:[]};
+  for(const [name,programs] of [['frozen',native],['worker-owned',owned]]){
+    const samples={name,cold:[],native:[],cached:[]};
+    for(const program of programs){samples.cold.push(strokes(()=>show(cached,program,true)));show(reference,program);}
+    await tick();
+    for(let cycle=0;cycle<3;cycle++)for(const program of programs){
+      let a,b;samples.native.push(strokes(()=>{a=show(reference,program);}));
+      samples.cached.push(strokes(()=>{b=show(cached,program,true);}));
+      samePixels(a,b,`${name} repeated endpoint`);
+    }
+    assert(samples.cached.every(sample=>sample.strokes===0),`${name}: warm previews replayed paths`);
+    assert(samples.native.every(sample=>sample.strokes>1500),`${name}: native control did not draw dense paths`);
+    result.cases.push(samples);
+  }
+  // Changing fit, zoom or size must rasterize at that exact density, never stretch.
+  const program=owned[0];
+  for(const fit of [false,true])for(const zoom of [1,1.35]){
+    for(const host of [reference,cached]){host.dataset.chartZoom=zoom;host.style.width='673px';host.style.height='387px';}
+    let a,b;show(reference,owned[1],false,fit);show(cached,owned[1],true,fit);
+    const miss=strokes(()=>{b=show(cached,program,true,fit);});a=show(reference,program,false,fit);
+    assert(miss.strokes>1500,'resize/zoom/fit change reused wrong density');samePixels(a,b,'density change');
+    show(cached,owned[1],true,fit);
+    assert(strokes(()=>show(cached,program,true,fit)).strokes===0,'new density did not become reusable');
+  }
+  // An editable external graphic does not opt in, so in-place edits remain live.
+  const mutable={graphicSpec:structuredClone(native[0].graphicSpec)};
+  const initial=show(reference,mutable).toDataURL();
+  const text=Object.values(mutable.graphicSpec.objects).find(object=>object.type==='text');
+  const item=text.items?.[0]??text;item.properties.text='Changed category label';
+  const edit=strokes(()=>show(reference,mutable));
+  assert(edit.strokes>1500&&reference.querySelector('canvas').toDataURL()!==initial,'mutable input edit was stale');
+  result.mutableEdit=edit;
+  // A new spec on the same wrapper must also invalidate fitted bounds.
+  mutable.graphicSpec=structuredClone(native[2].graphicSpec);
+  const changed=show(reference,mutable),control=show(cached,owned[2],true);samePixels(changed,control,'replaced spec');
+  // Inline text is a transient mask and must not overwrite an endpoint raster.
+  const texts=Object.entries(owned[0].graphicSpec.objects).filter(([,object])=>object.type==='text');
+  const textId=texts.flatMap(([id,object])=>object.items?.map(item=>item.id)??[id]).find(Boolean);
+  assert(textId,'missing native text graphic');
+  const target=show(cached,owned[0],true),expected=target.toDataURL(),revert=hideChartText(target,[textId]);
+  assert(target.toDataURL()!==expected,'inline mask did not hide the glyph');
+  revert();await tick();samePixels(target,show(reference,owned[0]),'restored inline text');
+  show(cached,owned[1],true);show(cached,owned[0],true);assert(target.toDataURL()===expected,'mask contaminated endpoint cache');
+  // Late fonts invalidate both measured bounds and native raster keys.
+  document.fonts.dispatchEvent(new Event('loadingdone'));
+  const fontPaint=strokes(()=>show(cached,owned[0],true));assert(fontPaint.strokes>1500,'font epoch did not repaint');
+  samePixels(cached.querySelector('canvas'),show(reference,owned[0]),'font load');
+  result.fontPaint=fontPaint;
+  document.querySelector('#report').textContent=JSON.stringify(result,null,2);return result;
+}};
+window.ready=true;
+</script></body></html>

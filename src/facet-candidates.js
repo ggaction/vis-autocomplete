@@ -77,7 +77,8 @@ export function facetCandidates(program, { layer, profile }) {
   })));
   // Grid facets require both roles to exist in one actual partition dataset.
   for (const data of datasets.values()) {
-    const eligible = ordered.filter(f => profileDataset(program, data.id).fields.some(other => other.name === f.name && other.usable));
+    const usable = new Set(profileDataset(program, data.id).fields.filter(field => field.usable).map(field => field.name));
+    const eligible = ordered.filter(field => usable.has(field.name));
     if (eligible.length < 2) continue;
     // The first two visual fields can create a very large cross-product.
     // Start with the smallest grid; retain every field in both selectors.

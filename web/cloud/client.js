@@ -2,13 +2,31 @@ import { createResearchOutbox } from '../research/outbox.js';
 import { unpackBatch } from '../research/batch.js';
 import { createClient } from '@supabase/supabase-js';
 import { createCloudLocal } from './local.js';
-import { changesBetween, contentHash, projectRecords, reportContext } from './documents.js';
+import { changesBetween, sameDocument, contentHash, projectRecords, reportContext } from './documents.js';
 import { CONSENT_VERSION, researchPayload } from './privacy.js';
 
 const fail = result => { if (result.error) throw result.error; return result.data; };
 export async function createAccount({ changed = () => {}, status = () => {}, config: suppliedConfig, client: suppliedClient, local: suppliedLocal } = {}) {
   const config = suppliedConfig ?? await fetch('/api/config').then(r => r.ok ? r.json() : {}).catch(() => ({}));
   const local = suppliedLocal ?? createCloudLocal();
+  // IndexedDB limits the key scan before transferring anything to this thread.
+  // The filter preserves compatibility with older/test storage adapters.
+  const keysWithPrefix = async prefix => (await local.keys(prefix)).filter(key => key.startsWith(prefix));
+  const updateLocal = local.update ? (key, transform) => local.update(key, transform) : async (key, transform) => {
+    const value = transform(await local.get(key)); if (value !== undefined) await local.put(key, value); return value;
+  };
+  const hasPendingProject = async (owner, id, head) => {
+    if (head?.pendingJobKey) {
+      // A conflict recovery can move the same durable job key to a new project
+      // after another tab has read the old head. Verify its current identity.
+      const pointed = await local.get(head.pendingJobKey);
+      if (pointed?.id === id) return true;
+    }
+    // An older tab may have queued work after this head was written. A stale
+    // or already drained pointer is not proof that all project jobs are gone.
+    for (const key of await keysWithPrefix(`job:${owner}:`)) if (key !== head?.pendingJobKey && (await local.get(key))?.id === id) return true;
+    return false;
+  };
   if (!config.supabaseUrl || !config.supabaseKey) return { configured: false, local };
   const client = suppliedClient ?? createClient(config.supabaseUrl, config.supabaseKey, { auth: { flowType: 'pkce', detectSessionInUrl: true,
     persistSession: true, autoRefreshToken: true } });
@@ -52,7 +70,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     const identityChanged = !loaded || identity?.id !== user?.id || identity?.is_anonymous !== user?.is_anonymous;
     if (identityChanged) {
       switching = true;
-      await packing.catch(() => {}); user = identity; profile = null; current = null; uploaded.clear();
+      await packing.catch(() => {}); user = identity; profile = null; current = null; uploaded.clear(); queuedSnapshots.clear();
       session = crypto.randomUUID(); sequence = 0;
       if (user && !guest()) current = await local.get(activeKey(user.id));
     }
@@ -83,7 +101,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   initialized = true;
   async function discardEvents(owner) {
     if (!owner) return;
-    for (const key of await local.keys()) if (key.startsWith(`event:${owner}:`)) await local.remove(key);
+    for (const key of await keysWithPrefix(`event:${owner}:`)) await local.remove(key);
   }
   async function consent(enabled) {
     const owner = user?.id;
@@ -156,8 +174,12 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     packing = packing.catch(() => {}).then(run); return packing;
   }
   async function queueSnapshot(owner, target, snapshot, thumbnail) {
-    const signature = JSON.stringify({ ...snapshot, savedAt: undefined, projectTitle: target.title });
-    if (queuedSnapshots.get(target.id) === signature) return;
+    const comparable = { ...snapshot, savedAt: undefined, projectTitle: target.title };
+    if (sameDocument(queuedSnapshots.get(target.id), comparable)) return;
+    // Preserve a caller's value at submission time without expanding shared
+    // historical calls into a quadratic JSON string. Keep only a small working
+    // set of projects, and release it when the account changes.
+    const signature = structuredClone(comparable);
     const operation = crypto.randomUUID();
     const deferred = typeof thumbnail?.then === 'function';
     const job = { owner, id: target.id, operation, title: target.title, snapshot, thumbnail: deferred ? null : thumbnail, time: lastJobTime = Math.max(Date.now(), lastJobTime + 1) };
@@ -166,29 +188,31 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     try {
       await local.put(key, job);
       await local.put(headKey, { ...target, localSnapshot: snapshot, thumbnail: job.thumbnail,
-        thumbnailOperation: operation, updated_at: new Date().toISOString() });
+        thumbnailOperation: operation, pendingJobKey: key, updated_at: new Date().toISOString() });
     } catch (error) { pendingThumbnails.delete(key); throw error; }
     if (user?.id === owner && current?.id === target.id) await local.put(activeKey(owner), current);
-    queuedSnapshots.set(target.id, signature);
+    queuedSnapshots.delete(target.id); queuedSnapshots.set(target.id, signature);
+    if (queuedSnapshots.size > 8) queuedSnapshots.delete(queuedSnapshots.keys().next().value);
     status('Saved locally · syncing…'); notify();
     if (deferred) {
       // Persist every revision before waiting for derived pixels. After a tab
       // closes, the already durable job can sync without its optional image.
       Promise.resolve(thumbnail).catch(() => null).then(async image => {
-        const pending = await local.get(key);
-        if (pending) await local.put(key, { ...pending, thumbnail: image });
-        const head = await local.get(headKey);
-        if (head?.thumbnailOperation === operation) await local.put(headKey, { ...head, thumbnail: image });
+        await updateLocal(key, pending => pending ? { ...pending, thumbnail: image } : undefined);
+        // Check and write in one transaction: a late PNG must not overwrite a
+        // newer project's pending-key metadata or full authoring snapshot.
+        await updateLocal(headKey, head => head?.thumbnailOperation === operation ? { ...head, thumbnail: image } : undefined);
       }).catch(() => {}).finally(() => { pendingThumbnails.delete(key); drain(); });
     }
     drain();
   }
   async function drainJobs(owner) {
     if (guest()) return;
-    for (const key of (await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).sort()) {
+    for (const key of (await keysWithPrefix(`job:${owner}:`)).sort()) {
       if (user?.id !== owner) return;
       if (pendingThumbnails.has(key)) return;
       const job = await local.get(key);
+      if (!job) continue; // Another tab may already have drained this key.
       const headKey = `remote:${owner}:${job.id}`;
       let head = await local.get(headKey) ?? { revision: 0, snapshot: null };
       const snapshot = await ensureData(job.snapshot, owner);
@@ -199,10 +223,13 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
         // Preserve this device's edit as a separate project instead of overwriting
         // changes another tab/device saved. Remaining queued jobs follow the fork.
         const id = crypto.randomUUID(), title = `${job.title.slice(0, 125)} (recovered copy)`;
-        for (const pendingKey of (await local.keys()).filter(k => k.startsWith(`job:${owner}:`))) {
-          const pending = await local.get(pendingKey);
-          if (pending.id === job.id) await local.put(pendingKey, { ...pending, id, title });
+        for (const pendingKey of await keysWithPrefix(`job:${owner}:`)) {
+          await updateLocal(pendingKey, pending => pending?.id === job.id ? { ...pending, id, title } : undefined);
         }
+        // Those durable keys now belong to the recovered copy. The old head
+        // must not claim it has pending work through its previous fast lookup.
+        await updateLocal(`head:${owner}:${job.id}`, head => head ? { ...head, pendingJobKey: null } : undefined);
+        queuedSnapshots.delete(job.id);
         if (current?.id === job.id) { current = { id, title, revision: 0 }; await local.put(activeKey(owner), current); }
         status('Other edits were saved. Your changes are kept in a recovered copy.');
         return drainJobs(owner);
@@ -217,7 +244,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   async function drainEvents(owner) {
     const consentRevision = profile?.consent_revision;
     if (profile?.research_enabled !== true) return;
-    const keys = (await local.keys()).filter(k => k.startsWith(`event:${owner}:`)).sort().slice(0, 200);
+    const keys = (await keysWithPrefix(`event:${owner}:`)).sort().slice(0, 200);
     if (!keys.length) return;
     const entries = await Promise.all(keys.map(k => local.get(k)));
     const events = entries.filter(e => e.consent === consentRevision).map(({ consent, ...e }) => e);
@@ -263,8 +290,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     requireMember();
     await packing; await drain();
     const pending = await local.get(`head:${user.id}:${id}`);
-    const pendingJobs = await Promise.all((await local.keys()).filter(k => k.startsWith(`job:${user.id}:`)).map(k => local.get(k)));
-    const hasPending = pendingJobs.some(job => job.id === id);
+    const hasPending = await hasPendingProject(user.id, id, pending);
     if (pending?.localSnapshot && hasPending) {
       const project = await hydrate(pending.localSnapshot);
       current = { id, title: pending.title, revision: pending.revision };
@@ -289,10 +315,10 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     const checkOwner = () => { if (!owner || switching || user?.id !== owner) throw new Error('Account changed.'); };
     checkOwner(); await packing; checkOwner();
     const head = await local.get(`head:${owner}:${row.id}`), cached = await local.get(`remote:${owner}:${row.id}`);
-    const jobs = await Promise.all((await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).map(k => local.get(k)));
+    const hasPending = await hasPendingProject(owner, row.id, head);
     checkOwner();
     let snapshot;
-    if (head?.localSnapshot && jobs.some(job => job?.id === row.id)) snapshot = head.localSnapshot;
+    if (head?.localSnapshot && hasPending) snapshot = head.localSnapshot;
     else if (cached && cached.revision === row.revision) snapshot = cached.snapshot;
     else if (navigator.onLine) snapshot = fail(await client.from('projects').select('snapshot').eq('id', row.id).single())?.snapshot;
     else snapshot = cached?.snapshot ?? head?.localSnapshot;
@@ -333,10 +359,10 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
       const checkOwner = () => { if (user?.id !== owner || switching) throw new Error('Account changed.'); };
       checkOwner();
       let head = await local.get(`head:${owner}:${id}`);
-      const jobs = await Promise.all((await local.keys()).filter(k => k.startsWith(`job:${owner}:`)).map(k => local.get(k)));
+      const hasPending = await hasPendingProject(owner, id, head);
       // Copy pending work when offline/unsynced; otherwise use the server's
       // latest revision, including changes made on another device.
-      if (!head?.localSnapshot || (navigator.onLine && !jobs.some(job => job.id === id))) {
+      if (!head?.localSnapshot || (navigator.onLine && !hasPending)) {
         const row = fail(await client.from('projects').select('*').eq('id', id).single());
         if (!row?.snapshot) throw new Error('Project unavailable.');
         head = { ...row, localSnapshot: row.snapshot };
@@ -359,7 +385,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     if (!result.error) await local.put(cacheKey, rows);
     const records = new Map(rows.map(row => [row.id, row]));
     // Offline and newly created projects stay discoverable before first sync.
-    for (const key of (await local.keys()).filter(k => k.startsWith(`head:${owner}:`))) {
+    for (const key of await keysWithPrefix(`head:${owner}:`)) {
       const row = await local.get(key);
       if (!records.has(row.id) || row.updated_at > records.get(row.id).updated_at) {
         const {localSnapshot, ...meta} = row; records.set(row.id, meta);
@@ -376,7 +402,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     datasets: async () => { requireMember(); return fail(await client.from('datasets').select('id,name,path,hash,created_at').order('created_at', { ascending: false })); },
     loadDataset: async row => { requireMember(); return JSON.parse(await fail(await client.storage.from('workspace').download(row.path)).text()); },
     remove: async id => { requireMember(); await packing; await drain(); fail(await client.from('projects').delete().eq('id', id));
-      for (const key of await local.keys()) if (key.startsWith(`job:${user.id}:`) && (await local.get(key)).id === id) await local.remove(key);
+      for (const key of await keysWithPrefix(`job:${user.id}:`)) if ((await local.get(key)).id === id) await local.remove(key);
       await local.remove(`head:${user.id}:${id}`); await local.remove(`remote:${user.id}:${id}`);
       await local.remove(`thumbnail:${user.id}:${id}`);
       const cached = await local.get(`projects:${user.id}`); if (cached) await local.put(`projects:${user.id}`, cached.filter(row => row.id !== id));

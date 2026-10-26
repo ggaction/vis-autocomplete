@@ -41,7 +41,7 @@ with sync_playwright() as p:
   page.wait_for_function('document.querySelector(".history-graph-node[aria-current] canvas[data-paint]")')
   before=page.evaluate('''()=>{perfAudit.before=new Map([...document.querySelectorAll('.history-graph-node')].map(n=>[n.dataset.nodeId,n]));return harness.h.activeId}''')
   page.evaluate('''()=>{const s=harness.h.current;harness.h.replace({...s,currentNote:'Replaced resize',view:s.view.editFacetSource({action:{method:'encodeOpacity',options:{target:'plot',value:.6}}})});harness.view.update(harness.h)}''')
-  page.wait_for_function('document.querySelector(".history-graph-node[aria-current]").textContent.includes("Replaced resize")')
+  page.wait_for_function('document.querySelector(".history-graph-node[aria-current]")?.textContent.includes("Replaced resize")')
   assert page.evaluate('''id=>[...perfAudit.before].filter(([key,node])=>key!==id).every(([key,node])=>document.querySelector(`[data-node-id="${key}"]`)===node)''',before)
   page.evaluate('harness.stress()')
   page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="1006"')

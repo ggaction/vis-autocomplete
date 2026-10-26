@@ -4,7 +4,7 @@ import { createAccount } from '../web/cloud/client.js';
 import { reportContext } from '../web/cloud/documents.js';
 const pause=()=>new Promise(r=>setTimeout(r,20));
 function mock(owner={id:'test-user',email:'a@example.org'}) {
-  const map=new Map(),local={get:async k=>structuredClone(map.get(k)),put:async(k,v)=>map.set(k,structuredClone(v)),remove:async k=>map.delete(k),keys:async()=>[...map.keys()]};
+  const map=new Map(),local={get:async k=>structuredClone(map.get(k)),has:async k=>map.has(k),put:async(k,v)=>map.set(k,structuredClone(v)),remove:async k=>map.delete(k),keys:async(prefix='')=>[...map.keys()].filter(k=>k.startsWith(prefix))};
   const calls=[],rows=[],remote=new Map();let profile=null,listener;
   let conflict=false,failSave=false;
   let verifiedUser=owner;
@@ -124,6 +124,65 @@ test('Save conflicts create a recovered project and offline opening uses latest 
   assert.notEqual(a.current.id,old);assert.match(a.current.title,/recovered copy/);
   m.setFail(true);await a.save(project(2));await a.drain();
   const opened=await a.open(a.current.id);assert.deepEqual(opened.datasets[0].imported,imported);assert.deepEqual(opened.datasets[0].session.entries[0].calls,[2]);
+ }finally{a.destroy();}
+});
+test('project previews check one pending key instead of cloning every offline revision',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  for(let i=0;i<80;i++)await a.save(project(i));
+  const id=a.current.id,get=m.local.get,reads=[];
+  m.local.get=async key=>{reads.push(key);return get(key);};
+  const selected=await a.preview({id,revision:0});
+  assert.deepEqual(selected.session.entries[0].calls,[79]);
+  assert.equal(reads.filter(key=>key.startsWith('job:')).length,1,'only the pointed job is read, including its current project identity');
+  assert.equal([...m.map.keys()].filter(key=>key.startsWith('job:')).length,80,'all authored revisions remain durable');
+ }finally{a.destroy();}
+});
+test('a stale pending pointer still finds an unsynced revision from another tab',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  await a.save(project(1));online(true);await a.drain();const id=a.current.id;
+  online(false);await a.save(project(2));
+  const headKey=`head:test-user:${id}`,head=await m.local.get(headKey);
+  await m.local.put(headKey,{...head,pendingJobKey:'job:test-user:already-drained'});
+  online(true);m.setFail(true);
+  assert.deepEqual((await a.preview({id,revision:1})).session.entries[0].calls,[2]);
+  const duplicate=await a.duplicate(id);
+  assert.deepEqual(duplicate.localSnapshot.datasets[0].session.entries[0].calls,[2]);
+  assert.deepEqual((await a.open(id)).datasets[0].session.entries[0].calls,[2]);
+ }finally{a.destroy();}
+});
+test('a pending job moved to a recovered copy cannot masquerade as the original project',async()=>{
+ for(const operation of ['preview','duplicate','open']){
+  environment();const m=mock(),a=await createAccount({...m,config});
+  try{
+   await a.save(project(1));online(true);await a.drain();const id=a.current.id;
+   online(false);await a.save(project(2));const headKey=`head:test-user:${id}`,get=m.local.get;let moved=false;
+   m.local.get=async key=>{
+    const value=await get(key);
+    if(key===headKey&&!moved){
+     moved=true;const job=m.map.get(value.pendingJobKey);
+     m.map.set(value.pendingJobKey,{...job,id:'recovered-project'});
+     m.map.set(headKey,{...value,pendingJobKey:null});
+    }
+    return value;
+   };
+   online(true);m.setFail(true);
+   const result=operation==='preview'?await a.preview({id,revision:1}):await a[operation](id);
+   const saved=operation==='preview'?result:operation==='duplicate'?result.localSnapshot.datasets[0]:result.datasets[0];
+   assert.deepEqual(saved.session.entries[0].calls,[1],operation);
+   assert.ok([...m.map].some(([key,job])=>key.startsWith('job:')&&job.id==='recovered-project'),'recovered work remains durable');
+  }finally{a.destroy();}
+ }
+});
+test('duplicate detection snapshots mutable callers and ignores save timestamps',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  const draft=project(1);await a.save(draft);draft.datasets[0].session.entries[0].calls.push(2);await a.save(draft);
+  assert.equal([...m.map.keys()].filter(key=>key.startsWith('job:')).length,2);
+  const calls=[...m.map].filter(([key])=>key.startsWith('job:')).map(([,job])=>job.snapshot.datasets[0].session.entries[0].calls);
+  assert.deepEqual(calls,[[1],[1,2]]);
+  await a.save({...draft,savedAt:'later'});assert.equal([...m.map.keys()].filter(key=>key.startsWith('job:')).length,2);
  }finally{a.destroy();}
 });
 test('duplicating selected projects preserves the active workspace, all history, and latest offline or remote edits',async()=>{

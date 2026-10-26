@@ -693,7 +693,10 @@ function renderChart(host, program, label) {
     (!layer.encoding?.x || !layer.encoding?.y));
   if (pending) return placeholder(host, 'This step is ready. Set both position variables to display the chart.');
   const surface = host === elements.current && state.resizing ? host.querySelector('.canvas-stage') ?? host : host;
-  const canvas = renderChartCanvas(surface, program, label, { fit: host.classList.contains('chart-view') && !host.classList.contains('chart-transfer') && (host !== elements.current || state.phase === 'initial') });
+  const canvas = renderChartCanvas(surface, program, label, {
+    fit: host.classList.contains('chart-view') && !host.classList.contains('chart-transfer') && (host !== elements.current || state.phase === 'initial'),
+    cacheRaster: host === elements.preview,
+  });
   renderedCharts.set(host, { program, label });
   if (host === elements.preview) lastPreview = { program, label, generation: state.generation };
   if (host === elements.current) {
@@ -737,7 +740,7 @@ function showCode(card = null, { settleApplied = false } = {}) {
     const code = value => programCode([...value.setupCalls, ...value.calls,
       ...(value.phase === 'initial' ? value.selectionAxes?.calls ?? [] : []),
       ...(value.guideCall ? [value.guideCall] : [])], state.name, state.rows.length);
-    renderCode($('code-content'), code(state), code(snapshot), { setupCallCount: snapshot.setupCalls.length });
+    renderCode($('code-content'), code(state), code(snapshot), { setupCallCount: snapshot.setupCalls.length, defer: $('code-content').hidden });
     $('code-mode').textContent = `History #${historyInspectionNumber}`;
     $('code-content').dataset.previewMethod = '';
     return;
@@ -751,7 +754,7 @@ function showCode(card = null, { settleApplied = false } = {}) {
     { method: call.method, args: call.args }, ...(card.prepared.postActionCalls ?? []),
     card.prepared.guideCall], state.name, state.rows.length) : null;
   const setupCallCount = state.setupCalls.length + (!call && state.phase === 'initial' ? state.selectionAxes?.calls.length ?? 0 : 0);
-  renderCode($('code-content'), current, proposed, { setupCallCount, settleApplied });
+  renderCode($('code-content'), current, proposed, { setupCallCount, settleApplied, defer: $('code-content').hidden });
   $('code-mode').textContent = proposed ? 'Preview changes' : 'Current';
   $('code-content').dataset.previewMethod = call?.method ?? '';
 }
@@ -2156,6 +2159,7 @@ function afterWorkspaceChange() {
   historyView.refreshLayout();
   updateGalleryNavigation();
   updateHeaderGuidance();
+  showCode();
 }
 const workspaceLayout = initializeWorkspaceLayout({
   workspace: document.querySelector('.workspace'), toggle: $('workspace-layout'),

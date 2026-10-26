@@ -53,7 +53,7 @@ Use the [check matrix](docs/development.md#choose-the-right-checks) instead of r
 
 - **Behavior fixes:** add a regression that fails for the original bug and checks observable output, state, or resource ownership. Do not only assert that the implementation calls itself.
 - **Interaction changes:** verify hover versus Apply, cancellation, Undo/Redo, restored history, and both Preview/Transition modes where affected. Include facet, layer, or adjacent-chart cases when those share the edited path.
-- **Performance changes:** compare the same dataset, chart, and action sequence before and after; record machine/browser, cold and warm behavior, long-session behavior, and memory/resource counts. Never silently discard data or options to improve a benchmark.
+- **Performance changes:** compare the same dataset, chart, and action sequence before and after; record machine/browser, cold and warm behavior, long-session behavior, and memory/resource counts. Run `npm run test:performance` and add a work-count or retention regression where practical. See [performance budgets and reproducible benchmarks](docs/performance.md). Never silently discard data or options to improve a benchmark.
 - **Account or logging changes:** use synthetic users and transport mocks or a separate development Supabase project. Check ownership, consent withdrawal, and guest/member boundaries. Append migrations rather than rewriting already applied migrations.
 - **Corpus/model changes:** retain upstream attribution, update generation/hash metadata together, and document the corpus and library revisions. Do not regenerate trained files in unrelated PRs.
 

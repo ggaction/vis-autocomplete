@@ -1,7 +1,7 @@
 import { OPTION_GROUPS } from './option-groups.js';
 import { historyLabel, historyPreview } from './history.js';
 import { prepareHistorySnapshot } from './project.js';
-import { layoutHistoryGraph, historyGraphRowZoom } from './history-graph-layout.js';
+import { layoutHistoryGraph, historyGraphRowZoom, queryHistoryGraph } from './history-graph-layout.js';
 import { createLRU } from '../src/cache.js';
 
 export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, onJump, meta, controls, onNavigate=()=>{} }) {
@@ -12,9 +12,11 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   const mounted = new Map(), thumbnails = createLRU(80);
   const snapshots = new WeakMap();
   let layout = layoutHistoryGraph([]), current = null, activePath = new Set(), zoom = 1, busy = false;
-  let shown = false, history = null, revision = -1, frame = null, hovered = null, serial = 0, painting = false, drag = null;
+  let shown = false, history = null, revision = -1, layoutRevision = -1, frame = null, hovered = null, serial = 0, painting = false, drag = null;
   let suppressedClick = false, graphRoot = null, pointer = null;
   let nodeHeight = null, automaticZoom = true, leaveTimer = null, navigationTimer=null;
+  const snapshotFor = node => history?.snapshotFor ? history.snapshotFor(node.id) : node.snapshot;
+  const onPath = id => history?.isActiveAncestor ? history.isActiveAncestor(id) : activePath.has(id);
   function navigation(action){clearTimeout(navigationTimer);navigationTimer=setTimeout(()=>onNavigate({mode:'graph',action,zoom,left:host.scrollLeft,top:host.scrollTop}),150);}
   const toolbar = document.createElement('span'); toolbar.className = 'history-graph-tools'; toolbar.hidden = true;
   const tool = (label, text, run) => {
@@ -69,10 +71,11 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     if (hovered === id) return;
     clear({ restore: false }); hovered = id; const token = serial;
     mounted.get(id)?.classList.add('inspecting');
-    meta.textContent = `#${node.ordinal} ${historyLabel(node.snapshot)}`;
+    const snapshot = snapshotFor(node);
+    meta.textContent = `#${node.ordinal} ${historyLabel(snapshot)}`;
     try {
-      await prepareHistorySnapshot(node.snapshot);
-      if (serial === token && hovered === id && shown && !busy) onPreview(node.snapshot, node.ordinal);
+      await prepareHistorySnapshot(snapshot);
+      if (serial === token && hovered === id && shown && !busy && snapshotFor(node) === snapshot) onPreview(snapshot, node.ordinal);
     } catch { /* The committed chart remains available. */ }
   }
   function restoreThumbnail(button, snapshot) {
@@ -92,8 +95,8 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
       ?? [...mounted.values()].find(button => !button.dataset.painted);
     if (!button) return;
     painting = true;
-    const node = layout.positions.get(button.dataset.nodeId), snapshot = node.snapshot;
-    const valid = () => shown && button.isConnected && snapshots.get(button) === snapshot && layout.positions.get(node.id)?.snapshot === snapshot;
+    const node = layout.positions.get(button.dataset.nodeId), snapshot = snapshotFor(node);
+    const valid = () => shown && button.isConnected && snapshots.get(button) === snapshot && snapshotFor(node) === snapshot;
     const paint = async () => {
       try {
         if (!valid()) return;
@@ -112,17 +115,18 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     if (globalThis.requestIdleCallback) requestIdleCallback(paint, { timeout: 300 }); else setTimeout(paint, 20);
   }
   function makeNode(node) {
+    const snapshot = snapshotFor(node);
     const button = document.createElement('button'); button.type = 'button'; button.className = 'history-item history-graph-node';
     button.dataset.nodeId = node.id;
-    const group = OPTION_GROUPS.find(group => group.id === node.snapshot.optionGroup) ?? OPTION_GROUPS[0];
+    const group = OPTION_GROUPS.find(group => group.id === snapshot.optionGroup) ?? OPTION_GROUPS[0];
     button.style.setProperty('--history-accent', group.color); button.style.setProperty('--history-rgb', group.rgb);
     const thumb = document.createElement('span'); thumb.className = 'history-thumbnail'; thumb.dataset.chartZoom = '3';
     const caption = document.createElement('span'); caption.className = 'history-caption';
-    caption.textContent = `${node.ordinal}. ${historyLabel(node.snapshot)}`;
-    button.title = caption.textContent; button.setAttribute('aria-label', `History #${node.ordinal}: ${historyLabel(node.snapshot)}`);
+    caption.textContent = `${node.ordinal}. ${historyLabel(snapshot)}`;
+    button.title = caption.textContent; button.setAttribute('aria-label', `History #${node.ordinal}: ${historyLabel(snapshot)}`);
     button.append(thumb, caption);
-    snapshots.set(button, node.snapshot);
-    restoreThumbnail(button, node.snapshot);
+    snapshots.set(button, snapshot);
+    restoreThumbnail(button, snapshot);
     button.addEventListener('pointerenter', event => { pointer = { x: event.clientX, y: event.clientY }; preview(node.id); });
     button.addEventListener('pointerleave', () => { if (hovered === node.id) leaveBetweenNodes(); });
     button.addEventListener('focus', () => preview(node.id));
@@ -138,12 +142,13 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     const ctx = edges.getContext('2d'); ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, w, h);
     ctx.translate(-sx, -sy); ctx.scale(zoom, zoom);
     const visible = new Set();
-    for (const node of layout.items) {
+    for (const node of queryHistoryGraph(layout, { left: (sx - 40) / zoom, top: (sy - 40) / zoom,
+      right: (sx + w + 40) / zoom, bottom: (sy + h + 40) / zoom })) {
       const parent = layout.positions.get(node.parentId);
       if (parent) {
         const x1 = parent.x + layout.nodeWidth, y1 = parent.y + layout.nodeHeight / 2, x2 = node.x, y2 = node.y + layout.nodeHeight / 2;
         if (x2 * zoom >= sx && x1 * zoom <= sx + w && Math.max(y1, y2) * zoom >= sy && Math.min(y1, y2) * zoom <= sy + h) {
-          ctx.strokeStyle = activePath.has(node.id) ? '#607e98' : '#c5cdd5'; ctx.lineWidth = activePath.has(node.id) ? 1.5 : 1;
+          ctx.strokeStyle = onPath(node.id) ? '#607e98' : '#c5cdd5'; ctx.lineWidth = onPath(node.id) ? 1.5 : 1;
           ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 + 16, y1); ctx.lineTo(x1 + 16, y2); ctx.lineTo(x2, y2); ctx.stroke();
           ctx.beginPath(); ctx.moveTo(x2 - 4, y2 - 2.5); ctx.lineTo(x2, y2); ctx.lineTo(x2 - 4, y2 + 2.5); ctx.stroke();
         }
@@ -151,7 +156,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
       if ((node.x + layout.nodeWidth) * zoom < sx - 40 || node.x * zoom > sx + w + 40 ||
           (node.y + layout.nodeHeight) * zoom < sy - 40 || node.y * zoom > sy + h + 40) continue;
       if (zoom < .5) {
-        ctx.fillStyle = node.id === current ? '#0a6fc2' : activePath.has(node.id) ? '#d5e6f5' : '#eef1f4';
+        ctx.fillStyle = node.id === current ? '#0a6fc2' : onPath(node.id) ? '#d5e6f5' : '#eef1f4';
         ctx.strokeStyle = node.id === current ? '#0a6fc2' : '#859aaf'; ctx.lineWidth = 1 / zoom;
         ctx.fillRect(node.x, node.y, layout.nodeWidth, layout.nodeHeight);
         ctx.strokeRect(node.x, node.y, layout.nodeWidth, layout.nodeHeight);
@@ -161,7 +166,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
       const button = mounted.get(node.id) ?? makeNode(node);
       button.style.left = `${node.x * zoom}px`; button.style.top = `${node.y * zoom}px`;
       button.style.width = `${layout.nodeWidth}px`; button.style.height = `${layout.nodeHeight}px`; button.style.transform = `scale(${zoom})`;
-      button.disabled = busy; button.classList.toggle('on-path', activePath.has(node.id));
+      button.disabled = busy; button.classList.toggle('on-path', onPath(node.id));
       button.classList.toggle('inspecting', hovered === node.id);
       if (node.id === current) button.setAttribute('aria-current', 'step'); else button.removeAttribute('aria-current');
     }
@@ -204,7 +209,8 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     if (event.key === 'Escape') { pointer = null; clear(); return; }
     const node = layout.positions.get(event.target.dataset.nodeId); if (!node) return;
     const siblings = layout.items.filter(item => item.parentId === node.parentId), at = siblings.findIndex(item => item.id === node.id);
-    const id = event.key === 'ArrowLeft' ? node.parentId : event.key === 'ArrowRight' ? node.preferredChildId ?? node.children[0]
+    const preferred = history.preferredChild ? history.preferredChild(node.id) : node.preferredChildId;
+    const id = event.key === 'ArrowLeft' ? node.parentId : event.key === 'ArrowRight' ? preferred ?? node.children[0]
       : event.key === 'ArrowDown' ? siblings[at + 1]?.id : event.key === 'ArrowUp' ? siblings[at - 1]?.id
       : event.key === 'Home' ? layout.items[0]?.id : event.key === 'End' ? current : null;
     if (!id) return;
@@ -218,9 +224,10 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     // Freeze the half-size geometry on first reveal. Scrollbars and panel
     // resizing can change viewport height; they must never stretch the nodes.
     nodeHeight ??= Math.max(1, host.clientHeight - 14) / 2;
-    if (revision !== history.revision || layout.nodeHeight !== nodeHeight) {
+    const structureRevision = history.structureRevision ?? history.revision;
+    if (layoutRevision !== structureRevision || layout.nodeHeight !== nodeHeight) {
       const records = history.nodes.map((node, ordinal) => ({ ...node, ordinal }));
-      layout = layoutHistoryGraph(records, { width: 75, height: nodeHeight }); revision = history.revision; extent();
+      layout = layoutHistoryGraph(records, { width: 75, height: nodeHeight }); layoutRevision = structureRevision; extent();
     }
     if (automaticZoom) {
       const fitted = historyGraphRowZoom(layout, host.clientHeight);
@@ -242,15 +249,16 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     update(next, locked) {
       history = next; busy = locked; host.setAttribute('aria-busy', String(busy));
       const changed = current !== history.activeId; current = history.activeId;
-      const ids = history.pathIds; activePath = new Set(ids.slice(0, history.index + 1));
-      const root = history.nodes[0]?.id;
-      if (graphRoot !== root) { clear(); graphRoot = root; thumbnails.clear(); revision = -1; }
+      if (!history.isActiveAncestor) { const ids = history.pathIds; activePath = new Set(ids.slice(0, history.index + 1)); }
+      const root = history.rootId ?? history.nodes[0]?.id;
+      if (graphRoot !== root) { clear(); graphRoot = root; thumbnails.clear(); revision = -1; layoutRevision = -1; }
       if (revision !== history.revision) {
-        const retained = new Map(history.nodes.map(node => [node.id, node.snapshot]));
-        for (const [id, button] of mounted) if (retained.get(id) !== snapshots.get(button)) {
+        const retained = history.snapshotFor ? null : new Map(history.nodes.map(node => [node.id, node.snapshot]));
+        for (const [id, button] of mounted) if ((retained ? retained.get(id) : history.snapshotFor(id)) !== snapshots.get(button)) {
           button.remove(); mounted.delete(id);
           if (hovered === id) clear();
         }
+        revision = history.revision;
       }
       refreshLayout(); if (shown && changed) centerCurrent(); schedule();
     },

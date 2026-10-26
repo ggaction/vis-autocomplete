@@ -67,6 +67,7 @@ The production server serves only `output/deploy/public`, applies security heade
 | UI or worker source | `npm run build`; affected browser scenario |
 | Auth, persistence, research collection | `npm run test:cloud`; mocked auth/guest/research browser scenarios |
 | Cross-cutting change | `npm run build` followed by `npm test` and relevant browser checks |
+| Performance-sensitive paths | `npm run test:performance`; relevant browser and measurement commands in [performance.md](performance.md) |
 
 Run commands from the repository root. `catalog:check` also refreshes the generated action inventory/report; inspect the diff and include those outputs only in an intentional catalog/library update. Some server tests read built assets, so build first before the complete suite or cloud suite.
 

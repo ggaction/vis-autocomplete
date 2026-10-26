@@ -31,7 +31,7 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
   // Final-item inspection includes all geometry and row provenance. Encoding
   // and Transform never display these Style actions, so do not inspect every
   // point/path (and every facet cell) just to throw their candidates away.
-  const candidates = [...(!group || group === 'style' ? highlightCandidates(program, layer) : []), ...overlayCandidates(program, layer), ...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile })];
+  const candidates = [...(!group || group === 'style' ? highlightCandidates(program, layer) : []), ...overlayCandidates(program, layer), ...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile, group })];
   // Corpus defaults already feed the parameter editors. A second opaque preset
   // card must not bypass the same mark's coordinate/grain-aware editor.
   const editors = new Set(candidates.filter(candidate => /^edit.*Mark$/.test(candidate.method))

@@ -1,9 +1,19 @@
 import { getDatasetSchema } from 'ggaction/inspection';
 import { isTemporalValue } from './data-import.js';
 import { validateCategoryOrder } from './category-order.js';
+import { createLRU, signature } from './cache.js';
 
 const FIELD_TYPES = new Set(['quantitative', 'nominal', 'ordinal', 'temporal']);
 const isoDate = isTemporalValue;
+const profiles = new WeakMap();
+
+// Native datasets and rows are immutable and shared by successive chart edits.
+// Retain only compact profiles, not another copy of every column's values. Each
+// caller gets its own editable fields because context resolution filters them.
+const copyProfile = profile => ({ ...profile, fields: profile.fields.map(field => ({ ...field,
+  ...(field.guideValues ? { guideValues: [...field.guideValues] } : {}),
+  ...(field.order ? { order: [...field.order] } : {}),
+})) });
 
 export function profileDataset(program, data, fieldTypes = {}) {
   const { data: resolvedId, schema } = getDatasetSchema(program, { data });
@@ -18,6 +28,13 @@ export function profileDataset(program, data, fieldTypes = {}) {
     }
   }
   const gradient = dataset.transform?.find(t => t.type === 'gradientProfile');
+  const categoryType = gradient ? Object.values(program.markConfigs)
+    .find(c => c.gradientPlot?.profileId === resolvedId)?.gradientPlot?.categoryType : undefined;
+  const cacheable = Object.isFrozen(dataset) && Object.isFrozen(rows);
+  const key = cacheable ? signature([fieldTypes, categoryType]) : null;
+  let cache = cacheable ? profiles.get(dataset) : null;
+  const cached = cache?.get(key);
+  if (cached) return copyProfile(cached);
   // Sample arrays and support endpoints are implementation details, not user
   // variables. Expose the category and meaningful per-strip summaries only.
   const exposed = gradient ? new Set([gradient.as.category, gradient.as.center, gradient.as.count]) : null;
@@ -29,9 +46,8 @@ export function profileDataset(program, data, fieldTypes = {}) {
       typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)));
     const inferredType = allNumbers ? 'quantitative' : present.length > 0 && present.every(isoDate) ? 'temporal' : 'nominal';
     const hint = fieldTypes[field.name];
-    const categoryType = gradient && field.name === gradient.category
-      ? Object.values(program.markConfigs).find(c => c.gradientPlot?.profileId === resolvedId)?.gradientPlot?.categoryType : undefined;
-    const type = (typeof hint === 'string' ? hint : hint?.type) ?? categoryType ?? inferredType;
+    const type = (typeof hint === 'string' ? hint : hint?.type)
+      ?? (gradient && field.name === gradient.category ? categoryType : undefined) ?? inferredType;
     const compatible = type === 'quantitative' ? allNumbers : type === 'temporal'
       ? present.every(v => (typeof v === 'number' && Number.isFinite(v)) || isoDate(v))
       : allCategories;
@@ -60,8 +76,14 @@ export function profileDataset(program, data, fieldTypes = {}) {
       usable: rows.length > 0 && present.length > 0 && compatible,
       reason: !present.length ? 'No non-missing values.' : !compatible ? `Values do not consistently match ${type}; review this field’s type or missing-value settings.` : '' };
   });
-  return { id: resolvedId, rowCount: rows.length, fields,
+  const result = { id: resolvedId, rowCount: rows.length, fields,
     datasetType: fields.some(f => f.usable && f.type === 'temporal') ? 'time-series' : 'tabular' };
+  if (cacheable) {
+    if (!cache) profiles.set(dataset, cache = createLRU(8));
+    cache.set(key, result);
+    return copyProfile(result);
+  }
+  return result;
 }
 
 // Only selects default parameters. This NEVER changes the paper action score.

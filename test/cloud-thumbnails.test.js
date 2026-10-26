@@ -93,6 +93,40 @@ test('a full thumbnail cache still displays the regenerated image', async () => 
   await until(() => image.src !== 'legacy'); assert.ok(pixels(image.src).height > 360); loader.dispose();
 });
 
+test('gallery worker replay is demand driven, cancels hidden images, and never transfers later history', async () => {
+  const f = fixture(), workers = [];
+  const workerFactory = () => {
+    const worker = { listeners: {}, sent: [], addEventListener(type, fn) { this.listeners[type] = fn; },
+      postMessage(message) { this.sent.push(message); }, terminate() { this.closed = true; } };
+    workers.push(worker); return worker;
+  };
+  const loader = projectThumbnails(f.account, {}, { workerFactory }), image = f.image();
+  loader.observe(image, f.row); image.dispatchEvent(new Event('load'));
+  assert.equal(workers.length, 0);
+  observer.intersect(image, true); await until(() => workers[0]?.sent.length);
+  assert.equal(workers[0].sent[0].snapshot, record.session.entries[record.session.index]);
+  assert.equal('session' in workers[0].sent[0], false); assert.equal(workers[0].sent[0].rows, rows);
+  observer.intersect(image, false); assert.equal(workers[0].closed, true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  observer.intersect(image, true); await until(() => workers[1]?.sent.length);
+  const message = workers[1].sent[0];
+  workers[1].listeners.message({ data: { id: message.id, image: 'repaired-thumbnail' } });
+  await until(() => image.src === 'repaired-thumbnail');
+  assert.equal(f.saved.size, 1); loader.dispose(); assert.equal(workers[1].closed, true);
+});
+
+test('closing the gallery terminates an active repair without replacing the saved image', async () => {
+  const f = fixture(); let request, listeners = {}, closed = false;
+  const loader = projectThumbnails(f.account, {}, { workerFactory: () => ({
+    addEventListener: (type, fn) => { listeners[type] = fn; }, postMessage: value => { request = value; }, terminate: () => { closed = true; },
+  }) }), image = f.image();
+  loader.observe(image, f.row); image.dispatchEvent(new Event('load')); observer.intersect(image, true);
+  await until(() => request); loader.dispose(); assert.equal(closed, true);
+  listeners.message({ data: { id: request.id, image: 'late' } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(image.src, 'legacy'); assert.equal(f.saved.size, 0);
+});
+
 test('background PNG export preserves the exact foreground thumbnail and its byte budget', async () => {
   const { createProjectThumbnailAsync } = await import('../web/cloud/thumbnail.js');
   globalThis.OffscreenCanvas = class {

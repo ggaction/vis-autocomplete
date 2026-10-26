@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const files = ['README.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', 'SECURITY.md',
   'GOVERNANCE.md', 'THIRD_PARTY_NOTICES.md', 'docs/README.md', 'docs/development.md',
-  'docs/architecture.md', 'docs/licensing.md', 'docs/maintaining.md',
+  'docs/architecture.md', 'docs/licensing.md', 'docs/maintaining.md', 'docs/performance.md',
   '.github/pull_request_template.md'];
 const errors = [];
 let links = 0;

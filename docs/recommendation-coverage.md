@@ -73,3 +73,19 @@ Horizon처럼 원본 역할을 편집하는 공개 owner 함수가 아직 없는
 `encodeShape`는 Fixed/Variable과 14종 고정 모양을 제공한다. `encodeStrokeWidth`는 고정값을
 지원하는 마크에만 제안하고, 변수 두께를 지원하지 않는 마크에서는 해당 모드를 비활성화한다.
 `test/mark-editor-policy.test.js`와 스타일·arc·곡선·적용 순서 테스트가 중복 제거와 고유 기능 보존을 확인한다.
+
+## Request scope and diagnostic coverage
+
+An explicit recommendation `group` scopes expensive final-item inspection to the
+families displayed in that group: value-label bindings in Encoding, row/field
+filters in Transform, and highlighting/label placement in Style. Requested
+actions, ranks, alternatives, and parameter controls remain identical to filtering
+the complete ungrouped result. Calls without `group` retain the full candidate
+space and diagnostic coverage.
+
+`diagnostics.candidateCoverage` describes work generated for that request. In a
+scoped request, a family skipped before inspection does not contribute an
+`other-group` exclusion count; it is not evidence of unsupported functionality.
+Research-log analyses should compare coverage within the same requested group or
+use an ungrouped audit for the complete action inventory. The group equivalence
+regression covers scatter, labeled bar, parallel coordinates, and facet charts.

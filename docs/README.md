@@ -6,6 +6,7 @@
 - [Contributing](../CONTRIBUTING.md): reports, first PR, review, and licensing
 - [Developer guide](development.md): setup, authentication, tests, and corpus work
 - [Architecture](architecture.md): ownership, state, rendering, and data boundaries
+- [Performance](performance.md): budgets, benchmarks, and regression checks
 - [Licensing and commercial use](licensing.md)
 - [Governance](../GOVERNANCE.md), [security reporting](../SECURITY.md), and [Code of Conduct](../CODE_OF_CONDUCT.md)
 

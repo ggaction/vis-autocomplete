@@ -1,0 +1,70 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Gallery thumbnail worker regression</title>
+<script type="importmap">{"imports":{
+  "ggaction":"/node_modules/ggaction/src/index.js",
+  "ggaction/extension":"/node_modules/ggaction/src/extension.js",
+  "ggaction/inspection":"/node_modules/ggaction/src/inspection.js",
+  "ggaction/diagnostics":"/node_modules/ggaction/src/diagnostics.js",
+  "ggaction/svg":"/node_modules/ggaction/src/renderers/svg.js",
+  "ggaction/persistence":"/node_modules/ggaction/src/persistence.js"
+}}</script>
+<body><p>Gallery thumbnail worker regression</p><script type="module">
+import { restoreSession } from '/web/project.js';
+import { createProjectThumbnail } from '/web/cloud/thumbnail.js';
+import { createThumbnailClient } from '/web/cloud/thumbnail-client.js';
+const frame = () => new Promise(requestAnimationFrame);
+const check = (condition, message) => { if (!condition) throw new Error(message); };
+async function pixels(image) {
+  const bitmap = await createImageBitmap(await (await fetch(image)).blob());
+  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height), context = canvas.getContext('2d');
+  context.drawImage(bitmap, 0, 0); bitmap.close();
+  return { width: canvas.width, height: canvas.height, data: context.getImageData(0, 0, canvas.width, canvas.height).data };
+}
+const rows = Array.from({ length: 1800 }, (_, i) => ({ x: i % 180, y: (i * 13) % 113, z: (i * 19) % 71,
+  w: (i * 23) % 41, c: i % 2 ? 'A' : 'B' }));
+const examples = [
+  ['scatter', [{ method: 'createScatterPlot', args: { id: 'plot', data: 'data', x: 'x', y: 'y', color: 'c' } }]],
+  ['parallel-facet', [{ method: 'createParallelCoordinates', args: { id: 'plot', data: 'data', dimensions: ['x','y','z','w'], color: { field: 'c' } } },
+    { method: 'facet', args: { data: 'data', field: 'c', columns: 2, guides: { axes: 'each', legend: 'shared' } } }]],
+  ['bar', [{ method: 'createBarPlot', args: { id: 'plot', data: 'data', x: { field: 'c', fieldType: 'nominal' }, y: { field: 'y', aggregate: 'sum' }, color: 'c' } }]],
+];
+window.runGalleryChecks = async () => {
+  await document.fonts.ready;
+  const client = createThumbnailClient(), results = [];
+  try {
+    for (const [family, calls] of examples) {
+      const snapshot = { phase: 'recommendations', steps: calls.length, selection: { fields: ['x','y','z','w','c'] },
+        setupCalls: [{ method: 'createCanvas', args: { width: 700, height: 430, margin: { left: 80, right: 180, top: 60, bottom: 60 } } },
+          { method: 'createData', args: { id: 'data', values: '__LOADED_DATA__' } }],
+        calls, guideCall: { method: 'createGuides', args: {} } };
+      const before = JSON.stringify(snapshot), start = performance.now();
+      const program = restoreSession({ entries: [snapshot], index: 0 }, rows).entries[0].view;
+      const foreground = createProjectThumbnail(program);
+      const foregroundMs = performance.now() - start;
+      // Existing autosave PNGs already use OffscreenCanvas. Compare the new
+      // replay route with that same renderer; DOM Canvas can use a different
+      // compositing backend for dense translucent paths in Chromium.
+      const reference = await client.create(program);
+      await frame();
+      const intervals = []; let previous = performance.now(), running = true;
+      const sample = now => { intervals.push(now - previous); previous = now; if (running) requestAnimationFrame(sample); };
+      requestAnimationFrame(sample);
+      const begin = performance.now(), background = await client.restore(snapshot, rows), backgroundMs = performance.now() - begin;
+      running = false; await frame();
+      const [a, b] = await Promise.all([pixels(reference), pixels(background)]);
+      check(a.width === b.width && a.height === b.height, `${family}: thumbnail dimensions changed`);
+      let differences = 0; for (let i = 0; i < a.data.length; i++) if (a.data[i] !== b.data[i]) differences++;
+      if (differences) window.galleryMismatch = { snapshot, rows, graphicSpec: program.graphicSpec, reference, background };
+      check(differences === 0, `${family}: ${differences} changed pixel channels`);
+      check(background.length <= 180000, `${family}: PNG budget exceeded`);
+      check(JSON.stringify(snapshot) === before, `${family}: replay mutated input`);
+      results.push({ family, rows: rows.length, foregroundMs, backgroundMs, frameCount: intervals.length,
+        maxFrameMs: Math.max(0, ...intervals), framesOver50: intervals.filter(n => n > 50).length,
+        width: b.width, height: b.height, pixelDifferences: differences, reference: 'existing-worker-PNG-path' });
+    }
+    const cancelled = client.restore({ calls: [] }, rows); client.destroy();
+    check(await cancelled === null, 'destroy must settle pending derived work');
+    return results;
+  } finally { client.destroy(); }
+};
+window.ready = true;
+</script></body></html>

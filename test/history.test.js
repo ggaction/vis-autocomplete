@@ -108,3 +108,37 @@ test('History 0 previews selected axes and retains selection and future charts w
   assert.deepEqual(h.entries, [initial, branch]);
   assert.equal(h.canRedo, false); assert.equal(h.undo(), initial);
 });
+
+test('cursor navigation preserves geometry and branch revisions while edits invalidate only what changed', () => {
+  const h = createHistory(), a = {}, b = {}, c = {};
+  h.reset(a); h.push(b); h.push(c);
+  const ids = h.pathIds, structure = h.structureRevision, branch = h.pathRevision, revision = h.revision;
+  assert.equal(h.rootId, ids[0]);
+  assert.equal(h.snapshotFor(ids[2]), c);
+  h.undo();
+  assert.equal(h.index, 1);
+  assert.equal(h.revision, revision + 1);
+  assert.equal(h.structureRevision, structure);
+  assert.equal(h.pathRevision, branch);
+  assert.equal(h.isActiveAncestor(ids[0]), true);
+  assert.equal(h.isActiveAncestor(ids[1]), true);
+  assert.equal(h.isActiveAncestor(ids[2]), false);
+  assert.equal(h.isActiveAncestor('missing'), false);
+  h.redo(); h.jump(0); h.jump(2);
+  assert.equal(h.structureRevision, structure);
+  assert.equal(h.pathRevision, branch);
+  const replacement = {};
+  h.replace(replacement);
+  assert.equal(h.snapshotFor(ids[2]), replacement);
+  assert.equal(h.structureRevision, structure, 'coalescing changes a raster, not graph coordinates');
+  assert.equal(h.pathRevision, branch + 1);
+  h.undo(); h.push({});
+  const other = h.activeId;
+  assert.equal(h.structureRevision, structure + 1);
+  assert.equal(h.preferredChild(ids[1]), other);
+  h.jump(ids[2]);
+  assert.equal(h.preferredChild(ids[1]), ids[2]);
+  assert.equal(h.isActiveAncestor(other), false);
+  assert.deepEqual(h.entries, [a, b, replacement]);
+  assert.equal(h.structureRevision, structure + 1, 'changing the chosen branch leaves the tree geometry intact');
+});

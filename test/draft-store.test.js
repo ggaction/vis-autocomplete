@@ -8,7 +8,7 @@ import { createDraftStore } from '../web/project.js';
 function fakeIDB(legacy) {
   const stores = new Map([['projects', new Map(legacy ? [['draft', structuredClone(legacy)]] : [])]]);
   let version = legacy ? 1 : 0, putsUntilFailure = null;
-  const puts = [], db = {
+  const puts = [], gets = [], db = {
     objectStoreNames: { contains: name => stores.has(name) },
     createObjectStore(name) { stores.set(name, new Map()); }, close() {},
     transaction(names, mode) {
@@ -35,7 +35,7 @@ function fakeIDB(legacy) {
             return request;
           };
           return {
-            get: key => operation(() => structuredClone(staged.get(name).get(key))),
+            get: key => operation(() => { gets.push({ name, key }); return structuredClone(staged.get(name).get(key)); }),
             put(value, key) {
               if (putsUntilFailure === 0) { putsUntilFailure = null; throw new Error('Simulated quota error'); }
               if (putsUntilFailure !== null) putsUntilFailure--;
@@ -48,7 +48,7 @@ function fakeIDB(legacy) {
       return tx;
     },
   };
-  return { stores, puts, failPut(after = 0) { putsUntilFailure = after; }, open(name, requested) {
+  return { stores, puts, gets, failPut(after = 0) { putsUntilFailure = after; }, open(name, requested) {
     assert.equal(name, 'visualization-autocomplete'); const request = {};
     queueMicrotask(() => { request.result = db; if (version < requested) { version = requested; request.onupgradeneeded?.(); } request.onsuccess?.(); });
     return request;
@@ -119,4 +119,18 @@ test('compiled chart caches cannot overwrite or attach to a newer draft, source,
   await store.write(next); await store.writeCheckpoint(cached);
   assert.equal(await store.readCheckpoint(await checkpointRevision(next), source), null);
   assert.deepEqual(await store.read(), next, 'cache failures never alter the authoring draft');
+});
+
+test('checkpoint validation reads a small revision key and supports older manifests', async () => {
+  const { checkpointRevision } = await import('../web/project.js');
+  const fake = fakeIDB(), store = createDraftStore(fake), draft = project([record()]);
+  await store.write(draft);
+  const checkpoint = { version: 1, revision: checkpointRevision(draft), source: {}, snapshot: 'compiled' };
+  fake.gets.length = 0;
+  await store.writeCheckpoint(checkpoint);
+  assert.deepEqual(fake.gets, [{ name: 'projects', key: 'checkpoint-revision' }]);
+  fake.stores.get('projects').delete('checkpoint-revision'); fake.gets.length = 0;
+  await store.writeCheckpoint(checkpoint);
+  assert.deepEqual(fake.gets, [{ name: 'projects', key: 'checkpoint-revision' }, { name: 'projects', key: 'draft' }]);
+  assert.deepEqual(await store.readCheckpoint(checkpoint.revision, checkpoint.source), checkpoint);
 });

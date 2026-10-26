@@ -48,6 +48,10 @@ function sections(source) {
 
 export function codeCallBlocks(current, proposed = null) {
   const before = sections(current), after = proposed ? sections(proposed) : before;
+  return compareSections(before, after);
+}
+
+function compareSections(before, after) {
   const original = new Map(before.calls.map(call => [call.key, call]));
   // Appending a call only moves the final semicolon. That punctuation alone
   // should not mark the previous, unchanged function as an edit.
@@ -64,7 +68,7 @@ const codeViews = new WeakMap();
 // line numbers, disclosure arrows, ellipses or diff markers.
 export function displayedCode(host) {
   const view = codeViews.get(host);
-  return view?.proposed ?? view?.current ?? '';
+  return view?.requested?.proposed ?? view?.requested?.current ?? '';
 }
 
 export function resetCodeView(host) {
@@ -129,11 +133,21 @@ function settleAppliedCall(record) {
   }, 700);
 }
 
-export function renderCode(host, current, proposed = null, { setupCallCount = 0, settleApplied = false } = {}) {
+export function renderCode(host, current, proposed = null, { setupCallCount = 0, settleApplied = false, defer = false } = {}) {
   if (!codeViews.has(host)) codeViews.set(host, { calls: new Map(), disclosures: new Map(), header: [], signature: '' });
   const view = codeViews.get(host);
+  // A folded panel still has a canonical copy/export source. Only its DOM is
+  // deferred; expanding renders the latest request, not a queue of old hovers.
+  view.requested = { current, proposed };
+  if (defer) return;
   if (view.current === current && view.proposed === proposed && view.setupCallCount === setupCallCount) return;
-  const blocks = codeCallBlocks(current, proposed);
+  // Keep one parsed committed source per mounted view, rather than parsing the
+  // entire authored history again for every parameter preview.
+  if (view.parsedSource !== current) {
+    view.parsedSource = current;
+    view.parsed = sections(current);
+  }
+  const blocks = compareSections(view.parsed, proposed ? sections(proposed) : view.parsed);
   const visibleKeys = new Set(blocks.calls.map(call => call.key));
   for (const [key, record] of view.calls) if (!visibleKeys.has(key)) {
     // A departed preview must not retain its argument DOM for every action
@@ -146,9 +160,10 @@ export function renderCode(host, current, proposed = null, { setupCallCount = 0,
   }
   const nodes = blocks.header.map((line, index) => {
     const row = view.header[index] ??= codeLine(line.text, line.line);
-    row.querySelector('.code-text').textContent = line.text || ' ';
+    if (view.headerText?.[index] !== line.text) row.querySelector('.code-text').textContent = line.text || ' ';
     return row;
   });
+  view.headerText = blocks.header.map(line => line.text);
   const setupNodes = [];
   let foldedPrefix = 0;
   while (foldedPrefix < setupCallCount && blocks.calls[foldedPrefix]?.change === 'context') foldedPrefix++;
@@ -168,6 +183,7 @@ export function renderCode(host, current, proposed = null, { setupCallCount = 0,
     }
     record.call = call;
     const previewing = proposed !== null && call.change === 'added';
+    const previewChanged = record.previewing !== previewing;
     // Only Apply settles a preview into committed code. Moving off a card
     // keeps the existing immediate reset, and manual disclosures stay independent.
     const settling = settleApplied && record.previewing && record.details.open && !previewing;
@@ -178,11 +194,16 @@ export function renderCode(host, current, proposed = null, { setupCallCount = 0,
     }
     record.previewing = previewing;
     const fingerprint = JSON.stringify([call.lines, call.change, call.line]);
-    if (record.fingerprint !== fingerprint) {
+    const changed = record.fingerprint !== fingerprint;
+    if (changed) {
       record.fingerprint = fingerprint;
       record.details.dataset.change = call.change;
     }
-    updateArguments(record); updateSummary(record);
+    // Stable calls need no descendant queries, title assignments or argument
+    // checks. Their own toggle listener handles manual disclosure changes.
+    if (changed || previewChanged || settling) {
+      updateArguments(record); updateSummary(record);
+    }
     if (settling) settleAppliedCall(record);
     // Only the explicit unchanged setup prefix is folded. New prerequisites,
     // previewed actions and user-authored calls remain visible in the chain.

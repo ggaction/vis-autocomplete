@@ -36,14 +36,17 @@ const aggregateOps = ['mean', 'median', 'sum', 'min', 'max'];
 // Bind options to actual resource owners, not corpus IDs or guessed names.
 // These families cover fine-grained corpus actions and all corresponding native
 // editors. Corpus frequencies still supply every score, without a coverage bonus.
-export function extendedCandidates(program, { layer, profile }) {
+export function extendedCandidates(program, { layer, profile, group: requestedGroup }) {
   if (!hasChartContext(program, layer)) return [];
   const out = specializedAxisCandidates(program, layer), target = layer.id, encoding = layer.encoding ?? {}, mark = layer.mark?.type;
-  out.push(...labelPlacementCandidates(program, layer));
-  out.push(...valueLabelCandidates(program, layer, profile));
+  // These families inspect full final-item populations. An explicitly scoped
+  // request never displays their other groups, so leave that work to its group.
+  // Ungrouped requests still inspect and report the complete candidate space.
+  if (!requestedGroup || requestedGroup === 'style') out.push(...labelPlacementCandidates(program, layer));
+  if (!requestedGroup || requestedGroup === 'encoding') out.push(...valueLabelCandidates(program, layer, profile));
   const owner = chartOwner(program, layer);
   const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
-  if (!raincloud) out.push(...itemFilterCandidates(program, layer));
+  if (!raincloud && (!requestedGroup || requestedGroup === 'transform')) out.push(...itemFilterCandidates(program, layer));
   const resourceId = stem => {
     const used = new Set([...program.semanticSpec.layers.map(item => item.id), ...Object.keys(program.markConfigs)]);
     let id = stem;

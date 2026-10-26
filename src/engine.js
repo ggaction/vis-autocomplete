@@ -113,7 +113,10 @@ function validateUncached(program, candidate) {
       (!layer.encoding?.x || !layer.encoding?.y));
     if (!pending) {
       // Serialization is not a claim about raster pixels or the author's message.
-      const svg = renderToSVG(next);
+      // This string is checked and discarded, never inserted beside another
+      // SVG. An explicit namespace avoids hashing the complete facet scene to
+      // derive collision-safe DOM IDs that this validation does not consume.
+      const svg = renderToSVG(next, { resourceNamespace: 'validation' });
       if (!svg.startsWith('<svg') || /(?:NaN|Infinity)/.test(svg.replace(/<text\b[^>]*>.*?<\/text>/gs, ''))) {
         return { ok: false, reason: 'svg' };
       }

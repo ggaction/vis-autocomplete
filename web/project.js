@@ -21,6 +21,8 @@ export async function prepareHistorySnapshot(snapshot) {
 export const PROJECT_FORMAT = 'visualization-autocomplete';
 export const PROJECT_VERSION = 2;
 const checkpointDatasets = new WeakMap();
+const immutableCheckpointEntries = new WeakSet();
+let latestCheckpoint;
 function datasetRevision(imported) {
   if (!checkpointDatasets.has(imported)) checkpointDatasets.set(imported, crypto.randomUUID());
   return checkpointDatasets.get(imported);
@@ -31,8 +33,14 @@ export function checkpointRevision(project) {
   if (!record?.imported) return null;
   // Imports are immutable revisions. Persist their identity instead of hashing
   // every cell or delaying the authoritative draft write for a cache checksum.
-  return JSON.stringify([project.activeId, datasetRevision(record.imported), session?.index,
-    entry?.setupCalls, entry?.calls, entry?.guideCall]);
+  const data = datasetRevision(record.imported), index = session?.index;
+  if (immutableCheckpointEntries.has(entry) && latestCheckpoint?.entry === entry &&
+      latestCheckpoint.data === data && latestCheckpoint.activeId === project.activeId && latestCheckpoint.index === index) return latestCheckpoint.value;
+  const value = JSON.stringify([project.activeId, data, index, entry?.setupCalls, entry?.calls, entry?.guideCall]);
+  // Reuse only privately owned immutable metadata. Keep one checksum rather
+  // than retaining a serialized call prefix for every visited history node.
+  latestCheckpoint = immutableCheckpointEntries.has(entry) ? { entry, data, activeId: project.activeId, index, value } : null;
+  return value;
 }
 
 // Save public authoring calls, once-per-dataset source values, and history position.
@@ -144,6 +152,7 @@ function normalizeSession(session, names) {
     if (trustedPacked.has(snapshot)) {
       if (!normalizedSnapshots.has(snapshot)) normalizedSnapshots.set(snapshot, new WeakMap());
       normalizedSnapshots.get(snapshot).set(names, freezeResult(normalized));
+      immutableCheckpointEntries.add(normalized);
     }
     return normalized;
   });
@@ -175,7 +184,9 @@ export function parseProject(source) {
 // Prefix sharing keeps a long append-only history from replaying every old call.
 export function restoreSession(stored, rows, { lazy = false, current = null } = {}) {
   if (!stored) return null;
-  stored = normalizeSession(stored, new Set(rows.flatMap(Object.keys)));
+  const names = new Set();
+  for (const row of rows) for (const key of Object.keys(row)) names.add(key);
+  stored = normalizeSession(stored, names);
   const base = chart(), cache = createLRU(16);
   const recorded = new Map();
   function* replaySteps(calls) {
@@ -309,6 +320,7 @@ export function createDraftStore(indexedDB = globalThis.indexedDB, name = 'visua
         const store = tx.objectStore('datasets');
         for (const record of changed) store.put(record.imported, record.id);
         tx.objectStore('projects').put(manifest, 'draft');
+        tx.objectStore('projects').put(manifest.checkpointRevision, 'checkpoint-revision');
       } catch (error) { tx.abort(); reject(error); }
     });
     for (const record of changed) persistedImports.set(record.id, record.imported);
@@ -357,10 +369,18 @@ export function createDraftStore(indexedDB = globalThis.indexedDB, name = 'visua
     const db = await database();
     await new Promise((resolve, reject) => {
       const tx = db.transaction(['projects'], 'readwrite'), store = tx.objectStore('projects');
-      const request = store.get('draft');
+      // Read a small revision record, not the entire history/dataset manifest,
+      // for every compiled-chart completion. Old drafts retain a safe fallback.
+      const request = store.get('checkpoint-revision');
       request.onsuccess = () => {
         try {
-          if (request.result?.checkpointRevision === checkpoint.revision) store.put(checkpoint, 'checkpoint');
+          if (request.result === undefined) {
+            const legacy = store.get('draft');
+            legacy.onsuccess = () => {
+              try { if (legacy.result?.checkpointRevision === checkpoint.revision) store.put(checkpoint, 'checkpoint'); }
+              catch (error) { tx.abort(); reject(error); }
+            };
+          } else if (request.result === checkpoint.revision) store.put(checkpoint, 'checkpoint');
         } catch (error) { tx.abort(); reject(error); }
       };
       tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); tx.onabort = () => reject(tx.error);

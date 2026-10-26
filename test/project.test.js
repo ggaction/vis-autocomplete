@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderToSVG } from 'ggaction/svg';
 import { parse } from 'acorn';
-import { createHistory } from '../web/history.js';
-import { createProject, parseProject, validateProject, restoreSession, runnableCode } from '../web/project.js';
+import { createHistory, captureHistorySnapshot } from '../web/history.js';
+import { createProject, parseProject, validateProject, restoreSession, runnableCode, checkpointRevision } from '../web/project.js';
 import { chart } from 'ggaction';
 
 function example() {
@@ -145,4 +145,24 @@ test('lazy draft history preserves calls and branching without executing unseen 
   assert.doesNotThrow(() => deferred.entries[1].view);
   assert.throws(() => deferred.entries[0].program);
   assert.throws(() => restoreSession(invalid, record.imported.rows));
+});
+
+test('checkpoint checks reuse owned immutable call metadata and recheck mutable caller inputs', () => {
+  const record = example(), snapshot = captureHistorySnapshot(record.session.entries[1]);
+  const project = createProject([{ ...record, session: { entries: [snapshot], index: 0 } }], record.id);
+  const stringify = JSON.stringify; let checks = 0;
+  JSON.stringify = function(value, ...args) {
+    if (Array.isArray(value) && value[0] === record.id) checks++;
+    return stringify(value, ...args);
+  };
+  try {
+    const first = checkpointRevision(project);
+    for (let i = 0; i < 100; i++) assert.equal(checkpointRevision({ ...project, savedAt: String(i) }), first);
+    assert.equal(checks, 1, 'the immutable current call prefix is serialized once');
+    const mutable = structuredClone(project), before = checkpointRevision(mutable);
+    mutable.datasets[0].session.entries[0].calls.push({ method: 'encodeOpacity', args: { target: 'plot', value: .25 } });
+    assert.notEqual(checkpointRevision(mutable), before);
+    const moved = { ...project, datasets: [{ ...project.datasets[0], session: { index: 1, entries: [project.datasets[0].session.entries[0], project.datasets[0].session.entries[0]] } }] };
+    assert.notEqual(checkpointRevision(moved), first, 'history position still participates in the revision');
+  } finally { JSON.stringify = stringify; }
 });

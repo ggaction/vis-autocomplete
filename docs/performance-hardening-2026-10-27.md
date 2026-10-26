@@ -42,6 +42,13 @@ draft ownership now preserves input through refreshes and settles it after commi
 failure, cancellation, or scope changes. Eight deterministic browser cases cover
 this behavior together with queued size increments and boundary clamping.
 
+Deletion checks uncovered two related hazards: enabled workspace controls could
+silently ignore clicks while authoring was busy, and a late thumbnail could start
+another save while deletion was in flight. Visible controls now reflect the busy
+state. A project-specific fence serializes deletion with same-client saves, waits
+for existing save RPCs, and cancels obsolete queued writes only after successful
+deletion. Failure preserves pending edits and leaves subsequent operations usable.
+
 ## Measurements
 
 The comparison baseline is app `967d819` with ggaction `7cbdaea`. The optimized
@@ -79,8 +86,9 @@ This measures foreground availability, not a reduction of all computation time.
 - All 71 operation-workflow output fingerprints match the baseline exactly.
 - All 15 paired group-ranking fingerprints match, including order and parameters.
 - Native ggaction unit suite: 4,635 passing tests.
-- Complete app suite: 920 passing tests across 155 isolated processes; focused
-  performance suite: 97 passing tests. Production build and contributor-document
+- Complete app suite: 920 tests passed across 155 isolated processes before the
+  final three deletion regressions, which also pass; focused performance checks
+  cover 100 tests. Production build and contributor-document
   checks also pass.
 - Work-count checks cover immutable ownership, mutated external inputs, type
   overrides, exact delta replay, all queued revisions, account isolation, and

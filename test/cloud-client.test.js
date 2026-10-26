@@ -10,9 +10,9 @@ function mock(owner={id:'test-user',email:'a@example.org'}) {
   let verifiedUser=owner;
   const client={auth:{getSession:async()=>({data:{session:{user:owner}}}),getUser:async()=>({data:{user:verifiedUser}}),onAuthStateChange:fn=>{listener=fn;return {data:{subscription:{unsubscribe(){}}}};},
     signOut:async()=>{listener('SIGNED_OUT',null);return {data:{}}}},
-    from(table){let eq={},value; const query={select(){return query},eq(k,v){eq[k]=v;return query},insert(v){value=v;return query},
+    from(table){let eq={},value,deleted=false; const query={select(){return query},eq(k,v){eq[k]=v;return query},insert(v){value=v;return query},delete(){deleted=true;return query},
       single:async()=>({data:table==='projects'?remote.get(eq.id):value}),maybeSingle:async()=>({data:table==='profiles'?profile:rows.find(r=>r.hash===eq.hash)??null}),
-      then(resolve){if(table==='datasets'&&value)rows.push(value);return Promise.resolve({data:value}).then(resolve)}};return query;},
+      then(resolve){if(table==='datasets'&&value)rows.push(value);if(table==='projects'&&deleted)remote.delete(eq.id);return Promise.resolve({data:value}).then(resolve)}};return query;},
     storage:{from(){return {upload:async()=>({data:{}}),download:async()=>({data:new Blob(['{}'])})}}},
     async rpc(name,args){calls.push([name,structuredClone(args)]);
       if(name==='set_research_consent_v2'){profile={research_enabled:args.enabled,consent_revision:(profile?.consent_revision??0)+1,consent_version:'recommendation-research-v2'};return {data:profile};}
@@ -305,6 +305,88 @@ test('restarting before a PNG completes still syncs the durable authored revisio
  online(true);const restored=await createAccount({...m,config});
  try {await restored.drain();assert.deepEqual(m.remote.get(id).snapshot.datasets[0].session.entries[0].calls,[7]);}
  finally {restored.destroy();}
+});
+
+test('deleting a project fences late thumbnails and autosaves until remote and local removal finish',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ let releaseDelete,finishImage;
+ const deletionEntered=Promise.withResolvers();
+ try{
+  await a.save(project(1));online(true);await a.drain();const id=a.current.id;
+  await a.save(project(2),new Promise(resolve=>{finishImage=resolve}));
+  const from=m.client.from;
+  m.client.from=table=>{
+   const query=from(table);
+   if(table==='projects')query.delete=()=>({eq:async(_,deleted)=>{
+    m.remote.delete(deleted);deletionEntered.resolve();
+    await new Promise(resolve=>{releaseDelete=resolve});return {data:null};
+   }});
+   return query;
+  };
+  const removing=a.remove(id);await deletionEntered.promise;
+  const lateSave=a.save(project(3));finishImage('late image');
+  // Flush the derived-image microtasks while DELETE's response is held. A
+  // thumbnail must not restart authoring sync across the deletion boundary.
+  await new Promise(setImmediate);await a.drain();
+  assert.equal(m.calls.filter(([name])=>name==='save_project').length,1);
+  releaseDelete();await removing;await lateSave;await a.drain();
+  assert.equal(m.remote.has(id),false);
+  assert.equal([...m.map].some(([key,value])=>key.startsWith('job:')&&value.id===id),false);
+  assert.equal(await m.local.get(`head:test-user:${id}`),undefined);
+  assert.equal(await m.local.get(`remote:test-user:${id}`),undefined);
+  assert.notEqual(a.current.id,id);
+ }finally{releaseDelete?.();finishImage?.(null);a.destroy();}
+});
+
+test('failed deletion preserves pending edits and resumes synchronization without changing the active project',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ let releaseDelete;const deletionEntered=Promise.withResolvers();
+ try{
+  await a.save(project(1));online(true);await a.drain();const id=a.current.id;
+  const from=m.client.from;
+  m.client.from=table=>{
+   const query=from(table);
+   if(table==='projects')query.delete=()=>({eq:async()=>{
+    deletionEntered.resolve();await new Promise(resolve=>{releaseDelete=resolve});return {error:new Error('Delete failed')};
+   }});
+   return query;
+  };
+  const removing=assert.rejects(a.remove(id),/Delete failed/);await deletionEntered.promise;
+  const saved=a.save(project(2));releaseDelete();await removing;await saved;await a.drain();
+  assert.equal(a.current.id,id);
+  assert.deepEqual(m.remote.get(id).snapshot.datasets[0].session.entries[0].calls,[2]);
+  m.client.from=table=>{
+   const query=from(table);
+   if(table==='projects')query.delete=()=>({eq:async()=>({error:new Error('Delete failed again')})});
+   return query;
+  };
+  await assert.rejects(a.remove(id),/Delete failed again/);
+  await a.newProject('Next visualization');
+  assert.equal(a.current.title,'Next visualization','a failed delete must not poison later workspace operations');
+ }finally{releaseDelete?.();a.destroy();}
+});
+
+test('deletion waits for an in-flight revision before issuing DELETE',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ const savingEntered=Promise.withResolvers(),releaseSave=Promise.withResolvers(),order=[];
+ try{
+  await a.save(project(1));online(true);await a.drain();const id=a.current.id;
+  const rpc=m.client.rpc,from=m.client.from;
+  m.client.rpc=async(name,args)=>{
+   if(name==='save_project'){savingEntered.resolve();await releaseSave.promise;order.push('save');}
+   return rpc(name,args);
+  };
+  m.client.from=table=>{
+   const query=from(table);
+   if(table==='projects')query.delete=()=>({eq:async(_,deleted)=>{order.push('delete');m.remote.delete(deleted);return {data:null};}});
+   return query;
+  };
+  await a.save(project(2));await savingEntered.promise;
+  const removing=a.remove(id),lateSave=a.save(project(3));
+  await new Promise(setImmediate);assert.deepEqual(order,[]);
+  releaseSave.resolve();await removing;await lateSave;await a.drain();
+  assert.deepEqual(order,['save','delete']);assert.equal(m.remote.has(id),false);
+ }finally{releaseSave.resolve();a.destroy();}
 });
 
 test('An offline withdrawal stays disabled after reload until the server acknowledges it',async()=>{

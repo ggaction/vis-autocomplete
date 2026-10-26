@@ -525,6 +525,7 @@ function updateHistoryButtons() {
   const busy = state.loading || state.committing || state.resizing;
   chartDownloads.refresh(); compositionControls.refresh();
   typographyToolbar.refresh();
+  accountMenu?.refreshBusy?.();
   for (const id of ['dataset', 'upload', 'edit-schema', 'reset', 'toggle-history', 'toggle-code']) $(id).disabled = busy;
   for (const id of ['edit-schema', 'reset', 'code-export']) $(id).disabled = busy || !state.datasetId;
   $('undo').disabled = busy || !history.canUndo;

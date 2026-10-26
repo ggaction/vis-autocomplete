@@ -34,6 +34,7 @@ The checks intentionally distinguish two kinds of evidence:
 | Typography input | Background refresh preserves the scoped typed draft; successful/failed commits settle to canonical values. Enter/blur cannot submit twice, and queued size steps retain their order. |
 | Native Preview | Revisited immutable endpoints reuse exact pixels at the same density, viewport, zoom, and font epoch. Each preview host retains at most six images and eight million pixels; mutable callers and inline text masks bypass reuse. |
 | Persistence | Compare shared calls once per comparison; retain every revision, exact delta replay, and account isolation. Thumbnail completion cannot overwrite a newer pending revision. |
+| Project deletion | Workspace controls reflect authoring work; late thumbnails and queued saves cannot race a same-client deletion. Failed deletion preserves queued work and permits retry. |
 | Saved-project thumbnails | Replay only the selected entry in the thumbnail worker; cancel invisible/disposed requests. Keep the existing full-resolution PNG dimensions and byte limit. |
 | Native rendering | Cached immutable defaults/signatures preserve validation and output. Mutable caller inputs are never treated as stable merely because their top-level identity is unchanged. |
 
@@ -76,6 +77,7 @@ python test/browser/history-scaling.py --url http://127.0.0.1:5184
 python test/browser/gallery-thumbnail-performance.py --url http://127.0.0.1:5184
 python test/browser/preview-raster-cache.py --url http://127.0.0.1:5184
 python test/browser/typography-click-queue.py
+python test/browser/workspace-busy.py
 APP_URL=http://127.0.0.1:5184 npm run test:performance-browser
 ```
 

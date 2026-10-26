@@ -65,6 +65,14 @@ function projectNameDialog({ title = 'Name your project', value = '', submit = '
   d.open(); name.field.focus(); name.field.select(); return completed;
 }
 export async function initializeAccountMenu({ snapshot, restore, newVisualization, useDataset, thumbnail, busy, switchAccount }) {
+  const busyViews = new Set();
+  let previousBusy = Boolean(busy());
+  const refreshBusy = () => {
+    const next = Boolean(busy());
+    if (previousBusy === next) return;
+    previousBusy = next;
+    for (const refresh of busyViews) refresh();
+  };
   const header = document.querySelector('.app-header');
   const menuButton = button('☰', () => openMenu()); menuButton.id = 'workspace-menu'; menuButton.setAttribute('aria-label', 'Open workspace menu');
   menuButton.disabled = true; header.prepend(menuButton);
@@ -278,9 +286,11 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
       const confirm = dialog(targets.length === 1 ? 'Delete visualization?' : `Delete ${targets.length} visualizations?`);
       const names = element('ul', '', 'cloud-delete-list');
       targets.forEach(row => names.append(element('li', row.title)));
-      confirm.box.append(names, button('Cancel', () => confirm.box.close()), button('Delete', async () => {
+      let confirming = false;
+      const cancel = button('Cancel', () => confirm.box.close());
+      const submit = button('Delete', async () => {
         if (working || busy()) return;
-        const controls = [...confirm.box.querySelectorAll('button')]; controls.forEach(control => { control.disabled = true; });
+        confirming = true; syncConfirm();
         const blockCancel = event => event.preventDefault(); confirm.box.addEventListener('cancel', blockCancel);
         try {
           await run(async () => {
@@ -292,8 +302,16 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
             }
           });
           confirm.box.close();
-        } finally { controls.forEach(control => { control.disabled = false; }); confirm.box.removeEventListener('cancel', blockCancel); }
-      })); confirm.open();
+        } finally { confirming = false; syncConfirm(); confirm.box.removeEventListener('cancel', blockCancel); }
+      });
+      const syncConfirm = () => {
+        for (const control of confirm.box.querySelectorAll('button')) control.disabled = confirming;
+        submit.disabled = confirming || working || busy();
+      };
+      confirm.box.append(names, cancel, submit);
+      busyViews.add(syncConfirm);
+      confirm.box.addEventListener('close', () => busyViews.delete(syncConfirm), { once: true });
+      syncConfirm(); confirm.open();
     });
     selectionBar.append(selectAll, selectionCount, duplicate, remove);
     selectAll.addEventListener('change', () => {
@@ -301,12 +319,13 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     });
     const empty = element('p', 'Your saved visualizations will appear here.', 'cloud-projects-empty');
     function syncSelection() {
-      create.disabled = working; duplicate.disabled = working || selected.size !== 1; remove.disabled = working || selected.size === 0;
+      const blocked = working || busy();
+      create.disabled = blocked; duplicate.disabled = blocked || selected.size !== 1; remove.disabled = blocked || selected.size === 0;
       selectAll.disabled = working || !items.size; selectAll.checked = !!items.size && selected.size === items.size;
       selectAll.indeterminate = selected.size > 0 && selected.size < items.size;
       selectionCount.textContent = selected.size ? `${selected.size} selected` : '';
       for (const [id, {item, check, title}] of items) {
-        check.checked = selected.has(id); check.disabled = working; title.disabled = working;
+        check.checked = selected.has(id); check.disabled = working; title.disabled = blocked;
         item.classList.toggle('is-selected', check.checked);
       }
       empty.hidden = !!items.size;
@@ -376,8 +395,10 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     d.box.addEventListener('pointerdown', event => { if (!event.target.closest('.cloud-project-title')) clearTimeout(openTimer); });
     list.addEventListener('scroll', hidePreview); window.addEventListener('resize', hidePreview);
     d.box.addEventListener('close', () => {
+      busyViews.delete(syncSelection);
       clearTimeout(openTimer); thumbnails.dispose(); window.removeEventListener('resize', hidePreview); images.clear();
     }, { once: true });
+    busyViews.add(syncSelection);
     syncSelection(); d.open(); d.status.textContent = 'Loading visualizations…';
     try {
       const rows = await account.list();
@@ -386,7 +407,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     } catch (error) { if (d.box.open) { d.status.textContent = error.message; d.status.setAttribute('role', 'alert'); } }
   }
   return { save: (project) => account.user && !account.guest ? account.save(project, thumbnail()) : Promise.resolve(), record: (type, payload) => account.record?.(type, payload),
-    get user() { return account.user; }, settings, about, nameNewProject, newProject: () => account.newProject?.(), ready: true };
+    get user() { return account.user; }, settings, about, nameNewProject, newProject: () => account.newProject?.(), refreshBusy, ready: true };
 }
 
 function dismissOutside(d) {

@@ -35,6 +35,8 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   let consentRetry = null;
   let loaded = false, initialized = false, authQueue = Promise.resolve(), recovery = false;
   const queuedSnapshots = new Map();
+  const removingProjects = new Map();
+  const removalKey = (owner, id) => `${owner}:${id}`;
   const pendingThumbnails = new Set();
   const importedCache = new WeakMap(), uploaded = new Set();
   const release = config.release ?? 'development';
@@ -166,6 +168,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     current = target;
     // Serialize before project switches; jobs keep their own immutable identity.
     const run = async () => {
+      if (removingProjects.get(removalKey(owner, target.id))?.completed) return;
       const snapshot = await pack(project);
       // An inline rename queued before this autosave owns the latest title.
       const latest = current?.id === target.id ? current : await local.get(`head:${owner}:${target.id}`) ?? target;
@@ -174,6 +177,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     packing = packing.catch(() => {}).then(run); return packing;
   }
   async function queueSnapshot(owner, target, snapshot, thumbnail) {
+    if (removingProjects.get(removalKey(owner, target.id))?.completed) return;
     const comparable = { ...snapshot, savedAt: undefined, projectTitle: target.title };
     if (sameDocument(queuedSnapshots.get(target.id), comparable)) return;
     // Preserve a caller's value at submission time without expanding shared
@@ -210,16 +214,19 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     if (guest()) return;
     for (const key of (await keysWithPrefix(`job:${owner}:`)).sort()) {
       if (user?.id !== owner) return;
-      if (pendingThumbnails.has(key)) return;
       const job = await local.get(key);
       if (!job) continue; // Another tab may already have drained this key.
+      if (removingProjects.has(removalKey(owner, job.id))) continue;
+      if (pendingThumbnails.has(key)) return;
       const headKey = `remote:${owner}:${job.id}`;
       let head = await local.get(headKey) ?? { revision: 0, snapshot: null };
       const snapshot = await ensureData(job.snapshot, owner);
+      if (removingProjects.has(removalKey(owner, job.id))) continue;
       const request = { project: job.id, name: job.title, document: snapshot, expected: head.revision,
         operation: job.operation, changes: changesBetween(head.snapshot, snapshot), thumbnail: job.thumbnail ?? null };
       const result = await client.rpc('save_project', request);
       if (result.error?.code === '40001') {
+        if (removingProjects.has(removalKey(owner, job.id))) continue;
         // Preserve this device's edit as a separate project instead of overwriting
         // changes another tab/device saved. Remaining queued jobs follow the fork.
         const id = crypto.randomUUID(), title = `${job.title.slice(0, 125)} (recovered copy)`;
@@ -306,6 +313,46 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     if (guest()) { current = null; return; }
     await packing; current = { id: crypto.randomUUID(), title, revision: 0 };
     if (user) await local.put(activeKey(user.id), current); notify();
+  }
+  async function remove(id) {
+    requireMember();
+    const owner = user.id, identity = removalKey(owner, id);
+    if (removingProjects.has(identity)) return removingProjects.get(identity).promise;
+    // Fence sync immediately, including thumbnail completions, then serialize
+    // deletion with packing. An already-running RPC finishes before DELETE;
+    // later autosaves captured for this project cannot resurrect it afterward.
+    const removal = { completed: false };
+    removingProjects.set(identity, removal);
+    const operation = packing.catch(() => {}).then(async () => {
+      if (user?.id !== owner) throw new Error('Account changed.');
+      await drain();
+      if (user?.id !== owner) throw new Error('Account changed.');
+      fail(await client.from('projects').delete().eq('id', id));
+      removal.completed = true;
+      for (const key of await keysWithPrefix(`job:${owner}:`)) if ((await local.get(key))?.id === id) await local.remove(key);
+      await local.remove(`head:${owner}:${id}`); await local.remove(`remote:${owner}:${id}`);
+      await local.remove(`thumbnail:${owner}:${id}`);
+      queuedSnapshots.delete(id);
+      const cached = await local.get(`projects:${owner}`);
+      if (cached) await local.put(`projects:${owner}`, cached.filter(row => row.id !== id));
+      if (user?.id === owner && current?.id === id) {
+        current = { id: crypto.randomUUID(), title: 'Untitled visualization', revision: 0 };
+        await local.put(activeKey(owner), current); notify();
+      }
+    });
+    // The caller receives the deletion error. Other workspace operations only
+    // await its ordering barrier and must remain usable after a failed DELETE.
+    packing = operation.catch(() => {});
+    removal.promise = operation.finally(() => {
+      // Keep the fence until work captured before the active identity changed
+      // has been processed. Release it on failure so all edits remain retryable.
+      const captured = packing;
+      captured.catch(() => {}).then(() => {
+        if (removingProjects.get(identity) === removal) removingProjects.delete(identity);
+        drain();
+      });
+    });
+    return removal.promise;
   }
   // Thumbnail repair reads only the selected dataset. It must never activate a
   // project, replay its history, or create an autosave/research revision.
@@ -398,15 +445,9 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
   document.addEventListener('visibilitychange', hidden);
   return { configured: true, client, local, release, recovery, get user() { return user; }, get guest() { return guest(); }, get profile() { return profile; },
     get current() { return current; }, get loaded() { return loaded; }, research, record, save, consent, drain, open, newProject, rename,
-    list, preview, duplicate,
+    list, preview, duplicate, remove,
     datasets: async () => { requireMember(); return fail(await client.from('datasets').select('id,name,path,hash,created_at').order('created_at', { ascending: false })); },
     loadDataset: async row => { requireMember(); return JSON.parse(await fail(await client.storage.from('workspace').download(row.path)).text()); },
-    remove: async id => { requireMember(); await packing; await drain(); fail(await client.from('projects').delete().eq('id', id));
-      for (const key of await keysWithPrefix(`job:${user.id}:`)) if ((await local.get(key)).id === id) await local.remove(key);
-      await local.remove(`head:${user.id}:${id}`); await local.remove(`remote:${user.id}:${id}`);
-      await local.remove(`thumbnail:${user.id}:${id}`);
-      const cached = await local.get(`projects:${user.id}`); if (cached) await local.put(`projects:${user.id}`, cached.filter(row => row.id !== id));
-      if (current?.id === id) await newProject(); },
     async report({ kind, title, description, project, shareData, isAiAgent = false }) {
       if (shareData) requireMember();
       let context = project ? shareData ? await ensureData(await pack(project), user.id) : reportContext(await pack(project)) : null;

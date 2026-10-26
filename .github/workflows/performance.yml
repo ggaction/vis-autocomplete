@@ -43,6 +43,7 @@ jobs:
           python test/browser/gallery-thumbnail-performance.py --url http://127.0.0.1:5184
           python test/browser/preview-raster-cache.py --url http://127.0.0.1:5184
           python test/browser/typography-click-queue.py
+          python test/browser/workspace-busy.py
           APP_URL=http://127.0.0.1:5184 npm run test:performance-browser
           APP_URL=http://127.0.0.1:5184 PERF_CPU_RATE=4 PERF_CASES=scatter,parallel PERF_OUTPUT=output/performance-hardening/browser-cpu4.json npm run test:performance-browser
       - name: Record reproducible CPU and storage benchmarks

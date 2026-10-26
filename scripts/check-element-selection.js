@@ -9,6 +9,13 @@ import { compositionPlotBounds } from '../vendor/ggaction/src/materialization/co
 import { importDataset } from '../src/data-import.js';
 
 export async function checkElementSelection(page) {
+  await page.evaluate(() => {
+    window.dragAudit = [];
+    for (const type of ['pointerdown', 'pointerup']) document.addEventListener(type, event => {
+      window.dragAudit.push({type,x:event.clientX,y:event.clientY,guide:event.target.dataset.guide,role:event.target.className,busy:document.querySelector('#chart-font-size')?.disabled});
+      if(window.dragAudit.length>12)window.dragAudit.shift();
+    },true);
+  });
   const output = 'output/element-selection'; await mkdir(output, { recursive: true });
   const rows = Array.from({ length: 18 }, (_, i) => ({ X: i + 1, Y: i * 2 + 5, Group: ['A', 'B', 'C'][i % 3] }));
   const call = (method, args) => ({ method, args });
@@ -111,6 +118,11 @@ export async function checkElementSelection(page) {
     await page.mouse.move(moveBox.x + moveBox.width / 2 + 12, moveBox.y + moveBox.height / 2 + 6, { steps: 6 });
     await page.mouse.up(); await ready();
     const moved = await saved();
+    if (!(moved.entry.program.titleConfig.alongOffset > (beforeGroup.entry.program.titleConfig.alongOffset ?? 0))) {
+      console.log('Drag check state', mode, JSON.stringify({moveBox,config:moved.entry.program.titleConfig,calls:moved.entry.calls.slice(-3),events:await page.evaluate(()=>window.dragAudit)}));
+      await page.waitForTimeout(1000);
+      console.log('Settled saved title', JSON.stringify((await saved()).entry.program.titleConfig));
+    }
     assert.ok(moved.entry.program.titleConfig.alongOffset > (beforeGroup.entry.program.titleConfig.alongOffset ?? 0));
     assert.ok(moved.entry.program.guideConfigs.axis.x.title.alongOffset > (beforeGroup.entry.program.guideConfigs.axis.x.title.alongOffset ?? 0));
     assert.deepEqual(moved.entry.program.guideConfigs.axis.y,beforeGroup.entry.program.guideConfigs.axis.y);

@@ -1,3 +1,4 @@
+import { createResearchIngest } from './research-ingest.js';
 import http from 'node:http';
 import { publicConfig } from './cloud-config.js';
 import { resolve, sep } from 'node:path';
@@ -11,9 +12,11 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
   '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 export const createDevServer = () => {
   const sendStatic = createStaticSender(types);
+  const ingestResearch = createResearchIngest(publicConfig());
   return http.createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    if (pathname === '/api/research') { await ingestResearch(request,response); return; }
     if (pathname === '/api/config') { response.writeHead(200, {'Content-Type':'application/json','Cache-Control':'no-store'}); response.end(JSON.stringify(publicConfig())); return; }
     if (pathname.startsWith('/api/export/')) {
       await serveChartDownload(request, response, pathname.slice('/api/export/'.length)); return;

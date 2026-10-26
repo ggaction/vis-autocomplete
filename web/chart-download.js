@@ -3,7 +3,7 @@ import { authorizationHeaders } from './cloud/session.js';
 const filename = name => `${(name || 'visualization').normalize('NFKC')
   .replace(/\.(csv|json)$/i, '').replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '') || 'visualization'}-chart`;
 
-export function initializeChartDownloads({ host, getCurrent, isBusy, onError }) {
+export function initializeChartDownloads({ host, getCurrent, isBusy, onError, onResearch = () => {} }) {
   let downloading = false;
   const exports = new WeakMap();
   const buttons = [...host.querySelectorAll('button[data-format]')];
@@ -15,6 +15,7 @@ export function initializeChartDownloads({ host, getCurrent, isBusy, onError }) 
     const current = getCurrent();
     if (!current?.program?.graphicSpec || isBusy() || downloading) return;
     const { program, name } = current, format = button.dataset.format;
+    const started=performance.now();onResearch('start',format,0);
     downloading = true; host.setAttribute('aria-busy', 'true'); refresh();
     try {
       if (!exports.has(program)) exports.set(program, new Map());
@@ -33,7 +34,8 @@ export function initializeChartDownloads({ host, getCurrent, isBusy, onError }) 
       link.href = url; link.download = `${filename(name)}.${format}`;
       link.hidden = true; document.body.append(link);
       try { link.click(); } finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000); }
-    } catch (error) { onError?.(error.message); }
+      onResearch('completed',format,performance.now()-started);
+    } catch (error) { onResearch('failed',format,performance.now()-started);onError?.(error.message); }
     finally { downloading = false; host.removeAttribute('aria-busy'); refresh(); }
   });
   refresh();

@@ -1,3 +1,5 @@
+import { createResearchOutbox } from '../research/outbox.js';
+import { unpackBatch } from '../research/batch.js';
 import { createClient } from '@supabase/supabase-js';
 import { createCloudLocal } from './local.js';
 import { changesBetween, contentHash, projectRecords, reportContext } from './documents.js';
@@ -12,12 +14,28 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     persistSession: true, autoRefreshToken: true } });
   let user = null, profile = null, sequence = 0, session = crypto.randomUUID(), current = null;
   let draining = null, drainAgain = false, recording = Promise.resolve(), packing = Promise.resolve(), switching = true, lastJobTime = 0;
+  let consentRetry = null;
   let loaded = false, initialized = false, authQueue = Promise.resolve(), recovery = false;
   const queuedSnapshots = new Map();
   const pendingThumbnails = new Set();
   const importedCache = new WeakMap(), uploaded = new Set();
   const release = config.release ?? 'development';
   const redirectTo = location.origin + '/';
+  const research = createResearchOutbox({ local,
+    workerFactory: typeof Worker === 'function' ? () => new Worker('/output/workers/research.js', { type: 'module' }) : undefined,
+    async send(batch, valid) {
+      if (suppliedClient) {
+        const result=fail(await client.rpc('record_research_batch',{batch:await unpackBatch(batch),release}));
+        return result;
+      }
+      const { session: auth } = fail(await client.auth.getSession());
+      if (!valid() || !auth?.access_token) return { revoked:true };
+      const response=await fetch('/api/research',{method:'POST',headers:{Authorization:`Bearer ${auth.access_token}`,
+        'Content-Type':'application/json','Content-Encoding':batch.encoding},body:batch.body,signal:AbortSignal.timeout(15000)});
+      if (!response.ok) throw new Error('Research sync interrupted');
+      return response.json();
+    }
+  });
   const activeKey = id => `active:${id}`;
   const guest = () => user?.is_anonymous === true;
   const requireMember = () => { if (!user || guest()) throw new Error('Sign in to save and manage projects.'); };
@@ -42,6 +60,11 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
       const result = await client.from('profiles').select('*').eq('id', user.id).maybeSingle();
       if (!result.error) profile = result.data;
     }
+    if (user) {
+      try {if(await local.get(`research-optout:${user.id}`))profile={...profile,research_enabled:false};}
+      catch {profile={...profile,research_enabled:false};} // Fail closed; telemetry storage cannot lock the editor.
+    }
+    research.configure(user?.id,profile);
     loaded = true;
     if (initialized) await notify({ identityChanged, recovery: event === 'PASSWORD_RECOVERY' });
     switching = false;
@@ -66,8 +89,12 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     const owner = user?.id;
     if (!owner) throw new Error('Sign in first.');
     // Stop immediately on withdrawal, including events already waiting locally.
-    if (!enabled) { profile = { ...profile, research_enabled: false }; await recording; await discardEvents(owner); notify(); }
-    profile = fail(await client.rpc('set_research_consent', { enabled }));
+    if (!enabled) { const revoked=research.revoke(); profile = { ...profile, research_enabled: false }; notify(); await local.put(`research-optout:${owner}`,'consent'); await revoked; await recording; await discardEvents(owner); }
+    const updated = fail(await client.rpc('set_research_consent_v2', { enabled }));
+    await local.remove(`research-optout:${owner}`);
+    if(user?.id!==owner)return updated;
+    profile=updated;
+    research.configure(owner,profile); research.broadcast();
     await discardEvents(owner); notify(); return profile;
   }
   async function pack(project) {
@@ -197,7 +224,18 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     if (events.length) fail(await client.rpc('record_interactions', { events, consent: consentRevision, release }));
     for (const key of keys) await local.remove(key);
   }
+  function retryConsent() {
+    if(consentRetry||!user||!navigator.onLine)return consentRetry;
+    const owner=user.id;
+    consentRetry=(async()=>{
+      const pending=await local.get(`research-optout:${owner}`);if(!pending||user?.id!==owner)return;
+      const updated=fail(await client.rpc(pending==='delete'?'delete_my_research':'set_research_consent_v2',pending==='delete'?{}:{enabled:false,scopes:{}}));
+      await local.remove(`research-optout:${owner}`);
+      if(user?.id===owner){profile=updated;research.configure(owner,profile);research.broadcast();notify();}
+    })().catch(()=>{}).finally(()=>{consentRetry=null;});return consentRetry;
+  }
   function drain() {
+    retryConsent();research.drain();
     if (!user || !navigator.onLine) return draining;
     if (draining) { drainAgain = true; return draining; }
     const owner = user.id;
@@ -330,10 +368,10 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     return [...records.values()].sort((a,b) => b.updated_at.localeCompare(a.updated_at));
   }
   const interval = setInterval(drain, 5000); window.addEventListener('online', drain);
-  const hidden = () => { if (document.hidden) drain(); };
+  const hidden = () => { if (document.hidden) { research.emit('navigation', {reason:'hidden'}); research.flush().then(()=>research.drain()); drain(); } };
   document.addEventListener('visibilitychange', hidden);
   return { configured: true, client, local, release, recovery, get user() { return user; }, get guest() { return guest(); }, get profile() { return profile; },
-    get current() { return current; }, get loaded() { return loaded; }, record, save, consent, drain, open, newProject, rename,
+    get current() { return current; }, get loaded() { return loaded; }, research, record, save, consent, drain, open, newProject, rename,
     list, preview, duplicate,
     datasets: async () => { requireMember(); return fail(await client.from('datasets').select('id,name,path,hash,created_at').order('created_at', { ascending: false })); },
     loadDataset: async row => { requireMember(); return JSON.parse(await fail(await client.storage.from('workspace').download(row.path)).text()); },
@@ -370,6 +408,7 @@ export async function createAccount({ changed = () => {}, status = () => {}, con
     signUp: async (email, password) => fail(await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } })),
     recover: async email => fail(await client.auth.resetPasswordForEmail(email, { redirectTo })),
     password: async password => fail(await client.auth.updateUser({ password })),
-    destroy() { clearInterval(interval); subscription.data.subscription.unsubscribe(); window.removeEventListener('online', drain); document.removeEventListener('visibilitychange', hidden); }
+    async deleteResearch() { const owner=user?.id;if(!owner)return;const revoked=research.revoke();profile={...profile,research_enabled:false};notify();await local.put(`research-optout:${owner}`,'delete');await revoked;const updated=fail(await client.rpc('delete_my_research'));await local.remove(`research-optout:${owner}`);if(user?.id!==owner)return;profile=updated;research.configure(owner,profile);research.broadcast();notify(); },
+    destroy() { research.destroy(); clearInterval(interval); subscription.data.subscription.unsubscribe(); window.removeEventListener('online', drain); document.removeEventListener('visibilitychange', hidden); }
   };
 }

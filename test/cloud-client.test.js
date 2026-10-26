@@ -15,7 +15,8 @@ function mock(owner={id:'test-user',email:'a@example.org'}) {
       then(resolve){if(table==='datasets'&&value)rows.push(value);return Promise.resolve({data:value}).then(resolve)}};return query;},
     storage:{from(){return {upload:async()=>({data:{}}),download:async()=>({data:new Blob(['{}'])})}}},
     async rpc(name,args){calls.push([name,structuredClone(args)]);
-      if(name==='set_research_consent'){profile={research_enabled:args.enabled,consent_revision:(profile?.consent_revision??0)+1,consent_version:'history-only-v1'};return {data:profile};}
+      if(name==='set_research_consent_v2'){profile={research_enabled:args.enabled,consent_revision:(profile?.consent_revision??0)+1,consent_version:'recommendation-research-v2'};return {data:profile};}
+      if(name==='record_research_batch')return {data:{ok:true}};
       if(name==='save_project') {
         if(failSave)return {error:{code:'network'}};
         if(conflict){conflict=false;return {error:{code:'40001'}};}
@@ -245,4 +246,23 @@ test('restarting before a PNG completes still syncs the durable authored revisio
  online(true);const restored=await createAccount({...m,config});
  try {await restored.drain();assert.deepEqual(m.remote.get(id).snapshot.datasets[0].session.entries[0].calls,[7]);}
  finally {restored.destroy();}
+});
+
+test('An offline withdrawal stays disabled after reload until the server acknowledges it',async()=>{
+ environment();const m=mock(),a=await createAccount({...m,config});
+ try{
+  await a.consent(true);const rpc=m.client.rpc;
+  m.client.rpc=async(name,args)=>name==='set_research_consent_v2'?{error:new Error('offline')}:rpc(name,args);
+  await assert.rejects(a.consent(false),/offline/);assert.equal(a.research.enabled,false);
+  assert.equal(await m.local.get('research-optout:test-user'),'consent');
+  const b=await createAccount({...m,config});try{assert.equal(b.profile.research_enabled,false);assert.equal(b.research.enabled,false);
+   m.client.rpc=rpc;online(true);await b.drain();await pause();assert.equal(await m.local.get('research-optout:test-user'),undefined);
+  }finally{b.destroy();}
+ }finally{a.destroy();}
+});
+test('Unavailable research preference storage stops logging without preventing sign-in',async()=>{
+ environment();const m=mock();await m.client.rpc('set_research_consent_v2',{enabled:true});
+ const get=m.local.get;m.local.get=key=>key.startsWith('research-optout:')?Promise.reject(Error('unavailable')):get(key);
+ const account=await createAccount({...m,config});try{assert.equal(account.user.id,'test-user');assert.equal(account.loaded,true);assert.equal(account.research.enabled,false);}
+ finally{account.destroy();}
 });

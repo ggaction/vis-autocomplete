@@ -50,7 +50,7 @@ export function normalizeHistoryGraph(graph, count, index) {
 }
 
 export function createHistory() {
-  let nodes = [], byId = new Map(), activeId = null, path = [], revision = 0;
+  let nodes = [], byId = new Map(), snapshotIds = new WeakMap(), activeId = null, path = [], revision = 0;
   function select(id) {
     activeId = id;
     let node = byId.get(id);
@@ -72,12 +72,12 @@ export function createHistory() {
   function push(snapshot) {
     const parent = byId.get(activeId);
     const node = { id: crypto.randomUUID(), parentId: activeId, preferredChildId: null, snapshot, children: [] };
-    nodes.push(node); byId.set(node.id, node);
+    nodes.push(node); byId.set(node.id, node); snapshotIds.set(snapshot,node.id);
     if (parent) parent.children.push(node.id);
     select(node.id);
   }
   return {
-    clear() { nodes = []; byId = new Map(); activeId = null; path = []; revision++; },
+    clear() { nodes = []; byId = new Map(); snapshotIds = new WeakMap(); activeId = null; path = []; revision++; },
     reset(snapshot) { this.clear(); push(snapshot); },
     restore(snapshots, position, graph = null) {
       if (!Array.isArray(snapshots) || !snapshots.length || !Number.isInteger(position) || position < 0 || position >= snapshots.length) {
@@ -87,7 +87,7 @@ export function createHistory() {
       const ids = topology?.nodes.map(node => node.id) ?? snapshots.map(() => crypto.randomUUID());
       nodes = snapshots.map((snapshot, i) => ({ ...(topology?.nodes[i] ?? {
         id: ids[i], parentId: ids[i - 1] ?? null, preferredChildId: ids[i + 1] ?? null }), snapshot, children: [] }));
-      byId = new Map(nodes.map(node => [node.id, node]));
+      byId = new Map(nodes.map(node => [node.id, node])); snapshotIds=new WeakMap(nodes.map(node=>[node.snapshot,node.id]));
       for (const node of nodes) byId.get(node.parentId)?.children.push(node.id);
       return select(ids[position]);
     },
@@ -97,7 +97,7 @@ export function createHistory() {
       if (!node) throw new Error('Cannot replace empty history.');
       // An ancestor is immutable once another state depends on it.
       if (node.children.length) push(snapshot);
-      else { node.snapshot = snapshot; revision++; }
+      else { node.snapshot = snapshot; snapshotIds.set(snapshot,node.id); revision++; }
     },
     undo() { return byId.get(activeId)?.parentId ? select(byId.get(activeId).parentId) : null; },
     redo() { return byId.get(activeId)?.preferredChildId ? select(byId.get(activeId).preferredChildId) : null; },
@@ -106,6 +106,8 @@ export function createHistory() {
       return id && id !== activeId && byId.has(id) ? select(id) : null;
     },
     // Linear View is a projection of the chosen branch, including its Redo tail.
+    nodeId(snapshot) { return snapshotIds.get(snapshot) ?? null; },
+    get current() { return byId.get(activeId)?.snapshot ?? null; },
     get entries() { return path.map(node => node.snapshot); },
     get index() { return path.findIndex(node => node.id === activeId); },
     get nodes() { return nodes.map(({ children, ...node }) => ({ ...node, children: [...children] })); },

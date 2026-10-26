@@ -1,6 +1,6 @@
-export const CONSENT_VERSION = 'history-only-v1';
-export const RESEARCH_NOTICE = 'Help improve visualization tools by sharing interaction history for research. We record actions, option exploration, timing, and errors—not dataset contents, column names, chart text, or uploaded files. Your datasets and projects are stored privately to save your work and are not used for research. You can change this choice in Settings at any time.';
-export const GUEST_RESEARCH_NOTICE = 'Help improve visualization tools by sharing interaction history for research. We store actions, option exploration, timing, and errors on our server under a guest session ID—not dataset contents, column names, chart text, or uploaded files. Your chart and dataset stay in this browser until you sign in to save them. You can change this choice in Settings at any time.';
+export { CONSENT as CONSENT_VERSION } from '../research/protocol.js';
+export const RESEARCH_NOTICE = 'Share how you explore and edit visualizations to improve recommendations. This includes field names, chart text, and search terms, but excludes dataset rows, uploaded files, and sign-in details. You can stop sharing or delete this history in Settings.';
+export const GUEST_RESEARCH_NOTICE = RESEARCH_NOTICE + ' Guest history is linked to a pseudonymous guest session ID. Its chart and dataset stay in this browser until you sign in to save them.';
 export const EVENT_TYPES = ['options_shown', 'preview_start', 'preview_end', 'parameter', 'apply', 'history', 'selection', 'group', 'page', 'search', 'resize', 'error', 'export'];
 const numeric = ['duration', 'index', 'count', 'revision', 'value', 'rank', 'score'];
 // Research events never serialize action args or free text. This same projection

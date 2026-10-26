@@ -18,7 +18,9 @@ export async function checkElementSelection(page) {
     call('encodeSize', { target: 'plot', field: 'Y' }), call('createGuides', {}),
     call('createTitle', { text: 'Overview', subtitle: 'Three regions', titleStyle: { fontFamily: 'Arial', fontSize: 23 } })];
   const imported = importDataset(JSON.stringify(rows), { format: 'json', name: 'Selection' });
+  let importSequence = 0;
   async function load(kind) {
+    const datasetId = `selection-${kind}-${++importSequence}`;
     const calls = [...baseCalls];
     if (kind === 'facet') calls.push(call('facet', { field: 'Group', columns: 3, guides: { axes: 'outer', legend: 'shared' } }));
     if (kind === 'concat') calls.push(call('createAdjacentPlot', { id: 'other', source: 'plot', position: 'right',
@@ -26,15 +28,18 @@ export async function checkElementSelection(page) {
     const snapshot = { setupCalls, calls, guideCall: call('createGuides', kind === 'concat'
       ? { target: [{ childPath: ['plot'] }, { childPath: ['other'] }] } : {}), steps: calls.length, phase: 'recommendations',
       selection: { fields: ['X', 'Y', 'Group'] }, currentNote: 'Overview', context: { target: 'plot' }, plotData: 'dataset', optionGroup: 'style' };
-    const document = createProject([{ id: `selection-${kind}`, name: `Selection ${kind}`, imported,
-      session: { entries: [snapshot], index: 0 } }], `selection-${kind}`);
+    const document = createProject([{ id: datasetId, name: `Selection ${kind}`, imported,
+      session: { entries: [snapshot], index: 0 } }], datasetId);
     await page.locator('#project-file').setInputFiles({ name: `${kind}.visauto.json`, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(document)) });
-    await expect(page.locator('#dataset')).toHaveValue(`selection-${kind}`);
+    await expect(page.locator('#dataset')).toHaveValue(datasetId);
     // Dataset selection changes before the asynchronously restored chart. Wait
     // for its committed entry instead of reading the previous project's styles.
     await expect(page.locator('#current-note')).toHaveText('Overview');
     await expect(page.locator('.history-item')).toHaveCount(1);
     await expect(page.locator('#chart-font')).toBeEnabled();
+    // The previous import can still display "Saved" before this restore's
+    // debounced checkpoint reaches IndexedDB. Observe the new document itself.
+    await expect.poll(async () => (await readSavedProject(page)).activeId).toBe(datasetId);
   }
   const selected = page.locator('.guide-control.selected');
   const hit = key => page.locator(`.guide-control[data-guide-key="${key}"] .guide-hit`);

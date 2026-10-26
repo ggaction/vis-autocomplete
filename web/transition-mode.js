@@ -8,7 +8,7 @@ import { transitionNodeBudget } from './transition-budget.js';
 
 const storageKey = 'vis-autocomplete.view-mode';
 
-export function createTransitionMode({host,layout,toggle,getBaseline,getCandidate,busy,onChange,onError}) {
+export function createTransitionMode({host,layout,toggle,getBaseline,getCandidate,busy,onChange,onError,onResearch=()=>{}}) {
   let enabled=true,player=null,surface=null,version=0,returning=false,playerBudget=null;
   try { enabled=readViewPreference(storageKey)!=='preview'; } catch { /* Optional preference. */ }
   function paintMode() {
@@ -70,7 +70,9 @@ export function createTransitionMode({host,layout,toggle,getBaseline,getCandidat
       player.element.setAttribute('aria-label',card?.title??'Visualization');
       surface.dataset.method=card?.prepared?.recommendation?.method??'';
       surface.dataset.duration = String(duration);
+      const started=performance.now();onResearch(card,'rendered',{requestId:request,duration,mode:'transition'});
       await player.transitionTo(scene, { duration });
+      onResearch(card,request===version?'settled':'superseded',{requestId:request,duration:performance.now()-started,mode:'transition'});
       if(request!==version||!enabled)return;
       if(returning)rest();
     }catch(error){if(request===version){if(card?.prepared)cache.delete(card.prepared);clear();onError(error);}}

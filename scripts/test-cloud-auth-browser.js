@@ -1,3 +1,4 @@
+import {gunzipSync} from 'node:zlib';
 // End-to-end UI with a deterministic fake Supabase transport. This verifies the
 // application flow; provider credentials/email delivery still need a live smoke test.
 import assert from 'node:assert/strict';
@@ -21,6 +22,7 @@ await context.addInitScript(() => {
  requestAnimationFrame(sample);
 });
 const page=await context.newPage(),errors=[],events=[],reports=[],projects=new Map(),uploads=new Map();let profile=null,revision=0;const assetRequests=[];
+await context.route('**/api/research',async route=>{const req=route.request(),raw=req.postDataBuffer();const batch=JSON.parse((req.headers()['content-encoding']==='gzip'?gunzipSync(raw):raw).toString());events.push(...batch.events);await route.fulfill({json:{ok:true,id:batch.id}});});
 let refreshRequests=0,projectReads=0;const failedDeletes=new Set();
 page.on('request', req=>assetRequests.push(new URL(req.url()).pathname));
 page.setDefaultTimeout(60000);
@@ -42,7 +44,7 @@ const mockTransport = async route=>{
  if(u.pathname==='/auth/v1/logout')return json({});
  if(u.pathname==='/auth/v1/recover')return json({});
  if(u.pathname==='/rest/v1/profiles')return json(profile?[profile]:[]);
- if(u.pathname.endsWith('/rpc/set_research_consent')){profile={id:user.id,research_enabled:body.enabled,consent_version:'history-only-v1',consent_revision:++revision};return json(profile);}
+ if(u.pathname.endsWith('/rpc/set_research_consent_v2')){profile={id:user.id,research_enabled:body.enabled,consent_version:'recommendation-research-v2',consent_revision:++revision};return json(profile);}
  if(u.pathname.endsWith('/rpc/record_interactions')){events.push(...body.events);return json(body.events.length);}
  if(u.pathname.endsWith('/rpc/save_project')){
   const row=projects.get(body.project);if((row?.revision??0)!==body.expected)return json({code:'40001',message:'revision_conflict'},409);
@@ -146,10 +148,10 @@ try{
  await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');
  assert.equal(events.length,0);assert.ok(projects.size===1);assert.ok(uploads.size===1);
  assert.equal([...projects.values()][0].title,'Cars exploration');
- await page.locator('#account-button').click();await dialog().getByRole('checkbox').check();await dialog().getByRole('button',{name:'Save preferences',exact:true}).click();await page.getByText('Preference saved.',{exact:true}).waitFor();await close();
+ await page.locator('#account-button').click();await dialog().getByLabel('Share interaction history for research',{exact:true}).check();await dialog().getByRole('button',{name:'Save preferences',exact:true}).click();await page.getByText('Preference saved.',{exact:true}).waitFor();await close();
  await page.getByRole('button',{name:'Select column Acceleration',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('#cloud-status').textContent==='Saved');
- await page.waitForTimeout(5200);assert.ok(events.length>0);assert.ok(events.every(e=>!JSON.stringify(e).includes('Horsepower')));
+ await page.waitForTimeout(5200);assert.ok(events.length>0);assert.ok(events.every(e=>!JSON.stringify(e).includes('access_token')));
  const scatter=page.locator('#cards .card[data-method="createScatterPlot"]');
  await scatter.scrollIntoViewIfNeeded();await scatter.hover();await scatter.locator('.apply-button').click();
  await page.waitForFunction(()=>document.querySelector('#current').dataset.lastMethod==='createScatterPlot');

@@ -4,7 +4,7 @@ import { prepareHistorySnapshot } from './project.js';
 import { layoutHistoryGraph, historyGraphRowZoom } from './history-graph-layout.js';
 import { createLRU } from '../src/cache.js';
 
-export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, onJump, meta, controls }) {
+export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, onJump, meta, controls, onNavigate=()=>{} }) {
   const stage = document.createElement('div'); stage.className = 'history-graph-stage';
   const edges = document.createElement('canvas'); edges.className = 'history-graph-edges'; edges.setAttribute('aria-hidden', 'true');
   const layer = document.createElement('div'); layer.className = 'history-graph-nodes';
@@ -13,7 +13,8 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   let layout = layoutHistoryGraph([]), current = null, activePath = new Set(), zoom = 1, busy = false;
   let shown = false, history = null, revision = -1, frame = null, hovered = null, serial = 0, painting = false, drag = null;
   let suppressedClick = false, graphRoot = null, pointer = null;
-  let nodeHeight = null, automaticZoom = true, leaveTimer = null;
+  let nodeHeight = null, automaticZoom = true, leaveTimer = null, navigationTimer=null;
+  function navigation(action){clearTimeout(navigationTimer);navigationTimer=setTimeout(()=>onNavigate({mode:'graph',action,zoom,left:host.scrollLeft,top:host.scrollTop}),150);}
   const toolbar = document.createElement('span'); toolbar.className = 'history-graph-tools'; toolbar.hidden = true;
   const tool = (label, text, run) => {
     const button = document.createElement('button'); button.type = 'button'; button.title = label; button.setAttribute('aria-label', label);
@@ -22,8 +23,8 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   const zoomOut = tool('Zoom out history graph', '−', () => setZoom(zoom / 1.25));
   const percentage = tool('Reset history graph zoom', '100%', () => { automaticZoom = true; refreshLayout(); centerCurrent(); });
   const zoomIn = tool('Zoom in history graph', '+', () => setZoom(zoom * 1.25));
-  tool('Fit history graph', 'Fit', () => { setZoom(Math.min((host.clientWidth - 8) / layout.width, (host.clientHeight - 8) / layout.height)); host.scrollTo(0, 0); });
-  tool('Center current history state', 'Current', () => centerCurrent());
+  tool('Fit history graph', 'Fit', () => { setZoom(Math.min((host.clientWidth - 8) / layout.width, (host.clientHeight - 8) / layout.height)); host.scrollTo(0, 0);navigation('fit'); });
+  tool('Center current history state', 'Current', () => {centerCurrent();navigation('current');});
   controls.append(toolbar);
 
   function schedule() { if (shown && frame === null) frame = requestAnimationFrame(() => { frame = null; draw(); }); }
@@ -34,6 +35,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     const x = (host.scrollLeft + anchor.x) / zoom, y = (host.scrollTop + anchor.y) / zoom;
     zoom = next; extent(); host.scrollLeft = x * zoom - anchor.x; host.scrollTop = y * zoom - anchor.y;
     percentage.textContent = `${Number((zoom * 100).toFixed(1))}%`; zoomOut.disabled = zoom <= .001; zoomIn.disabled = zoom >= 16;
+    if(!automatic)navigation('zoom');
     clear(); schedule();
   }
   function centerCurrent() {
@@ -168,6 +170,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   }
   host.addEventListener('scroll', () => { if (pointer && !drag) leaveBetweenNodes(); schedule(); }, { passive: true });
   host.addEventListener('wheel', event => {
+    navigation('pan');
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault(); const rect = host.getBoundingClientRect();
     setZoom(zoom * Math.exp(-event.deltaY * .008), { x: event.clientX - rect.left, y: event.clientY - rect.top });
@@ -184,7 +187,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   });
   host.addEventListener('pointermove', event => {
     if (!drag) return;
-    host.scrollLeft = drag.left + drag.x - event.clientX; host.scrollTop = drag.top + drag.y - event.clientY;
+    host.scrollLeft = drag.left + drag.x - event.clientX; host.scrollTop = drag.top + drag.y - event.clientY;navigation('pan');
   });
   const stopDrag = () => { if (drag) { suppressedClick = true; setTimeout(() => { suppressedClick = false; }, 0); } drag = null; host.classList.remove('is-panning'); };
   host.addEventListener('pointerup', stopDrag); host.addEventListener('pointercancel', stopDrag); host.addEventListener('lostpointercapture', stopDrag);

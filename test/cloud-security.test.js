@@ -1,3 +1,4 @@
+import {verifyResearchSecurity} from './helpers/research-security.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -95,5 +96,6 @@ test('Postgres policies, ownership, idempotency, conflicts and consent epochs',a
     await as(alice);assert.ok((await db.query('select * from research_events')).rows.every(e=>e.is_guest===false));
     await as(bob);assert.ok((await db.query('select * from research_events')).rows.some(e=>e.is_guest===true));
     await db.exec(`reset role;set role anon;`);await assert.rejects(db.query('select * from projects'),/permission denied/);
+    await verifyResearchSecurity(db);
   }finally{await db.close();}
 });

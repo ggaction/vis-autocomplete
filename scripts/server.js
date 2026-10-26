@@ -1,3 +1,4 @@
+import { createResearchIngest } from './research-ingest.js';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createStaticSender } from './static-assets.js';
@@ -14,6 +15,7 @@ export async function createProductionServer({ env=process.env, directory='outpu
   const root=resolve(directory,'public'), config=publicConfig(env), build=JSON.parse(await readFile(resolve(directory,'build.json'),'utf8'));
   if(config.release==='development')config.release=build.commit;
   const authOrigin=config.supabaseUrl ? new URL(config.supabaseUrl).origin : '';
+  const ingestResearch = createResearchIngest(config);
   const authorized = verifyToken ?? createTokenVerifier(config);
   let exporting=false;
   const sendStatic=createStaticSender(types);
@@ -27,6 +29,7 @@ export async function createProductionServer({ env=process.env, directory='outpu
     try {
       const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
       if(pathname==='/api/config') { if(req.method!=='GET')return reply(405,{}); return reply(200,config); }
+      if(pathname==='/api/research')return ingestResearch(req,res);
       if(pathname==='/healthz')return reply(200,{ok:true,release:config.release});
       if(pathname.startsWith('/api/export/')) {
         if(req.method!=='POST')return reply(405,{});

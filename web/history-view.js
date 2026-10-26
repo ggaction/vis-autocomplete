@@ -189,7 +189,7 @@ export function createHistoryView(host, options) {
     const button = document.createElement('button'); button.type = 'button'; button.dataset.view = value; button.textContent = label;
     button.addEventListener('click', () => {
       if (mode === value) return;
-      active().clear(); mode = value; paintMode(); writeViewPreference('vis-autocomplete.history-view', mode);
+      active().clear(); mode = value; options.onNavigate?.({mode,action:'history'});paintMode(); writeViewPreference('vis-autocomplete.history-view', mode);
     }); toggle.append(button);
   }
   paintMode();

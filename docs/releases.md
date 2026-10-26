@@ -39,3 +39,11 @@ migration and Supabase anonymous sign-in setting before the app release. Follow
 Native favicon source: `web/icons/favicon.svg`. Regenerate the committed PNG fallbacks with `node scripts/build-icons.js`; these are required runtime assets, not audit output.
 
 References: [Render deploy hooks](https://render.com/docs/deploy-hooks), [Render automatic deployments](https://render.com/docs/deploys).
+
+### Detailed research history migration
+
+The next release containing research protocol 2 must apply
+`supabase/migrations/202610270001_research_v2.sql` before serving the new client.
+Follow `docs/research-logging-v2.md` for the one-checkbox consent contract,
+gzip endpoint smoke checks, deletion exports and the required retention-job
+verification. Ordinary pushes do not apply this migration or deploy the app.

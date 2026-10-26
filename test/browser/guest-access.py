@@ -1,5 +1,5 @@
 """Guest UI + real auth-client transport, without accounts or production writes."""
-import argparse, base64, json, time
+import argparse, base64, gzip, json, time
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 from playwright.sync_api import sync_playwright, expect
@@ -28,6 +28,9 @@ def identity(request):
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     context = browser.new_context(viewport={'width': 1700, 'height': 1100})
+    # Never inherit a developer server's live Supabase configuration.
+    context.route('**/api/config', lambda route: route.fulfill(content_type='application/json', body=json.dumps({
+        'supabaseUrl': 'https://cloud-test.supabase.co', 'supabaseKey': 'sb_publishable_test', 'release': 'test'})))
     context.add_init_script("""window.authLandingWasVisible=false;function sample(){const g=document.getElementById('auth-gate');if(g&&!g.hidden)window.authLandingWasVisible=true;requestAnimationFrame(sample)}requestAnimationFrame(sample);""")
     def transport(route):
         global guest_starts
@@ -48,8 +51,8 @@ with sync_playwright() as p:
             return reply(user)
         if url.path in ['/auth/v1/logout','/auth/v1/recover']: return reply({})
         if url.path=='/rest/v1/profiles': return reply([profiles[user['id']]] if user['id'] in profiles else [])
-        if url.path.endswith('/rpc/set_research_consent'):
-            profiles[user['id']]=dict(id=user['id'],research_enabled=body['enabled'],consent_version='history-only-v1',consent_revision=profiles.get(user['id'],{}).get('consent_revision',0)+1)
+        if url.path.endswith('/rpc/set_research_consent_v2'):
+            profiles[user['id']]=dict(id=user['id'],research_enabled=body['enabled'],consent_version='recommendation-research-v2',consent_revision=profiles.get(user['id'],{}).get('consent_revision',0)+1)
             return reply(profiles[user['id']])
         if url.path.endswith('/rpc/record_interactions'):
             profile=profiles.get(user['id'],{})
@@ -72,6 +75,12 @@ with sync_playwright() as p:
             uploads[url.path]=req.post_data; return reply({'Key':url.path})
         return reply({})
     context.route('https://cloud-test.supabase.co/**', transport)
+    def research_ingest(route):
+        req=route.request;raw=req.post_data_buffer
+        if req.headers.get('content-encoding')=='gzip':raw=gzip.decompress(raw)
+        batch=json.loads(raw);events.extend(dict(e,owner=guest['id']) for e in batch['events'])
+        route.fulfill(content_type='application/json',body=json.dumps({'ok':True,'id':batch['id']}))
+    context.route('**/api/research',research_ingest)
     page=context.new_page(); page.set_default_timeout(60000); errors=[]
     page.on('pageerror', lambda e: errors.append(str(e)))
     def dialog(): return page.locator('dialog[open]').last
@@ -99,14 +108,14 @@ with sync_playwright() as p:
         page.get_by_role('button',name='Select column Acceleration',exact=True).click()
         scatter=page.locator('#cards .card[data-method="createScatterPlot"]'); scatter.hover(); scatter.locator('.apply-button').click()
         expect(page.locator('#current')).to_have_attribute('data-last-method','createScatterPlot')
-        with page.expect_request('**/rpc/record_interactions'):
+        with page.expect_request('**/api/research'):
             page.get_by_role('button',name='Undo',exact=True).click()
         page.get_by_role('button',name='Redo',exact=True).click()
         expect(page.locator('#current')).to_have_attribute('data-steps','1')
         expect(page.locator('#current canvas')).to_be_visible()
         page.wait_for_function('async () => { const p = await '+READ_ACCOUNT_PROJECT+'; const s = p.datasets.find(d => d.id === p.activeId).session; return s?.entries[s.index]?.calls.some(c => c.method === "createScatterPlot"); }')
         assert events and all(e['owner']==guest['id'] for e in events)
-        assert all('Horsepower' not in json.dumps(e) and 'rows' not in json.dumps(e) for e in events)
+        assert all('access_token' not in json.dumps(e) and 'rows' not in json.dumps(e) for e in events)
         assert not projects and not uploads
         page.reload(); expect(page.locator('#current canvas')).to_be_visible()
         assert not page.evaluate('window.authLandingWasVisible') and guest_starts==1
@@ -116,7 +125,7 @@ with sync_playwright() as p:
         page.get_by_role('button',name='Back to your visualization',exact=True).click()
         expect(page.locator('#current canvas')).to_be_visible()
         page.locator('#workspace-menu').click(); page.get_by_role('button',name='Settings',exact=True).click()
-        dialog().get_by_role('checkbox').uncheck(); dialog().get_by_role('button',name='Save preferences',exact=True).click()
+        dialog().get_by_label('Share interaction history for research',exact=True).uncheck(); dialog().get_by_role('button',name='Save preferences',exact=True).click()
         expect(dialog()).to_contain_text('Preference saved.'); close(); close()
         count=len(events); page.get_by_role('button',name='Undo',exact=True).click()
         page.wait_for_timeout(5200); assert len(events)==count
@@ -128,7 +137,7 @@ with sync_playwright() as p:
         page.locator('#auth-submit').click(); expect(page.locator('#auth-status')).to_contain_text('Could not sign in')
         page.get_by_label('Password',exact=True).fill('test-password-only'); page.locator('#auth-submit').click()
         expect(dialog().get_by_role('heading',name='Help improve visualization authoring')).to_be_visible()
-        dialog().get_by_role('checkbox').uncheck(); dialog().get_by_role('button',name='Continue',exact=True).click()
+        dialog().get_by_label('Share interaction history for research',exact=True).uncheck(); dialog().get_by_role('button',name='Continue',exact=True).click()
         expect(page.locator('#current canvas')).to_be_visible(); expect(page.locator('#cloud-status')).to_have_text('Saved')
         assert len(projects)==1 and uploads
         assert all(row['owner_id']==member['id'] for row in projects.values())

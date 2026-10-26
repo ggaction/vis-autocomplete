@@ -1,0 +1,15 @@
+import { readFile,mkdir,writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { extractResearch } from './research/extract.js';
+const [input,output,...args]=process.argv.slice(2);
+if(!input||!output)throw new Error('Usage: node scripts/extract-research.js batches.json output/research [--cutoff=2027-01-01]');
+const body=await readFile(input,'utf8');const batches=body.trim().startsWith('[')?JSON.parse(body):body.trim().split('\n').map(line=>JSON.parse(line));
+const deletionFile=args.find(v=>v.startsWith('--deletions='))?.slice(12);
+const deletions=deletionFile?JSON.parse(await readFile(deletionFile,'utf8')):[];
+const result=extractResearch(batches,{deletions,cutoff:args.find(v=>v.startsWith('--cutoff='))?.slice(9)});
+result.quality.deletionListApplied=Boolean(deletionFile);
+if(!deletionFile)console.warn('No deletion list supplied: use this output for inspection only, not model training.');
+await mkdir(output,{recursive:true});
+for(const name of ['decisions','parameterTrials','searches','histories','operations','states'])await writeFile(resolve(output,name+'.jsonl'),result[name].map(r=>JSON.stringify(r)).join('\n')+'\n');
+await writeFile(resolve(output,'summary.json'),JSON.stringify({summary:result.summary,quality:result.quality},null,2)+'\n');
+console.log(JSON.stringify({summary:result.summary,quality:result.quality},null,2));

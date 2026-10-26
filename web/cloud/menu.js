@@ -1,5 +1,5 @@
 import { accountSession } from './session.js';
-import { RESEARCH_NOTICE, GUEST_RESEARCH_NOTICE, CONSENT_VERSION } from './privacy.js';
+import { RESEARCH_NOTICE, GUEST_RESEARCH_NOTICE } from './privacy.js';
 import { projectThumbnails } from './project-thumbnails.js';
 import packageInfo from '../../package.json' with { type: 'json' };
 
@@ -88,7 +88,7 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     if (state.identityChanged || lastUser !== (state.user?.id ?? null)) {
       lastUser = state.user?.id ?? null; await switchAccount(state.user);
     }
-    if (state.user && (!state.profile || state.profile.consent_version !== CONSENT_VERSION) && !greeted.has(state.user.id)) {
+    if (state.user && (!state.profile || typeof state.profile.research_enabled !== 'boolean') && !greeted.has(state.user.id)) {
       greeted.add(state.user.id); consentDialog();
     }
   };
@@ -101,18 +101,24 @@ export async function initializeAccountMenu({ snapshot, restore, newVisualizatio
     if (account.guest) { requestAccount('signin'); return false; }
     return true;
   }
+  function researchChoices(profile = {}) {
+    const behavior=input('Share interaction history for research','checkbox');
+    behavior.field.checked=profile.research_enabled ?? true;
+    return {nodes:[behavior.wrapper],save:()=>account.consent(behavior.field.checked)};
+  }
   function consentDialog() {
-    const d = dialog('Help improve visualization authoring', { dismissible: false }), choice = input('Share interaction history for research', 'checkbox');
-    choice.field.checked = true; d.box.append(element('p', account.guest ? GUEST_RESEARCH_NOTICE : RESEARCH_NOTICE), choice.wrapper,
-      button('Continue', async () => { await account.consent(choice.field.checked); d.box.close(); })); d.open();
+    const d=dialog('Help improve visualization authoring',{dismissible:false}), choice=researchChoices();
+    d.box.append(element('p',account.guest?GUEST_RESEARCH_NOTICE:RESEARCH_NOTICE),...choice.nodes,
+      button('Continue',async()=>{await choice.save();d.box.close();}));d.open();
   }
   function settings() {
-    if (!account.user) return;
-    const d = dialog('Settings'), choice = input('Share interaction history for research', 'checkbox');
-    choice.field.checked = account.profile?.research_enabled === true;
-    d.box.append(element('p', account.guest ? 'Guest session' : account.user.email), element('p', account.guest ? GUEST_RESEARCH_NOTICE : RESEARCH_NOTICE), choice.wrapper,
-      button('Save preferences', async () => { await account.consent(choice.field.checked); d.status.textContent = 'Preference saved.'; }),
-      button(account.guest ? 'End guest session' : 'Sign out', async () => { await account.signOut(); d.box.close(); })); d.open();
+    if(!account.user)return;
+    const d=dialog('Settings'),choice=researchChoices(account.profile);
+    const agent=input('I am an AI agent using this system','checkbox');
+    d.box.append(element('p',account.guest?'Guest session':account.user.email),element('p',account.guest?GUEST_RESEARCH_NOTICE:RESEARCH_NOTICE),...choice.nodes,agent.wrapper,
+      button('Save preferences',async()=>{await choice.save();account.research?.emit('actor',{actor:agent.field.checked?'ai':'unknown',actorEvidence:'selfDeclared'});d.status.textContent='Preference saved.';}),
+      button('Delete my research history',async()=>{await account.deleteResearch();d.status.textContent='Research history deleted; sharing stopped.';choice.nodes[0].querySelector('input').checked=false;}),
+      button(account.guest?'End guest session':'Sign out',async()=>{await account.signOut();d.box.close();}));d.open();
   }
   function about() {
     const d = dialog('About Visualization Autocomplete');

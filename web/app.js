@@ -1,3 +1,4 @@
+import { createResearchCollector } from './research/collector.js';
 import { createTextEditor } from './text-editor.js';
 import { createChartZoom } from './chart-zoom.js';
 import { selectionFields } from '../src/field-selection.js';
@@ -98,9 +99,35 @@ $('reset-view-sizes').addEventListener('click', () => chartZoom.reset());
 const datasets = new Map(exampleDatasets().map(record => [record.id, record]));
 const datasetBases = createLRU(4);
 let drafts = createDraftStore(undefined, `visualization-autocomplete-account-${signedInAccount.user.id}`), accountMenu = null;
-let switchingAccount = false, previewStartedAt = 0;
+let switchingAccount = false;
 let sourceVersion = null, savingDraft = Promise.resolve(), restoringProject = false, checkpointTimer;
 const history = createHistory();
+const research = createResearchCollector({ sink: signedInAccount.research });
+let researchTextView=null;
+function captureResearch() {
+  research.capture({ projectId:signedInAccount.current?.id, datasetId:state.datasetId, nodeId:history.activeId,
+    snapshot:history.current,calls:state.calls,setupCalls:state.setupCalls,selection:state.selection,context:state.context,
+    phase:state.phase,profile:state.profile,mode:document.documentElement.dataset.viewMode,
+    layout:document.documentElement.dataset.workspaceLayout,versions:{release:signedInAccount.release,library:sourceVersion,
+      modelVersion:state.researchModel?.generation} });
+  if(signedInAccount.research?.enabled && state.view && researchTextView!==state.view){
+    researchTextView=state.view;
+    const source=state.view;
+    const collect=()=>{
+      if(source!==state.view || !signedInAccount.research.enabled)return;
+      const text=[];let total=0;
+      for(const [id,object]of Object.entries(source.graphicSpec.objects)){
+        if(object.type!=='text' && !object.items?.some(item=>item.type==='text'))continue;
+        for(const item of object.items??[object])if((item.type??object.type)==='text' && item.properties?.opacity!==0){
+          total++;if(text.length<256)text.push({id:item.id??id,text:String(item.properties?.text??'')});
+        }
+      }
+      research.emit('context',{sourceState:research.stateId,text,count:total,truncated:Math.max(0,total-text.length)});
+    };
+    if(globalThis.requestIdleCallback)requestIdleCallback(collect,{timeout:1500});else setTimeout(collect,0);
+  }
+}
+
 const resizeHistory = createResizeHistory(history);
 const recommendationCache = new WeakMap();
 const calculations = createCalculationClient();
@@ -112,7 +139,7 @@ function initialEngine() {
       if (workers.some(worker => worker.generation && worker.generation !== model.provenance.generation)) {
         throw new Error('Recommendation models updated during loading. Reload to use one version.');
       }
-      return state.initialEngine = createInitialChartRecommender(model);
+      state.researchModel=model.provenance; return state.initialEngine = createInitialChartRecommender(model);
     }).catch(error => { initialEnginePromise = null; throw error; });
 }
 let activeRecommendation = null;
@@ -131,16 +158,46 @@ const renderedCharts = new WeakMap();
 let lastPreview = null;
 const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
   getCurrent: () => state.phase === 'initial' ? null : { program: state.resizing ? state.view : renderedCharts.get(elements.current)?.program, name: state.name },
-  isBusy: () => state.loading || state.committing || state.resizing, onError: message => notice(message, true) });
+  isBusy: () => state.loading || state.committing || state.resizing, onError: message => notice(message, true),
+  onResearch:(status,format,duration)=>research.emit('navigation',{action:'export',status,type:format,duration,sourceState:research.stateId}) });
 let historyInspection = null, historyInspectionNumber = null;
 const historyView = createHistoryView($('history'), {
   renderChart: (host, program, label) => renderChartCanvas(host, program, label, { retain: false }), meta: $('history-meta'), controls: $('history-tools'),
-  onPreview: (snapshot, number = snapshot.steps) => { historyInspection = snapshot; historyInspectionNumber = number; showPreview(null); },
-  onLeave: () => { historyInspection = null; showPreview(state.active); },
+  onPreview: (snapshot, number = snapshot.steps) => { research.emit('history',{status:'preview',historyNode:history.nodeId(snapshot),sourceState:research.stateId}); historyInspection = snapshot; historyInspectionNumber = number; showPreview(null); },
+  onLeave: () => { research.emit('history',{status:'end',reason:'leave'}); historyInspection = null; showPreview(state.active); },
   onJump: index => restoreHistory(index),
+  onNavigate:data=>research.emit('navigation',data),
 });
 const parameterIntents = new WeakMap(), cardElements = new WeakMap();
 const rangeIntents = new WeakMap();
+let researchInputKind='pointer';
+const researchVisible=new Set();
+const exposureObserver=new IntersectionObserver(entries=>{
+  for(const entry of entries){const card=cardElements.get(entry.target);if(!card)continue;
+    const fraction=document.hidden?0:entry.intersectionRatio;
+    research.exposure(card,fraction,{left:entry.boundingClientRect.left,top:entry.boundingClientRect.top,width:entry.boundingClientRect.width,height:entry.boundingClientRect.height});
+  }
+},{root:elements.cards,threshold:[0,.1,.5,1]});
+const exposureMountObserver=new MutationObserver(()=>{
+  for(const element of researchVisible)if(!element.isConnected){research.exposure(cardElements.get(element),0);exposureObserver.unobserve(element);researchVisible.delete(element);}
+  for(const element of elements.cards.querySelectorAll('.card'))if(!researchVisible.has(element)){researchVisible.add(element);exposureObserver.observe(element);}
+  // Observe card mounting only. Slider text and thumbnails mutate frequently;
+  // tracking their entire subtrees would add work to every input frame.
+  exposureMountObserver.disconnect();exposureMountObserver.observe(elements.cards,{childList:true});
+  for(const row of elements.cards.querySelectorAll('.card-row'))exposureMountObserver.observe(row,{childList:true});
+});
+exposureMountObserver.observe(elements.cards,{childList:true});
+document.addEventListener('keydown',()=>{researchInputKind='keyboard';},{capture:true,passive:true});
+document.addEventListener('pointerdown',event=>{researchInputKind=event.pointerType==='touch'?'touch':'pointer';},{capture:true,passive:true});
+document.addEventListener('pointermove',event=>{if(state.resizing && signedInAccount.research?.enabled){const r=elements.current.getBoundingClientRect();research.motion(null,{xNorm:(event.clientX-r.left)/Math.max(1,r.width),yNorm:(event.clientY-r.top)/Math.max(1,r.height)});}},{passive:true});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)research.pause();else for(const element of researchVisible){exposureObserver.unobserve(element);exposureObserver.observe(element);}});
+window.addEventListener('blur',()=>research.pause('blur'));
+window.addEventListener('focus',()=>{for(const element of researchVisible){exposureObserver.unobserve(element);exposureObserver.observe(element);}});
+signedInAccount.research?.subscribe(()=>{researchTextView=null;requestAnimationFrame(()=>{if(!signedInAccount.research.enabled)return;captureResearch();research.slate(state.generation,{phase:state.phase,reason:'start'});state.cards.forEach((card,index)=>research.candidate(card,index,state.generation));for(const element of researchVisible){exposureObserver.unobserve(element);exposureObserver.observe(element);}});});
+document.addEventListener('click',event=>{const button=event.target.closest('button');
+  if(button && !elements.cards.contains(button) && !button.closest('.cloud-dialog,.workspace-drawer'))research.emit('navigation',{action:button.id||button.dataset.mode||button.dataset.view||button.getAttribute('aria-label'),inputKind:researchInputKind});
+},{capture:true,passive:true});
+
 const sliderHover = createSliderHover({ valid: (control, event) =>
   control?.isConnected && !state.loading && !state.committing && !state.resizing &&
   !document.elementFromPoint(event.clientX, event.clientY)?.closest('.parameter-toggle') &&
@@ -165,9 +222,10 @@ const transitionMode = createTransitionMode({
     card.prepared.recommendation,card.transitionSetup ?? card.setup?.(card.values) ?? []),
   busy:()=>state.loading||state.committing||state.resizing,
   onChange:()=>{
+    research.emit('navigation',{mode:transitionMode.enabled?'transition':'preview'});
     workspaceLayout.setMode(transitionMode.enabled ? 'transition' : 'preview');
     cancelChartTransfer();showPreview(pointerCard);
-  },onError:error=>notice(error.message,true),
+  },onError:error=>notice(error.message,true),onResearch:(card,status,data)=>research.previewResult(card,status,data),
 });
 const resizeThumbnails = createResizeThumbnails({
   prepare: (context, resize, card) => calculations.prepareResized(context.base, context.view, context.guideCall,
@@ -202,6 +260,7 @@ function rebaseCard(card) {
 const canvasResize = createCanvasResize(elements.current, {
   canStart: () => state.phase !== 'initial' && !state.loading && !state.committing && !state.resizing && !transitionMode.active,
   start(handle) {
+    research.begin('resize',{handle});
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish();
     state.resizing = true; elements.cards.inert = true;
@@ -225,10 +284,12 @@ const canvasResize = createCanvasResize(elements.current, {
     return context;
   },
   motion(context, action) {
+    research.motion(null,{args:action.args});
     context.motionAction = action;
     for (const card of context.liveCards) projectThumbnail(context, card);
   },
   prepare(context, action) {
+    research.motion(null,{args:action.args,calls:action.calls});
     const before = context.resizeBefore;
     const rebased = rebaseResizeAction(action, canvasGeometry(context.view), canvasGeometry(before.view));
     return calculations.prepare(before.program, before.view, before.guideCall, rebased, rebased.setupCalls ?? [], { interactive: true });
@@ -249,6 +310,7 @@ const canvasResize = createCanvasResize(elements.current, {
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
   },
   cancel(context, error) {
+    research.finish('cancelled',{reasonCode:error?.reason});
     resizeThumbnails.stop();
     context.motionAction = null;
     for (const [card, program] of context.thumbnails) if (program && card.element.isConnected) {
@@ -277,12 +339,14 @@ const guideEditor = createGuideEditor(elements.current, {
   available: () => state.phase !== 'initial' && !transitionMode.active,
   canStart: () => !state.loading && !state.committing && !state.resizing,
   async remove(target, action) {
+    research.begin('delete',{target:target.id,method:action.method});
     leaveGallery(); cardMotion.finish(); resizeHistory.reset();
     await commit({ base: state.program, view: state.view, guideCall: state.guideCall,
       method: action.method, values: {}, build: () => action.args, title: `Delete ${target.label}`,
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true, refresh: true });
   },
   start(target, operation, members) {
+    research.begin(operation,{target:target.id,selectedElements:members.map(m=>m.id),selectionCount:members.length});
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish();
     state.resizing = true; elements.cards.inert = true;
@@ -298,6 +362,7 @@ const guideEditor = createGuideEditor(elements.current, {
       title: `${operation === 'resize' ? 'Resize' : 'Move'} ${members.length > 1 ? `${members.length} selected elements` : target.label}` };
   },
   prepare(context, action) {
+    research.motion(null,{args:action.args,calls:action.calls});
     const before = context.resizeBefore;
     if (action.calls) return calculations.guideEdits(before?.program ?? context.base, before?.view ?? context.view,
       before?.guideCall ?? context.guideCall, action.calls);
@@ -319,7 +384,7 @@ const guideEditor = createGuideEditor(elements.current, {
     await commit({ ...context, method: action.method, values: {}, build: () => action.args,
       interaction: { reset() {} }, errorElement: document.createElement('span') }, { direct: true });
   },
-  restore(context) { renderedCharts.delete(elements.current); renderChart(elements.current, context.view, 'Current visualization'); showCode(); },
+  restore(context) { research.finish('cancelled'); renderedCharts.delete(elements.current); renderChart(elements.current, context.view, 'Current visualization'); showCode(); },
   feedback(message) { notice(message, true); },
   end(context) {
     holdChartCanvasDensity(context.heldCanvas, false);
@@ -334,6 +399,7 @@ const textEditor = createTextEditor(elements.current, {
   program: () => state.view,
   available: () => state.phase !== 'initial' && !transitionMode.active && !state.loading && !state.committing && !state.resizing,
   start(target) {
+    research.begin('text-edit',{target:target.id});
     leaveGallery(); historyView.clear({ restore: false }); historyInspection = null;
     cardMotion.finish(); resizeHistory.reset();
     state.resizing = true; elements.cards.inert = true;
@@ -347,6 +413,7 @@ const textEditor = createTextEditor(elements.current, {
     commitGuideGroup({ ...context, groupResult: result });
   },
   end() {
+    research.finish('cancelled');
     state.resizing = false; elements.cards.inert = state.committing;
     renderedCharts.delete(elements.current); renderChart(elements.current, state.view, 'Current visualization');
     refreshVisibleCards(); updateHistoryButtons(); updateGalleryNavigation();
@@ -364,6 +431,7 @@ function commitGuideGroup(context) {
   if (before) resizeHistory.commit(before, historySnapshot(context.title), context.historyKey);
   else { resizeHistory.reset(); history.push(historySnapshot(context.title)); }
   scheduleSave();
+  research.finish('completed',{historyNode:history.activeId,calls:result.calls,guideCall:state.guideCall});
   if (mountedGallery) {
     galleryCache.delete(mountedGallery.view);
     mountedGallery.rankingSource ??= { program: mountedGallery.program, view: mountedGallery.view, guideCall: mountedGallery.guideCall };
@@ -391,13 +459,15 @@ async function commitTypography(options) {
   const before = resizeHistory.begin(key), base = state.program;
   const title = options.fontFamily ? `Font: ${options.fontFamily}` : options.align ? `Align text ${options.align}` : 'Edit text sizes';
   const calls = typographyCalls(state.view, options);
+  research.begin('typography',{args:options});
   state.committing = true; elements.cards.inert = true; updateHistoryButtons();
   try {
     const result = await calculations.typography(before.program, before.view, before.guideCall, { ...options, calls });
-    if (state.program !== base || !result.calls.length && before.program === base) return;
+    if (state.program !== base || !result.calls.length && before.program === base) {research.finish('unchanged');return;}
     state.program = result.program; state.view = result.view; state.guideCall = result.guideCall;
     state.calls = [...before.calls, ...result.calls]; state.steps = before.steps + 1;
     resizeHistory.commit(before, historySnapshot(title), key); scheduleSave();
+    research.finish('completed',{historyNode:history.activeId,calls:result.calls});
     if (mountedGallery) {
       galleryCache.delete(mountedGallery.view);
       mountedGallery.rankingSource ??= { program: mountedGallery.program, view: mountedGallery.view, guideCall: mountedGallery.guideCall };
@@ -408,6 +478,7 @@ async function commitTypography(options) {
     elements.current.dataset.steps = state.steps; elements.current.dataset.traceCount = state.view.trace.children.length;
     elements['current-note'].textContent = title; showCode(); notice();
   } finally {
+    research.finish('failed');
     state.committing = false; elements.cards.inert = false;
     updateHistoryButtons(); updateGalleryNavigation(); refreshVisibleCards();
   }
@@ -466,7 +537,7 @@ for (const [index, group] of OPTION_GROUPS.entries()) {
   button.addEventListener('click', () => {
     if (state.committing || state.phase === 'initial' || state.optionGroup === group.id) return;
     clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
-    accountMenu?.record('group', {group:group.id});
+    research.emit('navigation',{action:'group',group:group.id});
     state.optionGroup = group.id; state.active = null;
     showPreview(null);
     updateCards().catch(error => notice(error.message, true));
@@ -486,7 +557,7 @@ function searchActions() {
   if (state.committing || state.phase === 'initial') return;
   const query = normalizeSearchQuery($('action-search').value);
   if (state.searchQuery === query) return;
-  accountMenu?.record('search', { count: query.length, group: state.optionGroup });
+  research.search($('action-search').value,state.optionGroup);
   state.searchQuery = query; state.active = null;
   showPreview(null);
   updateCards().catch(error => notice(error.message, true));
@@ -524,7 +595,6 @@ function mountDataTable() {
 
 async function restoreHistory(direction) {
   if (state.loading || state.committing || state.resizing) return;
-  accountMenu?.record('history', { index: typeof direction === 'number' ? direction : history.index + (direction === 'undo' ? -1 : 1) });
   resizeHistory.reset(); state.adding = null;
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
@@ -548,6 +618,7 @@ async function restoreHistory(direction) {
   // Persist the chosen history position immediately. Recommendation preparation
   // can be slow for compositions and must not delay saving an Undo/Redo.
   scheduleSave();
+  research.history(previousNodeId, history.activeId, ['undo','redo'].includes(direction)?direction:'jump');
   try {
     if (state.phase === 'initial') mountDataTable();
     else {
@@ -570,7 +641,7 @@ async function restoreHistory(direction) {
 function notice(message = '', isError = false) {
   elements.notice.textContent = message;
   elements.notice.classList.toggle('error', isError);
-  if (isError) accountMenu?.record('error');
+  if (isError) research.emit('error',{reasonCode:'invalid'});
 }
 
 function placeholder(host, message) {
@@ -681,6 +752,7 @@ function showPreview(card, { showCodeChange = true, duration } = {}) {
   elements['preview-name'].textContent = card.title;
   if (card.prepared || card.unchanged) {
     renderChart(elements.preview, card.prepared?.preview ?? card.view, card.title);
+    research.previewResult(card,'rendered',{mode:'preview'});
     elements['preview-note'].textContent = '';
     elements['preview-note'].title = '';
   } else {
@@ -714,7 +786,7 @@ function selectCard(card) {
   if (state.resizing || state.committing || card.disabled || card.base !== state.program) return;
   cancelGalleryLeave();
   historyView.release();
-  if (state.active !== card) { endResearchPreview(); previewStartedAt = performance.now(); accountMenu?.record('preview_start', { method: card.method, rank: Number(card.rank), group: state.phase === 'initial' ? 'initial' : state.optionGroup }); }
+  if (state.active !== card) { endResearchPreview(); research.preview(card,card.element.contains(document.activeElement)?'keyboard':'pointer'); }
   state.active = card;
   for (const item of state.cards) item.element.classList.toggle('selected', item === card);
   expandCards(state.cards.map(item => [item, item === card]));
@@ -740,6 +812,8 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
   }
   for (const button of card.parameterButtons) button.classList.toggle('previewing', card.interaction.owner === button);
   const request = card.request = (card.request ?? 0) + 1;
+  const researchStarted=performance.now();
+  if(interactive && state.active===card) research.previewResult(card,'requested',{requestId:request,values});
   try {
     for (const control of activeControls(card.resolveControls?.(values) ?? card.controls, values)) {
       const value = values[control.key];
@@ -762,18 +836,20 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
       card.element.dataset.previewState = 'pending';
       const prepared = await calculations.prepare(card.base, card.view, card.guideCall,
         action, setupCalls, { interactive: interactive && state.active === card });
-      if (request !== card.request || card.base !== state.program || card.view !== state.view) return;
+      if (request !== card.request || card.base !== state.program || card.view !== state.view) { if(interactive)research.previewResult(card,'superseded',{requestId:request,duration:performance.now()-researchStarted});return; }
       if (!prepared) { card.element.dataset.previewState = 'idle'; return; }
       card.prepared = prepared;
       card.transitionSetup = setupCalls;
       card.preparedSignature = signature;
     }
+    if(interactive)research.previewResult(card,'ready',{requestId:request,duration:performance.now()-researchStarted});
     card.error = ''; card.unchanged = false; card.element.dataset.previewState = 'ready';
     card.errorElement.textContent = '';
     card.errorElement.classList.remove('unchanged');
     renderChart(card.thumbnail, card.prepared.preview, card.title);
   } catch (error) {
     if (request !== card.request || card.base !== state.program || card.view !== state.view) return;
+    if(interactive)research.previewResult(card,'failed',{requestId:request,reasonCode:error.reason??'invalid',duration:performance.now()-researchStarted});
     card.prepared = null; card.unchanged = error.reason === 'no-change';
     card.error = card.unchanged ? 'These settings are already applied.' : error.message;
     card.errorElement.textContent = card.error; card.errorElement.classList.toggle('unchanged', card.unchanged);
@@ -787,11 +863,12 @@ async function prepareCard(card, values = card.values, { interactive = true } = 
 }
 
 function pinValues(card, values, changedKey, rebuild = true) {
-  accountMenu?.record('parameter', { method: card.method, index: card.controls?.findIndex?.(d => d.key === changedKey) });
+  const researchBefore=card.values[changedKey];
   const flatten = list => list.flatMap(c => c.type === 'group' ? flatten(c.controls) : [c]);
   card.nextTransitionDuration = parameterTransitionDuration(flatten(card.controls).find(c => c.key === changedKey));
   card.values = card.normalizeValues?.(card.fieldSelection && card.normalizeMapping ? { ...values, __previousMapping: card.values } : values, changedKey) ?? values;
   const controls = card.resolveControls?.(card.values) ?? card.controls;
+  research.parameter(card,changedKey,researchBefore,card.values[changedKey],flatten(controls).find(c=>c.key===changedKey),researchInputKind);
   if (rebuild) {
     const focusKey = document.activeElement?.closest('[data-parameter]')?.dataset.parameter;
     card.controls = controls; card.controlElements = []; card.parameterButtons = []; card.controlRefreshers = [];
@@ -807,6 +884,7 @@ function pinValues(card, values, changedKey, rebuild = true) {
     const flatten = list => list.flatMap(c => c.type === 'group' ? flatten(c.controls) : [c]);
     for (const update of card.controlRefreshers ?? []) update(flatten(controls));
   }
+  if(rebuild)research.controls(card);
   card.interaction.reset();
 }
 
@@ -848,7 +926,7 @@ function addControl(card, definition, parent = card.controlsElement) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'parameter-choice';
     button.textContent = definition.label; button.setAttribute('aria-label', definition.label);
     const draft = () => ({ ...card.values, mapping_x: card.values.mapping_y, mapping_y: card.values.mapping_x });
-    parameterIntents.set(button, { card, draft }); card.parameterButtons.push(button);
+    parameterIntents.set(button, { card, draft, definition }); card.parameterButtons.push(button);
     button.addEventListener('click', () => pinValues(card, draft(), definition.key)); label.append(button);
   } else if (['select', 'multiselect', 'color'].includes(definition.type)) {
     const choices = document.createElement('div'); choices.className = 'parameter-options';
@@ -900,8 +978,8 @@ function addControl(card, definition, parent = card.controlsElement) {
         const next = selected(choice.value) ? previous.filter(v => v !== choice.value) : [...previous, choice.value];
         return { ...card.values, [definition.key]: next.length >= definition.minimum ? next : previous };
       };
-      parameterIntents.set(button, { card, draft });
-      button.addEventListener('focus', () => card.interaction.focus(button, draft(), button.matches(':focus-visible')));
+      parameterIntents.set(button, { card, draft, definition });
+      button.addEventListener('focus', () => {const values=draft(),visible=button.matches(':focus-visible');if(visible)research.parameter(card,definition.key,card.values[definition.key],values[definition.key],definition,'keyboard','hover');card.interaction.focus(button, values, visible);});
       button.addEventListener('blur', () => card.interaction.blur(button));
       button.addEventListener('click', () => {
         pinValues(card, draft(), definition.key, !(definition.type === 'multiselect' && definition.selectAll));
@@ -934,7 +1012,7 @@ function addControl(card, definition, parent = card.controlsElement) {
       all.textContent = 'Select all';
       const values = definition.choices.filter(choice => !choice.disabled).map(choice => choice.value);
       const draft = () => ({ ...card.values, [definition.key]: [...values] });
-      parameterIntents.set(all, { card, draft }); card.parameterButtons.push(all);
+      parameterIntents.set(all, { card, draft, definition }); card.parameterButtons.push(all);
       all.addEventListener('focus', () => card.interaction.focus(all, draft(), all.matches(':focus-visible')));
       all.addEventListener('blur', () => card.interaction.blur(all));
       all.addEventListener('click', () => { pinValues(card, draft(), definition.key, false); refresh(); });
@@ -1012,6 +1090,7 @@ function addControl(card, definition, parent = card.controlsElement) {
       if (event.pointerType === 'touch') return;
       if (!locked) followPointer(event);
       locked = !locked;
+      research.parameterBoundary(card,definition.key,locked?'pin':'unpin');
       if (locked) sliderHover.reset();
       else sliderHover.activate(label, event, followPointer);
       refresh();
@@ -1019,6 +1098,7 @@ function addControl(card, definition, parent = card.controlsElement) {
     range.addEventListener('keydown', event => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault(); locked = !locked; refresh();
+        research.parameterBoundary(card,definition.key,locked?'pin':'unpin');
       } else if (['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
         event.preventDefault(); locked = true;
         const sign = ['ArrowLeft', 'ArrowDown', 'PageDown'].includes(event.key) ? -1 : 1;
@@ -1059,6 +1139,7 @@ async function createCard(spec, index) {
     values: structuredClone(spec.values ?? valuesFor(spec.controls)), prepared: null, error: '', controls: spec.controls, controlElements: [], parameterButtons: [], controlRefreshers: [] };
   card.values = card.normalizeValues?.(card.values) ?? card.values;
   card.controls = card.resolveControls?.(card.values) ?? card.controls;
+  research.candidate(card,index,state.generation);
   card.interaction = createPreviewInteraction({ readPinned: () => card.values,
     render: values => { if (!state.loading && !state.committing && !state.resizing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
     requestFrame: requestAnimationFrame, cancelFrame: cancelAnimationFrame });
@@ -1151,6 +1232,7 @@ async function createCard(spec, index) {
       }
     });
   }
+  research.previewResult(card,card.disabled?'failed':'ready',{defaults:card.values,defaultSource:card.defaultSource}); research.controls(card);
   return card;
 }
 
@@ -1176,7 +1258,7 @@ async function goToGalleryPage(index) {
   const target = Math.max(0, Math.min(state.galleryRows.length - 1, index));
   const row = state.galleryRows[target];
   if (!row) return;
-  accountMenu?.record('page', { index: target, group: state.optionGroup });
+  research.emit('navigation',{action:'page',index:target,group:state.optionGroup,slateId:research.slateId});
   elements.cards.scrollTo({ left: elements.cards.scrollLeft + row.getBoundingClientRect().left - elements.cards.getBoundingClientRect().left,
     behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   // Navigation must not wait for expensive native previews. Keep Back and the
@@ -1278,6 +1360,7 @@ async function updateCards() {
   pointerMotion.reset(); sliderHover.reset();
   pointerChoice = null; pointerCard = null; pointerInGallery = false;
   const generation = ++state.generation;
+  captureResearch(); research.slate(generation,{phase:state.adding?.kind??state.phase,group:state.optionGroup,context:state.context,searchLength:state.searchQuery.length});
   state.galleryObserver?.disconnect(); state.galleryRows = [];
   state.active = null; state.cards = []; elements.cards.replaceChildren();
   elements.cards.scrollTop = 0; elements.cards.scrollLeft = 0;
@@ -1321,16 +1404,21 @@ async function updateCards() {
     if (restored) {
       cancelRecommendationWork();
       state.cards = restored.cards; state.galleryRows = restored.rows;
+      state.cards.forEach((card,index)=>research.candidate(card,index,generation));
+      research.slateResult(generation,{status:'cached',candidateCount:restored.specs.length});
       elements.cards.append(...restored.rows); elements.cards.scrollLeft = restored.scrollLeft ?? 0;
     } else if (state.adding) {
       cancelRecommendationWork();
       specs = state.adding.kind === 'overlay' ? overlaySpecs(state.adding, state.initialEngine) : adjacentSpecs(state.initialEngine, state.adding, state.program);
+      research.proposals(specs,generation);
     } else if (state.phase === 'initial') {
       const profile = { ...state.profile, id: state.plotData };
       const result = await state.initialEngine.recommendAsync(state.rows, profile, { selection: state.selection,
         cancelled: () => generation !== state.generation, yieldFrame: tick });
       if (result.cancelled || generation !== state.generation) return;
+      research.slateResult(generation,{status:'generated',candidateCount:result.recommendations.length,evidence:result.diagnostics,modelVersion:result.model?.provenance?.generation});
       specs = result.recommendations.map(initialParameters);
+      research.proposals(specs,generation);
       elements.cards.dataset.ranking = 'selected-columns-similar-dataset-chart-frequency';
       elements.cards.dataset.neighborCount = result.neighbors.length;
       elements.cards.dataset.selectedFields = JSON.stringify(result.selectedFields);
@@ -1362,7 +1450,9 @@ async function updateCards() {
           // A streamed card is already interactive. Scroll/Apply can read its
           // gallery before the final batch arrives, so page state travels with
           // every partial result, not only the completed recommendation list.
+          research.slateResult(generation,{status:'update',candidateCount:response.result.recommendations.length,pageCount:response.pagination?.totalPages});
           const available = recommendationSpecs(response), row = restored.rows[0];
+          research.proposals(available,generation);
           for (let index = restored.cards.length; index < available.length; index++) {
             const card = await createCard(available[index], index);
             if (generation !== state.generation) return;
@@ -1379,6 +1469,7 @@ async function updateCards() {
       if (generation !== state.generation) return;
       if (response.cancelled) return;
       specs = recommendationSpecs(response);
+      research.proposals(specs,generation);
       pagination = response.pagination;
       pageCount = response.pagination.pageCount;
       if (restored) {
@@ -1424,6 +1515,7 @@ async function updateCards() {
             const response = await recommendationResponse(source.program, source.view, source.guideCall, deck.context, deck.group, page, deck.searchQuery);
             if (generation !== state.generation) return;
             specs = deck.specs = recommendationSpecs(response);
+            research.proposals(specs,generation);
             deck.pagination = response.pagination;
             deck.pageCount = response.pagination.complete ? response.pagination.pageCount : response.pagination.pageRanges.length + 1;
             for (const removed of rows.splice(deck.pageCount)) removed.remove();
@@ -1505,6 +1597,7 @@ function emptyActionsMessage() {
 
 async function commit(card, { direct = false, refresh = false } = {}) {
   if (state.loading || state.committing || card.base !== state.program) return;
+  if(!direct)research.begin('apply',{...research.refs(card),values:card.values});
   const datasetId = state.datasetId;
   clearTimeout(searchTimer); state.searchQuery = normalizeSearchQuery($('action-search').value);
   // Apply always uses the pinned settings, never a queued hover from a control
@@ -1565,8 +1658,8 @@ async function commit(card, { direct = false, refresh = false } = {}) {
     state.adding = null;
     if (before) resizeHistory.commit(before, historySnapshot(card.title), card.historyKey);
     else { resizeHistory.reset(); history.push(historySnapshot(card.title)); }
-    accountMenu?.record('apply', { method: recommendation.method, revision: history.index, group: state.optionGroup });
     scheduleSave();
+    research.finish('completed',{historyNode:history.activeId,calls:[...prerequisiteCalls,{method:recommendation.method,args:recommendation.args},...postActionCalls],prerequisiteCalls,postActionCalls,guideCall:state.guideCall});
     const committedProgram = state.program;
     // Invalidate an initial gallery that may still be filling, and remove the
     // entire old set before the chart starts moving. No stale cards remain clickable.
@@ -1610,6 +1703,7 @@ async function commit(card, { direct = false, refresh = false } = {}) {
     release();
     if (!direct || refresh || !mountedGallery) await updateCards();
   } catch (error) {
+    research.finish('failed',{reasonCode:error.reason??'invalid'});
     const unchanged = error.reason === 'no-change';
     const message = unchanged ? 'These settings are already applied.' : error.message;
     card.errorElement.textContent = message;
@@ -1641,7 +1735,7 @@ async function refreshSelection() {
   if (!history.entries.length) history.reset(snapshot);
   else if (history.entries[history.index]?.phase === 'initial') history.replace(snapshot);
   else history.push(snapshot);
-  if (!restoringProject && !switchingAccount) accountMenu?.record('selection', {count:selectionFields(state.selection).length});
+  if (!restoringProject && !switchingAccount) research.emit('navigation',{action:'selection',fields:selectionFields(state.selection),count:selectionFields(state.selection).length});
   updateHistoryButtons();
   showPreview(null);
   scheduleSave();
@@ -1698,7 +1792,7 @@ function flushSave() {
   } catch (error) { notice(`Could not save changes: ${error.message}`, true); }
   return savingDraft;
 }
-function scheduleSave() { return flushSave(); }
+function scheduleSave() { captureResearch(); return flushSave(); }
 addEventListener('pagehide', flushSave);
 function updateDatasetOptions() {
   const selected = state.datasetId;
@@ -1887,15 +1981,14 @@ function routePointer(event) {
   if (pointerChoice?.button !== button) {
     pointerChoice?.card.interaction.unhover(pointerChoice.button);
     pointerChoice = intent && !button.disabled ? { ...intent, button } : null;
-    if (pointerChoice) pointerChoice.card.interaction.hover(button, pointerChoice.draft());
+    if (pointerChoice) { const key=button.closest('[data-parameter]')?.dataset.parameter,values=pointerChoice.draft(); research.parameter(pointerChoice.card,key,pointerChoice.card.values[key],values[key],pointerChoice.definition,'pointer','hover');pointerChoice.card.interaction.hover(button, values); }
   }
   const slider = event.target.closest('.parameter-toggle') ? null : event.target.closest('.slider-control');
   sliderHover.move(slider, event, rangeIntents.get(slider));
 }
 
 function endResearchPreview() {
-  if (previewStartedAt && state.active) accountMenu?.record('preview_end', { method: state.active.method, duration: Math.round(performance.now() - previewStartedAt) });
-  previewStartedAt = 0;
+  research.endPreview();
 }
 function leaveGallery() {
   endResearchPreview();

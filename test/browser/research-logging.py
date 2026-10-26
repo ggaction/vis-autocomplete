@@ -39,7 +39,7 @@ with sync_playwright() as p:
   for field in ['Horsepower','Miles_per_Gallon','Origin']:page.get_by_role('button',name='Select column '+field,exact=True).click()
   card=page.locator('.card[data-method="createScatterPlot"]').first;expect(card).to_be_visible();card.locator('.card-top').hover();card.locator('.apply-button').click()
   expect(page.locator('#history')).to_have_attribute('aria-busy','false');page.locator('.app-header h1').hover()
-  page.locator('#action-search').fill('encodeOpacity');page.wait_for_function('document.querySelector("#cards").dataset.searchQuery==="encodeopacity"')
+  page.locator('#action-search').fill('encodeOpacity');expect(page.locator('#cards')).to_have_attribute('data-search-query','encodeopacity')
   card=page.locator('.card[data-method="encodeOpacity"]').first;expect(card).to_be_visible();card.locator('.card-top').hover()
   slider=card.locator('input[type=range]').first;expect(slider).to_be_visible();slider.focus();page.keyboard.press('End');page.keyboard.press('ArrowLeft')
   card.locator('.apply-button').click();expect(page.locator('#history')).to_have_attribute('aria-busy','false');page.locator('.app-header h1').hover()

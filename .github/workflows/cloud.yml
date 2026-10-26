@@ -60,6 +60,7 @@ jobs:
           node scripts/test-cloud-auth-browser.js
           python test/browser/guest-access.py --url http://127.0.0.1:5184
           python test/browser/research-logging.py --url http://127.0.0.1:5184
+          python test/browser/history-graph-app.py --url http://127.0.0.1:5184
           python test/browser/embedding.py --url http://127.0.0.1:5184
       - name: Docker build
         run: docker build -t vis-autocomplete-test .

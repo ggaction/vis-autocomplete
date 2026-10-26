@@ -1,5 +1,5 @@
 """History branches through the full editor with isolated guest auth transport."""
-import argparse, base64, json, time
+import argparse, base64, json, re, time
 from pathlib import Path
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, expect
@@ -37,7 +37,7 @@ with sync_playwright() as p:
    print('Applying',mode,method,flush=True)
    ready();page.locator('#group-'+group).click();page.locator('#action-search').fill(method)
    page.wait_for_function('(method)=>document.querySelector("#cards").dataset.searchQuery===method.toLowerCase()',arg=method)
-   page.wait_for_function('document.querySelector("#cards .card-row")?.getAttribute("aria-busy")==="false"')
+   page.wait_for_function('()=>document.querySelector("#cards .card-row")?.getAttribute("aria-busy")==="false"')
    card=page.locator(f'.card[data-method="{method}"]').first
    expect(card).to_be_visible();card.locator('.card-top').hover();expect(card.locator('.apply-button')).to_be_enabled();card.locator('.apply-button').click()
    ready();page.wait_for_timeout(250)
@@ -49,10 +49,10 @@ with sync_playwright() as p:
    scatter=page.locator('.card[data-method="createScatterPlot"]').first
    expect(scatter).to_be_visible();scatter.locator('.card-top').hover();scatter.locator('.apply-button').click();ready()
    apply('encodeOpacity');page.get_by_role('button',name='Graph View',exact=True).click()
-   page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="3"')
+   page.wait_for_function('()=>document.querySelector(".history-graph").dataset.nodeCount==="3"')
    project=saved();session=project['datasets'][0]['session'];old=session['graph']['activeId'];fork=session['graph']['nodes'][1]['id']
    page.locator(f'.history-graph-node[data-node-id="{fork}"]').click();ready()
-   apply('encodeSize');page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="4"')
+   apply('encodeSize');page.wait_for_function('()=>document.querySelector(".history-graph").dataset.nodeCount==="4"')
    session=saved()['datasets'][0]['session'];assert len(session['entries'])==4;new=session['graph']['activeId'];assert new!=old
    page.locator(f'.history-graph-node[data-node-id="{old}"]').click();ready()
    assert saved()['datasets'][0]['session']['graph']['activeId']==old
@@ -60,14 +60,14 @@ with sync_playwright() as p:
    page.locator(f'.history-graph-node[data-node-id="{new}"]').click();ready()
    page.keyboard.press('Control+z');ready();assert saved()['datasets'][0]['session']['graph']['activeId']==fork
    page.keyboard.press('Control+Shift+z');ready();assert saved()['datasets'][0]['session']['graph']['activeId']==new
-   apply('facet','encoding');page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="5"')
+   apply('facet','encoding');page.wait_for_function('()=>document.querySelector(".history-graph").dataset.nodeCount==="5"')
    # An abandoned branch and the chosen facet path both survive a real draft reload.
    before=saved()['datasets'][0]['session']['graph'];page.reload();page.wait_for_load_state('networkidle');ready()
    expect(page.get_by_role('button',name='Graph View',exact=True)).to_have_attribute('aria-pressed','true')
-   page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="5"')
+   page.wait_for_function('()=>document.querySelector(".history-graph").dataset.nodeCount==="5"')
    assert saved()['datasets'][0]['session']['graph']==before
    expect(page.locator('#current canvas').first).to_be_visible()
-   page.locator(f'.history-graph-node[data-node-id="{old}"]').hover();page.wait_for_function('document.querySelector("#code-mode").textContent.startsWith("History")')
+   page.locator(f'.history-graph-node[data-node-id="{old}"]').hover();page.wait_for_function('()=>document.querySelector("#code-mode").textContent.startsWith("History")')
    # Follow the real editor's preview state through node gaps. Neither mode
    # may request a Current frame between history previews, including re-entry.
    a=page.locator(f'.history-graph-node[data-node-id="{fork}"]').bounding_box()
@@ -83,13 +83,14 @@ with sync_playwright() as p:
    page.wait_for_timeout(230)
    trace=page.evaluate('modeObserver.disconnect();previewModes')
    assert trace and all(value.startswith('History #') for value in trace),trace
-   page.locator('.history-graph').hover(position={'x':4,'y':4});page.wait_for_function('!document.querySelector("#code-mode").textContent.startsWith("History")')
+   page.locator('.history-graph').hover(position={'x':4,'y':4});page.wait_for_function('()=>!document.querySelector("#code-mode").textContent.startsWith("History")')
+   expect(page.locator('#current')).not_to_have_class(re.compile(r'\btransition-active\b'))
    page.screenshot(path=str(out/f'app-{mode}.png'))
    page.get_by_role('button',name='Linear View',exact=True).click();expect(page.locator('.history-list .history-item')).to_have_count(4)
    # Changing the original field selection creates a new branch instead of losing authored charts.
    page.locator('.history-list .history-item').first.click();ready();page.get_by_role('button',name='Select column Acceleration',exact=True).click();ready()
    assert len(saved()['datasets'][0]['session']['entries'])==6
-   page.get_by_role('button',name='Graph View',exact=True).click();page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="6"')
+   page.get_by_role('button',name='Graph View',exact=True).click();page.wait_for_function('()=>document.querySelector(".history-graph").dataset.nodeCount==="6"')
    assert not errors,errors
    print('PASS full editor',mode,': Apply branch, exact code, keyboard undo/redo, facet, guest draft reload, saved mode, uninterrupted node hover, hover clear, variable-selection branch',flush=True)
   except Exception:

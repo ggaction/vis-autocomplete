@@ -64,12 +64,14 @@ with sync_playwright() as p:
    page.locator('#current').screenshot(path=str(out/f'{mode}-{kind}-{label.replace(" ","-")}-editing.png'))
    area.fill('Edited')
    area.press('Meta+Enter');area.press('X');expect(area).to_have_value('Edited\nX')
+   area.press('Control+Enter');area.press('Y');expect(area).to_have_value('Edited\nX\nY')
+   area.press('Shift+Enter');area.press('Z');expect(area).to_have_value('Edited\nX\nY\nZ')
    area.press('Escape');expect(page.locator('.canvas-text-editor')).to_have_count(0)
    area=open_target(kind,label,text)
    assert area.evaluate("e=>e.closest('.canvas-stage')!==null && getComputedStyle(e).backgroundColor==='rgba(0, 0, 0, 0)'")
    assert page.locator('.canvas-text-editor button').count()==0
    page.locator('#current').screenshot(path=str(out/f'{mode}-{kind}-{label.replace(" ","-")}-editing.png'))
-   area.fill('Edited');area.press('Control+Enter');area.press('X');page.get_by_role('button',name='Align text right',exact=True).click();expect(area).to_be_visible();area.press('Enter')
+   area.fill('Edited');area.press('Shift+Enter');area.press('X');page.get_by_role('button',name='Align text right',exact=True).click();expect(area).to_be_visible();area.press('Enter')
    expect(page.locator('.canvas-text-editor')).to_have_count(0,timeout=60000)
    expect(page.locator('#current-note')).to_have_text(f'Edit {label.lower()}',timeout=60000)
    page.locator('#current').screenshot(path=str(out/f'{mode}-{kind}-{label.replace(" ","-")}.png'))
@@ -114,7 +116,10 @@ with sync_playwright() as p:
  # IME Enter must not apply or add a newline.
  load('unit','transition');area=open_target('unit','Title');area.fill('한글')
  area.evaluate("e=>e.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))")
- area.press('Enter');expect(area).to_be_visible()
+ # Synthetic composition does not engage the OS IME. Dispatch its composing
+ # keydown directly, without Playwright inserting a normal textarea newline.
+ area.dispatch_event('keydown',{'key':'Enter','isComposing':True});expect(area).to_be_visible()
+ area.dispatch_event('keydown',{'key':'Enter','shiftKey':True,'isComposing':True});expect(area).to_have_value('한글')
  area.evaluate("e=>e.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))")
  area.press('Escape');expect(page.locator('.canvas-text-editor')).to_have_count(0)
  # Accepted text survives autosave and a complete application reload.
@@ -128,5 +133,5 @@ with sync_playwright() as p:
  page.locator('#code-content .code-call[data-method="editTitle"]').last.locator('summary').click()
  expect(page.locator('#code-content')).to_contain_text('Persisted title',timeout=10000)
  assert not errors,errors
- print('PASS: requested mode/chart cases plus IME, Enter, Cmd/Ctrl+Enter, Escape, Undo/Redo',flush=True)
+ print('PASS: requested mode/chart cases plus IME, Enter, Shift/Cmd/Ctrl+Enter, Escape, Undo/Redo',flush=True)
  browser.close()

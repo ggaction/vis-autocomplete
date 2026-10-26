@@ -6,7 +6,7 @@ Double-clicked text is edited at its rendered position, with its actual font,
 size, color, line spacing, rotation and viewport scale. A thin text-box outline
 replaces the floating dialog. The original Canvas glyphs are hidden only while
 the editor is open; the underlying program remains unchanged until commit.
-Enter applies, Cmd/Ctrl+Enter inserts a hard break, and Escape restores the
+Enter applies, Shift+Enter or Cmd/Ctrl+Enter inserts a hard break, and Escape restores the
 original text. IME composition does not submit. One accepted edit is one history
 transaction. Leaving the text box applies an accepted edit.
 

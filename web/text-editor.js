@@ -32,7 +32,7 @@ export function createTextEditor(host, callbacks) {
     panel.setAttribute('aria-label',`Edit ${target.label.toLowerCase()}`);
     const textarea=document.createElement('textarea');textarea.setAttribute('aria-label','Text');textarea.value=target.text;
     textarea.spellcheck=false;textarea.rows=1;
-    const hint=document.createElement('small');hint.textContent='Enter to apply · ⌘/Ctrl+Enter for a new line · Esc to cancel';
+    const hint=document.createElement('small');hint.textContent='Enter to apply · Shift/⌘/Ctrl+Enter for a new line · Esc to cancel';
     const error=document.createElement('div');error.className='text-edit-error';error.setAttribute('role','alert');
     panel.append(textarea,hint,error);stage.append(panel);
     const nativeLines=p.lines??[{text:p.text,x:0,y:0}];
@@ -70,7 +70,7 @@ export function createTextEditor(host, callbacks) {
       if(event.key==='Escape'){event.preventDefault();close();return;}
       if(event.key!=='Enter')return;
       event.preventDefault();
-      if(event.metaKey||event.ctrlKey){textarea.setRangeText('\n',textarea.selectionStart,textarea.selectionEnd,'end');layout();return;}
+      if(event.shiftKey||event.metaKey||event.ctrlKey){textarea.setRangeText('\n',textarea.selectionStart,textarea.selectionEnd,'end');layout();return;}
       if(performance.now()-compositionEnd<40)return;
       panel.requestSubmit();
     });

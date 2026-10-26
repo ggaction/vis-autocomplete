@@ -3,7 +3,7 @@
 ## Interaction
 
 - Double-click an individual visible text element to edit its complete string.
-- Enter applies; Cmd+Enter (Ctrl+Enter on non-Mac keyboards) inserts a newline; Escape cancels.
+- Enter applies; Shift+Enter or Cmd+Enter (Ctrl+Enter on non-Mac keyboards) inserts a newline; Escape cancels.
 - IME composition Enter only completes composition. Text is always literal, never HTML.
 - One accepted edit creates one history entry and uses public ggaction calls; Undo/Redo, saved projects, and exports retain it.
 - Picking is based on the rendered text bounds, including rotation and composition offsets. Text hit regions are resolved on demand, rather than adding one DOM element per label.

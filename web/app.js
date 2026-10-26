@@ -1199,12 +1199,6 @@ async function createCard(spec, index) {
     card.controlsElement.append(explanation);
   }
   element.append(button, apply, card.controlsElement);
-  if (card.score !== undefined) {
-    const score = document.createElement('p'); score.className = 'score-description';
-    score.textContent = `${card.scoreKind ? 'Similar-data score' : 'Co-occurrence score'} ${card.score.toFixed(4)}`;
-    if (card.original?.hierarchy?.promoted) score.title = `Co-occurrence of ${card.original.hierarchy.sourceMethod}; shown through ${card.original.sourceMethod ?? card.method}.`;
-    element.append(score);
-  }
   if (!card.disabled) {
     if (card.prepared) renderChart(card.thumbnail, card.prepared.preview, card.title);
     else await prepareCard(card, card.values, { interactive: false });

@@ -53,3 +53,30 @@ test('editing an existing multiline title retains the complete authored string',
  assert.ok(titles.every(t=>t.text==='One\n\nTwo'));
  assert.ok(editableTextTargets(p).filter(t=>t.label==='Subtitle').every(t=>t.text==='Sub\nline'));
 });
+
+test('annotation string and alignment edits keep the same owner through facets and adjacent charts',async()=>{
+ const {textAlignmentCall,editableTextBlock}=await import('../src/text-editing.js');
+ const {serializeProgram,deserializeProgram}=await import('ggaction/persistence');
+ for(const mode of ['unit','facet','adjacent']){
+  let p=scatter().createAnnotation({id:'note',data:'data',coordinate:'main',anchor:'plot-center',text:'Note',fontSize:20});
+  if(mode==='facet')p=p.facet({field:'g',columns:2});
+  if(mode==='adjacent')p=p.createAdjacentPlot({id:'right',source:'plot',position:'right',plot:{action:'createScatterPlot',options:{x:'x',y:'y'}}});
+  const t=editableTextTargets(p).find(t=>t.label==='Annotation');assert.ok(t,mode);
+  assert.equal(editableTextBlock(p,t).ids.length,1,'Separate facet copies stay separate editor surfaces');
+  const original=serializeProgram(p), action=textAlignmentCall(t,'right');
+  const result=prepareGuideEdits(p,p,[t.build('Note\nsecond line'),action]);
+  const edited=editableTextTargets(result.view).find(t=>t.text==='Note\nsecond line');assert.ok(edited);
+  assert.equal(edited.properties.textAlign,'right');
+  assert.equal(serializeProgram(p),original);
+  assert.deepEqual(deserializeProgram(serializeProgram(result.program)).graphicSpec,result.program.graphicSpec);
+ }
+});
+
+test('multiline title editing groups only the clicked block and masks every visible line',async()=>{
+ const {editableTextBlock}=await import('../src/text-editing.js');
+ const p=scatter().editTitle({text:'First\n\nLast'});
+ const t=editableTextTargets(p).filter(t=>t.label==='Title').at(-1),block=editableTextBlock(p,t);
+ assert.equal(block.ids.length,2);assert.equal(block.properties.lines[0].text,'First');
+ assert.ok(block.properties.lines.at(-1).y>block.properties.fontSize*2);
+ assert.equal(block.text,'First\n\nLast');
+});

@@ -7,7 +7,7 @@ const queued=new Set();
 let frame=0,scratch;
 function paint(canvas){
   const record=records.get(canvas);if(!record||!canvas.isConnected)return;
-  const {program,geometry,viewport}=record,host=canvas.parentElement;
+  const {geometry,viewport}=record,program=record.editingSurface??record.program,host=canvas.parentElement;
   // Pointer feedback only transforms the existing layer. Hold raster density
   // across native updates as well: reading/resizing each changing stage forces
   // layout and redraws an unchanged scene between worker results.
@@ -94,4 +94,21 @@ export function copyChartCanvas(source,host){
   const copy=document.createElement('canvas');copy.width=source.width;copy.height=source.height;
   copy.getContext('2d').drawImage(source,0,0);copy.style.cssText='width:100%;height:100%;object-fit:contain';
   host.replaceChildren(copy);return copy;
+}
+
+// Transient display-only mask: immutable authoring, exports and history retain
+// the original glyphs until the accepted public text action is committed.
+export function hideChartText(canvas, ids) {
+  const record=records.get(canvas);if(!record)return()=>{};
+  const selected=new Set(ids);
+  function hide(object,id){
+    if(selected.has(object.id??id))return {...object,properties:{...object.properties,opacity:0}};
+    if(!object.items)return object;
+    const items=object.items.map(item=>hide(item,item.id));
+    return items.some((item,i)=>item!==object.items[i])?{...object,items}:object;
+  }
+  const spec=record.program.graphicSpec;
+  record.editingSurface={graphicSpec:{...spec,objects:Object.fromEntries(Object.entries(spec.objects).map(([id,object])=>[id,hide(object,id)]))}};
+  record.painted=undefined;paint(canvas);
+  return ()=>{if(records.get(canvas)===record){delete record.editingSurface;record.painted=undefined;}};
 }

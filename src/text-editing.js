@@ -32,7 +32,7 @@ function textGraphics(program) {
       const bounds={left:local.left+dx,right:local.right+dx,top:local.top+dy,bottom:local.bottom+dy};
       if(clip && (bounds.right<clip.left || bounds.left>clip.right || bounds.bottom<clip.top || bounds.top>clip.bottom))continue;
       const unrotated=resolvePrimitiveGraphicBounds('text',{...item.properties,rotation:0},profile);
-      result.set(item.id,{bounds,properties:item.properties,offset:{x:dx,y:dy},unrotated});
+      result.set(item.id,{graphicRoot:id,bounds,properties:item.properties,offset:{x:dx,y:dy},unrotated});
     }
   }
   return result;
@@ -45,7 +45,8 @@ export function editableTextTargets(program) {
     const items=id=>{const object=p.graphicSpec.objects[id];return object?.items??(object?[{...object,id}]:[]);};
     const add=(id,text,build,label='Text')=>{
       const graphic=visible.get(mapId(id));
-      if(graphic)result.push({id:mapId(id),text,label,...graphic,build:value=>wrap(build(value))});
+      if(!graphic)return;
+      const target={id:mapId(id),text,label,...graphic,build:value=>wrap(build(value))};result.push(target);return target;
     };
     function legend(kind,config,legendWrap=wrap,legendMap=mapId) {
       const descriptor=describeLegendBlock(p,kind,config);
@@ -66,7 +67,10 @@ export function editableTextTargets(program) {
       });
     }
     if(!legendsOnly)for(const [id,key] of [['chartTitle','text'],['chartSubtitle','subtitle']]){
-      if(p.titleConfig)for(const item of items(id))add(item.id,p.semanticSpec.title?.[key]??item.properties.text,text=>call('editTitle',{[key]:text}),key==='text'?'Title':'Subtitle');
+      if(p.titleConfig)for(const item of items(id)){
+        const target=add(item.id,p.semanticSpec.title?.[key]??item.properties.text,text=>call('editTitle',{[key]:text}),key==='text'?'Title':'Subtitle');
+        if(target)target.lineHeight=(key==='subtitle'?p.titleConfig.subtitleLineHeight:undefined)??p.titleConfig.lineHeight??target.properties.fontSize*1.2;
+      }
     }
     if(p.compositionSpec && !p.compositionSpec.facet){
       const {children}=prepareCompositionSnapshots(p);
@@ -142,4 +146,44 @@ export function pickEditableText(program,x,y) {
     return localX>=u.left-2 && localX<=u.right+2 && localY>=u.top-2 && localY<=u.bottom+2;
   })
     .sort((a,b)=>(a.bounds.right-a.bounds.left)*(a.bounds.bottom-a.bounds.top)-(b.bounds.right-b.bounds.left)*(b.bounds.bottom-b.bounds.top))[0];
+}
+
+// String edits and style edits share the same semantic owner, including nested
+// composition selectors. Display strings never become graphic mutations.
+export function textAlignmentCall(target, align) {
+  if (!['left','center','right'].includes(align)) throw new Error('Choose left, center or right alignment.');
+  function style(action) {
+    const {method,args}=action;
+    if(method==='editFacetSource') {
+      const next=style({method:args.action.method,args:args.action.options});
+      return call(method,{...args,action:{method:next.method,options:next.args}});
+    }
+    const owner=Object.fromEntries(['target','channel','field','role'].filter(key=>args[key]!==undefined).map(key=>[key,args[key]]));
+    if(method==='editTitle')return call(method,{...owner,[Object.hasOwn(args,'subtitle')?'subtitleStyle':'titleStyle']:{align}});
+    if(method==='editLegendTitle'||method==='editLegendBlock')return call('editLegend',{...owner,[method==='editLegendTitle'?'titleStyle':'labels']:{align}});
+    if(method==='editParallelAxis')return call(method,{...owner,[args.title?'title':'labels']:{align}});
+    if(method==='editFacetHeaders'){
+      const value={align:{left:'start',center:'center',right:'end'}[align]};
+      return call(method,{...owner,...(args.title?{title:value}:value)});
+    }
+    return call(method==='encodeText'?'editTextMark':method,{...owner,align});
+  }
+  return style(target.build(target.text));
+}
+
+// A wrapped title/category may be materialized as several text children. Edit
+// the authored block once and hide all its lines, even when the last is clicked.
+export function editableTextBlock(program, target) {
+  const key=JSON.stringify(target.build(target.text));
+  const targets=editableTextTargets(program).filter(t=>t.graphicRoot===target.graphicRoot&&JSON.stringify(t.build(t.text))===key);
+  const first=targets[0], p=first.properties, angle=p.rotation??0;
+  if(targets.length===1&&!target.lineHeight)return {...target,ids:[target.id]};
+  const lines=targets.flatMap(t=>{
+    const dx=t.offset.x+t.properties.x-first.offset.x-p.x,dy=t.offset.y+t.properties.y-first.offset.y-p.y;
+    const x=dx*Math.cos(angle)+dy*Math.sin(angle),y=-dx*Math.sin(angle)+dy*Math.cos(angle);
+    return (t.properties.lines??[{text:t.properties.text,x:0,y:0}]).map(line=>({...line,x:x+line.x,y:y+line.y}));
+  });
+  const leading=target.text.match(/^(?:\r\n|\r|\n)+/)?.[0].split(/\r\n|\r|\n/).length-1;
+  if(leading>0&&target.lineHeight)lines.unshift({text:'',x:0,y:-leading*target.lineHeight});
+  return {...first,ids:targets.map(t=>t.id),properties:{...p,text:target.text,lines}};
 }

@@ -15,7 +15,9 @@ follow the existing selected-element/text-group scope, including Shift-selected
 groups. Alignment edits use public authoring actions and survive save, reload,
 Undo/Redo and exports. No release is part of this change.
 
-## Proposed native alignment completion (awaiting approval)
+## Approved native alignment completion
+
+Approved by the user: “이 API 확장으로 진행”. Annotation editing is explicitly included.
 
 Reuse the existing `align: 'left' | 'center' | 'right'` text-style vocabulary in
 owners that currently reject it:
@@ -48,6 +50,22 @@ program.editParallelAxis({ target: 'plot', field: 'Origin',
   labels, or one axis's labels). Editing an individual label's string remains
   independently keyed to its category/semantic identity.
 
-Implementation must include native declarations, inspection metadata, current
-contracts, public docs and tests, plus app tests across unit, facet and adjacent
-charts in both view modes, multiline/rotated text, zoom, IME and history.
+## Implementation and verification
+
+Native declarations, inspection metadata, current contracts and public docs now
+describe the same alignment options used by the editor. Annotation uses its
+existing `encodeText` / `editTextMark` owner; text plus alignment is committed as
+one history transaction, including inside facets and adjacent charts.
+
+Browser regression coverage runs 22 editing cases in Preview and Transition
+modes across ordinary, faceted, adjacent, polar, parallel-coordinate and bar
+charts. It includes rotated annotation, multiline titles with blank lines,
+custom line spacing, zoom and viewport changes, outside-click apply, IME,
+keyboard shortcuts, Undo/Redo and save/reload. Continuous numeric ticks and
+legend values remain read-only. Native tests cover alignment geometry,
+immutability, composition replay, TypeScript signatures and invalid values.
+
+Relevant checks are `test/browser/text-editing.py`, `test/text-editing.test.js`,
+`test/chart-typography.test.js`, `test/element-selection.test.js`, and the native
+`test/unit/actions/guides/text-style-alignment.test.js` and
+`test/contracts/polar-component-types.test.js` suites.

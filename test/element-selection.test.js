@@ -138,3 +138,14 @@ test('polar and parallel axis title selections retain their native per-axis scop
     for (const other of axes.slice(1)) assert.equal(selectedGuideTextTargets(next, [other.key])[0].config.fontSize, other.config.fontSize);
   }
 });
+
+test('alignment respects Shift-selected title and annotation scopes without editing other text',()=>{
+ const p=unit().createAnnotation({id:'note',data:'d',coordinate:'main',anchor:'plot-center',text:'Note'});
+ const targets=selectableGuides(p),annotation=targets.find(t=>t.kind==='annotation'),title=targets.find(t=>t.kind==='title'&&t.part==='titleStyle');
+ const next=edit(p,[annotation.key,title.key],{align:'right'});
+ assert.equal(next.titleConfig.titleStyle.align,'right');
+ assert.equal(next.markConfigs.note.align,'right');
+ assert.deepEqual(next.titleConfig.subtitleStyle,p.titleConfig.subtitleStyle);
+ assert.deepEqual(next.guideConfigs.legend,p.guideConfigs.legend);
+ assert.deepEqual(next.guideConfigs.axis,p.guideConfigs.axis);
+});

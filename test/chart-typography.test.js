@@ -113,3 +113,16 @@ test('rapid size steps preserve clamping and merge selected roles into one nativ
   assert.deepEqual(replay.createGuides(result.guideCall.args).graphicSpec,result.view.graphicSpec);
   assert.equal(p.guideConfigs.axis.x.labels.fontSize,95);
 });
+
+for(const [name,make] of Object.entries(cases))test(`${name}: alignment uses selected native text owners and survives history replay`,()=>{
+ const p=make(),before=serializeProgram(p);
+ for(const align of ['left','center','right']){
+  const result=prepareTypography(p,p,{align,groups:TEXT_GROUPS.map(g=>g.id)});
+  assert.ok(result.calls.length);
+  let replay=p;for(const c of result.calls)replay=replay[c.method](c.args);
+  replay=replay[result.guideCall.method](result.guideCall.args);
+  assert.deepEqual(replay.graphicSpec,result.view.graphicSpec);
+  assert.deepEqual(deserializeProgram(serializeProgram(result.program)).graphicSpec,result.program.graphicSpec);
+ }
+ assert.equal(serializeProgram(p),before);
+});

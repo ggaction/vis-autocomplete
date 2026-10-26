@@ -3,7 +3,7 @@ import { canvasGeometry } from './canvas-geometry.js';
 import { selectedGuideTextTargets } from '../src/guide-manipulation.js';
 
 const FONTS = ['Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Times New Roman', 'Courier New'];
-export function createTypographyToolbar(host, chartHost, { read, apply, onError, selection = () => [], clearSelection, selectLegendScope, canSelectLegendScope = () => true }) {
+export function createTypographyToolbar(host, chartHost, { read, apply, onError, selection = () => [], clearSelection, selectLegendScope, canSelectLegendScope = () => true, editing = () => null, alignEditing }) {
   let program, underlineProgram, underlineGeometry, highlightKey, underlineOverlay, items = [], selected = new Set(TEXT_GROUPS.map(g => g.id)), hovered = null, active = false, pending, timer, working = false;
   host.classList.add('typography-toolbar'); host.setAttribute('aria-label', 'Chart typography');
   const font = document.createElement('select'); font.id = 'chart-font'; font.setAttribute('aria-label', 'Chart font family'); font.title = 'Font family for the whole chart';
@@ -43,6 +43,26 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
   decrease.setAttribute('aria-label', 'Decrease selected font sizes'); increase.setAttribute('aria-label', 'Increase selected font sizes');
   size.type = 'number'; size.min = '6'; size.max = '96'; size.step = '1'; size.id = 'chart-font-size'; size.setAttribute('aria-label', 'Selected text font size'); size.title = 'Font size in chart pixels';
   sizeGroup.append(decrease, size, increase); host.append(font, menu, sizeGroup);
+  const alignment = document.createElement('div'); alignment.className = 'chart-text-alignment';
+  alignment.setAttribute('role', 'group'); alignment.setAttribute('aria-label', 'Text alignment');
+  for (const value of ['left', 'center', 'right']) {
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.textAlign = value;
+    button.setAttribute('aria-label', `Align text ${value}`); button.title = `Align text ${value}`;
+    // Simple line icons remain crisp at any display density.
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 16 16'); icon.setAttribute('aria-hidden', 'true');
+    for (const [y, width] of [[3,12],[6,8],[9,12],[12,8]]) {
+      const line = document.createElementNS(icon.namespaceURI, 'path');
+      const x = value === 'left' ? 2 : value === 'right' ? 14-width : 8-width/2;
+      line.setAttribute('d', `M${x} ${y}h${width}`); icon.append(line);
+    }
+    button.append(icon); alignment.append(button);
+    button.addEventListener('pointerdown', event => { if (editing()) event.preventDefault(); });
+    button.addEventListener('click', () => {
+      if (editing()) alignEditing(value); else request({ ...selectedScope(), align: value });
+    });
+  }
+  host.append(alignment);
   const selectedScope = () => {
     const chosen = selection();
     return chosen.length ? { elements: chosen.map(t => t.key) } : { groups: [...selected] };
@@ -116,8 +136,8 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
     const configs = direct ? selectedGuideTextTargets(program, elements.map(t => t.key)).map(t => t.config) : null;
     const chosen = [...selected].filter(group => present.has(group));
     const all = chosen.length === present.size && present.size > 0;
-    summary.textContent = direct ? elements.length === 1 ? elements[0].label : `${elements.length} selected`
-      : all ? 'All text' : chosen.length === 1 ? TEXT_GROUPS.find(g => g.id === chosen[0]).label : `${chosen.length} text groups`;
+    summary.textContent = editing()?.label ?? (direct ? elements.length === 1 ? elements[0].label : `${elements.length} selected`
+      : all ? 'All text' : chosen.length === 1 ? TEXT_GROUPS.find(g => g.id === chosen[0]).label : `${chosen.length} text groups`);
     summary.title = summary.textContent;
     scopes.hidden = !elements.some(t => t.legendPart); clear.hidden = !direct;
     for (const button of scopes.children) {
@@ -146,6 +166,12 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
     const stepsBlocked = !available || !sizes.length || state.loading || state.resizing || state.committing && !working;
     decrease.disabled = stepsBlocked || !working && !pending && sizes.every(value => value <= 6);
     increase.disabled = stepsBlocked || !working && !pending && sizes.every(value => value >= 96);
+    const aligns = [...new Set(editing() ? [editing().align]
+      : (configs ?? items.filter(item => selected.has(item.group))).map(item => item.align ?? item.textAlign))];
+    for (const button of alignment.children) {
+      button.disabled = editing() ? false : busy || !available || !sizes.length;
+      button.setAttribute('aria-pressed', String(aligns.length === 1 && aligns[0] === button.dataset.textAlign));
+    }
     highlight();
   }
   return { refresh, mount: highlight };

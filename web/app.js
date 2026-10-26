@@ -329,6 +329,7 @@ const guideEditor = createGuideEditor(elements.current, {
 });
 
 const textEditor = createTextEditor(elements.current, {
+  changed: () => typographyToolbar.refresh(),
   program: () => state.view,
   available: () => state.phase !== 'initial' && !transitionMode.active && !state.loading && !state.committing && !state.resizing,
   start(target) {
@@ -338,8 +339,8 @@ const textEditor = createTextEditor(elements.current, {
     updateHistoryButtons(); updateGalleryNavigation();
     return { base: state.program, view: state.view, guideCall: state.guideCall, title: `Edit ${target.label.toLowerCase()}` };
   },
-  async apply(context, action, current) {
-    const result = await calculations.guideEdits(context.base, context.view, context.guideCall, [action]);
+  async apply(context, calls, current) {
+    const result = await calculations.guideEdits(context.base, context.view, context.guideCall, calls);
     if (!current()) return;
     if (state.program !== context.base) throw new Error('The visualization changed. Double-click the text again.');
     commitGuideGroup({ ...context, groupResult: result });
@@ -378,15 +379,16 @@ const typographyToolbar = createTypographyToolbar($('chart-typography'), element
   read: () => state, apply: commitTypography, onError: message => notice(message, true),
   selection: guideEditor.selection, clearSelection: guideEditor.clearSelection, selectLegendScope: guideEditor.selectLegendScope,
   canSelectLegendScope: guideEditor.canSelectLegendScope,
+  editing: () => textEditor.selection, alignEditing: value => textEditor.align(value),
 });
 
 async function commitTypography(options) {
   if (state.loading || state.committing || state.resizing || state.phase === 'initial') return;
   leaveGallery(); historyView.clear({ restore: false }); historyInspection = null; cardMotion.finish();
   const scope = options.elements ? `elements:${JSON.stringify([...options.elements].sort())}` : `groups:${[...(options.groups ?? [])].sort().join(',')}`;
-  const key = `typography:${options.fontFamily ? 'family' : 'size'}:${scope}`;
+  const key = `typography:${options.fontFamily ? 'family' : options.align ? 'align' : 'size'}:${scope}`;
   const before = resizeHistory.begin(key), base = state.program;
-  const title = options.fontFamily ? `Font: ${options.fontFamily}` : 'Edit text sizes';
+  const title = options.fontFamily ? `Font: ${options.fontFamily}` : options.align ? `Align text ${options.align}` : 'Edit text sizes';
   const calls = typographyCalls(state.view, options);
   state.committing = true; elements.cards.inert = true; updateHistoryButtons();
   try {

@@ -25,6 +25,7 @@ export function chartTextTargets(program) {
     const add = (group, config, method, args, slot, source = false) => {
       if (!config) return;
       result.push({ group, config, call(style) {
+        if (method === "editFacetHeaders" && style.align) style = { ...style, align: { left: "start", center: "center", right: "end" }[style.align] };
         let call = { method, args: { ...args, ...(slot ? { [slot]: style } : style) } };
         // A facet's shared guide is owned by the facet container. A scoped
         // selector with an id would instead target its generated source mark.
@@ -131,11 +132,12 @@ export function textUnderlines(program, groups) {
   });
 }
 
-export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), elements, fontSize, delta, deltas, fontFamily }) {
+export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), elements, fontSize, delta, deltas, fontFamily, align }) {
   if (fontSize !== undefined && (!Number.isFinite(fontSize) || fontSize < 6 || fontSize > 96)) throw new Error('Font size must be between 6 and 96.');
   if (delta !== undefined && ![-1, 1].includes(delta)) throw new Error('Font size step must be −1 or +1.');
   if (deltas !== undefined && (!Array.isArray(deltas) || !deltas.every(n => [-1, 1].includes(n)))) throw new Error('Invalid font size steps.');
   if (fontFamily !== undefined && (typeof fontFamily !== 'string' || !fontFamily.trim())) throw new Error('Choose a font family.');
+  if (align !== undefined && !['left','center','right'].includes(align)) throw new Error('Choose left, center or right alignment.');
   const calls = [];
   if (fontFamily && !elements) {
     function themes(p, wrap = call => call) {
@@ -150,7 +152,7 @@ export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), 
   for (const target of elements ? selectedGuideTextTargets(program, elements) : chartTextTargets(program)) {
     if (!elements && !fontFamily && !groups.includes(target.group)) continue;
     const adjusted = () => (deltas ?? [delta]).reduce((size, step) => Math.max(6, Math.min(96, size + step)), target.config.fontSize ?? 12);
-    const style = fontFamily ? { fontFamily } : { fontSize: fontSize ?? adjusted() };
+    const style = align ? { align } : fontFamily ? { fontFamily } : { fontSize: fontSize ?? adjusted() };
     calls.push(target.call(style));
   }
   // One owner can expose several selected roles (axis labels + title, legend
@@ -159,7 +161,7 @@ export function typographyCalls(program, { groups = TEXT_GROUPS.map(g => g.id), 
   const identity = value => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
     return Object.fromEntries(Object.entries(value).flatMap(([key, child]) => {
-      if (['fontSize', 'fontFamily'].includes(key)) return [];
+      if (['fontSize', 'fontFamily', 'align'].includes(key)) return [];
       const next = identity(child);
       return next && typeof next === 'object' && !Array.isArray(next) && !Object.keys(next).length ? [] : [[key, next]];
     }));
@@ -186,7 +188,7 @@ export function prepareTypography(program, view, options) {
         if (!value || typeof value !== 'object') return value;
         if (Array.isArray(value)) return value.map(identity);
         return Object.fromEntries(Object.entries(value).flatMap(([key, child]) => {
-          if (['fontSize', 'fontFamily'].includes(key)) { style[key] = child; return []; }
+          if (['fontSize', 'fontFamily', 'align'].includes(key)) { style[key] = child; return []; }
           return [[key, identity(child)]];
         }));
       };

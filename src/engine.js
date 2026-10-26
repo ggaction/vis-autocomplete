@@ -14,7 +14,7 @@ import { createProgramResultCache } from './program-cache.js';
 import { prepareGuidedAction } from './prepare.js';
 import { optionGroup } from './recommendation-groups.js';
 import { variantPreference } from './parameter-defaults.js';
-import { createHierarchyProjection } from './action-hierarchy.js';
+import { createHierarchyProjection, createStyleHierarchyUsage, compareRecommendationPriority } from './action-hierarchy.js';
 import { createEncodingUsage, scaleEditorChannel } from './encoding-usage.js';
 
 const validations = new WeakMap();
@@ -167,6 +167,9 @@ function appliedActionMethods(program, layer) {
     if (!action) continue;
     // These use channel/resource ownership, not a method-name-only history map.
     if (scaleEditorChannel(action.method) || action.method === 'editScale') continue;
+    // The Style card edits the background. Layout fitting and direct resizing
+    // also use editCanvas, but do not constitute choosing that color editor.
+    if (action.method === 'editCanvas' && !Object.hasOwn(action.options ?? {}, 'background')) continue;
     const target = action.options?.target;
     if (target && layer && target !== layer.id && program.semanticSpec.layers.some(mark => mark.id === target)) continue;
     const method = action.method === 'encodePointRadius' ? 'encodeSize' : action.method;
@@ -212,6 +215,7 @@ export function createRecommendationEngine(model) {
       const encodingUsage = createEncodingUsage(program, context.layer);
       const appliedChannels = excludeAppliedEncodings ? encodingUsage.channels : [];
       const appliedMethods = deprioritizeAppliedActions ? appliedActionMethods(program, context.layer) : new Map();
+      const styleUsage = deprioritizeAppliedActions ? createStyleHierarchyUsage(program) : () => null;
       const features = extractFeatures(program, { target: context.layer?.id, data: context.profile.id,
         datasetType: options.datasetType ?? context.profile.datasetType });
       const groups = new Map();
@@ -242,9 +246,11 @@ export function createRecommendationEngine(model) {
         if (candidate.category === 'encoding' && establishedChannels.some(channel => candidate.feature === `encoding.${channel}`)) { exclude('established-channel'); continue; }
         if (candidate.category === 'encoding' && appliedChannels.includes(encodingChannel(candidate.method))) { exclude('applied-channel'); continue; }
         const channelOrder = deprioritizeAppliedActions ? encodingUsage.order(candidate) : undefined;
-        const methodOrder = appliedMethods.get(candidate.method);
+        const usage = styleUsage(candidate);
+        const methodOrder = usage ? usage.order : appliedMethods.get(candidate.method);
         const previouslyApplied = methodOrder !== undefined || channelOrder !== undefined;
         const appliedOrder = previouslyApplied ? Math.max(methodOrder ?? -1, channelOrder ?? -1) : null;
+        const appliedDepth = usage?.depth ?? 0, appliedAncestor = usage?.ancestor;
         if (program.compositionSpec?.facet && !candidate.compositionAction &&
             !['createTitle', 'editTitle'].includes(candidate.method) && !/^editLegend/.test(candidate.method)) {
           candidate = { ...candidate, sourceMethod: candidate.method, sourceTarget: candidate.args.target,
@@ -280,7 +286,7 @@ export function createRecommendationEngine(model) {
         coverage.eligible++;
         const key = JSON.stringify([candidate.method, candidate.sourceMethod ?? '', candidate.groupTarget ?? candidate.args.target ?? candidate.args.id ?? '', candidate.feature, optionGroup(candidate)]);
         if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push({ candidate, check, revision, previouslyApplied, appliedOrder });
+        groups.get(key).push({ candidate, check, revision, previouslyApplied, appliedOrder, appliedDepth, appliedAncestor });
       }
       const ranked = [];
       for (const [id, variants] of groups) {
@@ -289,7 +295,15 @@ export function createRecommendationEngine(model) {
         const preference = ({ candidate: c }) => variantPreference(method,
           c.method === 'editFacetSource' ? c.args.action.options : c.args, defaultEvidence);
         variants.sort((a, b) => preference(b) - preference(a));
-        const { candidate, check, revision, previouslyApplied, appliedOrder } = variants[0];
+        const { candidate, check, revision } = variants[0];
+        // One card can expose several owned channels (e.g. color and size
+        // legends). Its usage follows the chosen alternative even when corpus
+        // defaults keep another alternative first in the parameter editor.
+        const usage = variants.reduce((latest, variant) => variant.previouslyApplied &&
+          (!latest.previouslyApplied || variant.appliedOrder > latest.appliedOrder ||
+            variant.appliedOrder === latest.appliedOrder && variant.appliedDepth < latest.appliedDepth)
+          ? variant : latest, variants[0]);
+        const { previouslyApplied, appliedOrder, appliedDepth, appliedAncestor } = usage;
         // Optional revision extension: remove the replaced primitive before applying
         // the unchanged paper formula. It is OFF by default and clearly labeled.
         const anchors = revision ? features.filter(f => f !== candidate.feature) : features;
@@ -298,7 +312,7 @@ export function createRecommendationEngine(model) {
           id, method: candidate.method, args: structuredClone(candidate.args),
           call: callText(candidate), label: candidate.label, category: candidate.category,
           feature: candidate.feature, kind: revision ? 'revision' : 'addition',
-          previouslyApplied, appliedOrder,
+          previouslyApplied, appliedOrder, appliedDepth, appliedAncestor,
           defaultEvidence,
           // An eager issued token already passed native validation. Its editor
           // must preserve those arguments; the paged worker learns additional
@@ -346,9 +360,7 @@ export function createRecommendationEngine(model) {
       }
       // Keep used actions discoverable after unused actions without altering the
       // paper score. This is presentation order, shared by eager and paged UI.
-      ranked.sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) ||
-        (a.previouslyApplied ? a.appliedOrder - b.appliedOrder : 0) ||
-        b.score - a.score || a.id.localeCompare(b.id, 'en'));
+      ranked.sort(compareRecommendationPriority);
       const displayed = hierarchy ? createHierarchyProjection(ranked, options.authoringProgram ?? program).project() : ranked;
       if (hierarchy && !deferred) for (const recommendation of displayed) {
         const original = ranked.find(value => value.id === recommendation.id);

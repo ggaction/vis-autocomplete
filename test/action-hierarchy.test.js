@@ -124,7 +124,9 @@ test('native eager engine keeps descendant evidence and issues a single valid an
   const next = applyRecommendation(program, top);
   assert.equal(next.trace.children.length, program.trace.children.length + 1);
   assert.equal(next.trace.children.at(-1).op, 'editAxes');
-  assert.equal(engine.recommend(next, { ...options, group: 'style' }).recommendations[0].method, 'editYAxis');
+  const after = engine.recommend(next, { ...options, group: 'style' }).recommendations;
+  assert.equal(after.at(-1).method, 'editAxes');
+  assert.ok(after.findIndex(r => r.method === 'editYAxis') > after.findIndex(r => !r.previouslyApplied));
   assert.throws(() => engine.rank(program, { ...options, hierarchy: 'yes' }), /hierarchy/);
 });
 
@@ -144,7 +146,10 @@ test('worker promotes before pagination, only validates displayed calls, and sea
   assert.deepEqual(request().result.recommendations, first.result.recommendations);
   const prepared = prepareGuidedAction(program, first.defaults[0].action, program);
   state(2, prepared.authoringPreview);
-  assert.equal(request(2).result.recommendations[0].method, 'editYAxis');
+  let after = request(2);
+  assert.equal(after.result.recommendations[0].previouslyApplied, false, 'new Style actions precede the used axis family');
+  for (let page = 1; page < after.pagination.pageCount; page++) after = request(2, '', page);
+  assert.equal(after.result.recommendations.at(-1).method, 'editAxes');
   assert.equal(request().result.recommendations[0].method, 'editAxes', 'history stays immutable');
   let all = first;
   for (let page = 1; page < all.pagination.pageCount; page++) all = request(1, '', page);

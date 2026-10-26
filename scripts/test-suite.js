@@ -37,7 +37,12 @@ if (!Number.isInteger(shards) || shards < 1 || !Number.isInteger(shard) || shard
   !Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) throw new Error('Invalid test shard or concurrency configuration.');
 const jobs = discovered.filter((_, index) => index % shards === shard);
 if (!jobs.length) throw new Error('The test shard is empty.');
-if (process.argv.includes('--list')) { console.log(JSON.stringify(jobs)); process.exit(0); }
+if (process.argv.includes('--list')) {
+  // A growing test list can exceed the pipe buffer. Flush it before exiting so
+  // CI shard discovery always receives the complete JSON document.
+  await new Promise((resolve, reject) => process.stdout.write(`${JSON.stringify(jobs)}\n`, error => error ? reject(error) : resolve()));
+  process.exit(0);
+}
 console.log(`Test shard ${shard + 1}/${shards}: ${jobs.length}/${discovered.length} processes, concurrency ${concurrency}`);
 let cursor = 0, completed = 0, passed = 0, failed = 0;
 const run = job => new Promise(resolve => {

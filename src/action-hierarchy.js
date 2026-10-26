@@ -42,6 +42,14 @@ function ancestorMethods(method, visiting = new Set()) {
   return [...new Set((parents.get(method) ?? []).flatMap(parent => [...ancestorMethods(parent, next), parent]))];
 }
 const ancestors = new Map([...parents.keys()].map(method => [method, ancestorMethods(method)]));
+const familyMethods = new Set([...parents.keys(), ...Object.keys(ACTION_HIERARCHY)]);
+const distances = new Map([...familyMethods].map(method => {
+  const result = new Map([[method, 0]]), pending = [method];
+  for (const child of pending) for (const parent of parents.get(child) ?? []) {
+    if (!result.has(parent)) { result.set(parent, result.get(child) + 1); pending.push(parent); }
+  }
+  return [method, result];
+}));
 
 function axisTargets(action, program) {
   const { method, args } = action;
@@ -66,7 +74,7 @@ function matchingOwner(parent, child, program) {
   const a = parent.args, b = child.args;
   // Legend channels share a card's alternatives, but choosing color must not
   // unlock a different mark's size legend. Missing channel means all blocks.
-  if (/^editLegend/.test(parent.method) && a.channel && b.channel && a.channel !== b.channel) return false;
+  if (/^editLegend/.test(parent.method) && a.channel && a.channel !== 'all' && b.channel && a.channel !== b.channel) return false;
   const targetA = a.target ?? a.source ?? a.id, targetB = b.target ?? b.source ?? b.id;
   if (targetA === targetB) return true;
   if (/^(create|edit)Regression$/.test(parent.method) && targetA && targetB) {
@@ -76,12 +84,43 @@ function matchingOwner(parent, child, program) {
   return false;
 }
 
+// Authored calls, rather than nested implementation calls, define usage. An
+// ancestor Apply covers its descendants without pretending they were clicked:
+// their next-level editors still expand normally, but sit before that ancestor.
+export function createStyleHierarchyUsage(program) {
+  const history = new Map();
+  for (const [order, node] of program.trace.children.entries()) {
+    const action = { ...hierarchyAction({ method: node.op, args: node.args }), wrapped: false };
+    if (!familyMethods.has(action.method)) continue;
+    if (!history.has(action.method)) history.set(action.method, []);
+    history.get(action.method).push({ action, order });
+  }
+  return candidate => {
+    const action = { ...hierarchyAction(candidate), wrapped: false };
+    if (optionGroup(candidate) !== 'style' || !familyMethods.has(action.method)) return null;
+    let usage = { order: undefined, depth: 0 };
+    for (const [method, depth] of distances.get(action.method)) {
+      const record = history.get(method)?.findLast(record => matchingOwner(record.action, action, program));
+      if (record && (usage.order === undefined || record.order > usage.order)) {
+        usage = { order: record.order, depth, ...(depth ? { ancestor: method } : {}) };
+      }
+    }
+    return usage;
+  };
+}
+
+export function compareRecommendationPriority(a, b) {
+  return Number(a.previouslyApplied) - Number(b.previouslyApplied) ||
+    (a.previouslyApplied ? a.appliedOrder - b.appliedOrder || (b.appliedDepth ?? 0) - (a.appliedDepth ?? 0) : 0) ||
+    b.score - a.score || a.id.localeCompare(b.id, 'en');
+}
+
 function appliedTo(candidate, program) {
-  const action = hierarchyAction(candidate);
+  const action = { ...hierarchyAction(candidate), wrapped: false };
   // Only top-level authored actions count. A createGuides/createPlot action's
   // internal axis creation must not advance the user's editing hierarchy.
   return program.trace.children.some(node => {
-    const applied = hierarchyAction({ method: node.op, args: node.args });
+    const applied = { ...hierarchyAction({ method: node.op, args: node.args }), wrapped: false };
     return applied.method === action.method && matchingOwner(applied, action, program);
   });
 }
@@ -101,10 +140,11 @@ export function createHierarchyProjection(recommendations, program) {
     return applied.get(rec.id);
   };
   const choices = source => {
-    if (source.previouslyApplied || wasApplied(source)) return [source];
+    if ((source.previouslyApplied && !source.appliedAncestor) || wasApplied(source)) return [source];
     const action = hierarchyAction(source), found = [];
     for (const method of ancestors.get(action.method) ?? []) for (const candidate of byMethod.get(method) ?? []) {
-      if (optionGroup(candidate) !== optionGroup(source) || candidate.previouslyApplied || wasApplied(candidate)) continue;
+      if (optionGroup(candidate) !== optionGroup(source) ||
+          (candidate.previouslyApplied && !candidate.appliedAncestor) || wasApplied(candidate)) continue;
       if (matchingOwner(hierarchyAction(candidate), action, program)) found.push(candidate);
     }
     return [...found, source];

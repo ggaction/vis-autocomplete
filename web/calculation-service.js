@@ -12,7 +12,7 @@ import { graphicCost } from '../src/graphic-cost.js';
 import { profileDataset } from '../src/profile.js';
 import { recommendationParameters, valuesFor, buildRecommendationCall } from './parameters.js';
 import { filterActionRecommendations, normalizeSearchQuery } from '../src/action-search.js';
-import { createHierarchyProjection } from '../src/action-hierarchy.js';
+import { createHierarchyProjection, compareRecommendationPriority } from '../src/action-hierarchy.js';
 import { prepareGuideEdits } from '../src/guide-group.js';
 import { prepareTypography } from '../src/chart-typography.js';
 
@@ -181,7 +181,7 @@ export function createCalculationService(model) {
             const fieldTypes = Object.fromEntries(Object.entries(options?.fieldTypes ?? {}).filter(([name]) => names.has(name)));
             const ranked = engine.rank(localView, { ...localOptions, fieldTypes, sourceFieldTypes: options?.fieldTypes, group, hierarchy: false });
             original = rankings.set(rankingKey, { ...ranked, recommendations: [...compositionTitleRecommendations(ranked.recommendations, program, model, editing.scope?.all), ...compositionRecommendations(program, model, group)]
-              .sort((a, b) => Number(a.previouslyApplied) - Number(b.previouslyApplied) || (a.previouslyApplied ? a.appliedOrder - b.appliedOrder : 0) || b.score - a.score || a.id.localeCompare(b.id, 'en')) });
+              .sort(compareRecommendationPriority) });
           }
           const matches = filterActionRecommendations(original.recommendations, query);
           const ranked = { ...original, recommendations: matches, diagnostics: { ...original.diagnostics,

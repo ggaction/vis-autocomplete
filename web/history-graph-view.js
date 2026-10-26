@@ -13,7 +13,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   let layout = layoutHistoryGraph([]), current = null, activePath = new Set(), zoom = 1, busy = false;
   let shown = false, history = null, revision = -1, frame = null, hovered = null, serial = 0, painting = false, drag = null;
   let suppressedClick = false, graphRoot = null, pointer = null;
-  let nodeHeight = null, automaticZoom = true;
+  let nodeHeight = null, automaticZoom = true, leaveTimer = null;
   const toolbar = document.createElement('span'); toolbar.className = 'history-graph-tools'; toolbar.hidden = true;
   const tool = (label, text, run) => {
     const button = document.createElement('button'); button.type = 'button'; button.title = label; button.setAttribute('aria-label', label);
@@ -42,14 +42,27 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
       automaticZoom ? Math.max(0, node.row - 1) * (layout.nodeHeight + layout.gapY) * zoom
         : Math.max(0, (node.y + layout.nodeHeight / 2) * zoom - host.clientHeight / 2)); schedule();
   }
+  function cancelLeave() {
+    if (leaveTimer !== null) clearTimeout(leaveTimer);
+    leaveTimer = null;
+  }
+  function leaveBetweenNodes() {
+    // Match option-card gaps: hold the last preview while crossing an edge.
+    // Repeated movement in blank space must not postpone leaving indefinitely.
+    if (hovered === null || leaveTimer !== null) return;
+    leaveTimer = setTimeout(() => { leaveTimer = null; clear(); }, 180);
+  }
   function clear({ restore = true } = {}) {
+    cancelLeave();
     const previous = hovered; hovered = null; serial++; meta.textContent = '';
     for (const button of mounted.values()) button.classList.remove('inspecting');
     if (previous && restore) onLeave();
   }
   async function preview(id) {
-    if (busy || drag || hovered === id) return;
+    if (busy || drag) return;
     const node = layout.positions.get(id); if (!node) return;
+    cancelLeave();
+    if (hovered === id) return;
     clear({ restore: false }); hovered = id; const token = serial;
     mounted.get(id)?.classList.add('inspecting');
     meta.textContent = `#${node.ordinal} ${historyLabel(node.snapshot)}`;
@@ -102,7 +115,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     button.title = caption.textContent; button.setAttribute('aria-label', `History #${node.ordinal}: ${historyLabel(node.snapshot)}`);
     button.append(thumb, caption);
     button.addEventListener('pointerenter', event => { pointer = { x: event.clientX, y: event.clientY }; preview(node.id); });
-    button.addEventListener('pointerleave', () => { if (hovered === node.id) clear(); });
+    button.addEventListener('pointerleave', () => { if (hovered === node.id) leaveBetweenNodes(); });
     button.addEventListener('focus', () => preview(node.id));
     button.addEventListener('click', () => { if (!busy && !suppressedClick) { clear({ restore: false }); onJump(node.id); } });
     mounted.set(node.id, button); layer.append(button); return button;
@@ -150,10 +163,10 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     queuePaint();
     if (pointer && !drag) {
       const target = document.elementFromPoint(pointer.x, pointer.y)?.closest('.history-graph-node');
-      if (target && host.contains(target)) preview(target.dataset.nodeId); else if (zoom >= .5) clear();
+      if (target && host.contains(target)) preview(target.dataset.nodeId); else if (zoom >= .5) leaveBetweenNodes();
     }
   }
-  host.addEventListener('scroll', () => { clear(); schedule(); }, { passive: true });
+  host.addEventListener('scroll', () => { if (pointer && !drag) leaveBetweenNodes(); schedule(); }, { passive: true });
   host.addEventListener('wheel', event => {
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault(); const rect = host.getBoundingClientRect();
@@ -208,7 +221,12 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     schedule();
   }
   return {
-    clear, release() {}, move(event) { pointer = { x: event.clientX, y: event.clientY }; if (!event.target.closest('.history-graph-node') && !drag) clear(); },
+    clear, release() {}, move(event) {
+      pointer = { x: event.clientX, y: event.clientY };
+      const node = event.target.closest('.history-graph-node');
+      if (node && host.contains(node)) preview(node.dataset.nodeId);
+      else if (!drag) leaveBetweenNodes();
+    },
     refreshLayout,
     setVisible(value) { shown = value; toolbar.hidden = !value; host.hidden = !value; if (!value) { pointer = null; clear(); } else { refreshLayout(); centerCurrent(); } },
     update(next, locked) {
@@ -216,7 +234,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
       const changed = current !== history.activeId; current = history.activeId;
       const ids = history.pathIds; activePath = new Set(ids.slice(0, history.index + 1));
       const root = history.nodes[0]?.id;
-      if (graphRoot !== root) { graphRoot = root; thumbnails.clear(); revision = -1; }
+      if (graphRoot !== root) { clear(); graphRoot = root; thumbnails.clear(); revision = -1; }
       if (revision !== history.revision) { for (const button of mounted.values()) button.remove(); mounted.clear(); }
       refreshLayout(); if (shown && changed) centerCurrent(); schedule();
     },

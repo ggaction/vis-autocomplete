@@ -35,7 +35,9 @@ or replaying thousands of charts.
 
 ## Editing semantics
 
-- Hover previews; leaving restores the committed visualization. Click restores
+- Hover previews; crossing gaps holds the previous preview for 180ms so the next
+  node transitions directly from it. Sustained blank space or leaving the graph
+  restores the committed visualization. Re-entry cancels the pending return. Click restores
   the chosen state, its ggaction code, selections, and recommendation context.
 - Applying after Undo adds a child, preserving the abandoned future. Merely
   visiting a node does not create a node.

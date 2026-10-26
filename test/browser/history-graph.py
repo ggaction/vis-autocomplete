@@ -34,6 +34,29 @@ with sync_playwright() as p:
   old_node=page.locator(f'[data-node-id="{old}"]')
   old_node.hover();page.wait_for_function('harness.inspected?.calls.at(-1).method==="facet"')
   assert page.evaluate('harness.h.activeId')==active
+  # Travel through the actual blank edge between adjacent nodes. There must
+  # be no baseline callback, even when a paint or scroll happens in the gap.
+  fork=page.evaluate('harness.fork');fork_node=page.locator(f'[data-node-id="{fork}"]')
+  a=fork_node.bounding_box();b=old_node.bounding_box()
+  gap_x=(a['x']+a['width']+b['x'])/2;gap_y=b['y']+b['height']/2
+  def move_to(box):page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
+  page.evaluate('harness.previewEvents.length=0')
+  page.mouse.move(gap_x,gap_y);page.wait_for_timeout(65)
+  assert page.evaluate('harness.inspected!==null')
+  move_to(a);page.wait_for_function('harness.inspected?.currentNote==="Color · c"')
+  page.wait_for_timeout(230)
+  assert page.evaluate('harness.previewEvents.every(e=>e.type!=="leave")')
+  # Re-entering the same node must cancel its pending leave as well.
+  page.mouse.move(gap_x,gap_y);page.wait_for_timeout(50);move_to(a);page.wait_for_timeout(230)
+  assert page.evaluate('harness.inspected?.currentNote==="Color · c"')
+  assert page.evaluate('harness.previewEvents.every(e=>e.type!=="leave")')
+  move_to(b);page.wait_for_function('harness.inspected?.currentNote==="Facet · c"')
+  # A real exit is immediate; the cancelled gap timer cannot return later.
+  page.mouse.move(gap_x,gap_y);page.locator('#current').hover()
+  assert page.evaluate('harness.inspected===null')
+  page.wait_for_timeout(230)
+  assert page.evaluate('harness.previewEvents.filter(e=>e.type==="leave").length')==1
+  old_node.hover();page.wait_for_function('harness.inspected?.currentNote==="Facet · c"')
   page.locator('.history-graph').hover(position={'x':6,'y':6})
   page.wait_for_function('harness.inspected===null')
   old_node.click();page.wait_for_function('(id)=>harness.h.activeId===id',arg=old)
@@ -73,7 +96,7 @@ with sync_playwright() as p:
   assert page.locator('.history-graph-node').count()==0
   page.locator('.history-graph').dblclick(position={'x':200,'y':50});expect(page.locator('.history-graph')).to_have_attribute('data-zoom','1')
   assert not errors,errors
-  print('PASS graph/linear, two-row default, fixed half-size geometry and aspect ratio during zoom/resize, native thumbnails, hover/leave, branch jumps, undo/redo, roundtrip, zoom, scroll, 1005 nodes virtualized, account-free local preference reload')
+  print('PASS graph/linear, two-row default, fixed half-size geometry and aspect ratio during zoom/resize, native thumbnails, uninterrupted node-to-node hover, leave cancellation, branch jumps, undo/redo, roundtrip, zoom, scroll, 1005 nodes virtualized, account-free local preference reload')
  except Exception:
   page.screenshot(path=str(out/'failure.png'));print('Errors:',errors);raise
  finally:browser.close()

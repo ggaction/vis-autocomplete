@@ -68,6 +68,21 @@ with sync_playwright() as p:
    assert saved()['datasets'][0]['session']['graph']==before
    expect(page.locator('#current canvas').first).to_be_visible()
    page.locator(f'.history-graph-node[data-node-id="{old}"]').hover();page.wait_for_function('document.querySelector("#code-mode").textContent.startsWith("History")')
+   # Follow the real editor's preview state through node gaps. Neither mode
+   # may request a Current frame between history previews, including re-entry.
+   a=page.locator(f'.history-graph-node[data-node-id="{fork}"]').bounding_box()
+   b=page.locator(f'.history-graph-node[data-node-id="{old}"]').bounding_box()
+   gap=((a['x']+a['width']+b['x'])/2,b['y']+b['height']/2)
+   page.evaluate('''()=>{window.previewModes=[];const el=document.querySelector('#code-mode');
+    window.modeObserver=new MutationObserver(()=>previewModes.push(el.textContent));
+    modeObserver.observe(el,{childList:true,characterData:true,subtree:true});}''')
+   for box,ordinal in [(a,1),(b,2),(a,1),(a,1),(b,2)]:
+    page.mouse.move(*gap);page.wait_for_timeout(50)
+    page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
+    expect(page.locator('#code-mode')).to_have_text('History #'+str(ordinal))
+   page.wait_for_timeout(230)
+   trace=page.evaluate('modeObserver.disconnect();previewModes')
+   assert trace and all(value.startswith('History #') for value in trace),trace
    page.locator('.history-graph').hover(position={'x':4,'y':4});page.wait_for_function('!document.querySelector("#code-mode").textContent.startsWith("History")')
    page.screenshot(path=str(out/f'app-{mode}.png'))
    page.get_by_role('button',name='Linear View',exact=True).click();expect(page.locator('.history-list .history-item')).to_have_count(4)
@@ -76,7 +91,7 @@ with sync_playwright() as p:
    assert len(saved()['datasets'][0]['session']['entries'])==6
    page.get_by_role('button',name='Graph View',exact=True).click();page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="6"')
    assert not errors,errors
-   print('PASS full editor',mode,': Apply branch, exact code, keyboard undo/redo, facet, guest draft reload, saved mode, hover clear, variable-selection branch',flush=True)
+   print('PASS full editor',mode,': Apply branch, exact code, keyboard undo/redo, facet, guest draft reload, saved mode, uninterrupted node hover, hover clear, variable-selection branch',flush=True)
   except Exception:
    page.screenshot(path=str(out/f'app-failure-{mode}.png'));print('Errors:',errors);raise
   finally:context.close()

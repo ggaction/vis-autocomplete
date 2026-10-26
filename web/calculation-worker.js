@@ -29,7 +29,8 @@ self.addEventListener('message', async ({ data: { id, request } }) => {
           sentCards = value.result.recommendations.length;
         }
         // Let newer group/search/Apply requests run between native candidates.
-        await new Promise(resolve => setTimeout(resolve, 0));
+        if (globalThis.scheduler?.yield) await globalThis.scheduler.yield();
+        else await new Promise(resolve => setTimeout(resolve, 0));
       } while (true);
       self.postMessage({ id, value: stream(value) }); return;
     }

@@ -232,14 +232,18 @@ export function restoreSession(stored, rows, { lazy = false, current = null } = 
     trustedPacked.add(saved);
     const deferred = { stored: saved, result: null };
     const resolve = () => deferred.result ??= materialize(saved);
-    deferred.prepare = async () => {
+    deferred.prepare = () => {
       if (deferred.result) return;
-      const calls = [...saved.setupCalls, ...saved.calls];
-      for (const _ of replaySteps(calls)) {
-        // A distant history thumbnail may need a missing prefix after reload.
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
-      resolve();
+      deferred.pending ??= (async () => {
+        const calls = [...saved.setupCalls, ...saved.calls];
+        for (const _ of replaySteps(calls)) {
+          // Hover and thumbnail hydration share one pending replay after reload.
+          if (globalThis.scheduler?.yield) await globalThis.scheduler.yield();
+          else await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        resolve();
+      })().finally(() => { deferred.pending = null; });
+      return deferred.pending;
     };
     const entry = Object.freeze({ ...Object.fromEntries(metadataKeys.map(key => [key, saved[key]])),
       get calls() { return deferred.result?.calls ?? saved.calls; },

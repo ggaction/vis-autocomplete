@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureHistorySnapshot } from '../web/history.js';
-import { createProject, parseProject, restoreSession } from '../web/project.js';
+import { createProject, parseProject, restoreSession, prepareHistorySnapshot } from '../web/project.js';
 
 test('successive draft saves share immutable calls and only pack new history entries', () => {
   const state = { phase: 'recommendations', calls: [], setupCalls: [], context: {}, steps: 0,
@@ -40,4 +40,25 @@ test('restored branches retain shared calls while preserving independent history
   assert.equal(restored.entries[0].calls[0], restored.entries[2].calls[0]);
   assert.equal(restored.entries[0].setupCalls[0], restored.entries[2].setupCalls[0]);
   assert.notDeepEqual(restored.entries[1].program.graphicSpec, restored.entries[2].program.graphicSpec);
+});
+
+test('concurrent thumbnail and hover requests share a deferred project replay', async () => {
+  const previous = globalThis.scheduler;
+  let yields = 0;
+  globalThis.scheduler = { async yield() { yields++; await new Promise(resolve => setImmediate(resolve)); } };
+  const stored = { index: 0, entries: [{ phase: 'recommendations', steps: 1,
+    setupCalls: [{ method: 'createCanvas', args: { width: 500, height: 400 } },
+      { method: 'createData', args: { id: 'dataset', values: '__LOADED_DATA__' } }],
+    calls: [{ method: 'createScatterPlot', args: { id: 'plot', x: 'x', y: 'y' } }],
+    selection: { fields: ['x', 'y'] }, context: { target: 'plot' }, optionGroup: 'encoding' }] };
+  const restore = () => restoreSession(stored, [{ x: 1, y: 2 }], { lazy: true }).entries[0];
+  try {
+    const one = restore(); await prepareHistorySnapshot(one);
+    const single = yields; yields = 0;
+    const shared = restore();
+    await Promise.all([prepareHistorySnapshot(shared), prepareHistorySnapshot(shared), prepareHistorySnapshot(shared)]);
+    assert.equal(yields, single);
+    assert.ok(single > 0);
+    assert.deepEqual(shared.view.graphicSpec, one.view.graphicSpec);
+  } finally { if (previous === undefined) delete globalThis.scheduler; else globalThis.scheduler = previous; }
 });

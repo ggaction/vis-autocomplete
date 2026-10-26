@@ -48,3 +48,28 @@ test('packing runtime history preserves all public authoring calls without mater
   assert.deepEqual(packed.entries[0].setupCalls, entry.setupCalls);
   assert.ok(!('program' in packed.entries[0]));
 });
+
+test('metadata reads do not replay an evicted runtime, and concurrent preparation shares its replay', async () => {
+  const cache = createHistoryRuntimeCache(1), program = chart(), axes = { calls: [] };
+  let reads = 0;
+  const args = { get width() { reads++; return 500; }, height: 400 };
+  const entry = cache.capture({ setupCalls: [{ method: 'createCanvas', args }], calls: [] },
+    { program, view: program, selectionAxes: axes }, {});
+  cache.release(entry);
+  assert.equal(entry.selectionAxes, axes);
+  assert.equal(reads, 0, 'autosave metadata cannot compile graphics');
+  // Enough work to cross the cooperative replay deadline reliably.
+  Object.defineProperty(args, 'width', { get() {
+    reads++;
+    const until = performance.now() + 10;
+    while (performance.now() < until) { /* exercise an in-flight replay */ }
+    return 500;
+  } });
+  const first = cache.prepare(entry), second = cache.prepare(entry);
+  assert.equal(first, second);
+  await first;
+  const once = reads;
+  await cache.prepare(entry);
+  assert.equal(reads, once);
+  assert.equal(entry.program.graphicSpec.objects.canvas.properties.width, 500);
+});

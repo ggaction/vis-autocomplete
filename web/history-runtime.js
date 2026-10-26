@@ -48,18 +48,26 @@ export function createHistoryRuntimeCache(limit = 8) {
     capture(metadata, value, rows) {
       const entry = Object.freeze({ ...metadata,
         get program() { return resolve(entry).program; }, get view() { return resolve(entry).view; },
-        get selectionAxes() { return resolve(entry).selectionAxes; } });
+        // Metadata packing must never materialize an evicted historical chart.
+        get selectionAxes() { return records.get(entry).axes; } });
       // The selection-axis seed is small and shared across the dataset's edits.
       const record = { entry, rows, axes: value.selectionAxes };
       records.set(entry, record); remember(entry, record, value); return entry;
     },
-    async prepare(entry) {
+    prepare(entry) {
       const record = records.get(entry); if (!record) return;
       const cached = available(record); if (cached) { remember(entry, record, cached); return; }
-      const work = replay(entry, record); let deadline = performance.now() + 8;
-      for (let step = work.next(); !step.done; step = work.next()) if (performance.now() >= deadline) {
-        await new Promise(resolve => setTimeout(resolve, 0)); deadline = performance.now() + 8;
-      }
+      // Hover, thumbnails and navigation can request the same cold snapshot
+      // together. One replay owns it until completion, including across yields.
+      if (!record.pending) record.pending = (async () => {
+        const work = replay(entry, record); let deadline = performance.now() + 8;
+        for (let step = work.next(); !step.done; step = work.next()) if (performance.now() >= deadline) {
+          if (globalThis.scheduler?.yield) await globalThis.scheduler.yield();
+          else await new Promise(resolve => setTimeout(resolve, 0));
+          deadline = performance.now() + 8;
+        }
+      })().finally(() => { record.pending = null; });
+      return record.pending;
     },
     // Also useful when leaving a dataset: all authoring metadata is preserved.
     release(entry) { const record = records.get(entry); if (record) { hot.delete(entry); record.refs = {}; } },

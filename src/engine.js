@@ -209,7 +209,7 @@ export function createRecommendationEngine(model) {
       if (category && !['mark', 'encoding', 'transform', 'guide', 'style'].includes(category)) {
         throw new TypeError(`Unknown category: ${category}`);
       }
-      const context = { ...resolveContext(program, options), actionEvidence: model.actionEvidence };
+      const context = { ...resolveContext(program, options), actionEvidence: model.actionEvidence, group };
       const establishedChannels = excludeMappedChannels.filter(channel =>
         context.layer?.encoding?.[channel === 'r' ? 'radius' : channel]?.field);
       const encodingUsage = createEncodingUsage(program, context.layer);

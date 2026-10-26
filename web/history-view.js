@@ -9,21 +9,23 @@ import { prepareHistorySnapshot } from './project.js';
 function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump, meta }) {
   const nodes = new Map();
   const pending = new Map(), visible = new Set();
-  let paintQueued = false;
+  let paintQueued = false, shown = false;
   function queuePaint() {
-    if (paintQueued || !visible.size) return;
+    if (!shown || paintQueued || !visible.size) return;
     paintQueued = true;
     const paintOne = async () => {
+      if (!shown) { paintQueued = false; return; }
       const ready = [...visible].filter(button => pending.has(button) && button.isConnected);
       const button = ready.find(button => button.hasAttribute('aria-current')) ?? ready[0];
       if (!button) { paintQueued = false; return; }
       const { snapshot, thumb, label } = pending.get(button);
-      pending.delete(button);
       try {
         await prepareHistorySnapshot(snapshot);
-        if (button.isConnected) renderChart(thumb, historyPreview(snapshot), label);
+        if (!shown || !button.isConnected) { paintQueued = false; queuePaint(); return; }
+        await renderChart(thumb, historyPreview(snapshot), label);
       }
       catch (error) { thumb.textContent = 'Preview unavailable'; thumb.title = error.message; }
+      pending.delete(button);
       observer.unobserve(button); visible.delete(button);
       paintQueued = false;
       queuePaint();
@@ -77,6 +79,7 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
     } catch { /* Keep Current if an old preview cannot be restored. */ }
   }
   function clear({ restore = true } = {}) {
+    if (hovered === null && pointerX === null) return;
     const wasInspecting = hovered !== null;
     hovered = null; pointerX = null; meta.textContent = ''; host.classList.remove('is-scrubbing');
     for (const button of nodes.values()) button.classList.remove('inspecting');
@@ -113,6 +116,7 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
   });
 
   return {
+    setVisible(value) { shown = value; if (shown) queuePaint(); },
     clear,
     release,
     refreshLayout,
@@ -180,7 +184,7 @@ export function createHistoryView(host, options) {
   let mode = readViewPreference('vis-autocomplete.history-view') === 'graph' ? 'graph' : 'linear', history, busy = false;
   const active = () => mode === 'graph' ? graph : linear;
   function paintMode() {
-    linearHost.hidden = mode !== 'linear'; graph.setVisible(mode === 'graph'); host.dataset.historyView = mode;
+    linearHost.hidden = mode !== 'linear'; linear.setVisible(mode === 'linear'); graph.setVisible(mode === 'graph'); host.dataset.historyView = mode;
     for (const button of toggle.children) button.setAttribute('aria-pressed', String(button.dataset.view === mode));
     if (history) active().update(history, busy);
     active().refreshLayout();

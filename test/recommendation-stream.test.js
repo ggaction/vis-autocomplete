@@ -51,3 +51,21 @@ test('stream sends each preview once while retaining exact ordered defaults at e
   assert.equal(transferred, 5);
   const fresh = createRecommendationStream(); assert.equal(fresh({ defaults }).defaults.length, 5);
 });
+
+test('stream transfers parameter metadata once and preserves completed recommendation identities', () => {
+  const send = createRecommendationStream(), receive = collectRecommendationStream();
+  const recommendations = Array.from({ length: 15 }, (_, i) => ({ id: `card${i}`, args: { value: i },
+    parameters: [{ values: Array.from({ length: 1000 }, (_, n) => n) }] }));
+  let transferred = 0, previous = [];
+  for (const length of [10, 11, 12, 13, 14, 15, 15]) {
+    const response = { defaults: [], result: { recommendations: recommendations.slice(0, length) } };
+    const packet = structuredClone(send(response));
+    transferred += packet.result.recommendations.length;
+    const collected = receive(packet);
+    assert.deepEqual(collected, response);
+    previous.forEach((value, i) => assert.equal(collected.result.recommendations[i], value));
+    previous = collected.result.recommendations;
+    assert.deepEqual(receive(packet), response, 'receiving the final packet again must be idempotent');
+  }
+  assert.equal(transferred, 15, 'later pages must not resend all earlier parameter lists');
+});

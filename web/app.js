@@ -45,7 +45,7 @@ import { initializeHistoryShortcuts } from './history-shortcuts.js';
 import { createHistoryView } from './history-view.js';
 import { OPTION_GROUPS, FOLLOWUP_RECOMMENDATION_OPTIONS } from './option-groups.js';
 import { createCalculationClient } from './calculation-client.js';
-import { createLRU, createWeightedLRU } from '../src/cache.js';
+import { createLRU, createWeightedLRU, signature } from '../src/cache.js';
 import { graphicCost } from '../src/graphic-cost.js';
 import { actionTitle } from '../src/action-labels.js';
 import { normalizeSearchQuery } from '../src/action-search.js';
@@ -1197,6 +1197,15 @@ async function createCard(spec, index) {
     values: structuredClone(spec.values ?? valuesFor(spec.controls)), prepared: null, error: '', controls: spec.controls, controlElements: [], parameterButtons: [], controlRefreshers: [] };
   card.values = card.normalizeValues?.(card.values) ?? card.values;
   card.controls = card.resolveControls?.(card.values) ?? card.controls;
+  if (card.defaultView === card.view && card.defaultPrepared) {
+    const action = buildRecommendationCall(card, card.values), setup = card.setup?.(card.values) ?? [];
+    if (signature([action, setup]) === card.defaultSignature) {
+      // The worker already validated this exact endpoint. Dense previews can
+      // evict one another from its bounded cache before their cards mount.
+      card.prepared = card.defaultPrepared;
+      card.preparedSignature = JSON.stringify([action, setup]);
+    }
+  }
   research.candidate(card,index,state.generation);
   card.interaction = createPreviewInteraction({ readPinned: () => card.values,
     render: values => { if (!state.loading && !state.committing && !state.resizing && card.element.isConnected && card.base === state.program) card.preparePromise = prepareCard(card, values); },
@@ -1379,10 +1388,11 @@ function recommendationResponse(program = state.program, view = state.view, guid
     const remove = () => { if (cache.get(key) === entry) cache.delete(key); };
     entry.promise = calculations.recommend(program, view, guideCall, { ...context, fieldTypes: datasets.get(state.datasetId)?.imported.fieldTypes,
       ...FOLLOWUP_RECOMMENDATION_OPTIONS, excludeMethods: ['createOverlay', 'createLayerPlot'] }, group, page, searchQuery, response => {
+        response.preparedFor = view;
         entry.latest = response;
         touchGallery(view);
         for (const listener of entry.listeners) listener(response);
-      }).then(response => { if (response.cancelled) remove(); return response; })
+      }).then(response => { if (response.cancelled) remove(); return { ...response, preparedFor: view }; })
       .catch(error => { remove(); throw error; }).finally(() => {
         entry.settled = true; entry.listeners.clear();
         if (activeRecommendation === entry) activeRecommendation = null;
@@ -1396,13 +1406,24 @@ function recommendationResponse(program = state.program, view = state.view, guid
   return entry.promise;
 }
 
-function recommendationSpecs({ result, profile }) {
-  return result.recommendations.map((recommendation, i) => ({
-    ...recommendationParameters(recommendation, profile), original: recommendation,
-    method: recommendation.method, title: actionTitle(recommendation),
-    description: recommendation.args.field ? `Variable: ${recommendation.args.field}` : '',
-    rank: String(i + 1).padStart(2, '0'), score: recommendation.score,
-  }));
+const recommendationEditors = new WeakMap();
+function recommendationSpecs({ result, profile, defaults = [], preparedFor }) {
+  const prepared = new Map(defaults.map(entry => [signature([entry.action.method, entry.action.args]), entry]));
+  return result.recommendations.map((recommendation, i) => {
+    if (recommendationEditors.has(recommendation)) return recommendationEditors.get(recommendation);
+    const spec = {
+      ...recommendationParameters(recommendation, profile), original: recommendation,
+      method: recommendation.method, title: actionTitle(recommendation),
+      description: recommendation.args.field ? `Variable: ${recommendation.args.field}` : '',
+      rank: String(i + 1).padStart(2, '0'), score: recommendation.score,
+    };
+    const entry = prepared.get(signature([recommendation.method, recommendation.args]));
+    spec.defaultView = preparedFor;
+    spec.defaultSignature = entry && signature([entry.action, []]);
+    spec.defaultPrepared = entry?.prepared;
+    recommendationEditors.set(recommendation, spec);
+    return spec;
+  });
 }
 
 async function updateCards() {
@@ -1564,8 +1585,34 @@ async function updateCards() {
             // A size-only edit preserves this gallery's ranking and page
             // boundaries; new cards still prepare against the current program.
             const source = deck.rankingSource ?? deck;
-            const response = await recommendationResponse(source.program, source.view, source.guideCall, deck.context, deck.group, page, deck.searchQuery);
+            const row = rows[page];
+            if (!row) return;
+            // Stream every page into fixed slots. A slow fifth candidate must
+            // not keep four completed, usable cards invisible for seconds.
+            if (!row.childElementCount) row.replaceChildren(...Array.from({ length: 5 }, () => {
+              const space = document.createElement('div'); space.className = 'card-space';
+              space.setAttribute('aria-hidden', 'true'); return space;
+            }));
+            const start = deck.pagination.pageRanges[page - 1]?.end ?? page * 5;
+            let mounted = row.querySelectorAll('.card').length, pendingPage = Promise.resolve();
+            const progress = response => {
+              pendingPage = pendingPage.then(async () => {
+                if (generation !== state.generation) return;
+                const available = recommendationSpecs(response);
+                deck.specs = available;
+                for (let index = start + mounted; index < available.length; index++) {
+                  const card = await createCard(available[index], index);
+                  if (generation !== state.generation) return;
+                  if (card.base !== state.program) { rebaseCard(card); await prepareCard(card, card.values, { interactive: false }); }
+                  state.cards.push(card); row.children[mounted++].replaceWith(card.element);
+                }
+              });
+              pendingPage.catch(() => {});
+            };
+            const response = await recommendationResponse(source.program, source.view, source.guideCall, deck.context, deck.group, page, deck.searchQuery, progress);
+            await pendingPage;
             if (generation !== state.generation) return;
+            if (response.cancelled) return;
             specs = deck.specs = recommendationSpecs(response);
             research.proposals(specs,generation);
             deck.pagination = response.pagination;
@@ -1579,6 +1626,9 @@ async function updateCards() {
             }
             state.galleryRows = rows;
             updateGalleryNavigation();
+            if (row.isConnected) row.setAttribute('aria-busy', 'false');
+            pages.add(page);
+            continue;
           }
           if (!rows[page]) return;
           // Build a complete row before revealing it. Incremental flex children

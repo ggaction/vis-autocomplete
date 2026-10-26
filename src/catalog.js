@@ -21,14 +21,17 @@ import { localLegendPlacement } from '../vendor/ggaction/src/grammar/legendGroup
 import { canvasGeometry } from './canvas-geometry.js';
 export const ACTION_METHODS = PUBLIC_ACTION_METHODS;
 
-export function generateCandidates(program, { layer, profile, actionEvidence, regressionContext }) {
-  return focusMarkEditors(candidateRecipes(program, { layer, profile, actionEvidence, regressionContext })).map(candidate => ({
+export function generateCandidates(program, { layer, profile, actionEvidence, regressionContext, group }) {
+  return focusMarkEditors(candidateRecipes(program, { layer, profile, actionEvidence, regressionContext, group })).map(candidate => ({
     ...candidate, category: recommendationCategory(candidate),
   }));
 }
 
-function candidateRecipes(program, { layer, profile, actionEvidence, regressionContext }) {
-  const candidates = [...highlightCandidates(program, layer), ...overlayCandidates(program, layer), ...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile })];
+function candidateRecipes(program, { layer, profile, actionEvidence, regressionContext, group }) {
+  // Final-item inspection includes all geometry and row provenance. Encoding
+  // and Transform never display these Style actions, so do not inspect every
+  // point/path (and every facet cell) just to throw their candidates away.
+  const candidates = [...(!group || group === 'style' ? highlightCandidates(program, layer) : []), ...overlayCandidates(program, layer), ...ownedPositionCandidates(program, { layer, profile }), ...positionCandidates(program, { layer, profile }), ...facetCandidates(program, { layer, profile }), ...appearanceCandidates(program, { layer, profile }), ...extendedCandidates(program, { layer, profile })];
   // Corpus defaults already feed the parameter editors. A second opaque preset
   // card must not bypass the same mark's coordinate/grain-aware editor.
   const editors = new Set(candidates.filter(candidate => /^edit.*Mark$/.test(candidate.method))

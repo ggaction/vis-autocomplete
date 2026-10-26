@@ -10,6 +10,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   const layer = document.createElement('div'); layer.className = 'history-graph-nodes';
   host.append(stage, edges, layer);
   const mounted = new Map(), thumbnails = createLRU(80);
+  const snapshots = new WeakMap();
   let layout = layoutHistoryGraph([]), current = null, activePath = new Set(), zoom = 1, busy = false;
   let shown = false, history = null, revision = -1, frame = null, hovered = null, serial = 0, painting = false, drag = null;
   let suppressedClick = false, graphRoot = null, pointer = null;
@@ -56,6 +57,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   }
   function clear({ restore = true } = {}) {
     cancelLeave();
+    if (hovered === null) return;
     const previous = hovered; hovered = null; serial++; meta.textContent = '';
     for (const button of mounted.values()) button.classList.remove('inspecting');
     if (previous && restore) onLeave();
@@ -73,6 +75,17 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
       if (serial === token && hovered === id && shown && !busy) onPreview(node.snapshot, node.ordinal);
     } catch { /* The committed chart remains available. */ }
   }
+  function restoreThumbnail(button, snapshot) {
+    const thumb = thumbnails.get(snapshot), source = thumb?.querySelector('canvas');
+    if (!thumb || source && !source.dataset.paint) return false;
+    // Returning to an offscreen node only moves its raster, without restoring
+    // the native history program. Duplicate snapshots still get their own DOM.
+    const copy = thumb.isConnected ? thumb.cloneNode(true) : thumb;
+    if (source && copy !== thumb) copy.querySelector('canvas').getContext('2d').drawImage(source, 0, 0);
+    button.querySelector('.history-thumbnail').replaceWith(copy);
+    button.dataset.painted = 'true';
+    return true;
+  }
   function queuePaint() {
     if (painting || !shown) return;
     const button = [...mounted.values()].find(button => !button.dataset.painted && button.dataset.nodeId === current)
@@ -80,24 +93,16 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     if (!button) return;
     painting = true;
     const node = layout.positions.get(button.dataset.nodeId), snapshot = node.snapshot;
+    const valid = () => shown && button.isConnected && snapshots.get(button) === snapshot && layout.positions.get(node.id)?.snapshot === snapshot;
     const paint = async () => {
       try {
-        if (!shown || !button.isConnected) return;
-        let thumb = thumbnails.get(snapshot);
-        if (thumb?.querySelector('canvas') && !thumb.querySelector('canvas').dataset.paint) thumb = null;
-        if (!thumb) {
+        if (!valid()) return;
+        if (!restoreThumbnail(button, snapshot)) {
           await prepareHistorySnapshot(snapshot);
-          if (!shown || !button.isConnected || layout.positions.get(node.id)?.snapshot !== snapshot) return;
-          thumb = button.querySelector('.history-thumbnail');
+          if (!valid()) return;
+          const thumb = button.querySelector('.history-thumbnail');
           await renderChart(thumb, historyPreview(snapshot), historyLabel(snapshot));
           thumbnails.set(snapshot, thumb);
-        } else {
-          // Cached raster pixels may serve several states with the same snapshot;
-          // never move a live thumbnail out of another node.
-          const copy = thumb.cloneNode(true);
-          const source = thumb.querySelector('canvas'), canvas = copy.querySelector('canvas');
-          if (source && canvas) canvas.getContext('2d').drawImage(source, 0, 0);
-          button.querySelector('.history-thumbnail').replaceWith(copy);
         }
         button.dataset.painted = 'true';
       } catch (error) {
@@ -116,6 +121,8 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     caption.textContent = `${node.ordinal}. ${historyLabel(node.snapshot)}`;
     button.title = caption.textContent; button.setAttribute('aria-label', `History #${node.ordinal}: ${historyLabel(node.snapshot)}`);
     button.append(thumb, caption);
+    snapshots.set(button, node.snapshot);
+    restoreThumbnail(button, node.snapshot);
     button.addEventListener('pointerenter', event => { pointer = { x: event.clientX, y: event.clientY }; preview(node.id); });
     button.addEventListener('pointerleave', () => { if (hovered === node.id) leaveBetweenNodes(); });
     button.addEventListener('focus', () => preview(node.id));
@@ -238,7 +245,13 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
       const ids = history.pathIds; activePath = new Set(ids.slice(0, history.index + 1));
       const root = history.nodes[0]?.id;
       if (graphRoot !== root) { clear(); graphRoot = root; thumbnails.clear(); revision = -1; }
-      if (revision !== history.revision) { for (const button of mounted.values()) button.remove(); mounted.clear(); }
+      if (revision !== history.revision) {
+        const retained = new Map(history.nodes.map(node => [node.id, node.snapshot]));
+        for (const [id, button] of mounted) if (retained.get(id) !== snapshots.get(button)) {
+          button.remove(); mounted.delete(id);
+          if (hovered === id) clear();
+        }
+      }
       refreshLayout(); if (shown && changed) centerCurrent(); schedule();
     },
   };

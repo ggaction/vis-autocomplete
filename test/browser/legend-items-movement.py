@@ -65,11 +65,12 @@ with sync_playwright() as p:
 
     page.reload()
     page.wait_for_load_state('networkidle')
-    ready()
+    expect(page.locator('#dataset')).to_be_enabled(timeout=60000)
     for mode in ['preview', 'transition']:
         page.locator(f'#view-mode [data-mode="{mode}"]').click()
         for kind, steps in [('unit', 2), ('facet', 3)]:
-            ready()
+            if page.locator('#current canvas').count():
+                ready()
             page.locator('#project-file').set_input_files(str(out / f'pointer-{kind}.json'))
             expect(page.locator('#current')).to_have_attribute('data-steps', str(steps), timeout=60000)
             ready()

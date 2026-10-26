@@ -1,5 +1,5 @@
 import { selectableGuides, guideBounds, removeGuide, guideMoveHistoryKey } from '../src/guide-manipulation.js';
-import { manipulationTargets, manipulationCalls } from '../src/guide-group.js';
+import { manipulationTargets, manipulationCalls, guideDragTarget } from '../src/guide-group.js';
 import { removableChartPanels } from '../src/chart-removal.js';
 import { canvasGeometry } from './canvas-geometry.js';
 
@@ -238,10 +238,11 @@ export function createGuideEditor(host, callbacks) {
     event.preventDefault();event.stopPropagation();host.setPointerCapture(event.pointerId);
   });
   host.addEventListener('pointermove', event => {
-    if (press && press.pointerId === event.pointerId && (!press.shiftKey || selected.has(press.target.key)) && press.target.movable &&
+    const moveTarget = press && guideDragTarget(targets, selected, press.target);
+    if (press && press.pointerId === event.pointerId && (!press.shiftKey || selected.has(press.target.key)) && moveTarget.movable &&
         Math.hypot(event.clientX-press.clientX, event.clientY-press.clientY) >= 4) {
       const pending = press; press = null;
-      start(pending.target, 'move', pending);
+      start(moveTarget, 'move', pending);
     }
     if(gesture&&!gesture.ended&&gesture.pointer===event.pointerId)update(gesture,event.clientX,event.clientY);
   });

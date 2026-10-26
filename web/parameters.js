@@ -6,6 +6,7 @@ import { applyParameterDefaults } from '../src/control-defaults.js';
 import { defaultFacetColumns } from '../src/facet-layout.js';
 import { DEFAULT_TITLE_FONT_SIZE, DEFAULT_SUBTITLE_FONT_SIZE } from '../src/parameter-defaults.js';
 import { valueLabelParameters } from './value-label-parameters.js';
+import { legendDockLayout } from '../src/legend-docking.js';
 const select = (key, label, choices, value) => ({ key, label, type: 'select',
   choices: choices.map(v => typeof v === 'object' ? v : { value: v, label: v }), value });
 const numeric = (key, label, value, min, max, step = 1) => ({ key, label, type: 'number', value, min, max, step });
@@ -522,13 +523,24 @@ export function recommendationParameters(recommendation, profile) {
         { ...numeric('maxItems', 'Maximum entries', legendContext.overflow?.maxItems ?? Math.min(6, legendContext.itemCount ?? 6), 1,
           Math.max(1, legendContext.itemCount ?? 30)), when: v => !v.showAll, defaultPolicy: 'context' },
       ] }] : [])];
+    const dock = v => {
+      const contexts = v.channel === 'all' ? legendBlocks.map(block => block.context) : [legendContextFor(v)];
+      if (contexts.every(context => context.position === v.position)) return {};
+      const layouts = contexts.map(context => legendDockLayout(context.docking, v.position, v.itemGap));
+      const columns = layouts.map(layout => layout.columns).filter(Number.isFinite);
+      return { ...(layouts.every(layout => layout.direction) ? { direction: ['top', 'bottom'].includes(v.position) ? 'horizontal' : 'vertical' } : {}),
+        ...(columns.length === layouts.length ? { layout: 'edge', columns: Math.min(...columns), titlePosition: 'top' } : {}),
+        ...(v.channel === 'all' ? { blockLayout: ['top', 'bottom'].includes(v.position) ? 'wrap' : 'column' } : {}) };
+    };
     build = v => v.channel === 'all' ? {
       target: args.target, channel: 'all', position: v.position,
+      ...dock(v),
       // Choosing Both and moving it must not overwrite differing appearance.
       ...(v.legendEdits?.includes('fontSize') || v.fontSize !== valuesFor(controls).fontSize ? { labels: { fontSize: v.fontSize } } : {}),
       ...(v.legendEdits?.includes('itemGap') || v.itemGap !== valuesFor(controls).itemGap ? { itemGap: v.itemGap } : {}),
     } : ({ ...structuredClone(legendBlockFor(v)?.args ?? args),
       channel: v.channel, position: v.position,
+      ...dock(v),
       ...(legendContextFor(v).itemSpacing !== false ? { itemGap: v.itemGap } : {}), labels: { fontSize: v.fontSize },
       ...(legendContextFor(v).categorical ? { overflow: v.showAll ? false : { maxItems: v.maxItems, summary: 'ellipsis-count' } } : {}) });
   } else if (method === 'editGrid') {

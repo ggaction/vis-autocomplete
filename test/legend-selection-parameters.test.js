@@ -27,7 +27,10 @@ for (const continuous of [false,true]) test(`${continuous?'continuous':'categori
   assert.equal(e.controls[0].choices.find(c=>c.value==='all').label,'Both');
   for(const position of ['left','right','top','bottom','top-left','top-right','bottom-left','bottom-right']){
     const args=e.build({...v,position});
-    assert.deepEqual(args,{target:'plot',channel:'all',position});
+    assert.equal(args.target,'plot');assert.equal(args.channel,'all');assert.equal(args.position,position);
+    assert.equal(args.blockLayout,['top','bottom'].includes(position)?'wrap':'column');
+    assert.equal(args.direction,['top','bottom'].includes(position)?'horizontal':'vertical');
+    assert.equal(args.labels,undefined);assert.equal(args.itemGap,undefined);
     const prepared=prepareGuidedAction(p,{method:'editLegend',args,allowUnchanged:true});
     assert.equal(prepared.recommendation.validation.topLevelActions,1);
     const next=prepared.authoringPreview;

@@ -1,6 +1,6 @@
 import { findGraphic } from '../vendor/ggaction/src/grammar/schemas/graphicTree.js';
 import { resolveConcreteGraphicBounds } from '../vendor/ggaction/src/grammar/schemas/graphicBounds.js';
-import { axisGraphicIds, legendGraphicIds } from '../vendor/ggaction/src/materialization/guides/resources.js';
+import { axisGraphicIds, legendGraphicIds, resolveLegendAxisOffset } from '../vendor/ggaction/src/materialization/guides/resources.js';
 import { cartesianAxisOwners, axisTargetArgs } from '../vendor/ggaction/src/selectors/axes.js';
 import { legendBlockChannels, describeLegendBlock } from '../vendor/ggaction/src/grammar/legendBlocks.js';
 import { scopedCall } from './composition-context.js';
@@ -11,6 +11,8 @@ import { namespaceGraphicId } from '../vendor/ggaction/src/materialization/compo
 import { canvasGeometry } from './canvas-geometry.js';
 import { localLegendPlacement } from '../vendor/ggaction/src/grammar/legendGroups.js';
 import { restoreLegendItemsOffset } from '../vendor/ggaction/src/materialization/legendItemsOffset.js';
+import { legendDockMetrics, legendDockLayout } from './legend-docking.js';
+import { retainedFacetGuideIds, facetHeaderGraphicId } from '../vendor/ggaction/src/materialization/facetHeaders.js';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const round = n => Math.round(n * 4) / 4;
@@ -277,8 +279,11 @@ export function resizeGuide(target, factor) {
 }
 
 export function moveGuide(program, target, x, y, drag) {
-  if (target.childPath) return scopedCall(moveGuide(target.localProgram, target.localTarget, x - target.offset.x, y - target.offset.y, drag), [{ childPath: target.childPath }]);
-  if (target.facetTarget) return facetSourceCall(moveGuide(target.localProgram, target.facetTarget, x - target.offset.x, y - target.offset.y, drag));
+  if (target.childPath || target.facetTarget) {
+    const local = moveGuide(target.localProgram, target.localTarget ?? target.facetTarget, x - target.offset.x, y - target.offset.y, drag);
+    const call = target.childPath ? scopedCall(local, [{ childPath: target.childPath }]) : facetSourceCall(local);
+    return local.dockKey ? { ...call, dockKey: target.key } : call;
+  }
   if (target.kind === 'legend' && target.part === 'labels') return { method: 'editLegend', args: {
     target: target.editTargets ?? target.config.target, channel: target.channels[0], itemsOffset: {
       x: round((target.config.itemsOffset?.x ?? 0) + (drag?.dx ?? x - (target.bounds.left + target.bounds.right) / 2)),
@@ -296,12 +301,10 @@ export function moveGuide(program, target, x, y, drag) {
   const ny = (y - p.y - p.height / 2) / Math.max(1, p.height / 2);
   let position = Math.abs(nx) > Math.abs(ny) ? nx < 0 ? 'left' : 'right' : ny < 0 ? 'top' : 'bottom';
   const current = target.placement?.position ?? target.config.position;
-  const minimumOffset = side => target.editTargets && ['left', 'right', 'top', 'bottom'].includes(side)
-    ? 8 + compositionLegendEdgeClearance(p, prepareCompositionSnapshots(program).retainedBounds, side) : 0;
   if (target.kind === 'axis') position = target.channel === 'x' ? ny < 0 ? 'top' : 'bottom' : nx < 0 ? 'left' : 'right';
   // Pointer movement is relative to the grabbed guide, not its nearest edge.
   // A generous screen-space threshold prevents tiny drags from redocking it.
-  const fine = current && drag && (Math.hypot(drag.dx, drag.dy) < (drag.snapDistance ?? 48) || position === current);
+  const fine = current && drag && Math.hypot(drag.dx, drag.dy) < (drag.snapDistance ?? 48);
   if (fine) {
     position = current;
     const horizontal = ['top', 'bottom'].includes(position), near = ['top', 'left'].includes(position);
@@ -318,18 +321,25 @@ export function moveGuide(program, target, x, y, drag) {
       return target.facet ? { method: 'editFacetSource', args: { action: { method: action.method, options: action.args } } } : action;
     }
     const b = target.anchorBounds ?? guideBounds(restoreLegendItemsOffset(program), target.ids) ?? target.bounds;
+    // Consecutive moves replace one history call against the run's original
+    // program. Carry the current layout so a small nudge cannot restore the
+    // original side's columns or gradient orientation.
+    const layout = target.representation === 'gradient'
+      ? (target.config.gradientDirection ? { direction: target.config.gradientDirection } : {})
+      : target.family === 'opacity' ? {} : Object.fromEntries(['layout','direction','columns']
+        .filter(key => target.config[key] !== undefined).map(key => [key, target.config[key]]));
     if (position.includes('-')) {
       const top = position.startsWith('top'), left = position.endsWith('left');
       const offset = Math.max(0, round((top ? b.top-p.y : p.y+p.height-b.bottom) + (top ? drag.dy : -drag.dy)));
       const anchor = left ? p.x+offset : p.x+p.width-offset-(b.right-b.left);
       return { method: 'editLegend', args: { target: target.editTargets ?? target.config.target, channel: target.channels[0],
-        position, offset, alongOffset: round(b.left+drag.dx-anchor) } };
+        position, ...layout, offset, alongOffset: round(b.left+drag.dx-anchor) } };
     }
     const offset = position === 'right' ? b.left - p.x - p.width : position === 'left' ? p.x - b.right
       : position === 'top' ? p.y - b.bottom : b.top - p.y - p.height;
     const alongOffset = horizontal ? (b.left + b.right - 2*p.x - p.width)/2 : b.top - p.y;
     return { method: 'editLegend', args: { target: target.editTargets ?? target.config.target, channel: target.channels[0],
-      position, align: 'center', offset: Math.max(0, round(offset + deltaOut)), alongOffset: round(alongOffset + deltaAlong),
+      position, ...layout, align: 'center', offset: Math.max(0, round(offset + deltaOut)), alongOffset: round(alongOffset + deltaAlong),
       ...(target.config.titlePosition === undefined ? {} : { titlePosition: target.config.titlePosition }) } };
   }
   const along = ['top','bottom'].includes(position) ? (x-p.x)/p.width : (y-p.y)/p.height;
@@ -340,19 +350,34 @@ export function moveGuide(program, target, x, y, drag) {
     return target.facet ? { method: 'editFacetSource', args: { action: { method: action.method, options: action.args } } } : action;
   }
   if (target.kind === 'title') return { method: 'editTitle', args: { position, align, offset: 0, alongOffset: 0 } };
+  return dockLegend(program, target, position, align);
+}
+
+export function dockLegend(program, target, position, align = 'center', excludeKeys = new Set([target.key])) {
+  if (target.childPath || target.facetTarget) {
+    const local = dockLegend(target.localProgram, target.localTarget ?? target.facetTarget, position, align);
+    return { ...(target.childPath ? scopedCall(local, [{ childPath: target.childPath }]) : facetSourceCall(local)), dockKey: target.key };
+  }
+  const geometry = canvasGeometry(program);
+  const p = program.compositionSpec ? compositionPlotBounds(program)
+    : { x: geometry.x, y: geometry.y, ...geometry.plot };
   const args = { target: target.editTargets ?? target.config.target, channel: target.channels[0], position,
     align: ['left','right'].includes(position) ? 'center' : align,
-    ...(target.config.titlePosition === undefined ? {} : { titlePosition: target.config.titlePosition }) };
-  // Moving an inline horizontal title to a side requires native top placement.
-  if (target.config.titlePosition === 'left' && ['left','right'].includes(position)) args.titlePosition = 'top';
-  if (target.editTargets) {
-    // Dock a collected block against the whole composition at the drop point.
-    // A previous panel-relative offset is unrelated to this new edge.
-    const width = target.bounds.right - target.bounds.left, height = target.bounds.bottom - target.bounds.top;
-    args.offset = Math.max(minimumOffset(position), round(position === 'right' ? x - p.x - p.width - width / 2
-      : position === 'left' ? p.x - x - width / 2 : position === 'top' ? p.y - y - height / 2
-      : y - p.y - p.height - height / 2));
+    ...legendDockLayout(legendDockMetrics(program, target, p.width), position) };
+  // Snap to the occupied axis lane, not to the cursor's distance or an offset
+  // accumulated on another edge. Keep independently authored item offsets.
+  args.offset = target.editTargets ? 8 + compositionLegendEdgeClearance(p, prepareCompositionSnapshots(program).retainedBounds, position)
+    : resolveLegendAxisOffset(program, { ...target.config, position, layout: 'edge', inferredOffset: true, offset: 8 }, p);
+  if (program.compositionSpec?.facet) {
+    const ids = program.compositionSpec.children.flatMap(child => retainedFacetGuideIds(program, child)
+      .map(id => namespaceGraphicId(`${program.compositionSpec.id}-${child}`, id)));
+    ids.push(facetHeaderGraphicId(program.compositionSpec.id));
+    const retained = ids.map(id => guideBounds(program, [id])).filter(Boolean);
+    args.offset = 8 + compositionLegendEdgeClearance(p, retained, position);
   }
-  if (drag) args.alongOffset = 0;
-  return { method: 'editLegend', args };
+  const occupied = selectableGuides(program).filter(guide => guide.kind === 'legend' && !guide.part &&
+    !excludeKeys.has(guide.key) && (guide.placement?.position ?? guide.config.position) === position).map(guide => guide.bounds);
+  if (occupied.length) args.offset = Math.max(args.offset, 24 + compositionLegendEdgeClearance(p, occupied, position));
+  args.alongOffset = 0;
+  return { method: 'editLegend', args, dockKey: target.key };
 }

@@ -13,6 +13,11 @@ import { DEFAULT_TITLE_FONT_SIZE } from './parameter-defaults.js';
 import { recommendationCategory } from './recommendation-groups.js';
 import { regressionContext as inspectRegressionContext } from './regression-context.js';
 import { focusMarkEditors } from './mark-editor-policy.js';
+import { legendDockMetrics } from './legend-docking.js';
+import { legendGraphicIds } from '../vendor/ggaction/src/materialization/guides/resources.js';
+import { describeLegendBlock } from '../vendor/ggaction/src/grammar/legendBlocks.js';
+import { localLegendPlacement } from '../vendor/ggaction/src/grammar/legendGroups.js';
+import { canvasGeometry } from './canvas-geometry.js';
 export const ACTION_METHODS = PUBLIC_ACTION_METHODS;
 
 export function generateCandidates(program, { layer, profile, actionEvidence, regressionContext }) {
@@ -122,10 +127,15 @@ function candidateRecipes(program, { layer, profile, actionEvidence, regressionC
       const config = program.guideConfigs.legend?.[key] ?? Object.values(program.guideConfigs.legend ?? {})
         .find(value => value.target === target && (scales.includes(value.scale) || value.channels?.some(c => channels.includes(c))));
       const channel = channels[0];
+      const kind = Object.entries(program.guideConfigs.legend ?? {}).find(([, value]) => value === config)?.[0];
+      const placement = config && (localLegendPlacement(config) ?? program.guideConfigs.legendGroups?.[target]?.placement ?? config);
       add('editLegend', 'action.editLegend', 'guide', '기존 범례의 배치와 글자 수정',
         { target, channel, position: config?.position === 'top-right' ? 'right' : 'top-right',
           labels: { fontSize: config?.labels?.fontSize ?? 12 } }, inspectionTarget);
       candidates.at(-1).guideContext = { visibility: config?.visibility ?? {}, channel, title: legend.title ?? channel,
+        position: placement?.position,
+        docking: kind && legendDockMetrics(program, { ids: legendGraphicIds(kind), config, family: kind,
+          representation: describeLegendBlock(program, kind, config).family }, canvasGeometry(program)?.plotBounds?.width ?? canvasGeometry(program)?.plot.width),
         categorical: ['nominal', 'ordinal'].includes(encoding[channel]?.fieldType),
         sharedFacetLegend: Boolean(program.compositionSpec?.facet && program.compositionSpec.facet.guides.legend !== false),
         itemCount: program.resolvedScales[encoding[channel]?.scale]?.domain?.length ?? 1,

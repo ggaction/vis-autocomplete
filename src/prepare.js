@@ -298,6 +298,18 @@ function prepareUncached(program, action, view, setupCalls, repairs = {}) {
   };
   let prepared;
   try { prepared = prepareFittedPlot(actionBase, action, finish); } catch (error) {
+    if (error.details?.requiresExplicitCanvas && error.details.canvasOverflow &&
+        sourceAction.args.position && (repairs.guideCanvas ?? 0) < 3) {
+      // Explicit native group placement must not grow its own Canvas. Record
+      // the host's space allocation as an ordinary, replayable Canvas edit.
+      const geometry = canvasGeometry(actionBase), overflow = error.details.canvasOverflow;
+      const margin = Object.fromEntries(Object.entries(geometry.margin).map(([side,value]) =>
+        [side, Math.ceil(value + Math.max(0, overflow[side] ?? 0) + (overflow[side] > 0 ? 4 : 0))]));
+      const call = sourceCall('editCanvas', { plot: geometry.plot, margin });
+      const base = actionBase[call.method](call.args);
+      const fitted = prepareUncached(base, action, base, [], { ...repairs, guideCanvas: (repairs.guideCanvas ?? 0) + 1 });
+      return { ...fitted, prerequisiteCalls: [...prerequisiteCalls, call, ...fitted.prerequisiteCalls] };
+    }
     if (/^(In-plot legend(?: group)? does not fit|Horizontal legend block requires more plot width)/.test(error.message)) {
       // An explicit Show all or larger typography request must not silently
       // truncate entries or move the legend. Enlarge its containing plot via

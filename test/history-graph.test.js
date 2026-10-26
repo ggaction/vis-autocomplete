@@ -73,19 +73,91 @@ test('invalid graph references, cycles, duplicate IDs, roots and cursors are rej
   assert.throws(() => normalizeHistoryGraph(false, entries.length, index), /history graph/);
 });
 
-test('incremental layout stays stable and does not overlap for a thousand branched edits', () => {
+// Check actual orthogonal connector geometry, independently of row allocation.
+// Shared stems between siblings are intentional junctions, not crossings.
+function assertPlanar(layout) {
+  const edges = layout.items.filter(n => n.parentId !== null).map(node => {
+    const parent = layout.positions.get(node.parentId);
+    const x = parent.x + layout.nodeWidth, y = parent.y + layout.nodeHeight / 2;
+    const endY = node.y + layout.nodeHeight / 2, bend = x + 16;
+    return { from: parent.id, to: node.id, segments: [[x, y, bend, y], [bend, y, bend, endY], [bend, endY, node.x, endY]] };
+  });
+  function intersects(a, b) {
+    return Math.max(Math.min(a[0], a[2]), Math.min(b[0], b[2])) <= Math.min(Math.max(a[0], a[2]), Math.max(b[0], b[2])) &&
+      Math.max(Math.min(a[1], a[3]), Math.min(b[1], b[3])) <= Math.min(Math.max(a[1], a[3]), Math.max(b[1], b[3]));
+  }
+  for (let i = 0; i < edges.length; i++) {
+    const a = edges[i];
+    for (const b of edges.slice(i + 1)) {
+      if (a.from === b.from) continue;
+      assert.ok(!a.segments.some(s => b.segments.some(t => intersects(s, t))), `Edges ${a.from}→${a.to} and ${b.from}→${b.to} cross`);
+    }
+    for (const node of layout.items) {
+      assert.ok(!a.segments.some(([x1, y1, x2, y2]) => Math.max(x1, x2) > node.x && Math.min(x1, x2) < node.x + layout.nodeWidth &&
+        Math.max(y1, y2) > node.y && Math.min(y1, y2) < node.y + layout.nodeHeight), `Edge ${a.from}→${a.to} crosses node ${node.id}`);
+    }
+  }
+  assert.equal(new Set(layout.items.map(n => `${n.x},${n.y}`)).size, layout.items.length);
+}
+
+test('late branches stay beside their own subtree instead of crossing an intervening branch', () => {
+  const nodes = [
+    { id: 'root', parentId: null }, { id: 'a', parentId: 'root' }, { id: 'a1', parentId: 'a' },
+    { id: 'b', parentId: 'root' }, { id: 'b1', parentId: 'b' },
+  ];
+  const before = layoutHistoryGraph(nodes);
+  nodes.push({ id: 'a2', parentId: 'a' });
+  const after = layoutHistoryGraph(nodes);
+  assert.deepEqual(after.items.map(n => n.row), [0, 0, 0, 2, 2, 1]);
+  for (const id of ['root', 'a', 'a1']) assert.deepEqual(after.positions.get(id), before.positions.get(id));
+  for (const id of ['b', 'b1']) assert.equal(after.positions.get(id).y - before.positions.get(id).y, after.nodeHeight + after.gapY);
+  assertPlanar(after);
+  assert.deepEqual(after.items.map(n => n.id), nodes.map(n => n.id), 'chronological ordinals do not change');
+});
+
+test('a thousand branched edits only shift rows below insertion, without crossings or overlaps', () => {
   const h = createHistory(); h.reset({});
   for (let i = 0; i < 1000; i++) {
     const before = layoutHistoryGraph(h.nodes);
     if (i % 7 === 0) h.jump(h.nodes[Math.floor(i / 3)].id);
+    const parent = before.positions.get(h.activeId), descendants = new Set([parent.id]);
+    let insertionRow = parent.row + 1;
+    for (const node of before.items) if (descendants.has(node.parentId)) {
+      descendants.add(node.id); insertionRow = Math.max(insertionRow, node.row + 1);
+    }
+    const createsRow = descendants.size > 1;
     h.push({});
     const after = layoutHistoryGraph(h.nodes);
-    for (const node of before.items) assert.deepEqual([after.positions.get(node.id).x, after.positions.get(node.id).y], [node.x, node.y]);
+    for (const node of before.items) {
+      const expectedRow = node.row + Number(createsRow && node.row >= insertionRow), actual = after.positions.get(node.id);
+      assert.deepEqual([actual.x, actual.row], [node.x, expectedRow]);
+    }
   }
-  const layout = layoutHistoryGraph(h.nodes), positions = layout.items.map(n => `${n.x},${n.y}`);
-  assert.equal(new Set(positions).size, 1001); assert.equal(layout.nodeWidth, 75);
+  const layout = layoutHistoryGraph(h.nodes); assertPlanar(layout); assert.equal(layout.nodeWidth, 75);
   const restored = createHistory(), session = h.exportSession(); restored.restore(session.entries, session.index, session.graph);
   assert.deepEqual(restored.exportSession().graph, session.graph);
+  assert.deepEqual(layoutHistoryGraph(restored.nodes).items.map(n => [n.id, n.x, n.y]), layout.items.map(n => [n.id, n.x, n.y]));
+});
+
+test('interleaved sibling and nested branches remain planar regardless of preferred redo paths', () => {
+  let seed = 51237;
+  for (let tree = 0; tree < 8; tree++) {
+    const nodes = [{ id: '0', parentId: null }];
+    for (let i = 1; i < 200; i++) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      nodes.push({ id: String(i), parentId: String(seed % i) });
+    }
+    const layout = layoutHistoryGraph(nodes); assertPlanar(layout);
+    assert.deepEqual(layoutHistoryGraph(nodes.map(n => ({ ...n, preferredChildId: 'unused' }))).items.map(n => [n.x, n.y]), layout.items.map(n => [n.x, n.y]));
+  }
+});
+
+test('layout handles deep histories without recursion or unnecessary rows', () => {
+  const nodes = Array.from({ length: 20000 }, (_, i) => ({ id: String(i), parentId: i ? String(i - 1) : null }));
+  const layout = layoutHistoryGraph(nodes);
+  assert.equal(layout.items.length, nodes.length);
+  assert.equal(layout.height, 2 * layout.padding + layout.nodeHeight);
+  assert.ok(layout.items.every(n => n.row === 0));
 });
 
 

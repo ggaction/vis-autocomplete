@@ -83,6 +83,30 @@ with sync_playwright() as p:
   expect(page.locator('.history-list .history-item')).to_have_count(5)
   page.get_by_role('button',name='Graph View',exact=True).click();page.reload();page.wait_for_load_state('networkidle')
   expect(page.get_by_role('button',name='Graph View',exact=True)).to_have_attribute('aria-pressed','true')
+  # Revisit the upper branch after extending a lower one: a late branch must
+  # fit between them, not put its connector through the lower branch's edge.
+  ids=page.evaluate('''()=>{const lower=harness.h.activeId;
+   const first=harness.appendAt(harness.old,{method:'encodeOpacity',args:{target:'plot',value:.4}},'Facet opacity');
+   const lowerEnd=harness.appendAt(lower,{method:'encodeOpacity',args:{target:'plot',value:.4}},'Size opacity');
+   return {upper:harness.old,first,lower,lowerEnd};}''')
+  page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="7"')
+  def node_top(id):return page.locator(f'[data-node-id="{id}"]').evaluate('e=>parseFloat(e.style.top)/Number(e.closest(".history-graph").dataset.zoom)')
+  original={key:node_top(id) for key,id in ids.items()}
+  row_step=original['lower']-original['upper'];assert row_step>0
+  late=page.evaluate("harness.appendAt(harness.old,{method:'encodeSize',args:{target:'plot',value:64}},'Facet size')")
+  page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="8"')
+  page.get_by_role('button',name='Fit history graph',exact=True).click()
+  page.wait_for_function('document.querySelectorAll(".history-graph-node canvas[data-paint]").length===8')
+  # CSS serializes fractional positions with limited precision after zoom.
+  assert abs(node_top(late)-original['lower'])<.01
+  for key in ['upper','first']:assert abs(node_top(ids[key])-original[key])<.01
+  for key in ['lower','lowerEnd']:assert abs(node_top(ids[key])-original[key]-row_step)<.01
+  late_node=page.locator(f'[data-node-id="{late}"]');late_node.hover()
+  page.wait_for_function('harness.inspected?.currentNote==="Facet size"')
+  page.locator('#current').hover();page.screenshot(path=str(out/'graph-nested-branches.png'))
+  page.evaluate('harness.roundtrip()');page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="8"')
+  assert abs(node_top(late)-original['lower'])<.01
+  page.reload();page.wait_for_load_state('networkidle')
   page.evaluate('harness.stress()');page.wait_for_function('document.querySelector(".history-graph").dataset.nodeCount==="1005"')
   assert page.locator('.history-graph-node').count()<50
   page.locator('.history-graph').evaluate('(e)=>{e.scrollTop=0;e.scrollLeft=0}')
@@ -96,7 +120,7 @@ with sync_playwright() as p:
   assert page.locator('.history-graph-node').count()==0
   page.locator('.history-graph').dblclick(position={'x':200,'y':50});expect(page.locator('.history-graph')).to_have_attribute('data-zoom','1')
   assert not errors,errors
-  print('PASS graph/linear, two-row default, fixed half-size geometry and aspect ratio during zoom/resize, native thumbnails, uninterrupted node-to-node hover, leave cancellation, branch jumps, undo/redo, roundtrip, zoom, scroll, 1005 nodes virtualized, account-free local preference reload')
+  print('PASS graph/linear, two-row default, fixed half-size geometry and aspect ratio during zoom/resize, native thumbnails, uninterrupted node-to-node hover, leave cancellation, branch jumps, undo/redo, roundtrip, nested branch insertion, zoom, scroll, 1005 nodes virtualized, account-free local preference reload')
  except Exception:
   page.screenshot(path=str(out/'failure.png'));print('Errors:',errors);raise
  finally:browser.close()

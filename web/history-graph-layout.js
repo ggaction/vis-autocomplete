@@ -1,20 +1,33 @@
-// Stable horizontal/vertical history tree. First children continue the row;
-// each later branch claims the next free row. Existing nodes never move when
-// a branch grows. Creation order guarantees parents have already been placed.
+// Ordered horizontal/vertical tree: each subtree occupies contiguous rows.
+// First children continue their parent's row; later branches follow the whole
+// preceding subtree, so unrelated connectors cannot cross. Adding a branch
+// inserts one row and shifts only the rows below it. Extending a leaf moves no
+// existing nodes. Creation order guarantees parents precede their children.
 export function layoutHistoryGraph(nodes, { width = 75, height = 48, gapX = 32, gapY = 22, padding = 12 } = {}) {
-  const positions = new Map(), rows = new Map();
-  let lastRow = 0, maxDepth = 0;
+  const positions = new Map(), subtreeRows = new Map(), nextRows = new Map();
+  let rowCount = 0, maxDepth = 0;
   const items = nodes.map(node => {
     const parent = positions.get(node.parentId);
     const depth = parent ? parent.depth + 1 : 0;
-    let row = parent?.row ?? 0;
-    if (parent && rows.has(node.parentId)) row = ++lastRow;
-    if (parent) rows.set(node.parentId, true);
-    const item = { ...node, depth, row, x: padding + depth * (width + gapX), y: padding + row * (height + gapY) };
+    const item = { ...node, depth, x: padding + depth * (width + gapX) };
     maxDepth = Math.max(maxDepth, depth); positions.set(node.id, item); return item;
   });
+  // Count leaves bottom-up, then allocate sibling bands in creation order.
+  // Both passes are linear and iterative, including very deep histories.
+  for (let i = items.length - 1; i >= 0; i--) {
+    const node = items[i], span = Math.max(1, subtreeRows.get(node.id) ?? 0);
+    subtreeRows.set(node.id, span);
+    if (positions.has(node.parentId)) subtreeRows.set(node.parentId, (subtreeRows.get(node.parentId) ?? 0) + span);
+  }
+  for (const node of items) {
+    const parent = positions.get(node.parentId), span = subtreeRows.get(node.id);
+    node.row = parent ? nextRows.get(parent.id) ?? parent.row : rowCount;
+    node.y = padding + node.row * (height + gapY);
+    if (parent) nextRows.set(parent.id, node.row + span);
+    else rowCount += span;
+  }
   return { items, positions, width: padding * 2 + (nodes.length ? (maxDepth + 1) * (width + gapX) - gapX : 0),
-    height: padding * 2 + (nodes.length ? (lastRow + 1) * (height + gapY) - gapY : 0), nodeWidth: width, nodeHeight: height, gapY, padding };
+    height: padding * 2 + (nodes.length ? rowCount * (height + gapY) - gapY : 0), nodeWidth: width, nodeHeight: height, gapY, padding };
 }
 
 // Node geometry is measured once at half Linear View size. Fitting changes only

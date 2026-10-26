@@ -24,8 +24,14 @@ Captions retain readable type rather than scaling their font to 50%. The full
 caption is available on hover, focus, and in the History header. This keeps a
 compact overview while preserving the action's identity.
 
-Nodes retain their coordinates as new branches are added; there is no force
-simulation or layout animation. Wheel/trackpad scrolling and empty-space drag
+Each subtree occupies contiguous rows in branch creation order, keeping its
+connectors out of other subtrees. Continuing a leaf keeps every existing node in
+place. A later branch inserts one row immediately after its parent's existing
+subtrees; only rows below that insertion shift down by one node height plus gap.
+Horizontal positions and sibling order stay fixed. This avoids crossings with
+the smallest row shift that preserves these ordered subtree bands. Layout uses
+linear, iterative passes, stays identical after reload or Undo/Redo, and never
+runs a force simulation. Wheel/trackpad scrolling and empty-space drag
 pan the graph. Ctrl/Cmd + wheel or the +/− buttons zoom around the pointer or
 viewport center. The percentage button restores the two-row default, **Fit** shows the whole
 graph, and **Current** centers the active node without changing zoom. Below 50%,
@@ -80,4 +86,7 @@ The browser tests use native chart rendering. The editor test isolates Supabase
 transport in its test browser and makes no production writes. It exercises both
 Preview and Transition modes, branching Apply, keyboard Undo/Redo, facet,
 variable reselection, exact code restoration, and actual draft reloads. The graph
-fixture checks half-size base dimensions, two-row fit, unchanged aspect ratio across zoom/panel resizing, hover, scroll, zoom, and 1,005-node virtualization.
+fixture checks half-size base dimensions, two-row fit, unchanged aspect ratio
+across zoom/panel resizing, hover, nested branch insertion, scroll, zoom, and
+1,005-node virtualization. Geometry tests check connector crossings, node
+overlaps, and row movement across interleaved branches, plus a 20,000-node chain.

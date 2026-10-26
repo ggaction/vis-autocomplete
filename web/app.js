@@ -132,10 +132,10 @@ let lastPreview = null;
 const chartDownloads = initializeChartDownloads({ host: $('chart-exports'),
   getCurrent: () => state.phase === 'initial' ? null : { program: state.resizing ? state.view : renderedCharts.get(elements.current)?.program, name: state.name },
   isBusy: () => state.loading || state.committing || state.resizing, onError: message => notice(message, true) });
-let historyInspection = null;
+let historyInspection = null, historyInspectionNumber = null;
 const historyView = createHistoryView($('history'), {
-  renderChart: (host, program, label) => renderChartCanvas(host, program, label, { retain: false }), meta: $('history-meta'),
-  onPreview: snapshot => { historyInspection = snapshot; showPreview(null); },
+  renderChart: (host, program, label) => renderChartCanvas(host, program, label, { retain: false }), meta: $('history-meta'), controls: $('history-tools'),
+  onPreview: (snapshot, number = snapshot.steps) => { historyInspection = snapshot; historyInspectionNumber = number; showPreview(null); },
   onLeave: () => { historyInspection = null; showPreview(state.active); },
   onJump: index => restoreHistory(index),
 });
@@ -528,13 +528,14 @@ async function restoreHistory(direction) {
   resizeHistory.reset(); state.adding = null;
   clearSearch();
   historyView.clear({ restore: false }); historyInspection = null;
-  const snapshot = typeof direction === 'number' ? history.jump(direction) : history[direction]();
+  const previousNodeId = history.activeId;
+  const snapshot = ['undo', 'redo'].includes(direction) ? history[direction]() : history.jump(direction);
   if (!snapshot) { showPreview(state.active); return; }
   state.committing = true; updateHistoryButtons();
   pointerMotion.reset(); sliderHover.reset(); cancelChartTransfer();
   saveGallery();
   try { await prepareHistorySnapshot(snapshot); }
-  catch (error) { state.committing = false; updateHistoryButtons(); notice(error.message, true); return; }
+  catch (error) { history.jump(previousNodeId); state.committing = false; updateHistoryButtons(); notice(error.message, true); return; }
   const { program, view, selectionAxes: axes, currentNote, ...metadata } = snapshot;
   Object.assign(state, structuredClone({ ...metadata, calls: [], setupCalls: [] }),
     { program, view, calls: [...snapshot.calls], setupCalls: snapshot.setupCalls, selectionAxes: axes, active: null });
@@ -635,7 +636,7 @@ function showCode(card = null, { settleApplied = false } = {}) {
       ...(value.phase === 'initial' ? value.selectionAxes?.calls ?? [] : []),
       ...(value.guideCall ? [value.guideCall] : [])], state.name, state.rows.length);
     renderCode($('code-content'), code(state), code(snapshot), { setupCallCount: snapshot.setupCalls.length });
-    $('code-mode').textContent = `History #${snapshot.steps}`;
+    $('code-mode').textContent = `History #${historyInspectionNumber}`;
     $('code-content').dataset.previewMethod = '';
     return;
   }
@@ -662,9 +663,9 @@ function showPreview(card, { showCodeChange = true, duration } = {}) {
     showCode(showCodeChange?card:null);transitionMode.show(card, { duration });return;
   }
   if (historyInspection) {
-    renderChart(elements.preview, historyPreview(historyInspection), `History #${historyInspection.steps}`);
+    renderChart(elements.preview, historyPreview(historyInspection), `History #${historyInspectionNumber}`);
     $('preview-heading').textContent = 'History preview';
-    elements['preview-name'].textContent = `#${historyInspection.steps} ${historyLabel(historyInspection)}`;
+    elements['preview-name'].textContent = `#${historyInspectionNumber} ${historyLabel(historyInspection)}`;
     elements['preview-note'].textContent = ''; elements['preview-note'].title = '';
     showCode(); return;
   }
@@ -1634,9 +1635,12 @@ async function refreshSelection() {
   state.active = null;
   state.tableView?.update(state.selection);
   elements.current.dataset.traceCount = state.program.trace.children.length;
-  // An edited selection starts a new chart branch. Merely visiting History 0
-  // uses restoreHistory, so later snapshots remain available until this edit.
-  history.reset(historySnapshot());
+  // Keep existing chart branches when variables are changed after revisiting
+  // their starting state. Consecutive uncommitted field choices share one node.
+  const snapshot = historySnapshot('Variables');
+  if (!history.entries.length) history.reset(snapshot);
+  else if (history.entries[history.index]?.phase === 'initial') history.replace(snapshot);
+  else history.push(snapshot);
   if (!restoringProject && !switchingAccount) accountMenu?.record('selection', {count:selectionFields(state.selection).length});
   updateHistoryButtons();
   showPreview(null);
@@ -1653,7 +1657,7 @@ $('clear-search').addEventListener('click', () => {
 });
 
 function liveSession() {
-  return { entries: history.entries, index: history.index };
+  return history.exportSession();
 }
 function rememberDataset() {
   const record = datasets.get(state.datasetId);
@@ -1761,9 +1765,10 @@ async function activateDataset(record, { selection = { fields: [] }, restore = t
   state.optionGroup = 'encoding'; clearSearch();
   resetCodeView($('code-content')); updateDatasetOptions();
   if (session) {
-    const current = history.restore(session.entries, session.index);
+    const current = history.restore(session.entries, session.index, session.graph);
     await showSnapshot(current, onReady);
   } else {
+    history.clear();
     elements.current.dataset.steps = 0; elements.current.dataset.traceCount = state.base.trace.children.length;
     elements.current.dataset.lastMethod = '';
     mountDataTable(); elements['current-note'].textContent = ''; elements['current-note'].title = '';
@@ -1967,7 +1972,7 @@ initializePanelLayout({
   workspace: document.querySelector('.workspace'),
   panels: {
     history: { panel: $('history').closest('.history-section'), button: $('toggle-history'),
-      contents: [$('history'), $('history-meta')], label: 'history' },
+      contents: [$('history'), $('history-meta'), $('history-tools')], label: 'history' },
     code: { panel: $('code-content').closest('.code-panel'), button: $('toggle-code'),
       contents: [$('code-content'), $('code-mode'), document.querySelector('.code-tools')],
       label: 'ggaction Code' },

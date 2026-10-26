@@ -1,10 +1,12 @@
+import { createHistoryGraphView } from './history-graph-view.js';
+import { readViewPreference, writeViewPreference } from './view-preferences.js';
 import { OPTION_GROUPS } from './option-groups.js';
 import { historyLabel, historyPreview } from './history.js';
 import { prepareHistorySnapshot } from './project.js';
 
 // Mount each immutable snapshot once. Hovering and navigation only change the
 // cursor/highlight; they never rebuild thumbnails or run recommendation work.
-export function createHistoryView(host, { renderChart, onPreview, onLeave, onJump, meta }) {
+function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump, meta }) {
   const nodes = new Map();
   const pending = new Map(), visible = new Set();
   let paintQueued = false;
@@ -161,5 +163,39 @@ export function createHistoryView(host, { renderChart, onPreview, onLeave, onJum
       paintPinned();
       refreshLayout();
     },
+  };
+}
+
+// Both presentations operate on the same history cursor and snapshot cache.
+export function createHistoryView(host, options) {
+  const controls = options.controls ?? document.createElement('div');
+  const linearHost = document.createElement('div'); linearHost.className = 'history-list';
+  const graphHost = document.createElement('div'); graphHost.className = 'history-graph'; graphHost.hidden = true;
+  graphHost.setAttribute('aria-label', 'History graph; scroll to pan, Ctrl or Command plus wheel to zoom');
+  host.classList.remove('history-list'); host.classList.add('history-views'); host.append(linearHost, graphHost);
+  const linear = createLinearHistoryView(linearHost, options);
+  const graph = createHistoryGraphView(graphHost, { ...options, controls });
+  const toggle = document.createElement('span'); toggle.className = 'history-view-toggle'; toggle.setAttribute('role', 'group'); toggle.setAttribute('aria-label', 'History view');
+  controls.prepend(toggle);
+  let mode = readViewPreference('vis-autocomplete.history-view') === 'graph' ? 'graph' : 'linear', history, busy = false;
+  const active = () => mode === 'graph' ? graph : linear;
+  function paintMode() {
+    linearHost.hidden = mode !== 'linear'; graph.setVisible(mode === 'graph'); host.dataset.historyView = mode;
+    for (const button of toggle.children) button.setAttribute('aria-pressed', String(button.dataset.view === mode));
+    if (history) active().update(history, busy);
+    active().refreshLayout();
+  }
+  for (const [value, label] of [['linear', 'Linear View'], ['graph', 'Graph View']]) {
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.view = value; button.textContent = label;
+    button.addEventListener('click', () => {
+      if (mode === value) return;
+      active().clear(); mode = value; paintMode(); writeViewPreference('vis-autocomplete.history-view', mode);
+    }); toggle.append(button);
+  }
+  paintMode();
+  return {
+    clear(options) { active().clear(options); }, release() { linear.release(); graph.release(); },
+    move(event) { active().move(event); }, refreshLayout() { active().refreshLayout(); },
+    update(value, locked = false) { history = value; busy = locked; host.setAttribute('aria-busy', String(busy)); active().update(history, busy); },
   };
 }

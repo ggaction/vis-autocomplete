@@ -77,3 +77,12 @@ test('blocked browser storage still syncs preferences without breaking controls'
   const f = fixture(); const p = f.make('a', {}, { storage: { getItem() { throw Error('blocked'); }, setItem() { throw Error('blocked'); } } });
   p.setItem(key('view-mode'), 'transition'); await p.flush(); assert.equal(f.calls[0].patch.vis_view_mode, 'transition'); p.stop();
 });
+
+test('history view choice belongs to the account and survives a reload', async () => {
+  const f = fixture(), p = f.make('a', { vis_history_view: 'linear' });
+  p.setItem(key('history-view'), 'graph'); await p.flush(); p.stop();
+  assert.deepEqual(f.calls[0], { owner: 'a', patch: { vis_history_view: 'graph' } });
+  const reloaded = f.make('a', { vis_history_view: 'graph' });
+  assert.equal(reloaded.getItem(key('history-view')), 'graph'); reloaded.stop();
+  assert.equal(cleanViewPreference('history-view', 'unknown'), undefined);
+});

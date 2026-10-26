@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><title>History graph regression fixture</title>
+<link rel="stylesheet" href="/web/style.css">
+<script type="importmap">{"imports":{"ggaction":"/node_modules/ggaction/src/index.js","ggaction/inspection":"/node_modules/ggaction/src/inspection.js","ggaction/svg":"/node_modules/ggaction/src/renderers/svg.js","ggaction/scene":"/node_modules/ggaction/src/scene.js"}}</script>
+<style>body{padding:20px} .history-section{height:250px;width:100%;border:1px solid #dcdfe4;margin-top:16px} #current{width:700px;height:390px} #preview{width:700px;height:390px} #charts{display:flex} #code{height:80px;overflow:auto} .history-tools{max-width:650px}</style>
+</head><body><div id="charts"><div id="current"></div><div id="preview"></div></div><pre id="code"></pre>
+<div id="actions"><button id="opacity">Change opacity</button><button id="undo">Undo</button><button id="redo">Redo</button></div>
+<section class="history-section"><div class="history-heading"><h2>History</h2><div id="history-tools" class="history-tools"></div><span id="history-meta"></span></div><div id="history" class="history-list"></div></section>
+<script type="module">
+import { chart } from 'ggaction';
+import { captureHistorySnapshot, createHistory } from '/web/history.js';
+import { createHistoryView } from '/web/history-view.js';
+import { renderChartCanvas } from '/web/chart-canvas.js';
+import { createProject, restoreSession, prepareHistorySnapshot } from '/web/project.js';
+const rows=[{x:1,y:3,c:'A'},{x:3,y:2,c:'B'},{x:2,y:1,c:'A'}], h=createHistory();
+const setupCalls=[{method:'createCanvas',args:{plot:{width:240,height:200},margin:70}},{method:'createData',args:{id:'d',values:'__LOADED_DATA__'}}];
+let baseline=chart().createCanvas(setupCalls[0].args).createData({id:'d',values:rows});
+function snapshot(calls,note){let program=baseline;for(const call of calls)program=program[call.method](call.args);return captureHistorySnapshot({rows,setupCalls,calls,program,view:calls.length?program.createGuides():program,guideCall:calls.length?{method:'createGuides',args:{}}:null,steps:calls.length,phase:calls.length?'recommendations':'initial',selection:{fields:['x','y','c']},context:{},plotData:'d',optionGroup:'encoding'},note)}
+const calls=[{method:'createScatterPlot',args:{id:'plot',data:'d',x:'x',y:'y'}}];
+h.reset(snapshot([],'Variables'));h.push(snapshot(calls,'Scatter plot'));
+h.push(snapshot([...calls,{method:'encodeColor',args:{target:'plot',field:'c'}}],'Color · c'));
+const fork=h.activeId;
+h.push(snapshot([...h.entries[h.index].calls,{method:'facet',args:{field:'c',data:'d',columns:2}}],'Facet · c'));
+const old=h.activeId;
+h.jump(fork);h.push(snapshot([...h.entries[h.index].calls,{method:'encodeSize',args:{target:'plot',value:100}}],'Size · 100'));
+const current=document.querySelector('#current'),preview=document.querySelector('#preview'),code=document.querySelector('#code');
+let inspected=null;
+function paint(){const s=h.entries[h.index];renderChartCanvas(current,s.view,'Current');code.textContent=JSON.stringify(s.calls);view.update(h);localStorage.setItem('history-graph-fixture',JSON.stringify(h.exportSession().graph));}
+const view=createHistoryView(document.querySelector('#history'),{renderChart:(host,p,label)=>renderChartCanvas(host,p,label,{retain:false}),controls:document.querySelector('#history-tools'),meta:document.querySelector('#history-meta'),onPreview:s=>{inspected=s;renderChartCanvas(preview,s.view,'Preview');code.textContent=JSON.stringify(s.calls);},onLeave:()=>{inspected=null;preview.replaceChildren();code.textContent=JSON.stringify(h.entries[h.index].calls)},onJump:id=>{h.jump(id);paint();}});
+document.querySelector('#history').addEventListener('pointermove',e=>view.move(e));
+document.querySelector('#history').addEventListener('pointerleave',()=>view.clear());
+document.querySelector('#opacity').onclick=()=>{const s=h.entries[h.index];const action={method:'encodeOpacity',args:{target:'plot',value:.4}};h.push(snapshot([...s.calls,s.calls.some(c=>c.method==='facet')?{method:'editFacetSource',args:{action:{method:action.method,options:action.args}}}:action],'Opacity · 0.4'));paint()};
+document.querySelector('#undo').onclick=()=>{h.undo();paint()};document.querySelector('#redo').onclick=()=>{h.redo();paint()};
+window.harness={h,view,old,fork,paint,get inspected(){return inspected},async roundtrip(){const record={id:'d',name:'Fixture',imported:{rows},session:h.exportSession()};const project=createProject([record],'d');const session=restoreSession(JSON.parse(JSON.stringify(project)).datasets[0].session,rows,{lazy:true});h.restore(session.entries,session.index,session.graph);await prepareHistorySnapshot(h.entries[h.index]);paint();},stress(){for(let i=0;i<1000;i++){if(i%6===0)h.jump(fork);h.push(h.entries[h.index]);}paint()}};
+paint();
+</script></body></html>

@@ -36,15 +36,19 @@ test('history restores immutable native chart states, final guides and original 
   assert.equal(first.view.semanticSpec.layers[0].encoding.color, undefined);
 });
 
-test('a new Apply after Undo discards the abandoned branch, and dataset reset clears both directions', () => {
+test('a new Apply after Undo selects the new branch while retaining the old branch', () => {
   const h = createHistory(), initial = {}, plot = {}, color = {}, size = {};
   h.reset(initial); h.push(plot); h.push(color);
+  const oldBranch = h.activeId;
   assert.equal(h.undo(), plot);
   h.push(size);
   assert.equal(h.canRedo, false);
   assert.equal(h.redo(), null);
   assert.equal(h.undo(), plot);
   assert.equal(h.redo(), size);
+  assert.equal(h.nodes.length, 4);
+  assert.equal(h.jump(oldBranch), color);
+  assert.deepEqual(h.entries, [initial, plot, color]);
   h.reset({ dataset: 'another' });
   assert.equal(h.canUndo, false); assert.equal(h.canRedo, false);
 });

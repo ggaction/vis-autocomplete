@@ -1,7 +1,7 @@
 import { chart } from 'ggaction';
 import { PUBLIC_ACTION_NAMES } from '../src/public-actions.js';
 import { programCode } from './code-view.js';
-import { captureHistorySnapshot, isHistorySnapshot, prepareCapturedHistory } from './history.js';
+import { captureHistorySnapshot, isHistorySnapshot, prepareCapturedHistory, normalizeHistoryGraph } from './history.js';
 import { createLRU, freezeResult } from '../src/cache.js';
 
 const publicMethods = new Set(PUBLIC_ACTION_NAMES.filter(name => name !== 'constructor'));
@@ -19,7 +19,7 @@ export async function prepareHistorySnapshot(snapshot) {
   await prepareCapturedHistory(deferred?.result ?? snapshot);
 }
 export const PROJECT_FORMAT = 'visualization-autocomplete';
-export const PROJECT_VERSION = 1;
+export const PROJECT_VERSION = 2;
 const checkpointDatasets = new WeakMap();
 function datasetRevision(imported) {
   if (!checkpointDatasets.has(imported)) checkpointDatasets.set(imported, crypto.randomUUID());
@@ -39,7 +39,7 @@ export function checkpointRevision(project) {
 // Previews and rendered SVG caches never become persisted authoring state.
 export function packSession(session) {
   if (!session) return null;
-  return { index: session.index, entries: session.entries.map(snapshot => {
+  return { index: session.index, ...(session.graph ? { graph: session.graph } : {}), entries: session.entries.map(snapshot => {
     const deferred = deferredSnapshots.get(snapshot);
     // Autosave must not render every historical chart just to recover its
     // authoring calls. Resolved entries may include a native layout repair.
@@ -147,11 +147,12 @@ function normalizeSession(session, names) {
     }
     return normalized;
   });
-  return { index: session.index, entries };
+  const graph = normalizeHistoryGraph(session.graph, entries.length, session.index);
+  return { index: session.index, entries, ...(graph ? { graph } : {}) };
 }
 
 export function validateProject(value) {
-  if (value?.format !== PROJECT_FORMAT || value.version !== PROJECT_VERSION || !Array.isArray(value.datasets) || !value.datasets.length) {
+  if (value?.format !== PROJECT_FORMAT || ![1, PROJECT_VERSION].includes(value.version) || !Array.isArray(value.datasets) || !value.datasets.length) {
     throw new TypeError('Choose a supported Visualization Autocomplete project file.');
   }
   const ids = new Set();
@@ -220,7 +221,7 @@ export function restoreSession(stored, rows, { lazy = false, current = null } = 
     if (!deferredCalls.has(key)) deferredCalls.set(key, freezeResult(structuredClone(call)));
     return deferredCalls.get(key);
   });
-  return { index: stored.index, entries: stored.entries.map((snapshot, index) => {
+  return { index: stored.index, ...(stored.graph ? { graph: stored.graph } : {}), entries: stored.entries.map((snapshot, index) => {
     if (index === stored.index && current) {
       return captureHistorySnapshot({ ...snapshot, ...current, rows, selectionAxes: null });
     }

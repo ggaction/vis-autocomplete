@@ -1,6 +1,7 @@
 const prefix = 'vis-autocomplete.';
 const fields = {
   'view-mode': 'vis_view_mode',
+  'history-view': 'vis_history_view',
   'workspace-layout': 'vis_workspace_layout',
   'workspace-sizes': 'vis_workspace_sizes',
   'panel-layout': 'vis_panel_layout',
@@ -8,6 +9,7 @@ const fields = {
 };
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 export function cleanViewPreference(name, value) {
+  if (name === 'history-view') return ['linear', 'graph'].includes(value) ? value : undefined;
   if (name === 'view-mode') return ['preview', 'transition'].includes(value) ? value : undefined;
   if (name === 'code-font-size') return Number.isInteger(value) && value >= 8 && value <= 20 ? value : undefined;
   if (!object(value)) return undefined;
@@ -28,9 +30,9 @@ export function cleanViewPreference(name, value) {
   } else return undefined;
   return result;
 }
-const encode = (name, value) => name === 'view-mode' ? value : JSON.stringify(value);
+const encode = (name, value) => ['view-mode', 'history-view'].includes(name) ? value : JSON.stringify(value);
 function decode(name, value) {
-  try { return cleanViewPreference(name, name === 'view-mode' ? value : JSON.parse(value)); } catch { return undefined; }
+  try { return cleanViewPreference(name, ['view-mode', 'history-view'].includes(name) ? value : JSON.parse(value)); } catch { return undefined; }
 }
 const read = (storage, key) => { try { return storage?.getItem(key); } catch { return null; } };
 const write = (storage, key, value) => { try { storage?.setItem(key, value); } catch { /* In-memory preferences remain usable. */ } };

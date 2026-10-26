@@ -54,6 +54,15 @@ main { padding: 14px 16px 16px; }
 .typography-toolbar { display:flex; align-items:center; gap:4px; flex:1 1 310px; min-width:310px; max-width:410px; font-size:11px; position:relative; z-index:7; }
 .typography-toolbar select, .typography-toolbar summary, .typography-toolbar button, .typography-toolbar input[type="number"] { height:25px; font-size:11px; border:1px solid var(--border); border-radius:3px; background:#fff; color:#364152; }
 .typography-toolbar select { flex:1 1 110px; min-width:0; width:110px; padding:2px 5px; }
+/* Render the popup in the page so macOS system menus cannot flatten the font samples. */
+@supports (appearance: base-select) {
+  #chart-font, #chart-font::picker(select) { appearance:base-select; }
+  #chart-font { align-items:center; overflow:hidden; white-space:nowrap; }
+  #chart-font::picker(select) { min-width:180px; max-height:300px; overflow:auto; padding:4px; background:#fff; border:1px solid var(--border); border-radius:4px; box-shadow:0 3px 12px #00000014; }
+  #chart-font option { padding:6px 8px; font-size:13px; border-radius:2px; white-space:nowrap; }
+  #chart-font option:hover, #chart-font option:focus { background:#eef4fa; }
+  #chart-font option:checked { background:#eaf3fd; }
+}
 .text-group-menu { position:relative; flex:1 1 110px; min-width:0; }
 .text-group-menu summary { cursor:pointer; padding:4px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .text-group-list { position:absolute; top:29px; left:0; width:180px; padding:5px; border:1px solid var(--border); border-radius:4px; background:#fff; box-shadow:0 3px 12px #00000014; z-index:20; }

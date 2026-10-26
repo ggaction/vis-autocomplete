@@ -3,11 +3,16 @@ import { canvasGeometry } from './canvas-geometry.js';
 import { selectedGuideTextTargets } from '../src/guide-manipulation.js';
 
 const FONTS = ['Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Times New Roman', 'Courier New'];
+function fontOption(family, label = family) {
+  const option = new Option(label, family);
+  option.style.fontFamily = family || 'Arial, sans-serif';
+  return option;
+}
 export function createTypographyToolbar(host, chartHost, { read, apply, onError, selection = () => [], clearSelection, selectLegendScope, canSelectLegendScope = () => true, editing = () => null, alignEditing }) {
   let program, underlineProgram, underlineGeometry, highlightKey, underlineOverlay, items = [], selected = new Set(TEXT_GROUPS.map(g => g.id)), hovered = null, active = false, pending, timer, working = false;
   host.classList.add('typography-toolbar'); host.setAttribute('aria-label', 'Chart typography');
   const font = document.createElement('select'); font.id = 'chart-font'; font.setAttribute('aria-label', 'Chart font family'); font.title = 'Font family for the whole chart';
-  for (const family of FONTS) font.add(new Option(family, family));
+  for (const family of FONTS) font.add(fontOption(family));
   const menu = document.createElement('details'); menu.className = 'text-group-menu';
   const summary = document.createElement('summary'); summary.setAttribute('aria-label', 'Choose text groups');
   const list = document.createElement('div'); list.className = 'text-group-list'; list.setAttribute('role', 'group'); list.setAttribute('aria-label', 'Text groups');
@@ -152,8 +157,9 @@ export function createTypographyToolbar(host, chartHost, { read, apply, onError,
     const fonts = [...new Set((configs ?? items).map(item => item.fontFamily ?? 'sans-serif'))];
     const family = fonts.length === 1 ? fonts[0] : '';
     for (const option of [...font.options]) if (option.dataset.dynamic) option.remove();
-    if (!FONTS.includes(family)) { const option = new Option(family || 'Mixed fonts', family); option.dataset.dynamic = 'true'; option.disabled = !family; font.add(option); }
+    if (!FONTS.includes(family)) { const option = fontOption(family, family || 'Mixed fonts'); option.dataset.dynamic = 'true'; option.disabled = !family; font.add(option); }
     font.value = family; font.disabled = busy || !available || direct && !configs.length;
+    font.style.fontFamily = family || 'Arial, sans-serif';
     font.title = direct ? 'Font family for selected elements' : 'Font family for the whole chart';
     const sizes = [...new Set((configs ?? items.filter(item => selected.has(item.group))).map(item => item.fontSize ?? 12))];
     if (document.activeElement !== size || busy) size.value = sizes.length === 1 ? sizes[0] : '';

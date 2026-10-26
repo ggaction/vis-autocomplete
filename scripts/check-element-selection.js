@@ -192,7 +192,16 @@ export async function checkElementSelection(page) {
     // The existing bottom-right resize handle remains reachable above item hits.
     await labels.hover();
     const handle = page.locator('.guide-control[data-guide-key="legend:color"] .guide-size');
-    await expect(handle).toBeVisible(); const corner = await handle.boundingBox();
+    await expect(handle).toBeVisible();
+    // At compact view sizes the moved color items put this handle over the
+    // neighboring size legend. It must win hit testing without raising the
+    // whole legend body above its title/items selection surfaces.
+    await handle.hover();
+    assert.ok(await handle.evaluate(node => {
+      const bounds = node.getBoundingClientRect();
+      return document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) === node;
+    }), `${mode}: color legend resize handle must receive the pointer`);
+    const corner = await handle.boundingBox();
     await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2); await page.mouse.down();
     await page.mouse.move(corner.x + corner.width / 2 + 12, corner.y + corner.height / 2 + 12, { steps: 5 }); await page.mouse.up();
     await ready(); assert.ok((await saved()).entry.program.guideConfigs.legend.color.labels.fontSize > 18);

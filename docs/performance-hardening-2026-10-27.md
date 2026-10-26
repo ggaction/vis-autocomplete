@@ -11,7 +11,7 @@ these changes.
 | Path | Cause | Change |
 | --- | --- | --- |
 | Recommendations | Repeated profiles of the same immutable dataset; generation of unrelated action groups; redundant statistical sorting. | Cache compact profiles by native dataset identity and type hints; scope expensive candidate families to the requested group; reuse sorted numeric work. |
-| Native rendering and fitting | Repeated validation of common stroke styles, whole-scene hashing when no resource namespace is needed, and repeated immutable fitting signatures. | Reuse validated defaults, compute namespaces only when needed, and reuse identity-stable signature work. |
+| Native rendering and fitting | Repeated validation of common stroke styles, whole-scene hashing when no resource namespace is needed, repeated immutable fitting signatures, and duplicate empty blend-isolation scans. | Reuse validated defaults, compute namespaces only when needed, reuse identity-stable signature work, and carry completed isolation preparation into drawing. |
 | History | Cursor changes copied whole trees and active paths; viewport scans visited every node; linear thumbnails accumulated. | Separate structure, branch, and cursor changes; index viewport queries; bound linear thumbnail rasters and regenerate evicted images on demand. |
 | Code preview | Every hover queried and rewrote unchanged committed calls. | Reuse parsed committed code and unchanged DOM nodes; defer folded-panel DOM updates while retaining the latest copy/export text. |
 | Preview rendering | Returning to an already prepared dense preview replayed every native drawing operation. | Retain exact endpoint pixels per host, with density/viewport/font invalidation and a six-image/eight-million-pixel bound. |
@@ -23,10 +23,22 @@ reassigned to a recovered project while another tab holds its previous pointer.
 The shortcut now verifies the job's project identity before trusting it. Atomic
 thumbnail and conflict updates prevent derived images from overwriting newer work.
 
+A final retention check exposed a second boundary condition: when more than 80
+linear thumbnails were simultaneously visible, they evicted and repainted each
+other indefinitely. Visible images are now protected; the cache returns to 80
+when the viewport shrinks. The 100-visible-tile fixture changed from 31 idle
+repaints in 500 ms to zero, with every visible image retained.
+
+Full editor regression checks also exposed a compact-layout hit-testing bug: a
+neighboring legend body intercepted a visible resize handle. Removing the
+whole-legend stacking context lets individual handles stay reachable while keeping
+title/item selection above the body. The browser test now asserts the actual hit
+target before dragging, in both view modes and at two viewport sizes.
+
 ## Measurements
 
 The comparison baseline is app `967d819` with ggaction `7cbdaea`. The optimized
-native dependency is `b7ba0856`. Component measurements were recorded on macOS
+native dependency is `4b372276`. Component measurements were recorded on macOS
 arm64 with Node 23.5 and Chromium through Playwright 1.64.1. CI uses the Node
 version pinned in `.nvmrc`. These local milliseconds are diagnostic, not universal
 latency promises; deterministic work counts and exact results are regression gates.
@@ -59,7 +71,7 @@ This measures foreground availability, not a reduction of all computation time.
 
 - All 71 operation-workflow output fingerprints match the baseline exactly.
 - All 15 paired group-ranking fingerprints match, including order and parameters.
-- Native ggaction unit suite: 4,633 passing tests.
+- Native ggaction unit suite: 4,635 passing tests.
 - Complete app suite: 920 passing tests across 155 isolated processes; focused
   performance suite: 97 passing tests. Production build and contributor-document
   checks also pass.

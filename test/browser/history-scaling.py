@@ -112,6 +112,29 @@ with sync_playwright() as p:
     page.locator('.history-list .history-item').first.focus()
     page.keyboard.press('ArrowRight')
     assert page.evaluate('document.activeElement.dataset.historyIndex === "1" && harness.h.index === 0')
+
+    # Visible rasters must never evict each other: a wide strip or compact tiles
+    # can legitimately expose more than the normal 80-image working set.
+    compact_style = page.add_style_tag(content='''
+      .history-list .history-item { flex-basis:12px!important; width:12px!important;
+        min-width:12px!important; padding:0!important; overflow:hidden; }
+      .history-list .history-caption { display:none; }
+    ''')
+    page.evaluate('''() => {
+      const sample = harness.h.current;
+      harness.h.restore(Array.from({length: 100}, (_, i) => ({...sample, steps: i, currentNote: `Compact ${i}`})), 0);
+      harness.view.update(harness.h); window.compactPaintStart = harness.historyPaints;
+    }''')
+    page.wait_for_function('document.querySelectorAll(".history-list canvas[data-paint]").length === 100')
+    before_idle = page.evaluate('harness.historyPaints')
+    page.wait_for_timeout(300)
+    after_idle = page.evaluate('harness.historyPaints')
+    assert before_idle == after_idle, 'Visible rasters repeatedly evicted and repainted each other'
+    result['compactRasters'] = {'visible': 100, 'painted': after_idle - page.evaluate('compactPaintStart'),
+                               'idleRepaints': after_idle - before_idle}
+    compact_style.evaluate('style => style.remove()')
+    page.wait_for_function('document.querySelectorAll(".history-list canvas[data-paint]").length === 80')
+    result['compactRasters']['retainedAfterResize'] = page.locator('.history-list canvas[data-paint]').count()
     assert not errors, errors
     browser.close()
 

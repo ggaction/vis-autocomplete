@@ -78,9 +78,10 @@ export function createGuideEditor(host, callbacks) {
       node.dataset.guideKind = target.kind;
       node.classList.toggle('legend-container', target.kind === 'legend' && !target.part);
       node.classList.toggle('compact-guide', (bounds.right-bounds.left)*scale < 24 || (bounds.bottom-bounds.top)*scale < 16);
-      // Contain parent resize handles below subpart hit areas, including those
-      // of neighboring legends when a chart is displayed at a small scale.
-      node.style.zIndex = target.kind === 'panel' || target.kind === 'legendGroup' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' && target.part ? '3' : '2';
+      // Legend bodies stay below subparts, while their individual handles can
+      // sit above neighboring legends. A parent stacking context would trap a
+      // visible corner behind the next legend after its items are moved down.
+      node.style.zIndex = target.kind === 'panel' || target.kind === 'legendGroup' ? '0' : isTitleGroup ? '1' : target.kind === 'legend' ? target.part ? '3' : 'auto' : '2';
       node.classList.toggle('panel-control', target.kind === 'panel');
       Object.assign(node.style, { left: `${bounds.left*scale-pad}px`, top: `${bounds.top*scale-pad}px`,
         width: `${(bounds.right-bounds.left)*scale+pad*2}px`, height: `${(bounds.bottom-bounds.top)*scale+pad*2}px` });

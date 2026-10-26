@@ -421,8 +421,11 @@ try{
  },{timeout:30000}).toBe(true);
  await page.reload();await page.locator('#current canvas').waitFor();
  await expect(page.locator('#upload')).toBeHidden();await expect(page.locator('#dataset')).toBeHidden();
- // Account restore must render committed code without a hover or pointer event.
+ // Account restore keeps the saved folded preference. Expanding must render
+ // committed code immediately, without first hovering any chart or option.
  await expect(page.locator('html')).toHaveAttribute('data-view-mode','transition');
+ await expect(page.locator('#code-content')).toBeHidden();
+ await page.locator('#toggle-code').click();
  await expect(page.locator('#code-content')).toContainText('createScatterPlot');
  await expect(page.locator('#dataset option:checked')).toHaveText('Research — Inventory');
  await page.locator('#edit-schema').click();

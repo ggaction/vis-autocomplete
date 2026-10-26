@@ -3,17 +3,32 @@ import { readViewPreference, writeViewPreference } from './view-preferences.js';
 import { OPTION_GROUPS } from './option-groups.js';
 import { historyLabel, historyPreview } from './history.js';
 import { prepareHistorySnapshot } from './project.js';
-import { createLRU } from '../src/cache.js';
 
 // Mount each immutable snapshot once. Hovering and navigation only change the
 // cursor/highlight; they never rebuild thumbnails or run recommendation work.
 function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump, meta }) {
   const nodes = new Map();
   const pending = new Map(), visible = new Set();
-  const rasters = createLRU(80, (button, record) => {
+  const rasters = new Map();
+  function evictRaster(button, record = rasters.get(button)) {
+    if (!record) return;
+    rasters.delete(button);
     record.thumb.replaceChildren();
     if (button.isConnected) pending.set(button, record);
-  });
+  }
+  function touchRaster(button) {
+    const record = rasters.get(button);
+    if (record) { rasters.delete(button); rasters.set(button, record); }
+  }
+  function trimRasters() {
+    // A very wide strip or narrow tiles can expose more than the usual working
+    // set. Visible pixels stay pinned; evicting them would continuously enqueue
+    // their own replacement. Trim back to 80 as soon as they leave the viewport.
+    for (const [button, record] of rasters) {
+      if (rasters.size <= 80) break;
+      if (!visible.has(button)) evictRaster(button, record);
+    }
+  }
   let paintQueued = false, shown = false;
   function queuePaint() {
     if (!shown || paintQueued || !visible.size) return;
@@ -26,12 +41,13 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
       const record = pending.get(button), { snapshot, thumb, label } = record;
       try {
         await prepareHistorySnapshot(snapshot);
-        if (!shown || !button.isConnected) { paintQueued = false; queuePaint(); return; }
+        if (!shown || !button.isConnected || !visible.has(button)) { paintQueued = false; queuePaint(); return; }
         await renderChart(thumb, historyPreview(snapshot), label);
+        pending.delete(button);
         rasters.set(button, record);
+        trimRasters();
       }
-      catch (error) { thumb.textContent = 'Preview unavailable'; thumb.title = error.message; }
-      pending.delete(button);
+      catch (error) { thumb.textContent = 'Preview unavailable'; thumb.title = error.message; pending.delete(button); }
       paintQueued = false;
       queuePaint();
     };
@@ -42,8 +58,9 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
   }
   const observer = new IntersectionObserver(changes => {
     for (const { target, isIntersecting } of changes) {
-      if (isIntersecting) { visible.add(target); rasters.get(target); } else visible.delete(target);
+      if (isIntersecting) { visible.add(target); touchRaster(target); } else visible.delete(target);
     }
+    trimRasters();
     queuePaint();
   }, { root: host });
   const scrub = document.createElement('span');
@@ -150,7 +167,7 @@ function createLinearHistoryView(host, { renderChart, onPreview, onLeave, onJump
       const retained = new Set(entries);
       for (const [snapshot, button] of nodes) if (!retained.has(snapshot)) {
         observer.unobserve(button); pending.delete(button); visible.delete(button);
-        button.remove(); rasters.delete(button); nodes.delete(snapshot);
+        button.remove(); evictRaster(button); nodes.delete(snapshot);
       }
       for (const [index, snapshot] of entries.entries()) {
         let button = nodes.get(snapshot);

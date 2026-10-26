@@ -468,8 +468,8 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .guide-size::after { content: ''; position: absolute; inset: -4px; }
 .compact-guide .guide-size { right: -9px; bottom: -9px; }
 .compact-guide .guide-size::after { inset: 0; }
-/* Legend subparts own their hit areas. Keep the parent handles outside them,
-   even when the displayed legend is smaller than a pointer target. */
+/* Legend containers do not create a stacking context: only their controls
+   rise above neighboring hit areas. Subparts remain above whole-legend bodies. */
 .legend-container > .guide-hit { z-index:2; }
 .legend-container > .guide-size, .legend-container > .guide-edge { z-index:4; }
 .legend-container > .guide-delete { z-index:5; }

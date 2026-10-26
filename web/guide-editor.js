@@ -2,6 +2,7 @@ import { selectableGuides, guideBounds, removeGuide, guideMoveHistoryKey } from 
 import { manipulationTargets, manipulationCalls, guideDragTarget } from '../src/guide-group.js';
 import { removableChartPanels } from '../src/chart-removal.js';
 import { canvasGeometry } from './canvas-geometry.js';
+import { createGuideNudge } from './guide-nudge.js';
 
 // Resize along the edge being dragged, not a projection onto the box diagonal.
 // A wide horizontal legend must respond to a vertical drag just as a tall one does.
@@ -16,6 +17,9 @@ export function guideResizeFactor(bounds, dx, dy, edge = 'se') {
 export function createGuideEditor(host, callbacks) {
   let display, targets = [], targetSource, active, overlay, gesture, stage, press;
   let selected = new Set(), scope;
+  // Pointer selection must move keyboard focus out of a previous text input.
+  // Keep it on the stable host while previews replace guide buttons.
+  if (!host.hasAttribute('tabindex')) host.tabIndex = -1;
   const measured = new WeakMap();
   function paintSelection() {
     for (const node of overlay?.children ?? []) {
@@ -27,6 +31,7 @@ export function createGuideEditor(host, callbacks) {
   function setSelection(keys) {
     const next = new Set(keys);
     if (JSON.stringify([...next].sort()) === JSON.stringify([...selected].sort())) return;
+    nudge.cancel();
     selected = next; paintSelection(); callbacks.selectionChanged?.();
   }
   function pin(key, additive = false) {
@@ -161,9 +166,10 @@ export function createGuideEditor(host, callbacks) {
   function update(g, x, y) {
     if (gesture !== g || g.ended) return;
     const dx = (x-g.startX)/g.scale, dy = (y-g.startY)/g.scale;
-    if (Math.abs(dx)+Math.abs(dy)<2 && !g.final) return;
+    if (!g.keyboard && Math.abs(dx)+Math.abs(dy)<2 && !g.final) return;
     const factor = guideResizeFactor(g.target.bounds, dx, dy, g.edge);
-    const calls = manipulationCalls(g.source, g.members, g.operation, { factor, dx, dy, snapDistance: 48/g.scale });
+    const calls = manipulationCalls(g.source, g.members, g.operation, { factor, dx, dy,
+      snapDistance: g.keyboard ? Infinity : 48/g.scale });
     const action = g.members.length > 1 ? { calls } : calls[0];
     const key = JSON.stringify(action); if (g.key === key) return;
     g.key = key; g.pending = { action, factor }; pump(g);
@@ -209,15 +215,38 @@ export function createGuideEditor(host, callbacks) {
       else callbacks.restore(g.context);
     } finally {
       if (gesture === g) { gesture = null; host.classList.remove('editing-guide'); callbacks.end(g.context); select(null); }
+      g.finished?.();
     }
   }
-  function cancel() {
+  function cancelGesture() {
     if (press) { const pointer = press.pointerId; press = null; if (host.hasPointerCapture(pointer)) host.releasePointerCapture(pointer); }
     if (!gesture || gesture.finishing) return;
     const g = gesture; gesture = null;
     if (g.pointer !== undefined && host.hasPointerCapture(g.pointer)) host.releasePointerCapture(g.pointer);
     host.classList.remove('editing-guide'); callbacks.restore(g.context); callbacks.end(g.context); select(null);
+    g.finished?.();
   }
+  const nudge = createGuideNudge({
+    begin() {
+      const target = targets.find(target => selected.has(target.key) &&
+        manipulationTargets(targets, selected, target, 'move').length);
+      if (!target) return null;
+      const g = start(target, 'move', { clientX: 0, clientY: 0 });
+      if (g) { g.keyboard = true; host.focus({ preventScroll: true }); }
+      return g;
+    },
+    update(g, dx, dy) { update(g, dx * g.scale, dy * g.scale); },
+    end(g) {
+      return new Promise(resolve => {
+        g.finished = resolve; g.ended = true;
+        if (gesture !== g) resolve();
+        else if (!g.running) finish(g);
+      });
+    },
+    cancel: cancelGesture,
+    error: error => callbacks.feedback?.(error.message),
+  });
+  function cancel() { nudge.cancel(); cancelGesture(); }
   host.addEventListener('pointerdown', event => {
     const button = event.target.closest('[data-guide]');
     if (event.button!==0) return;
@@ -249,7 +278,9 @@ export function createGuideEditor(host, callbacks) {
   host.addEventListener('pointerup', event => {
     if (press?.pointerId === event.pointerId) {
       const pending = press; press = null; host.releasePointerCapture(event.pointerId);
-      if (Math.hypot(event.clientX-pending.clientX, event.clientY-pending.clientY) < 4) pin(pending.target.key, pending.shiftKey);
+      if (Math.hypot(event.clientX-pending.clientX, event.clientY-pending.clientY) < 4) {
+        pin(pending.target.key, pending.shiftKey); host.focus({ preventScroll: true });
+      }
       return;
     }
     const g=gesture;if(!g||g.pointer!==event.pointerId)return;
@@ -270,6 +301,16 @@ export function createGuideEditor(host, callbacks) {
     const g=start(target,'resize',{clientX:rect.x,clientY:rect.y},'se');if(!g)return;
     event.preventDefault();const amount=(event.shiftKey?20:6)*g.scale;
     update(g,g.startX+(['ArrowRight','ArrowDown'].includes(event.key)?amount:-amount),g.startY);g.ended=true;if(!g.running)finish(g);
+  });
+  host.addEventListener('keydown', event => {
+    if (!selected.size || document.querySelector('dialog[open]') ||
+        event.target.isContentEditable || event.target.closest('input,textarea,select,[contenteditable],.canvas-text-editor') ||
+        event.target.closest('button:not(.guide-hit)')) return;
+    if (nudge.down(event)) event.preventDefault();
+  });
+  document.addEventListener('keyup', event => nudge.up(event.key));
+  host.addEventListener('focusout', event => {
+    if (gesture?.keyboard && !host.contains(event.relatedTarget)) nudge.flush();
   });
   new ResizeObserver(()=>{if(!gesture&&display&&host.classList.contains('canvas-editor'))mount(display);}).observe(host);
   function clear({ selection = false } = {}) {

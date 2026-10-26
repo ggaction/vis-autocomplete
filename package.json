@@ -26,6 +26,7 @@
     "demo:initial": "node examples/initial-demo.js",
     "validate:initial": "node scripts/validate-initial.js",
     "audit:actions": "node scripts/audit-action-availability.js",
+    "audit:coverage": "node scripts/audit-action-coverage.js",
     "audit:initial-options": "node scripts/audit-initial-options.js",
     "benchmark:session": "node scripts/benchmark-session.js",
     "test:composition": "node scripts/test-composition-browser.js",

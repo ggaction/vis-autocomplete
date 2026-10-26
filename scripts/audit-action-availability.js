@@ -5,6 +5,8 @@ import { createCalculationService } from '../web/calculation-service.js';
 import { createRecommendationEngine, profileDataset } from '../src/index.js';
 import { getPlotDefinitions, defaultValues } from '../src/plot-catalog.js';
 import { cars } from '../examples/scenarios.js';
+import { importDataset } from '../src/data-import.js';
+import { chartOwner } from '../src/chart-owner.js';
 import { prepareGuidedAction, defaultCanvasOptions } from '../src/prepare.js';
 import { FOLLOWUP_RECOMMENDATION_OPTIONS } from '../web/option-groups.js';
 import { recommendationParameters, valuesFor, buildRecommendationCall } from '../web/parameters.js';
@@ -12,13 +14,20 @@ import { recommendationParameters, valuesFor, buildRecommendationCall } from '..
 // Independent executable probes: expected eligibility comes from public library
 // calls, never from the candidate provider or a copied mark compatibility table.
 const model = JSON.parse(await readFile(new URL('../data/model.json', import.meta.url)));
-const engine = createRecommendationEngine(model), states = [];
-const base = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'dataset', values: cars });
+const engine = createRecommendationEngine(model), states = [], skipped = [];
+const argument = flag => process.argv[process.argv.indexOf(flag) + 1];
+const dataset = process.argv.includes('--dataset') ? argument('--dataset') : 'cars';
+const values = dataset === 'cars' ? cars : importDataset(await readFile(new URL(`../web/data/${dataset}.json`, import.meta.url), 'utf8'), { format: 'json' }).rows;
+const base = chart().createCanvas(defaultCanvasOptions()).createData({ id: 'dataset', values });
 for (const definition of getPlotDefinitions(profileDataset(base, 'dataset'))) {
+  if (process.argv.includes('--plot') && definition.method !== argument('--plot')) continue;
+  if (definition.requirement) { skipped.push({ plot: definition.method, reason: definition.requirement }); continue; }
   const prepared = prepareGuidedAction(base, { method: definition.method, args: definition.build(defaultValues(definition)) });
   const raw = prepared.authoringPreview, view = prepared.preview;
   const root = raw.semanticSpec.layers.find(l => l.id === 'plot') ?? raw.semanticSpec.layers[0];
-  const target = root.id, options = { target, ...FOLLOWUP_RECOMMENDATION_OPTIONS };
+  // Audit detailed actions too: hierarchy deliberately keeps those searchable
+  // behind their parent cards in the ordinary deck.
+  const target = root.id, options = { target, ...FOLLOWUP_RECOMMENDATION_OPTIONS, hierarchy: false };
   const service = createCalculationService(model);
   service.execute({type:'state',stateId:1,snapshot:serializeProgram(raw),guideCall:prepared.guideCall});
   const ranked = engine.rank(view, options), served = [], rejected = [];
@@ -31,24 +40,45 @@ for (const definition of getPlotDefinitions(profileDataset(base, 'dataset'))) {
     served.push(...response.result.recommendations); rejected.push(...response.result.diagnostics.rejected);
   }
   const result={...ranked,recommendations:served,diagnostics:{...ranked.diagnostics,rejected}};
+  const originals = profileDataset(base, 'dataset').fields.filter(f => f.usable);
+  const category = originals.filter(f => ['nominal', 'ordinal'].includes(f.type) && f.distinct > 1)
+    .sort((a, b) => a.distinct - b.distinct)[0];
   const probes = [
     ['encodeColor', 'color', { value: '#e45756' }], ['encodeStroke', 'stroke', { value: '#000000' }],
     ['encodeOpacity', 'opacity', { value: .43 }], ['encodeSize', 'size', { value: 81.5 }],
     ['encodeStrokeWidth', 'strokeWidth', { value: 2.5 }], ['encodeStrokeDash', 'strokeDash', { value: 'dashed' }],
-    ['encodeAngle', 'angle', { value: 30 }], ['encodeShape', 'shape', { field: 'Origin', fieldType: 'nominal' }],
+    ['encodeAngle', 'angle', { value: 30 }],
+    ['encodeShape', 'shape', category ? { field: category.name, fieldType: category.type } : { value: 'circle' }],
   ].filter(([, channel]) => !root.encoding?.[channel]);
   const expected = [], unsupported = [], missing = [], editorErrors = [];
   const positional = new Set(['encodeX', 'encodeY', 'encodeX2', 'encodeY2', 'encodeTheta', 'encodeR',
     'editBoxPlot', 'editViolinPlot', 'editGradientPlot', 'editECDFPlot', 'editEndpointPlot', 'editRegression', 'editErrorBar', 'encodeParallelCoordinates', 'editBin2DData', 'editRScale']);
   const config = raw.markConfigs[target] ?? {}, coordinate = raw.semanticSpec.coordinates.find(c => c.id === root.coordinate);
-  const originals = profileDataset(base, 'dataset').fields.filter(f => f.usable);
   // Derived boundaries are implementation fields, so the public facade must
   // rebind the original variable and recompute every owned child together.
+  const semanticOwner = chartOwner(raw, root);
   const owner = Object.entries({ boxPlot: 'editBoxPlot', violinPlot: 'editViolinPlot', gradientPlot: 'editGradientPlot',
     ecdfPlot: 'editECDFPlot', endpointPlot: 'editEndpointPlot' }).find(([key]) => config[key]);
   const nativeOptions = new Map();
   const offer = (method, args) => nativeOptions.set(method, [...(nativeOptions.get(method) ?? []), args]);
-  if (owner) {
+  offer('createAnnotation', { id: 'audit-note', anchor: 'plot-center', data: root.data, text: 'Audit note' });
+  offer('createTitle', { text: 'Audit title' });
+  offer('editCanvas', { background: '#fff9db' });
+  offer('createMarkLabels', { source: target, value: 'Value' });
+  for (const direction of ['horizontal', 'vertical', 'radial', 'theta']) {
+    if (!view.semanticSpec.guides.grid?.[direction]) continue;
+    offer(`edit${direction[0].toUpperCase()}${direction.slice(1)}Grid`, { lineWidth: 2.25 });
+  }
+  for (const field of profileDataset(view, root.data).fields.filter(field => field.usable)) {
+    const rows = view.semanticSpec.datasets.find(d => d.id === root.data)?.values ?? [];
+    const distinct = [...new Set(rows.map(row => row[field.name]).filter(v => v != null))];
+    if (distinct.length > 1) offer('filterMarks', { target, field: field.name, op: 'eq', value: distinct[0], mode: 'replace' });
+  }
+  if (semanticOwner?.radar) {
+    offer('editRadarPlot', { target, wide: { fields: [...semanticOwner.config.wide.fields].reverse() } });
+  } else if (semanticOwner?.method === 'editRaincloudPlot') {
+    offer('editRaincloudPlot', { target: semanticOwner.target, point: { radius: 4 } });
+  } else if (owner) {
     const [key, method] = owner, c = config[key];
     for (const field of originals.filter(f => f.type === 'quantitative')) {
       const role = key === 'ecdfPlot' ? 'field' : key === 'endpointPlot' ? c.roles.value ? 'value' : 'start' : c.orientation === 'horizontal' ? 'x' : 'y';
@@ -90,7 +120,8 @@ for (const definition of getPlotDefinitions(profileDataset(base, 'dataset'))) {
   }
   try {
     const coordinate = raw.semanticSpec.coordinates.find(c => c.id === root.coordinate);
-    prepareGuidedAction(raw, { method: 'facet', args: { data: 'dataset', field: 'Origin', columns: 3,
+    if (!category) throw new Error('This dataset has no categorical facet variable.');
+    prepareGuidedAction(raw, { method: 'facet', args: { data: 'dataset', field: category.name, columns: Math.min(3, category.distinct),
       guides: { axes: coordinate?.type === 'cartesian' ? 'outer' : 'each', legend: false } } }, view);
     expected.push('facet');
   } catch (error) { unsupported.push({ method: 'facet', reason: error.message }); }
@@ -98,7 +129,7 @@ for (const definition of getPlotDefinitions(profileDataset(base, 'dataset'))) {
   for (const rec of result.recommendations) {
     try {
       const editor = recommendationParameters(rec, profileDataset(view, result.state.data));
-      prepareGuidedAction(raw, buildRecommendationCall({ ...editor, method: rec.method }, valuesFor(editor.controls)), view);
+      prepareGuidedAction(raw, { ...buildRecommendationCall({ ...editor, method: rec.method }, valuesFor(editor.controls)), allowUnchanged: true }, view);
       if (positional.has(rec.method)) {
         const defaults = valuesFor(editor.controls);
         for (const control of editor.resolveControls(defaults).filter(c => c.type === 'select')) for (const choice of control.choices ?? []) {
@@ -118,9 +149,9 @@ for (const definition of getPlotDefinitions(profileDataset(base, 'dataset'))) {
     rejected: result.diagnostics.rejected.map(r => ({ call: r.call, reason: r.message ?? r.reason })) });
   console.log(definition.method, 'cards', result.recommendations.length, 'missing', missing.length, 'editor errors', editorErrors.length);
 }
-const report = { states, totals: { plots: states.length, cards: states.reduce((n,s)=>n+s.served.length,0),
+const report = { dataset, states, skipped, totals: { plots: states.length, cards: states.reduce((n,s)=>n+s.served.length,0),
   missing: states.reduce((n,s)=>n+s.missing.length,0), editorErrors: states.reduce((n,s)=>n+s.editorErrors.length,0) } };
 await mkdir(new URL('../output/', import.meta.url), { recursive: true });
-await writeFile(new URL('../output/action-availability-audit.json', import.meta.url), JSON.stringify(report,null,2)+'\n');
+await writeFile(process.argv.includes('--output') ? argument('--output') : new URL('../output/action-availability-audit.json', import.meta.url), JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify(report.totals));
 if (report.totals.missing || report.totals.editorErrors) process.exitCode = 1;

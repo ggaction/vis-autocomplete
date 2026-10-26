@@ -30,6 +30,7 @@ export const ACTION_LABELS = {
   editXAxisTicks: 'Edit X axis ticks', editYAxisTicks: 'Edit Y axis ticks',
   editXAxisTicksAndLabels: 'Edit X ticks and labels', editYAxisTicksAndLabels: 'Edit Y ticks and labels',
   editHorizontalGrid: 'Edit horizontal grid', editVerticalGrid: 'Edit vertical grid',
+  editRadialGrid: 'Edit radial grid', editThetaGrid: 'Edit angular grid',
   editLegendTitle: 'Edit legend title', editLegendLabels: 'Edit legend labels', editLegendSymbols: 'Edit legend symbols',
   editLegendBlock: 'Edit legend block', editLegendLayout: 'Edit legend layout', editLegendBorder: 'Edit legend border',
   createAnnotation: 'Add annotation',

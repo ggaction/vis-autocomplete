@@ -13,6 +13,7 @@ import { editableFilterRows } from './filter-context.js';
 import { labelPlacementCandidates } from './label-placement-candidates.js';
 import { statisticalContext } from './statistical-context.js';
 import { valueLabelCandidates } from './value-labels.js';
+import { itemFilterCandidates } from './item-filter-candidates.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -39,6 +40,7 @@ export function extendedCandidates(program, { layer, profile }) {
   out.push(...valueLabelCandidates(program, layer, profile));
   const owner = chartOwner(program, layer);
   const raincloud = owner?.method === 'editRaincloudPlot' ? owner.config : null;
+  if (!raincloud) out.push(...itemFilterCandidates(program, layer));
   const resourceId = stem => {
     const used = new Set([...program.semanticSpec.layers.map(item => item.id), ...Object.keys(program.markConfigs)]);
     let id = stem;
@@ -292,8 +294,11 @@ export function extendedCandidates(program, { layer, profile }) {
       [choices('aggregate', 'Y aggregation', op, aggregateOps)], 'transform.aggregate', 'Aggregate Y');
   }
   const coordinate = program.semanticSpec.coordinates.find(c => c.id === layer.coordinate);
-  if (coordinate?.type === 'cartesian') add('createAnnotation', 'style', { id: resourceId('annotation'),
-    anchor: 'plot-center', data: layer.data, coordinate: coordinate.id,
+  // Plot-relative text owns its own normalized X/Y scales. Polar and parallel
+  // marks must not lend their incompatible data coordinate to that text frame.
+  add('createAnnotation', 'style', { id: resourceId('annotation'),
+    anchor: 'plot-center', data: layer.data,
+    ...(coordinate?.type === 'cartesian' ? { coordinate: coordinate.id } : {}),
     text: 'Note', fontSize: 13 },
     [text('text', 'Text', 'Note'), number('fontSize', 'Size', 13, 8, 24), color('fill', 'Text color'), weight('fontWeight')]);
   if (coordinate?.type === 'cartesian') style('editCoordinate', { target: coordinate.id, aspect: { mode: 'frame', ratio: 1 } },
@@ -334,7 +339,7 @@ export function extendedCandidates(program, { layer, profile }) {
       [text('text', 'Title', current.title?.text ?? encoding[channel]?.field ?? channel), number('fontSize', 'Size', 14, 8, 24),
         number('offset.gap', 'Label gap', current.title?.offset?.from === 'labels' ? current.title.offset.gap : 8, 0, 30), color('color', 'Text color', current.title?.color ?? '#555555')]);
   }
-  for (const direction of ['horizontal', 'vertical']) {
+  for (const direction of ['horizontal', 'vertical', 'radial', 'theta']) {
     if (!program.semanticSpec.guides.grid?.[direction]) continue;
     style(`edit${direction[0].toUpperCase()}${direction.slice(1)}Grid`, { color: '#cbd5e1', lineWidth: 1.5 },
       [number('lineWidth', 'Width', 1.5, 0, 4, .25), color('color', 'Line color', '#cbd5e1'), dash('strokeDash')]);

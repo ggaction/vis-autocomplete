@@ -308,6 +308,9 @@ export function recommendationParameters(recommendation, profile) {
     const at = (object, path) => path.split('.').reduce((v, key) => v?.[key], object);
     controls = recommendation.parameters.map((parameter, i) => conditional({ ...structuredClone(parameter), key: `p${i}`,
       value: at(args, parameter.path) ?? parameter.value,
+      ...(/(^|\.)field$/.test(parameter.path) && parameter.choices ? {
+        choices: parameter.choices.map(choice => ({ ...choice, label: recommendation.fieldLabels?.[choice.value] ?? choice.label })),
+      } : {}),
       ...(parameter.path === 'gap' && parameter.type === 'number' ? { max: Math.max(parameter.max, at(args, 'gap') ?? 0) } : {}) },
     path => `p${recommendation.parameters.findIndex(p => p.path === path)}`));
     build = values => {
@@ -791,12 +794,19 @@ export function recommendationParameters(recommendation, profile) {
       if (parameter.rangeBy) {
         const index = generic.findIndex(p => p.path === parameter.rangeBy.path);
         const range = parameter.rangeBy.values[values[`p${index}`]];
-        if (range) resolved[i] = { ...resolved[i], ...range };
+        if (range) {
+          const { value: initial, ...bounds } = range;
+          resolved[i] = { ...resolved[i], ...bounds };
+        }
+      }
+      if (parameter.choicesBy) {
+        const index = generic.findIndex(p => p.path === parameter.choicesBy.path);
+        resolved[i] = { ...resolved[i], choices: parameter.choicesBy.values[values[`p${index}`]] ?? [] };
       }
       if (!parameter.distinctFrom) continue;
       const other = generic.findIndex(p => p.path === parameter.distinctFrom);
       resolved[i] = { ...resolved[i], choices: resolved[i].choices.map(c => ({ ...c,
-        disabled: c.value === values[`p${other}`], reason: c.value === values[`p${other}`] ? 'These roles must use different fields.' : undefined })) };
+        disabled: c.disabled || c.value === values[`p${other}`], reason: c.value === values[`p${other}`] ? 'These roles must use different fields.' : c.reason })) };
     }
     if (method === 'filterMarks' && channelIndex >= 0 && thresholdIndex >= 0) {
       const parameter = channelVariant(values)?.parameters?.find(p => p.path === 'value');
@@ -908,6 +918,16 @@ export function recommendationParameters(recommendation, profile) {
     }
     if (method === 'facet' && changedKey === 'field') values.columns = defaultFacetColumns(facetCount(values.field));
     for (const [i, parameter] of generic.entries()) {
+      const dependency = parameter.choicesBy ?? parameter.rangeBy;
+      if (dependency) {
+        const index = generic.findIndex(p => p.path === dependency.path);
+        if (changedKey === `p${index}`) {
+          const choices = parameter.choicesBy?.values[values[changedKey]];
+          if (choices) values[`p${i}`] = parameter.type === 'multiselect' ? [choices[0]?.value].filter(value => value !== undefined) : choices[0]?.value;
+          const range = parameter.rangeBy?.values[values[changedKey]];
+          if (range) values[`p${i}`] = range.value ?? Math.max(range.min, Math.min(range.max, values[`p${i}`]));
+        }
+      }
       if (!parameter.distinctFrom) continue;
       const other = generic.findIndex(p => p.path === parameter.distinctFrom);
       if (values[`p${i}`] !== values[`p${other}`]) continue;

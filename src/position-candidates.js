@@ -3,6 +3,7 @@ import { profileDataset } from './profile.js';
 import { encodingFeature } from './semantics.js';
 import { chartOwner } from './chart-owner.js';
 import { ownedChartCandidates } from './owned-chart-candidates.js';
+import { MAX_GENERATED_ITEMS } from '../vendor/ggaction/src/core/validation.js';
 
 const categorical = type => ['nominal', 'ordinal'].includes(type);
 const choices = values => values.map(value => ({ value, label: value }));
@@ -36,6 +37,24 @@ export function positionCandidates(program, { layer, profile }) {
     const sourceData = program.semanticSpec.datasets.find(data => data.id === layer.data);
     const completion = sourceData?.transform?.find(transform => transform.type === 'complete');
     const allowed = fields.filter(f => {
+      if (f.type === 'quantitative' && f.missing && layer.mark.missing !== 'skip')
+        return reject(f, 'This positional encoding needs finite values. Filter missing observations first.');
+      if (mark === 'bar' && ['x', 'y'].includes(channel) && f.type === 'quantitative' &&
+          encoding[channel === 'x' ? 'y' : 'x']?.fieldType === 'quantitative' && !current?.bin && !encoding[channel === 'x' ? 'y' : 'x']?.bin)
+        return reject(f, 'Bars need a categorical or binned position opposite their measure.');
+      if (mark === 'arc' && channel === 'theta' && categorical(f.type)) {
+        for (const paint of ['color', 'stroke', 'opacity', 'strokeWidth', 'strokeDash']) {
+          const painted = encoding[paint]?.field;
+          if (!painted) continue;
+          const byCategory = new Map();
+          for (const row of rows) {
+            const key = row[f.name];
+            if (byCategory.has(key) && byCategory.get(key) !== row[painted])
+              return reject(f, `Each sector needs one ${paint} value. Choose a category consistent with ${painted}, or change that encoding first.`);
+            byCategory.set(key, row[painted]);
+          }
+        }
+      }
       if (mark === 'area' && completion && completion.key === current?.field && f.name !== current.field &&
           layer.layout?.mode && layer.layout.mode !== 'overlay') {
         const opposite = channel === 'x' ? 'y' : 'x';
@@ -146,11 +165,17 @@ export function ownedPositionCandidates(program, { layer, profile }) {
     } else if (['editViolinPlot', 'editGradientPlot'].includes(owner.method)) {
       const categoryAxis = config.orientation === 'horizontal' ? 'y' : 'x', valueAxis = categoryAxis === 'x' ? 'y' : 'x';
       const categoryFields = [...new Set([config.category, ...categories])].filter(field => field !== config.split?.field);
-      for (const category of categoryFields) for (const field of q.filter(f => f !== category)) {
+      const rows = program.semanticSpec.datasets.find(data => data.id === config.source)?.values ?? [];
+      const categoryChoices = categoryFields.map(field => {
+        const groups = new Set(rows.map(row => JSON.stringify([row[field], ...(config.split ? [row[config.split.field]] : [])]))).size;
+        const disabled = groups * (config.density?.steps ?? 100) > MAX_GENERATED_ITEMS;
+        return { value: field, label: field, disabled, ...(disabled ? { reason: 'Too many groups at the current density resolution.' } : {}) };
+      });
+      for (const { value: category } of categoryChoices.filter(choice => !choice.disabled)) for (const field of q.filter(f => f !== category)) {
         const args = { target, [categoryAxis]: { field: category, fieldType: category === config.category ? config.categoryType : 'nominal' },
           [valueAxis]: { field, fieldType: 'quantitative' } };
         add(owner.method, args,
-          [{ ...parameter(`${categoryAxis}.field`, 'Category', category, categoryFields), distinctFrom: `${valueAxis}.field` },
+          [{ ...parameter(`${categoryAxis}.field`, 'Category', category, categoryFields), choices: categoryChoices, distinctFrom: `${valueAxis}.field` },
             { ...parameter(`${valueAxis}.field`, 'Measure', field, q), distinctFrom: `${categoryAxis}.field` }],
           `action.${owner.method}`, 'Edit distribution variables');
       }

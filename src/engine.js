@@ -284,7 +284,11 @@ export function createRecommendationEngine(model) {
           continue;
         }
         coverage.eligible++;
-        const key = JSON.stringify([candidate.method, candidate.sourceMethod ?? '', candidate.groupTarget ?? candidate.args.target ?? candidate.args.id ?? '', candidate.feature, optionGroup(candidate)]);
+        // Separate incompatible parameter editors without inventing untrained
+        // semantic features: each filter still uses the learned filter score
+        // and enters the same applied-action/revision policy.
+        const key = JSON.stringify([candidate.method, candidate.sourceMethod ?? '', candidate.groupTarget ?? candidate.args.target ?? candidate.args.id ?? '', candidate.feature, optionGroup(candidate),
+          ...(candidate.variantGroup ? [candidate.variantGroup] : [])]);
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push({ candidate, check, revision, previouslyApplied, appliedOrder, appliedDepth, appliedAncestor });
       }
@@ -312,6 +316,7 @@ export function createRecommendationEngine(model) {
           id, method: candidate.method, args: structuredClone(candidate.args),
           call: callText(candidate), label: candidate.label, category: candidate.category,
           feature: candidate.feature, kind: revision ? 'revision' : 'addition',
+          ...(candidate.variantGroup ? { variantGroup: candidate.variantGroup } : {}),
           previouslyApplied, appliedOrder, appliedDepth, appliedAncestor,
           defaultEvidence,
           // An eager issued token already passed native validation. Its editor

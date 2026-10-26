@@ -1,0 +1,475 @@
+[
+  {
+    "method": "createCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "left": 170,
+        "right": 216,
+        "top": 42,
+        "bottom": 74
+      }
+    }
+  },
+  {
+    "method": "applyTheme",
+    "args": {
+      "theme": {
+        "base": "light",
+        "tokens": {
+          "background": "#ffffff",
+          "fontFamily": "Arial",
+          "axisLabelFontFamily": "Arial",
+          "axisTitleFontFamily": "Arial",
+          "mark": "#4c78a8"
+        }
+      }
+    }
+  },
+  {
+    "method": "createData",
+    "args": {
+      "id": "dataset",
+      "values": "__LOADED_DATA__"
+    }
+  },
+  {
+    "method": "createRosePlot",
+    "args": {
+      "id": "plot",
+      "data": "dataset",
+      "category": "region",
+      "aggregate": "count",
+      "color": {
+        "field": "region",
+        "fieldType": "nominal",
+        "scale": {
+          "palette": "observable10"
+        }
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "encodeStroke",
+    "args": {
+      "target": "plot",
+      "value": "#000000"
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editGrid",
+    "args": {
+      "radial": {
+        "color": "#cbd5e1",
+        "lineWidth": 1.5,
+        "strokeDash": []
+      },
+      "theta": {
+        "lineWidth": 1.5,
+        "color": "#cbd5e1",
+        "strokeDash": []
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "createTitle",
+    "args": {
+      "text": "Count by region",
+      "titleStyle": {
+        "fontSize": 23,
+        "fontWeight": "bold"
+      },
+      "position": "top",
+      "subtitleStyle": {
+        "fontSize": 10
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "background": "#f3f4f6"
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 83.75,
+        "right": 138.97,
+        "bottom": 64.25,
+        "left": 59.03
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editTitle",
+    "args": {
+      "titleStyle": {
+        "fontSize": 24
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editThetaAxisLabels",
+    "args": {
+      "fontSize": 12
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editThetaAxisTitle",
+    "args": {
+      "fontSize": 14
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editRadialAxisLabels",
+    "args": {
+      "fontSize": 12
+    }
+  },
+  {
+    "method": "editRadialAxisTitle",
+    "args": {
+      "fontSize": 14
+    }
+  },
+  {
+    "method": "editLegend",
+    "args": {
+      "target": "plot",
+      "channel": "color",
+      "labels": {
+        "fontSize": 13
+      },
+      "titleStyle": {
+        "fontSize": 14
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editThetaAxisLabels",
+    "args": {
+      "fontSize": 14
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editThetaAxisTitle",
+    "args": {
+      "fontSize": 16
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editRadialAxisLabels",
+    "args": {
+      "fontSize": 14
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editRadialAxisTitle",
+    "args": {
+      "fontSize": 16
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editLegend",
+    "args": {
+      "target": "plot",
+      "channel": "color",
+      "labels": {
+        "fontSize": 15
+      },
+      "titleStyle": {
+        "fontSize": 16
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editAxes",
+    "args": {
+      "theta": {
+        "line": {
+          "lineWidth": 2
+        },
+        "ticksAndLabels": {
+          "labels": {
+            "fontSize": 11,
+            "offset": 8
+          }
+        }
+      },
+      "radius": {
+        "line": {
+          "lineWidth": 2
+        },
+        "ticksAndLabels": {
+          "labels": {
+            "fontSize": 11,
+            "offset": 8
+          }
+        }
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editCanvas",
+    "args": {
+      "plot": {
+        "width": 314,
+        "height": 314
+      },
+      "margin": {
+        "top": 84.5,
+        "right": 157.315,
+        "bottom": 75.5,
+        "left": 64.685
+      }
+    }
+  },
+  {
+    "method": "applyTheme",
+    "args": {
+      "theme": {
+        "base": "light",
+        "tokens": {
+          "background": "#ffffff",
+          "fontFamily": "Times New Roman",
+          "axisLabelFontFamily": "Times New Roman",
+          "axisTitleFontFamily": "Times New Roman",
+          "mark": "#4c78a8"
+        }
+      }
+    }
+  },
+  {
+    "method": "editLegend",
+    "args": {
+      "target": "plot",
+      "channel": "color",
+      "labels": {
+        "fontFamily": "Times New Roman"
+      },
+      "titleStyle": {
+        "fontFamily": "Times New Roman"
+      }
+    }
+  },
+  {
+    "method": "editLegendBorder",
+    "args": {
+      "target": "plot",
+      "channel": "color",
+      "border": {
+        "color": "#9ca3af",
+        "lineWidth": 1,
+        "padding": 8,
+        "background": "#ffffff"
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "editLegend",
+    "args": {
+      "target": "plot",
+      "channel": "color",
+      "labels": {
+        "fontSize": 15,
+        "offset": 8
+      },
+      "titleStyle": {
+        "fontSize": 16
+      },
+      "itemGap": 18,
+      "symbol": {
+        "layers": [
+          {
+            "width": 14,
+            "height": 12,
+            "stroke": "white",
+            "strokeWidth": 0.5,
+            "type": "swatch"
+          }
+        ]
+      },
+      "border": {
+        "color": "#9ca3af",
+        "lineWidth": 1,
+        "padding": 8,
+        "background": "#ffffff"
+      }
+    }
+  },
+  {
+    "method": "fitCanvas",
+    "args": {
+      "align": "center",
+      "padding": 6,
+      "minPlotWidth": 1,
+      "minPlotHeight": 1
+    }
+  },
+  {
+    "method": "createGuides",
+    "args": {}
+  }
+]

@@ -7,7 +7,8 @@ export function valueLabelParameters(recommendation) {
   const binding = values => context.bindings.find(binding => binding.key === values.label) ?? context.bindings[0];
   const current = args.format ?? 'auto', match = current.match(/^(,?)\.(\d+)([f%e])$/);
   const format = context.creating || current === 'auto' ? 'auto' : match ? match[3] : 'current';
-  const controls = [select('label', 'Label', context.bindings.map(binding => ({ value: binding.key, label: binding.label })), context.initial),
+  const controls = [select('label', 'Label', context.bindings.map(binding => ({ value: binding.key,
+    label: recommendation.fieldLabels?.[binding.args.field] ?? binding.label })), context.initial),
     { key: 'numberFormat', label: 'Number format', type: 'group', when: values => binding(values).numeric, controls: [
       select('format', 'Format', [{ value: 'auto', label: 'Automatic' }, { value: 'f', label: 'Decimal' },
         { value: '%', label: 'Percent' }, { value: 'e', label: 'Scientific' },

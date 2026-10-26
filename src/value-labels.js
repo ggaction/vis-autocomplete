@@ -54,7 +54,10 @@ function labelBindings(program, source, profile) {
         { content }, populations.flatMap(({ source, items }) => resolveMarkLabelValues(source, items, { content })), content !== 'category'); }
       catch { /* Only offer semantic content supported by this actual source. */ }
     }
-  } else for (const field of profile.fields.filter(field => field.usable)) {
+  }
+  // Composite bars (for example a box summary) need source statistic fields
+  // when the ordinary bar value/category facade does not define their content.
+  if (!bindings.length) for (const field of profile.fields.filter(field => field.usable)) {
     add(`field:${field.name}`, field.name, { field: field.name }, populations.flatMap(({ source, items }) => items.map(item => sourceValue(item, source, field.name))), field.type === 'quantitative');
   }
   const anchors = ['center', 'insideStart', 'insideEnd', 'outsideStart', 'outsideEnd'].filter(anchor => {
@@ -93,7 +96,9 @@ export function valueLabelCandidates(program, source, profile) {
       category: 'encoding', feature: 'encoding.text', label: 'Edit value labels',
       labelContext: { ...context, bindings: context.bindings.includes(binding) ? context.bindings : [binding, ...context.bindings], creating: false, initial: binding.key } };
   });
-  const field = ['y', 'x', 'color'].map(channel => source.encoding[channel]?.field)
+  const box = program.markConfigs[source.id]?.boxPlot;
+  const median = box && program.semanticSpec.datasets.find(data => data.id === box.summaryId)?.transform?.[0]?.as?.median;
+  const field = [median, ...['y', 'x', 'color'].map(channel => source.encoding[channel]?.field)]
     .find(field => context.bindings.some(binding => binding.args.field === field && binding.numeric));
   const binding = context.bindings.find(binding => binding.args.content === 'value') ??
     context.bindings.find(binding => binding.args.field === field) ?? context.bindings[0];

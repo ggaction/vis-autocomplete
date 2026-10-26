@@ -160,7 +160,7 @@ test('Box position editing uses the compound owner and Text groups repeated cate
   assert.equal(result.authoringPreview.markConfigs.plot.boxPlot.measure, 'Sepal.Length');
   assert.equal(result.authoringPreview.semanticSpec.layers.find(l => l.id === 'plotOutliers').encoding.y.field, 'Sepal.Length');
   const minmax = result.authoringPreview.editBoxPlot({target:'plot',whisker:{type:'minmax'}});
-  const filter = candidates(minmax).find(c => c.method === 'filterMarks');
+  const filter = candidates(minmax).find(c => c.method === 'filterMarks' && c.args.channel === 'x');
   assert.equal(filter.args.channel,'x');
   const filtered = prepareGuidedAction(minmax,filter);
   assert.equal(filtered.preview.semanticSpec.guides.axis.y.title,'Sepal.Length');

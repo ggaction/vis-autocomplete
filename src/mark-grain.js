@@ -19,7 +19,7 @@ export function barGrain(program, layer) {
   let cells, values;
   if (grain === 'aggregate') { const derived = deriveBarAggregates(dataset.values, layer); values = { x: derived.xValues, y: derived.yValues }; cells = derived.values.map(cell => cell.sourceIndices.map(index => dataset.values[index])); }
   else if (grain === 'histogram') { const segments = deriveHistogramSegments({ dataset, layer, xEncoding: layer.encoding.x,
-    xScale: program.resolvedScales[layer.encoding.x.scale], resolvedScales: program.resolvedScales }); cells = segments.map(cell => cell.members).filter(rows => rows.length); values = { x: segments.map(cell => (cell.start + cell.end) / 2), y: segments.map(cell => cell.stackEnd - cell.stackStart) }; }
+    xScale: program.semanticSpec.scales.find(scale => scale.id === layer.encoding.x.scale), resolvedScales: program.resolvedScales }); cells = segments.map(cell => cell.members).filter(rows => rows.length); values = { x: segments.map(cell => (cell.start + cell.end) / 2), y: segments.map(cell => cell.stackEnd - cell.stackStart) }; }
   else cells = dataset.values.map(row => [row]);
   const result = { grain, cells, values, constant: field => cells.every(rows => new Set(rows.map(row => row[field])).size <= 1) };
   stored.set(layer, result); return result;

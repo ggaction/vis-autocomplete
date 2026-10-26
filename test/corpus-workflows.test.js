@@ -144,7 +144,7 @@ test('aggregate appearance choices match the final bar cells and log cannot misr
   const scale = all.find(c => c.method === 'editYScale');
   assert.ok(scale.parameters[0].choices.find(c => c.value === 'log').disabled);
   assert.match(scale.parameters[0].choices.find(c => c.value === 'log').reason, /zero baseline/);
-  const filter = all.find(c => c.method === 'filterMarks' && c.args.channel === 'y');
+  const filter = all.find(c => c.method === 'filterMarks' && c.args.channel === 'y2');
   assert.ok(filter.parameters.find(p => p.path === 'value').max < 4, 'mean tips, not raw individual tips');
 });
 

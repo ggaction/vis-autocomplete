@@ -14,6 +14,9 @@ import { labelPlacementCandidates } from './label-placement-candidates.js';
 import { statisticalContext } from './statistical-context.js';
 import { valueLabelCandidates } from './value-labels.js';
 import { itemFilterCandidates } from './item-filter-candidates.js';
+import { resolveBarChannels } from '../vendor/ggaction/src/grammar/bars/policy.js';
+import { resolveBarItemDefinitions } from '../vendor/ggaction/src/materialization/selection/items/bar.js';
+import { applyItemMissingPolicy } from '../vendor/ggaction/src/grammar/itemMissing.js';
 
 const title = name => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, s => s.toUpperCase());
 const number = (path, label, value, min, max, step = 1) => ({ path, label, type: 'number', value, min, max, step });
@@ -210,16 +213,24 @@ export function extendedCandidates(program, { layer, profile }) {
     }
   }
   if (!box && !raincloud && program.markConfigs[target]?.itemFilterable !== false && ['point', 'bar', 'rect', 'arc', 'rule', 'tick'].includes(mark)) {
-    for (const channel of ['x', 'y']) {
-      if (encoding[channel]?.fieldType !== 'quantitative') continue;
-      const field = encoding[channel].field;
+    const measure = mark === 'bar' ? resolveBarChannels(layer)?.measure : undefined;
+    const channels = ['x', 'y'].filter(axis => encoding[axis]?.fieldType === 'quantitative')
+      .map(axis => ({ axis, value: axis === measure ? `${axis}2` : axis, label: axis.toUpperCase() }));
+    // Facet sources retain semantic mark state but no rect collection. Read
+    // the native item definitions without requiring rendered graphics.
+    const barItems = mark === 'bar' ? resolveBarItemDefinitions(program, layer,
+      applyItemMissingPolicy(layer, program.semanticSpec.datasets.find(data => data.id === layer.data))) : null;
+    for (const { axis, value: channel } of channels) {
+      const field = encoding[axis].field;
       // Aggregated marks live in the displayed scale domain, not the raw column.
-      const domain = program.resolvedScales[encoding[channel].scale]?.domain;
-      const values = (mark === 'bar' ? barGrain(program, layer).values?.[channel] ?? rows.map(r => r[field]) : encoding[channel].aggregate || encoding[channel].bin ? domain ?? [] : rows.map(r => r[field])).filter(Number.isFinite).sort((a, b) => a - b);
+      // A bar's measure starts at its baseline; filter its final endpoint, and
+      // derive slider bounds from those same native values (including stacks).
+      const domain = program.resolvedScales[encoding[axis].scale]?.domain;
+      const values = (barItems ? barItems.map(item => item.channels[channel]) : encoding[axis].aggregate || encoding[axis].bin ? domain ?? [] : rows.map(r => r[field])).filter(Number.isFinite).sort((a, b) => a - b);
       if (values.length < 2 || values[0] === values.at(-1)) continue;
       const value = values[Math.floor(values.length / 4)], min = values[0], max = values.at(-1);
       add('filterMarks', 'transform', { target, channel, op: 'gte', value, mode: 'replace' },
-        [choices('channel', 'Channel', channel, ['x', 'y'].filter(c => encoding[c]?.fieldType === 'quantitative')),
+        [choices('channel', 'Channel', channel, channels.map(({ value, label }) => ({ value, label }))),
           choices('op', 'Keep values', 'gte', [{ value: 'gte', label: 'At least' }, { value: 'lte', label: 'At most' }]),
           number('value', 'Threshold', value, min, max, (max - min) / 100)], 'transform.filter', 'Filter values');
     }

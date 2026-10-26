@@ -310,7 +310,7 @@ export function extendedCandidates(program, { layer, profile }) {
   if (coordinate?.type === 'cartesian') style('editCoordinate', { target: coordinate.id, aspect: { mode: 'frame', ratio: 1 } },
     [number('aspect.ratio', 'Width / height', 1, .5, 2, .1)]);
   style('editCanvas', { background: '#fafafa' }, [{ path: 'background', label: 'Background', type: 'color', value: '#fafafa',
-    choices: ['#ffffff', '#fafafa', '#f3f4f6', '#e5e7eb'].map(value => ({ value, label: value })) }]);
+    choices: ['#ffffff', '#fafafa', '#f3f4f6', '#e5e7eb', '#fff9db'].map(value => ({ value, label: value })) }]);
 
   for (const [id, axis] of Object.entries(program.semanticSpec.guides.axis ?? {})) {
     const channel = axis.channel ?? id;

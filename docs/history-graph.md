@@ -15,7 +15,11 @@ colors. The current state has a stronger outline, its ancestor path has darker
 edges, and hover is a separate temporary preview.
 
 At 100% zoom a graph card is **75px wide and half the Linear View card height**
-(the existing linear card is 150px wide). Panel resizing recalculates this height.
+(the existing linear card is 150px wide), measured when Graph View first opens.
+Those base dimensions stay fixed. The default zoom fits **two rows**, including
+the gap and outer padding, into the available height. Panel resizing adjusts this
+default scale uniformly; manually chosen zoom stays unchanged. Neither resizing
+nor zoom changes the node aspect ratio.
 Captions retain readable type rather than scaling their font to 50%. The full
 caption is available on hover, focus, and in the History header. This keeps a
 compact overview while preserving the action's identity.
@@ -23,7 +27,7 @@ compact overview while preserving the action's identity.
 Nodes retain their coordinates as new branches are added; there is no force
 simulation or layout animation. Wheel/trackpad scrolling and empty-space drag
 pan the graph. Ctrl/Cmd + wheel or the +/− buttons zoom around the pointer or
-viewport center. The percentage button restores 100%, **Fit** shows the whole
+viewport center. The percentage button restores the two-row default, **Fit** shows the whole
 graph, and **Current** centers the active node without changing zoom. Below 50%,
 lightweight rectangles replace thumbnails; double-click returns to detailed
 100% zoom at that location. This prevents a zoomed-out long session from mounting
@@ -74,4 +78,4 @@ The browser tests use native chart rendering. The editor test isolates Supabase
 transport in its test browser and makes no production writes. It exercises both
 Preview and Transition modes, branching Apply, keyboard Undo/Redo, facet,
 variable reselection, exact code restoration, and actual draft reloads. The graph
-fixture checks 50% dimensions, hover, scroll, zoom, and 1,005-node virtualization.
+fixture checks half-size base dimensions, two-row fit, unchanged aspect ratio across zoom/panel resizing, hover, scroll, zoom, and 1,005-node virtualization.

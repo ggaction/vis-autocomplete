@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderToSVG } from 'ggaction/svg';
 import { createHistory, normalizeHistoryGraph } from '../web/history.js';
 import { createResizeHistory } from '../web/resize-history.js';
-import { layoutHistoryGraph } from '../web/history-graph-layout.js';
+import { layoutHistoryGraph, historyGraphRowZoom } from '../web/history-graph-layout.js';
 import { createProject, parseProject, restoreSession, prepareHistorySnapshot, checkpointRevision } from '../web/project.js';
 
 function example() {
@@ -86,4 +86,16 @@ test('incremental layout stays stable and does not overlap for a thousand branch
   assert.equal(new Set(positions).size, 1001); assert.equal(layout.nodeWidth, 75);
   const restored = createHistory(), session = h.exportSession(); restored.restore(session.entries, session.index, session.graph);
   assert.deepEqual(restored.exportSession().graph, session.graph);
+});
+
+
+test('two-row default zoom fits both nodes, the gap and padding without changing node geometry', () => {
+  const layout = layoutHistoryGraph([{ id: 'root', parentId: null }, { id: 'a', parentId: 'root' }, { id: 'b', parentId: 'root' }], { width: 75, height: 48 });
+  const aspect = layout.nodeWidth / layout.nodeHeight;
+  for (const available of [80, 120, 220, 500]) {
+    const zoom = historyGraphRowZoom(layout, available);
+    assert.ok(Math.abs(zoom * (2 * 48 + 22 + 24) - available) < 1e-10);
+    assert.ok(Math.abs((75 * zoom) / (48 * zoom) - aspect) < 1e-10);
+    assert.deepEqual([layout.nodeWidth, layout.nodeHeight], [75, 48]);
+  }
 });

@@ -1,7 +1,7 @@
 import { OPTION_GROUPS } from './option-groups.js';
 import { historyLabel, historyPreview } from './history.js';
 import { prepareHistorySnapshot } from './project.js';
-import { layoutHistoryGraph } from './history-graph-layout.js';
+import { layoutHistoryGraph, historyGraphRowZoom } from './history-graph-layout.js';
 import { createLRU } from '../src/cache.js';
 
 export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, onJump, meta, controls }) {
@@ -13,13 +13,14 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   let layout = layoutHistoryGraph([]), current = null, activePath = new Set(), zoom = 1, busy = false;
   let shown = false, history = null, revision = -1, frame = null, hovered = null, serial = 0, painting = false, drag = null;
   let suppressedClick = false, graphRoot = null, pointer = null;
+  let nodeHeight = null, automaticZoom = true;
   const toolbar = document.createElement('span'); toolbar.className = 'history-graph-tools'; toolbar.hidden = true;
   const tool = (label, text, run) => {
     const button = document.createElement('button'); button.type = 'button'; button.title = label; button.setAttribute('aria-label', label);
     button.textContent = text; button.addEventListener('click', run); toolbar.append(button); return button;
   };
   const zoomOut = tool('Zoom out history graph', '−', () => setZoom(zoom / 1.25));
-  const percentage = tool('Reset history graph zoom', '100%', () => setZoom(1));
+  const percentage = tool('Reset history graph zoom', '100%', () => { automaticZoom = true; refreshLayout(); centerCurrent(); });
   const zoomIn = tool('Zoom in history graph', '+', () => setZoom(zoom * 1.25));
   tool('Fit history graph', 'Fit', () => { setZoom(Math.min((host.clientWidth - 8) / layout.width, (host.clientHeight - 8) / layout.height)); host.scrollTo(0, 0); });
   tool('Center current history state', 'Current', () => centerCurrent());
@@ -27,17 +28,19 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
 
   function schedule() { if (shown && frame === null) frame = requestAnimationFrame(() => { frame = null; draw(); }); }
   function extent() { stage.style.width = `${layout.width * zoom}px`; stage.style.height = `${layout.height * zoom}px`; }
-  function setZoom(value, anchor = { x: host.clientWidth / 2, y: host.clientHeight / 2 }) {
-    const next = Math.max(.001, Math.min(3, value));
+  function setZoom(value, anchor = { x: host.clientWidth / 2, y: host.clientHeight / 2 }, automatic = false) {
+    automaticZoom = automatic;
+    const next = Math.max(.001, Math.min(16, value));
     const x = (host.scrollLeft + anchor.x) / zoom, y = (host.scrollTop + anchor.y) / zoom;
     zoom = next; extent(); host.scrollLeft = x * zoom - anchor.x; host.scrollTop = y * zoom - anchor.y;
-    percentage.textContent = `${Number((zoom * 100).toFixed(1))}%`; zoomOut.disabled = zoom <= .001; zoomIn.disabled = zoom >= 3;
+    percentage.textContent = `${Number((zoom * 100).toFixed(1))}%`; zoomOut.disabled = zoom <= .001; zoomIn.disabled = zoom >= 16;
     clear(); schedule();
   }
   function centerCurrent() {
     const node = layout.positions.get(current); if (!node) return;
     host.scrollTo(Math.max(0, (node.x + layout.nodeWidth / 2) * zoom - host.clientWidth / 2),
-      Math.max(0, (node.y + layout.nodeHeight / 2) * zoom - host.clientHeight / 2)); schedule();
+      automaticZoom ? Math.max(0, node.row - 1) * (layout.nodeHeight + layout.gapY) * zoom
+        : Math.max(0, (node.y + layout.nodeHeight / 2) * zoom - host.clientHeight / 2)); schedule();
   }
   function clear({ restore = true } = {}) {
     const previous = hovered; hovered = null; serial++; meta.textContent = '';
@@ -143,7 +146,7 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
     for (const [id, button] of mounted) if (!visible.has(id)) { button.remove(); mounted.delete(id); }
     host.classList.toggle('history-overview', zoom < .5);
     host.title = zoom < .5 ? 'Overview · double-click to zoom in' : 'Drag empty space or scroll to pan · Ctrl/Cmd + wheel to zoom';
-    host.dataset.zoom = zoom; host.dataset.nodeCount = layout.items.length;
+    host.dataset.zoom = zoom; host.dataset.automaticZoom = String(automaticZoom); host.dataset.nodeCount = layout.items.length;
     queuePaint();
     if (pointer && !drag) {
       const target = document.elementFromPoint(pointer.x, pointer.y)?.closest('.history-graph-node');
@@ -188,14 +191,19 @@ export function createHistoryGraphView(host, { renderChart, onPreview, onLeave, 
   });
   new ResizeObserver(() => { if (shown) refreshLayout(); }).observe(host);
   function refreshLayout() {
-    if (!history || !shown) return;
-    // Exactly half the unzoomed Linear View card dimensions, including when
-    // the user resizes the History panel. Keep typography legible at base zoom.
-    const linearHeight = Math.max(1, host.clientHeight - 14);
-    const height = linearHeight / 2;
-    if (revision !== history.revision || layout.nodeHeight !== height) {
+    if (!history || !shown || !host.clientHeight) return;
+    // Freeze the half-size geometry on first reveal. Scrollbars and panel
+    // resizing can change viewport height; they must never stretch the nodes.
+    nodeHeight ??= Math.max(1, host.clientHeight - 14) / 2;
+    if (revision !== history.revision || layout.nodeHeight !== nodeHeight) {
       const records = history.nodes.map((node, ordinal) => ({ ...node, ordinal }));
-      layout = layoutHistoryGraph(records, { width: 75, height }); revision = history.revision; extent();
+      layout = layoutHistoryGraph(records, { width: 75, height: nodeHeight }); revision = history.revision; extent();
+    }
+    if (automaticZoom) {
+      const fitted = historyGraphRowZoom(layout, host.clientHeight);
+      if (Math.abs(fitted - zoom) > 1e-6) {
+        setZoom(fitted, undefined, true); centerCurrent();
+      }
     }
     schedule();
   }

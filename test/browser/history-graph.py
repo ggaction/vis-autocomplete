@@ -1,4 +1,4 @@
-"""Native charts + history UI: branching, half-size cards, navigation and zoom."""
+"""Native charts + history UI: branching, two-row fitting and uniform zoom."""
 import argparse, json
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
@@ -15,8 +15,20 @@ with sync_playwright() as p:
   page.get_by_role('button',name='Graph View',exact=True).click()
   expect(page.locator('.history-graph-node')).to_have_count(5)
   graph=page.locator('.history-graph-node').first.bounding_box()
-  assert abs(graph['width']/linear['width']-.5)<.005,(linear,graph)
-  assert abs(graph['height']/linear['height']-.5)<.005,(linear,graph)
+  viewport=page.locator('.history-graph')
+  def fitted():
+   return viewport.evaluate("e=>{const n=e.querySelector('.history-graph-node');return {zoom:Number(e.dataset.zoom),available:e.clientHeight,w:parseFloat(n.style.width),h:parseFloat(n.style.height)}}")
+  geometry=fitted();initial_zoom=geometry['zoom'];aspect=geometry['w']/geometry['h']
+  assert abs(graph['width']/initial_zoom/linear['width']-.5)<.005,(linear,graph)
+  assert abs(graph['height']/initial_zoom/linear['height']-.5)<.005,(linear,graph)
+  assert abs(initial_zoom*(2*geometry['h']+22+24)-geometry['available'])<.1,geometry
+  assert viewport.evaluate("e=>[...e.querySelectorAll('.history-graph-node')].every(n=>{const b=n.getBoundingClientRect(),v=e.getBoundingClientRect();return b.top>=v.top-.1&&b.bottom<=v.top+e.clientHeight+.1})")
+  # Resizing in default mode changes the camera scale, never node geometry.
+  for height in [180,320,250]:
+   page.locator('.history-section').evaluate('(e,h)=>e.style.height=h+"px"',height)
+   page.wait_for_function("()=>{const e=document.querySelector('.history-graph'),n=e.querySelector('.history-graph-node');return Math.abs(Number(e.dataset.zoom)*(2*parseFloat(n.style.height)+46)-e.clientHeight)<.1}")
+   resized=fitted();assert resized['w']==geometry['w'] and resized['h']==geometry['h'],resized
+  initial_zoom=fitted()['zoom']
   page.wait_for_function("document.querySelectorAll('.history-graph-node canvas[data-paint]').length===5")
   old=page.evaluate('harness.old');active=page.evaluate('harness.h.activeId')
   old_node=page.locator(f'[data-node-id="{old}"]')
@@ -30,10 +42,16 @@ with sync_playwright() as p:
   page.locator('#redo').click();assert page.evaluate('harness.h.entries[harness.h.index].currentNote')=='Opacity · 0.4'
   page.evaluate('harness.roundtrip()');assert page.evaluate('harness.h.nodes.length')==6
   page.get_by_role('button',name='Zoom in history graph',exact=True).click()
-  expect(page.locator('.history-graph')).to_have_attribute('data-zoom','1.25')
+  page.wait_for_function('(before)=>Math.abs(Number(document.querySelector(".history-graph").dataset.zoom)-before*1.25)<.00001',arg=initial_zoom)
+  manual=fitted();box=page.locator('.history-graph-node').first.bounding_box();assert abs(box['width']/box['height']-aspect)<.001
+  page.locator('.history-section').evaluate('e=>e.style.height=300+"px"');page.wait_for_timeout(100)
+  assert fitted()==dict(manual,available=viewport.evaluate('e=>e.clientHeight'))
+  box=page.locator('.history-graph-node').first.bounding_box();assert abs(box['width']/box['height']-aspect)<.001
+  page.locator('.history-section').evaluate('e=>e.style.height=250+"px"')
   page.get_by_role('button',name='Reset history graph zoom',exact=True).click()
   page.locator('.history-graph').hover(position={'x':250,'y':30});page.keyboard.down('Control');page.mouse.wheel(0,-50)
-  page.wait_for_function('Number(document.querySelector(".history-graph").dataset.zoom)>1.1');page.keyboard.up('Control')
+  page.wait_for_function('(before)=>Number(document.querySelector(".history-graph").dataset.zoom)>before',arg=initial_zoom);page.keyboard.up('Control')
+  box=page.locator('.history-graph-node').first.bounding_box();assert abs(box['width']/box['height']-aspect)<.001
   page.get_by_role('button',name='Reset history graph zoom',exact=True).click()
   page.screenshot(path=str(out/'graph-branches.png'))
   page.locator('.history-graph-node[aria-current]').focus();page.keyboard.press('ArrowLeft');page.wait_for_function('harness.inspected?.currentNote==="Facet · c"')
@@ -55,7 +73,7 @@ with sync_playwright() as p:
   assert page.locator('.history-graph-node').count()==0
   page.locator('.history-graph').dblclick(position={'x':200,'y':50});expect(page.locator('.history-graph')).to_have_attribute('data-zoom','1')
   assert not errors,errors
-  print('PASS graph/linear, exact 50% dimensions, native thumbnails, hover/leave, branch jumps, undo/redo, roundtrip, zoom, scroll, 1005 nodes virtualized, account-free local preference reload')
+  print('PASS graph/linear, two-row default, fixed half-size geometry and aspect ratio during zoom/resize, native thumbnails, hover/leave, branch jumps, undo/redo, roundtrip, zoom, scroll, 1005 nodes virtualized, account-free local preference reload')
  except Exception:
   page.screenshot(path=str(out/'failure.png'));print('Errors:',errors);raise
  finally:browser.close()

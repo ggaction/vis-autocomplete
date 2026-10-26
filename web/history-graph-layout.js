@@ -14,5 +14,11 @@ export function layoutHistoryGraph(nodes, { width = 75, height = 48, gapX = 32, 
     maxDepth = Math.max(maxDepth, depth); positions.set(node.id, item); return item;
   });
   return { items, positions, width: padding * 2 + (nodes.length ? (maxDepth + 1) * (width + gapX) - gapX : 0),
-    height: padding * 2 + (nodes.length ? (lastRow + 1) * (height + gapY) - gapY : 0), nodeWidth: width, nodeHeight: height };
+    height: padding * 2 + (nodes.length ? (lastRow + 1) * (height + gapY) - gapY : 0), nodeWidth: width, nodeHeight: height, gapY, padding };
+}
+
+// Node geometry is measured once at half Linear View size. Fitting changes only
+// the uniform camera scale, never a node's width/height or its aspect ratio.
+export function historyGraphRowZoom(layout, viewportHeight, rows = 2) {
+  return viewportHeight / (rows * layout.nodeHeight + (rows - 1) * layout.gapY + 2 * layout.padding);
 }

@@ -588,7 +588,7 @@ body[data-phase="initial"] .card[data-control-count="0"] .card-controls { displa
 .history-view-toggle button:first-child { border-radius: 4px 0 0 4px; }
 .history-view-toggle button:last-child { border-radius: 0 4px 4px 0; margin-left: -1px; }
 .history-view-toggle button[aria-pressed="true"] { background: #eaf3fc; color: #0769b5; border-color: #92b9de; position: relative; }
-.history-graph { position: relative; flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 0; overscroll-behavior: contain; scrollbar-width: thin; cursor: grab; background: #fcfdfe; }
+.history-graph { position: relative; flex: 1; min-height: 0; min-width: 0; overflow: scroll; padding: 0; overscroll-behavior: contain; scrollbar-width: thin; cursor: grab; background: #fcfdfe; }
 .history-graph.is-panning { cursor: grabbing; user-select: none; }
 .history-graph-stage { pointer-events: none; }
 .history-graph-edges { position: absolute; pointer-events: none; }

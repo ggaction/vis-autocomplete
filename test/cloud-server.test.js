@@ -2,6 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createProductionServer } from '../scripts/server.js';
 import { chart } from 'ggaction';
+test('Embedding uses a fixed presentation allowlist without trusting the requesting site', async () => {
+ const server = await createProductionServer({ env: {} });
+ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+ const origin = `http://127.0.0.1:${server.address().port}`;
+ try {
+  for (const path of ['/', '/privacy.html', '/?frameOrigin=https://outside.example']) {
+   const response = await fetch(origin + path, { headers: { Origin: 'https://outside.example', Referer: 'https://outside.example/' } });
+   assert.equal(response.status, 200);
+   const directives = response.headers.get('content-security-policy').split(';').map(value => value.trim());
+   assert.deepEqual(directives.filter(value => value.startsWith('frame-ancestors ')), [
+    'frame-ancestors https://hyeonword.com http://127.0.0.1:5173 http://127.0.0.1:5174',
+   ]);
+   assert.equal(response.headers.get('x-frame-options'), null, 'A legacy DENY/SAMEORIGIN header must not contradict the allowlist');
+   assert.equal(response.headers.get('access-control-allow-origin'), null, 'Embedding does not grant cross-origin API access');
+   for (const directive of ["default-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'"]) assert.ok(directives.includes(directive));
+  }
+ } finally { await new Promise(resolve => server.close(resolve)); }
+});
 test('link crawlers receive public sharing metadata and the full PNG without signing in or running JavaScript', async () => {
  const server = await createProductionServer({ env: {}, verifyToken: async () => false });
  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

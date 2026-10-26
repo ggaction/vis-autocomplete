@@ -98,7 +98,36 @@ Changing consent stops future collection; it does not erase previously consented
 - Future DB changes use new migration files, never edit an already applied migration. Test on a separate free development project or local Supabase first, apply additive migrations, then deploy the compatible app. There is intentionally no service-role secret or unattended destructive migration hook in Render.
 - To incorporate later main-branch features, merge `main` into `codex/cloud-deployment`, resolve and run the cloud/editor checks. Do not change the feature checkout in place. When updating native submodule commits, update `deployment-sources.json`; CI checks the pins. Docker uses these pins because Git metadata is excluded from its context.
 - Render rollback restores application code, not database migrations. Keep schema changes backward compatible and verify `/healthz` reports the intended app commit.
-- PNG/PDF/SVG export requires a bearer token verified against Supabase Auth and processes the requested chart transiently and does not log or persist chart bodies. The production server serves only `output/deploy/public`, denies framing, and uses a restrictive script policy. Native exports have a dimension cap, one-job concurrency cap and worker timeout.
+- PNG/PDF/SVG export requires a bearer token verified against Supabase Auth and processes the requested chart transiently and does not log or persist chart bodies. The production server serves only `output/deploy/public`, restricts framing to the [presentation origins](#embedding-in-presentation-pages), and uses a restrictive script policy. Native exports have a dimension cap, one-job concurrency cap and worker timeout.
+
+## Embedding in presentation pages
+
+The server's CSP `frame-ancestors` permits only these parent origins:
+
+- `https://hyeonword.com` (including `/job-talk-2026/s/snu-job-talk/`)
+- `http://127.0.0.1:5173`
+- `http://127.0.0.1:5174`
+
+These are origin permissions: they include the scheme, host and port, not an
+individual slide path. Other ports, subdomains and sites are not allowed. The
+allowlist is fixed in `scripts/server.js`; request Origin/Referer headers and URL
+parameters cannot expand it. A conflicting `X-Frame-Options: DENY` header is not
+sent. Other CSP directives, API authorization and CORS rules remain in effect.
+For nested iframes, every ancestor must be on the list.
+
+The presentation can embed the app with:
+
+```html
+<iframe src="https://vis.autocomplete.studio/"
+  title="Visualization Autocomplete demo"
+  style="width: 100%; height: 100%; border: 0;" allowfullscreen></iframe>
+```
+
+This source change takes effect on the hosted app only after the next authorized
+version release; pushing the change does not deploy. The browser regression
+`test/browser/embedding.py` proxies the locally built app through a test HTTPS
+origin, keeping its actual response headers, and checks allowed and blocked
+parents without changing the real presentation website.
 
 ## Verification commands
 

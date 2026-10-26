@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { publicConfig } from './cloud-config.js';
 import { createTokenVerifier } from './cloud-auth.js';
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png'};
+// Trusted presentation origins only. Frame permission is independent of CORS
+// and must never be reflected from request headers or query parameters.
+const frameAncestors = 'https://hyeonword.com http://127.0.0.1:5173 http://127.0.0.1:5174';
 export async function createProductionServer({ env=process.env, directory='output/deploy', verifyToken }={}) {
   const root=resolve(directory,'public'), config=publicConfig(env), build=JSON.parse(await readFile(resolve(directory,'build.json'),'utf8'));
   if(config.release==='development')config.release=build.commit;
@@ -16,8 +19,8 @@ export async function createProductionServer({ env=process.env, directory='outpu
   const sendStatic=createStaticSender(types);
   const server=http.createServer(async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
-    res.setHeader('X-Frame-Options','DENY');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
-    res.setHeader('Content-Security-Policy',`default-src 'self'; script-src 'self' ${build.scriptHashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${authOrigin}; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
+    res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+    res.setHeader('Content-Security-Policy',`default-src 'self'; script-src 'self' ${build.scriptHashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${authOrigin}; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors ${frameAncestors}; form-action 'self'`);
     if(env.NODE_ENV==='production')res.setHeader('Strict-Transport-Security','max-age=31536000; includeSubDomains');
     res.setHeader('Cache-Control','no-store');
     const reply=(code,body)=>{res.writeHead(code,{'Content-Type':'application/json'});res.end(JSON.stringify(body));};
